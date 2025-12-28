@@ -102,9 +102,9 @@ flowchart LR
 
 | Service | Purpose | Polling | Default |
 |---------|---------|---------|---------|
-| TaskExecutionService | Executes PENDING analysis tasks | 2-10s | Auto-start |
+| TaskExecutionService | Executes PENDING analysis tasks | 2s (test) / 5s (prod) | Auto-start |
 | MaintenanceService | Cleanup orphans, stuck tasks | Manual/hourly | **Manual** |
-| PipelineExecutionService | Automation pipelines | Event-driven | Auto-start |
+| PipelineExecutionService | Automation pipelines | 2s (test) / 3s (prod) | Auto-start |
 
 > **Note**: MaintenanceService is manual by default as of Nov 2025. Run via `./start.ps1 -Mode Maintenance` or set `MAINTENANCE_AUTO_START=true`.
 
@@ -128,7 +128,7 @@ sequenceDiagram
     F->>DB: Insert AnalysisTask (PENDING)
     F->>U: Return task_id
 
-    loop Poll every 2-10s
+    loop Poll every 2-5s
         T->>DB: Query PENDING tasks
     end
 
@@ -150,7 +150,9 @@ sequenceDiagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING: Task created
+    [*] --> INITIALIZING: Task created (unified)
+    INITIALIZING --> PENDING: Subtasks created
+    [*] --> PENDING: Task created (simple)
     PENDING --> RUNNING: TaskExecutionService picks up
     PENDING --> CANCELLED: Timeout (>4h) or user cancel
     RUNNING --> COMPLETED: Success
@@ -314,10 +316,12 @@ flowchart TB
 
 | Service | Memory | CPU |
 |---------|--------|-----|
-| static-analyzer | 1GB | 1.0 |
-| dynamic-analyzer | 2GB | 1.0 |
-| performance-tester | 1GB | 0.5 |
-| ai-analyzer | 512MB | 0.5 |
+| gateway | 256MB | 0.2 |
+| static-analyzer | 1GB | 0.5 |
+| dynamic-analyzer | 1GB | 0.5 |
+| performance-tester | 2GB | 1.0 |
+| ai-analyzer | 2GB | 1.0 |
+| celery-worker | 1GB | 1.0 |
 
 ## Results Storage
 
@@ -344,16 +348,23 @@ See [analyzer/README.md](../analyzer/README.md) for detailed result format docum
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `OPENROUTER_API_KEY` | AI analyzer authentication | Required |
+| `SECRET_KEY` | Flask session encryption | Required |
+| `DATABASE_URL` | Database connection | `sqlite:///src/data/thesis_app.db` |
 | `ANALYZER_ENABLED` | Enable analyzer integration | `true` |
 | `ANALYZER_AUTO_START` | Auto-start containers | `false` |
 | `MAINTENANCE_AUTO_START` | Auto-start cleanup service | `false` |
 | `USE_CELERY_ANALYSIS` | Use Celery instead of ThreadPoolExecutor | `false` |
-| `TASK_POLL_INTERVAL` | Task polling interval (seconds) | `10` (prod), `2` (test) |
 | `LOG_LEVEL` | Logging verbosity | `INFO` |
-| `STATIC_ANALYSIS_TIMEOUT` | Static tool timeout (seconds) | `300` |
-| `SECURITY_ANALYSIS_TIMEOUT` | Security tool timeout (seconds) | `600` |
-| `PERFORMANCE_TIMEOUT` | Performance test timeout (seconds) | `300` |
+| `STATIC_ANALYSIS_TIMEOUT` | Static tool timeout (seconds) | `1800` |
+| `SECURITY_ANALYSIS_TIMEOUT` | Security tool timeout (seconds) | `1800` |
+| `PERFORMANCE_TIMEOUT` | Performance test timeout (seconds) | `1800` |
+| `AI_ANALYSIS_TIMEOUT` | AI analysis timeout (seconds) | `2400` |
 | `TASK_TIMEOUT` | Overall task timeout (seconds) | `1800` |
+| `PREFLIGHT_MAX_RETRIES` | Pre-flight check retry attempts | `3` |
+| `TRANSIENT_FAILURE_MAX_RETRIES` | Transient failure recovery attempts | `3` |
+| `STARTUP_CLEANUP_ENABLED` | Enable startup task cleanup | `true` |
+| `STARTUP_CLEANUP_RUNNING_TIMEOUT` | RUNNING task timeout at startup (min) | `120` |
+| `STARTUP_CLEANUP_PENDING_TIMEOUT` | PENDING task timeout at startup (min) | `240` |
 
 ## Task Execution
 
@@ -424,6 +435,7 @@ python analyzer/analyzer_manager.py analyze openai_gpt-4 1 comprehensive
 ./start.ps1 -Mode Wipeout        # Full reset
 ./start.ps1 -Mode Password       # Reset admin password
 ./start.ps1 -Mode Reload         # Hot reload
+./start.ps1 -Mode Health         # Check service health
 
 # Tests
 pytest -m "not integration and not slow and not analyzer"

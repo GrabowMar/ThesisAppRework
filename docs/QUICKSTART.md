@@ -80,6 +80,7 @@ This opens an interactive menu with options:
 | `Reload` | Hot reload for code changes |
 | `Wipeout` | Full reset (WARNING: data loss) |
 | `Password` | Reset admin password |
+| `Health` | Check service health |
 
 > **Note**: Maintenance is now manual by default (as of Nov 2025). Orphan apps get a 7-day grace period before deletion.
 
@@ -92,6 +93,7 @@ This opens an interactive menu with options:
 | `./start.ps1 -Mode Stop` | Stop all services |
 | `./start.ps1 -Mode Status` | View dashboard |
 | `./start.ps1 -Mode Maintenance` | Run cleanup manually |
+| `./start.ps1 -Mode Health` | Check service health |
 
 ### Direct Python
 

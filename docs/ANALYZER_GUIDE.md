@@ -181,6 +181,9 @@ python analyzer/analyzer_manager.py start
 # Stop all analyzers
 python analyzer/analyzer_manager.py stop
 
+# Restart all analyzers
+python analyzer/analyzer_manager.py restart
+
 # Restart specific service
 docker restart static-analyzer
 ```
@@ -191,18 +194,46 @@ docker restart static-analyzer
 # Check all services
 python analyzer/analyzer_manager.py health
 
-# Check specific service
-python analyzer/analyzer_manager.py health static
+# Ping specific service
+python analyzer/analyzer_manager.py ping static
 ```
 
-### View Logs
+### Status and Logs
 
 ```bash
+# Check service status
+python analyzer/analyzer_manager.py status
+
 # All logs
 python analyzer/analyzer_manager.py logs
 
 # Specific service (last 100 lines)
 python analyzer/analyzer_manager.py logs static-analyzer 100
+```
+
+### Result Management
+
+```bash
+# List recent results
+python analyzer/analyzer_manager.py list-results
+python analyzer/analyzer_manager.py list-results --model openai_gpt-4 --limit 10
+
+# Show specific result
+python analyzer/analyzer_manager.py show-result openai_gpt-4 1
+python analyzer/analyzer_manager.py show-result openai_gpt-4 1 --task task_abc123
+```
+
+### Batch Operations
+
+```bash
+# Batch analysis from JSON file
+python analyzer/analyzer_manager.py batch models.json
+
+# Quick batch on multiple models (app 1)
+python analyzer/analyzer_manager.py batch-models openai_gpt-4,anthropic_claude-3-opus
+
+# Test all services
+python analyzer/analyzer_manager.py test
 ```
 
 ### Rebuild Containers
@@ -272,8 +303,10 @@ docker compose -f analyzer/docker-compose.yml build static-analyzer
 
 Increase timeout in `.env`:
 ```
-STATIC_ANALYSIS_TIMEOUT=600
-SECURITY_ANALYSIS_TIMEOUT=900
+STATIC_ANALYSIS_TIMEOUT=1800
+SECURITY_ANALYSIS_TIMEOUT=1800
+PERFORMANCE_TIMEOUT=1800
+AI_ANALYSIS_TIMEOUT=2400
 ```
 
 ## Connection Resilience

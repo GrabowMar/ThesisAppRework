@@ -62,9 +62,10 @@ ANALYZER_ENABLED=true
 ANALYZER_AUTO_START=true
 
 # Timeouts
-STATIC_ANALYSIS_TIMEOUT=600
-SECURITY_ANALYSIS_TIMEOUT=900
-PERFORMANCE_TIMEOUT=300
+STATIC_ANALYSIS_TIMEOUT=1800
+SECURITY_ANALYSIS_TIMEOUT=1800
+PERFORMANCE_TIMEOUT=1800
+AI_ANALYSIS_TIMEOUT=2400
 
 # API
 OPENROUTER_API_KEY=sk-...
@@ -324,6 +325,7 @@ python scripts/fix_task_statuses.py
 | `Reload` | Hot reload for code changes |
 | `Wipeout` | Full reset (WARNING: data loss) |
 | `Password` | Reset admin password |
+| `Health` | Check service health |
 
 ## Related
 

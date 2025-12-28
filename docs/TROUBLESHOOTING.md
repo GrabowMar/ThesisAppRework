@@ -183,9 +183,10 @@ TRANSIENT_FAILURE_MAX_RETRIES=3
 
 **Solution:** Increase timeouts in `.env`:
 ```
-STATIC_ANALYSIS_TIMEOUT=600
-SECURITY_ANALYSIS_TIMEOUT=900
-PERFORMANCE_TIMEOUT=600
+STATIC_ANALYSIS_TIMEOUT=1800
+SECURITY_ANALYSIS_TIMEOUT=1800
+PERFORMANCE_TIMEOUT=1800
+AI_ANALYSIS_TIMEOUT=2400
 ```
 
 ### SARIF Files Missing
@@ -239,7 +240,7 @@ with app.app_context():
 **Solutions:**
 1. Restart Flask application
 2. Check for database lock issues
-3. Verify poll interval: default is 10s (production) or 2s (test)
+3. Verify poll interval: default is 5s (production) or 2s (test)
 
 ### PARTIAL_SUCCESS Status
 
@@ -343,6 +344,9 @@ services:
 docker system prune -f
 ./start.ps1 -Mode CleanRebuild
 ./start.ps1 -Mode Start
+
+# Check service health
+./start.ps1 -Mode Health
 
 # Manual maintenance cleanup (7-day grace period for orphan apps)
 ./start.ps1 -Mode Maintenance

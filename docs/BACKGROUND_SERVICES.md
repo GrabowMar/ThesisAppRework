@@ -34,9 +34,9 @@ flowchart TB
 
 | Service | Purpose | Default State | Trigger |
 |---------|---------|---------------|---------|
-| TaskExecutionService | Execute PENDING analysis tasks | **Auto-start** | Polling (2-10s) |
+| TaskExecutionService | Execute PENDING analysis tasks | **Auto-start** | Polling (2s test / 5s prod) |
 | MaintenanceService | Cleanup orphans and stuck tasks | **Manual** | `./start.ps1 -Mode Maintenance` |
-| PipelineExecutionService | Automation pipeline orchestration | **Auto-start** | Event-driven |
+| PipelineExecutionService | Automation pipeline orchestration | **Auto-start** | Polling (2s test / 3s prod) |
 
 ---
 
@@ -49,7 +49,7 @@ Asynchronous daemon that picks up PENDING analysis tasks and executes them via a
 ### Lifecycle
 
 1. **Initialization**: Started automatically in `factory.py` during Flask app creation
-2. **Polling**: Queries database every 2s (test) or 10s (production) for PENDING tasks
+2. **Polling**: Queries database every 2s (test) or 5s (production) for PENDING tasks
 3. **Execution**: Dispatches to `AnalyzerIntegrationService.run_analysis()`
 4. **Shutdown**: Gracefully waits for current task to complete on app shutdown
 
@@ -63,7 +63,7 @@ sequenceDiagram
     participant AM as AnalyzerManager
     participant WS as Analyzer Service
     
-    loop Every 2-10 seconds
+    loop Every 2-5 seconds
         TES->>DB: Query PENDING tasks (priority DESC, created_at ASC)
     end
     
@@ -82,7 +82,7 @@ sequenceDiagram
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `TASK_POLL_INTERVAL` | Polling interval (seconds) | 10 (prod), 2 (test) |
+| `TASK_POLL_INTERVAL` | Polling interval (seconds) | 5 (prod), 2 (test) |
 | `TASK_TIMEOUT` | Overall task timeout (seconds) | 1800 (30 min) |
 | `PREFLIGHT_MAX_RETRIES` | Max retries for service unavailability | 3 |
 | `TRANSIENT_FAILURE_MAX_RETRIES` | Max auto-recovery attempts for failed tasks | 3 |
@@ -260,7 +260,8 @@ Orchestrates automation pipelines that execute multi-step workflows (generation 
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING: Pipeline created
+    [*] --> INITIALIZING: Pipeline created
+    INITIALIZING --> PENDING: Steps configured
     PENDING --> RUNNING: First step starts
     RUNNING --> RUNNING: Steps progress
     RUNNING --> COMPLETED: All steps succeed
@@ -298,6 +299,13 @@ flowchart TB
     T2 -.->|callback| P
     T3 -.->|callback| P
 ```
+
+### Configuration
+
+| Variable | Purpose | Default |
+|----------|---------|--------|
+| Poll interval | How often to check for pipeline work | 2s (test) / 3s (prod) |
+| Max concurrent analysis | Parallel analysis tasks per pipeline | 3 |
 
 ---
 

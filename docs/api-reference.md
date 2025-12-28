@@ -107,6 +107,7 @@ GET /api/analysis/task/{task_id}
 
 | Status | Description |
 |--------|-------------|
+| `INITIALIZING` | Task created, subtasks being created (unified analysis) |
 | `PENDING` | Task created, waiting for execution |
 | `RUNNING` | Currently executing |
 | `COMPLETED` | Successfully finished |
@@ -300,6 +301,65 @@ GET /api/health/analyzers
 
 Returns status of all analyzer containers (ports 2001-2004).
 
+## API Modules Reference
+
+The REST API is organized into the following modules:
+
+| Module | Prefix | Description |
+|--------|--------|-------------|
+| `analysis` | `/api/analysis/` | Custom analysis operations, tool registry queries |
+| `applications` | `/api/apps/` | Application CRUD, container operations |
+| `container_tools` | `/api/container-tools/` | Container tool operations |
+| `core` | `/api/` | Health, status endpoints |
+| `dashboard` | `/api/dashboard/` | Dashboard data, statistics |
+| `export` | `/api/export/` | Export analysis results |
+| `generation` | `/api/gen/` | App generation operations |
+| `models` | `/api/models/` | Model management, provider info |
+| `reports` | `/api/reports/` | Report generation and retrieval |
+| `results` | `/api/results/` | Analysis results retrieval |
+| `statistics` | `/api/statistics/` | Aggregated statistics |
+| `system` | `/api/system/` | System operations, configuration |
+| `tasks_realtime` | `/api/tasks/` | Real-time task updates, SSE |
+| `templates` | `/api/templates/` | Template management |
+| `tokens` | `/api/tokens/` | API token management |
+| `tool_registry` | `/api/tool-registry/` | Available analysis tools |
+
+### Key Endpoints by Module
+
+#### Dashboard (`/api/dashboard/`)
+
+```http
+GET /api/dashboard/stats
+```
+
+Returns aggregated statistics for dashboard display.
+
+#### Export (`/api/export/`)
+
+```http
+GET /api/export/task/{task_id}?format=json|csv|sarif
+```
+
+Export analysis results in specified format.
+
+#### Statistics (`/api/statistics/`)
+
+```http
+GET /api/statistics/models
+GET /api/statistics/tools
+```
+
+Returns aggregated analysis statistics per model or tool.
+
+#### System (`/api/system/`)
+
+```http
+GET /api/system/config
+POST /api/system/maintenance/run
+```
+
+System configuration and maintenance operations.
+
 ## Error Responses
 
 | Status | Description |
@@ -375,7 +435,18 @@ Returns SSE stream of task updates.
 For automation without database tracking, use the analyzer CLI directly:
 
 ```bash
+# Run analysis
 python analyzer/analyzer_manager.py analyze <model> <app> <type> [--tools tool1,tool2]
+
+# List recent results
+python analyzer/analyzer_manager.py list-results [--model <model>] [--limit 10]
+
+# Show specific result
+python analyzer/analyzer_manager.py show-result <model> <app> [--task <task_id>]
+
+# Batch analysis
+python analyzer/analyzer_manager.py batch models.json
+python analyzer/analyzer_manager.py batch-models model1,model2,model3
 ```
 
 Results written to `results/{model}/app{N}/task_{id}/` only (no DB record).

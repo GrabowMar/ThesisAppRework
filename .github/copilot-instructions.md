@@ -13,6 +13,85 @@ Use this as your working map for coding in this repo. Keep answers specific to t
 - Generated apps under `generated/apps/{model_slug}/app{N}/` are analyzed. Results are written to `results/{model_slug}/app{N}/task_{task_id}/...` plus a `manifest.json`.
 - Tool outputs are normalized into a `tools` map; linters like ESLint/JSHint treat exit code 1 with findings as success (see `analyzer/README.md`). Legacy `analysis/` subfolders are auto-pruned.
 
+## 🚀 Quick Debug & Development Reference (START HERE)
+
+This section provides rapid diagnostics and solutions. **Use this first when encountering issues.**
+
+### Instant health check
+```bash
+# Check everything at once
+./start.ps1 -Mode Health
+
+# Or manual breakdown:
+./start.ps1 -Mode Status          # Dashboard view
+python analyzer/analyzer_manager.py health   # Analyzer containers
+curl http://localhost:5000/api/health        # Flask app (or use browser)
+```
+
+### Most common issues (90% of problems)
+
+| Problem | One-liner fix |
+|---------|---------------|
+| **Flask not starting** | `./start.ps1 -Mode Stop` then `./start.ps1 -Mode Start` |
+| **Port 5000 busy** | `taskkill /F /IM python.exe` (Windows) |
+| **Analyzers offline** | `python analyzer/analyzer_manager.py start` |
+| **Tasks stuck PENDING** | Restart Flask - TaskExecutionService starts fresh |
+| **Tasks stuck RUNNING** | `python scripts/fix_task_statuses.py` |
+| **API 401 errors** | Get new token: UI → User → API Access |
+| **Container issues** | `./start.ps1 -Mode Rebuild` (fast) or `./start.ps1 -Mode CleanRebuild` (nuclear) |
+| **Database locked** | Kill all Python, restart Flask |
+| **Analysis timeout** | Increase `*_TIMEOUT` vars in `.env` (default: 1800s) |
+
+### Quick service control
+```bash
+# Start/stop the whole stack
+./start.ps1 -Mode Start    # Flask + Analyzers
+./start.ps1 -Mode Stop     # Stop all
+./start.ps1 -Mode Dev      # Flask only (fast dev mode)
+
+# Analyzer-only control
+python analyzer/analyzer_manager.py start
+python analyzer/analyzer_manager.py stop
+python analyzer/analyzer_manager.py restart
+
+# Run analysis directly (CLI, no DB)
+python analyzer/analyzer_manager.py analyze <model> <app> comprehensive
+```
+
+### See what's happening
+```bash
+./start.ps1 -Mode Logs                                    # All logs
+python analyzer/analyzer_manager.py logs static-analyzer 50  # Container logs
+Get-Content logs/app.log -Tail 50 -Wait                  # Flask logs (PowerShell)
+```
+
+### Database inspection (Python shell)
+```python
+from app.factory import create_app
+from app.models import AnalysisTask, GeneratedApplication, AnalysisStatus
+app = create_app()
+with app.app_context():
+    # Check pending tasks
+    pending = AnalysisTask.query.filter_by(status=AnalysisStatus.PENDING).all()
+    print(f"Pending: {len(pending)}")
+    
+    # Find a specific task
+    task = AnalysisTask.query.filter_by(task_id="task_xxx").first()
+    print(f"Status: {task.status}, Error: {task.error_message}")
+    
+    # List apps
+    apps = GeneratedApplication.query.all()
+    for app in apps[:5]:
+        print(f"{app.model_slug}/app{app.app_number}: {app.container_status}")
+```
+
+### When nothing works - nuclear options
+```bash
+./start.ps1 -Mode Wipeout   # WARNING: Deletes all data, starts fresh
+./start.ps1 -Mode Password  # Reset admin password
+python src/init_db.py       # Reinitialize database (after backup!)
+```
+
 ## Core developer workflows (Windows-friendly)
 - **Quick start (recommended)**: Use `start.ps1` orchestrator for full stack management:
   - Interactive menu: `./start.ps1` (or just run the script)
@@ -21,12 +100,15 @@ Use this as your working map for coding in this repo. Keep answers specific to t
   - Status dashboard: `./start.ps1 -Mode Status`
   - View logs: `./start.ps1 -Mode Logs`
   - Stop all: `./start.ps1 -Mode Stop`
+  - Health check: `./start.ps1 -Mode Health`
 - **Manual start**:
   - Flask only (port 5000): run `src/main.py`. SocketIO is used if available.
   - Analyzers (Docker required): `python analyzer/analyzer_manager.py start` then `... status` or `... health`.
 - Run an analysis directly (fastest for scripts):
   - `python analyzer/analyzer_manager.py analyze openai_gpt-4 1 security --tools bandit`
   - Comprehensive: `... analyze <model> <app> comprehensive`
+  - Batch: `... batch models.json` or `... batch-models model1,model2`
+  - Results: `... list-results [--model <model>]` or `... show-result <model> <app>`
 - **VS Code Tasks** (`.vscode/tasks.json`): use "Terminal → Run Task" and pick one of:
   - **Testing Tasks**:
     - `pytest: unit tests only` ⭐ (default, fastest ~5s) - Quick unit test cycle, excludes integration/slow/analyzer
@@ -73,8 +155,24 @@ Use this as your working map for coding in this repo. Keep answers specific to t
 - Flask wiring and services: `src/app/factory.py` (ServiceLocator, WS service selection, DB init, Jinja setup).
 - Analyzer control, saving, and normalization: `analyzer/analyzer_manager.py` (`run_*` methods, `_aggregate_findings`, `_collect_normalized_tools`, result persistence).
 - Unified WS gateway and shared protocol: `analyzer/websocket_gateway.py` and `analyzer/shared/protocol.py`.
-- Test organization: `tests/` (unit, smoke, integration/{api,websocket,analyzer,web_ui}); markers: `smoke`, `integration`, `slow`, `analyzer`, `api`, `websocket`, `web_ui`.
+- Test organization: `tests/` (unit, smoke, integration/{api,websocket,analyzer,web_ui}); markers: `smoke`, `integration`, `slow`, `analyzer`, `api`, `websocket`, `web_ui`, `async`.
 - End-to-end workflow docs: `analyzer/README.md`.
+
+### Key files quick reference
+
+| Need to... | Look in... |
+|------------|------------|
+| Change Flask startup | `src/main.py`, `src/app/factory.py` |
+| Add/modify API endpoint | `src/app/routes/api/*.py` |
+| Change task execution | `src/app/services/task_execution_service.py` |
+| Modify analysis flow | `analyzer/analyzer_manager.py` |
+| Add new analyzer tool | `analyzer/services/{service}/main.py` |
+| Change container config | `analyzer/docker-compose.yml` |
+| Modify DB models | `src/app/models/*.py` |
+| Add new service | `src/app/services/`, register in `factory.py` |
+| Change UI templates | `src/templates/*.html` |
+| Add tests | `tests/unit/`, `tests/integration/`, `tests/smoke/` |
+| Update configs | `.env`, `analyzer/configs/` |
 
 ## Typical tasks you’ll automate
 - Trigger analysis for an app created under `generated/apps/...`, then read consolidated results under `results/.../task_{id}/`.
@@ -112,33 +210,59 @@ curl -X POST http://localhost:5000/api/analysis/run \
 - `POST /api/app/{model_slug}/{app_number}/analyze` → shorthand for running an analysis against a specific generated app.
 - Gateway: `analyzer/websocket_gateway.py` listens on `ws://0.0.0.0:8765` and proxies to service WS endpoints (2001–2004), rebroadcasting progress frames to subscribers.
 
+### API Modules (all in `src/app/routes/api/`)
+| Module | Prefix | Purpose |
+|--------|--------|--------|
+| `analysis` | `/api/analysis/` | Analysis operations, tool registry |
+| `applications` | `/api/apps/` | App CRUD, container ops |
+| `container_tools` | `/api/container-tools/` | Container tool operations |
+| `core` | `/api/` | Health, status endpoints |
+| `dashboard` | `/api/dashboard/` | Dashboard stats |
+| `export` | `/api/export/` | Export results |
+| `generation` | `/api/gen/` | App generation |
+| `models` | `/api/models/` | Model management |
+| `reports` | `/api/reports/` | Report generation |
+| `results` | `/api/results/` | Results retrieval |
+| `statistics` | `/api/statistics/` | Aggregated stats |
+| `system` | `/api/system/` | System ops, config |
+| `tasks_realtime` | `/api/tasks/` | Real-time task updates (SSE) |
+| `templates` | `/api/templates/` | Template management |
+| `tokens` | `/api/tokens/` | API token management |
+| `tool_registry` | `/api/tool-registry/` | Available tools |
+
 ## AnalysisTask model and lifecycle
 - **Key fields** (`src/app/models/analysis.py`):
   - `task_id` - Unique identifier (e.g., "task_abc123")
   - `target_model` - Model slug (normalized)
   - `target_app_number` - App number to analyze
   - `status` - Current state (see lifecycle below)
+  - `service_name` - e.g., 'static-analyzer' for subtasks
   - `analyzer_config_id` - Optional analyzer profile reference
   - `batch_id` - For batch processing grouping
   - `parent_task_id` - For subtask hierarchies
   - `is_main_task` - True for parent tasks in batch operations
   - `task_name` - Human-readable name
+  - `progress_percentage`, `progress_message` - Progress tracking
   - `result_summary` - JSON summary of results
   - `error_message` - Failure details if status is FAILED
+  - `retry_count`, `max_retries` (default: 3) - For automatic retry on transient failures
   - Timestamps: `created_at`, `started_at`, `completed_at`
 - **Status lifecycle**:
+  - `INITIALIZING` - Task created, subtasks being created (unified analysis)
   - `PENDING` - Task created, waiting for execution (auto-picked by TaskExecutionService)
   - `RUNNING` - Currently executing analysis
   - `COMPLETED` - Successfully finished
+  - `PARTIAL_SUCCESS` - Some subtasks succeeded, some failed
   - `FAILED` - Error occurred (check `error_message`)
   - `CANCELLED` - User-cancelled or timed out
   - Auto-recovery: Stuck RUNNING tasks (>30min) → FAILED on startup; old PENDING tasks (>30min) → CANCELLED
 - **TaskExecutionService** (background daemon in `src/app/services/task_execution_service.py`):
-  - Polls database every 2s (test mode) or 10s (production) for PENDING tasks
+  - Polls database every 2s (test mode) or 5s (production) for PENDING tasks
   - Dispatches via `AnalyzerIntegrationService` to analyzer manager
   - Updates task status based on execution result
   - Writes filesystem results to `results/{model}/app{N}/task_{id}/`
   - Started automatically in `src/app/factory.py` during app initialization
+  - **Automatic retry**: Tasks that fail due to service unavailability are retried up to 3 times with exponential backoff
 
 ## Background services (auto-started)
 
@@ -161,7 +285,7 @@ The Flask app initialization follows a **specific sequence**:
 **Lifecycle**:
 - Initialized and started automatically in `src/app/factory.py` during app creation
 - Runs in separate daemon thread (non-blocking)
-- Polls database every **2 seconds** (test mode) or **10 seconds** (production)
+- Polls database every **2 seconds** (test mode) or **5 seconds** (production)
 - Gracefully stops on app shutdown (waits for current task to complete)
 
 **Operation**:
@@ -191,7 +315,7 @@ python scripts/fix_task_statuses.py
 ```
 
 **Configuration**:
-- Poll interval: set via `TASK_POLL_INTERVAL` env var (default: 10s prod, 2s test)
+- Poll interval: set via `TASK_POLL_INTERVAL` env var (default: 5s prod, 2s test)
 - Max concurrent: currently 1 task at a time (sequential execution)
 - Timeout: inherits from `TASK_TIMEOUT` (default 1800s = 30min)
 
@@ -295,7 +419,7 @@ with app.app_context(): get_maintenance_service()._run_maintenance()"
 
 ### Task Execution Timing
 - **Not immediate**: Tasks created via UI/API enter `PENDING` state; TaskExecutionService picks them up asynchronously
-- **Poll interval**: 2s (test mode) or 10s (production) between polls
+- **Poll interval**: 2s (test mode) or 5s (production) between polls
 - **Sequential execution**: Currently 1 task at a time; subsequent tasks wait in queue
 - **Check progress**: Query `task.status` to see state; `RUNNING` means actively executing, check `task.started_at` for how long
 
@@ -354,6 +478,119 @@ with app.app_context(): get_maintenance_service()._run_maintenance()"
 
 Keep contributions aligned with these patterns and prefer citing concrete files from above in your outputs.
 
+## Common development scenarios
+
+### Scenario: Running your first analysis
+```bash
+# 1. Start everything
+./start.ps1 -Mode Start
+
+# 2. Wait for containers (check health)
+python analyzer/analyzer_manager.py health
+
+# 3. Run analysis (CLI - fast, no DB tracking)
+python analyzer/analyzer_manager.py analyze openai_gpt-4 1 comprehensive
+
+# 4. Results are in: results/openai_gpt-4/app1/task_xxx/
+```
+
+### Scenario: Debugging a failed analysis task
+```bash
+# 1. Find the task
+python -c "
+from app.factory import create_app
+from app.models import AnalysisTask
+app = create_app()
+with app.app_context():
+    task = AnalysisTask.query.filter_by(task_id='task_xxx').first()
+    print(f'Status: {task.status}')
+    print(f'Error: {task.error_message}')
+    print(f'Started: {task.started_at}')
+"
+
+# 2. Check analyzer logs
+python analyzer/analyzer_manager.py logs static-analyzer 100
+
+# 3. If container issue, rebuild
+./start.ps1 -Mode Rebuild
+```
+
+### Scenario: Adding a new static analysis tool
+```python
+# 1. In analyzer/services/static-analyzer/main.py, add handler:
+async def run_my_new_tool(self, source_path: str) -> dict:
+    # Run your tool
+    result = subprocess.run(['mytool', source_path], capture_output=True)
+    return {
+        "status": "success" if result.returncode == 0 else "error",
+        "findings": parse_output(result.stdout),
+        "raw_output": result.stdout.decode()
+    }
+
+# 2. Register in the tool dispatcher (same file)
+# 3. Update analyzer_manager.py:_collect_normalized_tools()
+# 4. Add tests in tests/unit/
+# 5. Rebuild container: ./start.ps1 -Mode Rebuild
+```
+
+### Scenario: Creating a new API endpoint
+```python
+# 1. In src/app/routes/api/my_module.py:
+from flask import Blueprint, jsonify, request
+from app.decorators import require_auth
+
+bp = Blueprint('my_api', __name__, url_prefix='/api/my')
+
+@bp.route('/endpoint', methods=['POST'])
+@require_auth
+def my_endpoint():
+    data = request.get_json()
+    # Do something
+    return jsonify({"status": "success", "data": result})
+
+# 2. Register in src/app/factory.py:
+from app.routes.api import my_module
+app.register_blueprint(my_module.bp)
+
+# 3. Test with curl:
+curl -X POST http://localhost:5000/api/my/endpoint \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "value"}'
+```
+
+### Scenario: Investigating slow performance
+```bash
+# 1. Enable debug logging
+# In .env: LOG_LEVEL=DEBUG
+
+# 2. Check what's taking time
+./start.ps1 -Mode Logs
+
+# 3. Profile specific analyzer
+python analyzer/analyzer_manager.py analyze model 1 static --tools bandit
+
+# 4. Check container resources
+docker stats
+
+# 5. If needed, increase resources in analyzer/docker-compose.yml
+```
+
+### Scenario: Running tests before PR
+```bash
+# Quick unit tests (always run these)
+pytest -m "not integration and not slow and not analyzer" -v
+
+# Smoke tests (run before every PR)
+pytest tests/smoke/ -v
+
+# Full integration (run for major changes)
+pytest tests/integration/ -v
+
+# With coverage
+pytest --cov=src --cov-report=html -m "not slow"
+```
+
 ## Documentation architecture
 
 The repository maintains two documentation tiers:
@@ -388,6 +625,181 @@ The repository maintains two documentation tiers:
 - **Clean outputs**: `generated/` for apps, `results/` for analysis data, `reports/` for generated reports
 - **Scripts organized**: Utility/maintenance scripts in `scripts/`, not scattered in root
 
+## Debugging quick reference
+
+### 🔴 STOP - Diagnose first
+Before making changes, run these diagnostics:
+```bash
+# 1. Check what's running
+./start.ps1 -Mode Status
+
+# 2. Health check all services
+python analyzer/analyzer_manager.py health
+
+# 3. View recent logs
+./start.ps1 -Mode Logs
+
+# 4. Check Flask is responding
+curl http://localhost:5000/api/health
+# PowerShell: Invoke-WebRequest -Uri http://localhost:5000/api/health -UseBasicParsing
+```
+
+### Common issues and fixes
+
+| Symptom | Quick Fix |
+|---------|-----------|
+| Flask won't start (port 5000 in use) | `./start.ps1 -Mode Stop` or `taskkill /F /IM python.exe` |
+| Analyzers not responding | `python analyzer/analyzer_manager.py start` |
+| Tasks stuck in PENDING | Check TaskExecutionService is running (see below) |
+| Tasks stuck in RUNNING | `python scripts/fix_task_statuses.py` |
+| Database locked | Stop Flask, kill zombie Python processes, restart |
+| 401 on API calls | Regenerate token via UI → User → API Access |
+| Container build fails | `./start.ps1 -Mode CleanRebuild` |
+| Analysis timeout | Increase `*_TIMEOUT` in `.env` (default: 1800s) |
+| Circuit breaker triggered | Wait 5 min or restart service: `docker restart static-analyzer` |
+
+### Debug TaskExecutionService
+```python
+# In Python REPL or script
+from app.factory import create_app
+from app.services.service_locator import ServiceLocator
+from app.models import AnalysisTask, AnalysisStatus
+
+app = create_app()
+with app.app_context():
+    # Check if service is running
+    service = ServiceLocator.get_task_execution_service()
+    print(f"Running: {service._running}")  # Should be True
+    print(f"Current task: {service._current_task_id}")
+    
+    # Find stuck tasks
+    stuck = AnalysisTask.query.filter_by(status=AnalysisStatus.RUNNING).all()
+    for task in stuck:
+        print(f"{task.task_id}: running since {task.started_at}")
+    
+    # Count pending
+    pending = AnalysisTask.query.filter_by(status=AnalysisStatus.PENDING).count()
+    print(f"Pending tasks: {pending}")
+```
+
+### Debug analyzer containers
+```bash
+# Check container status
+docker ps -a | findstr analyzer
+
+# View specific container logs
+docker logs static-analyzer --tail 100
+
+# Check port binding
+docker port static-analyzer
+
+# Test WebSocket manually
+# Windows PowerShell
+Test-NetConnection -ComputerName localhost -Port 2001
+Test-NetConnection -ComputerName localhost -Port 2002
+Test-NetConnection -ComputerName localhost -Port 2003
+Test-NetConnection -ComputerName localhost -Port 2004
+
+# Restart specific service
+docker restart static-analyzer
+```
+
+### Debug API issues
+```bash
+# Verify token
+curl http://localhost:5000/api/tokens/verify -H "Authorization: Bearer <token>"
+
+# Check task status
+curl http://localhost:5000/api/analysis/task/<task_id> -H "Authorization: Bearer <token>"
+
+# PowerShell equivalent
+Invoke-WebRequest -Uri "http://localhost:5000/api/analysis/task/<task_id>" `
+  -Headers @{"Authorization"="Bearer <token>"}
+```
+
+### Recovery commands cheat sheet
+```bash
+# Gentle restart
+./start.ps1 -Mode Stop
+./start.ps1 -Mode Start
+
+# Fix stuck tasks
+python scripts/fix_task_statuses.py
+
+# Maintenance cleanup (7-day orphan grace)
+./start.ps1 -Mode Maintenance
+
+# Fast container rebuild (30-90s)
+./start.ps1 -Mode Rebuild
+
+# Nuclear option - clean rebuild (12-18 min)
+./start.ps1 -Mode CleanRebuild
+
+# Full wipeout (WARNING: removes all data)
+./start.ps1 -Mode Wipeout
+
+# Reset admin password
+./start.ps1 -Mode Password
+
+# Sync filesystem apps to DB
+python scripts/sync_generated_apps.py
+```
+
+### Log locations
+| Component | Location |
+|-----------|----------|
+| Flask | `logs/app.log` |
+| Analyzers | `docker logs <container>` |
+| All combined | `./start.ps1 -Mode Logs` |
+| Specific analyzer | `python analyzer/analyzer_manager.py logs static-analyzer 100` |
+
+## Development patterns
+
+### Adding a new analyzer tool
+1. **Implement handler** in `analyzer/services/{service}/main.py`:
+   ```python
+   async def run_new_tool(self, source_path: str) -> dict:
+       return {"status": "success", "findings": [...]}
+   ```
+2. **Register** in tool map within service's main handler
+3. **Update aggregation** in `analyzer/analyzer_manager.py`:
+   - Add to `_collect_normalized_tools()`
+   - Add to `_aggregate_findings()` if findings need extraction
+4. **Add tests** in `tests/unit/` and `tests/integration/analyzer/`
+
+### Adding a new API endpoint
+1. **Create route** in `src/app/routes/api/{module}.py`:
+   ```python
+   @bp.route('/new-endpoint', methods=['POST'])
+   @require_auth
+   def new_endpoint():
+       data = request.get_json()
+       return jsonify({"result": "..."})
+   ```
+2. **Register blueprint** (if new file) in `src/app/factory.py`
+3. **Add tests** in `tests/integration/api/`
+4. **Document** in `docs/api-reference.md`
+
+### Running tests
+```bash
+# Fast unit tests (recommended for dev loop)
+pytest -m "not integration and not slow and not analyzer"
+
+# Smoke tests (critical path)
+pytest tests/smoke/
+
+# Specific test
+pytest tests/unit/test_analyzer_manager.py -v
+
+# With coverage
+pytest --cov=src --cov-report=html
+```
+
+### VS Code integration
+- **Test Explorer**: Ctrl+Shift+T → Run/debug individual tests with breakpoints
+- **Tasks**: Terminal → Run Task → Pick from testing/analysis/maintenance tasks
+- **Launch configs**: F5 → Debug Flask App, Pytest, or Analyzer Manager
+
 ## Orientation hacks (fast path)
 - Find latest consolidated result for a model/app: look under `results/{model}/app{N}/task_*/` and open the most recent `{model}_app{N}_task_*.json`; the flat `tools` map shows per-tool status quickly.
 - Need ports for dynamic/perf? First check `generated/apps/{model}/app{N}/.env` for `BACKEND_PORT`/`FRONTEND_PORT`; else DB via `PortConfiguration` (auto-populated from `misc/port_config.json` by `ServiceLocator`).
@@ -411,3 +823,51 @@ The repository maintains two documentation tiers:
 - Tests as examples: see `tests/integration/analyzer/test_unified_execution.py`, `tests/integration/websocket/test_unified_protocol.py`, `tests/test_task_orchestration.py`; run fast set via VS Code Task "pytest: unit tests only".
 - Smoke tests: `tests/smoke/` for critical path health checks (HTTP endpoints, analyzer services).
 - Troubleshoot noisy WS logs: internal websockets loggers are lowered in gateway/services; handshake stack traces from stray probes are benign.
+
+## Environment variables reference
+
+### Required
+| Variable | Purpose |
+|----------|---------|
+| `OPENROUTER_API_KEY` | AI analyzer authentication (sk-or-v1-...) |
+| `SECRET_KEY` | Flask session encryption |
+
+### Flask/App
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `FLASK_DEBUG` | Debug mode (1=on, 0=off) | `0` |
+| `LOG_LEVEL` | Logging verbosity | `INFO` |
+| `DATABASE_URL` | Database connection | `sqlite:///src/data/thesis_app.db` |
+
+### Analyzer
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `ANALYZER_ENABLED` | Enable analyzer integration | `true` |
+| `ANALYZER_AUTO_START` | Auto-start containers | `false` |
+| `STATIC_ANALYSIS_TIMEOUT` | Static tool timeout (seconds) | `1800` |
+| `SECURITY_ANALYSIS_TIMEOUT` | Security tool timeout | `1800` |
+| `PERFORMANCE_TIMEOUT` | Performance test timeout | `1800` |
+| `AI_ANALYSIS_TIMEOUT` | AI analysis timeout | `2400` |
+
+### Task Execution
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `TASK_POLL_INTERVAL` | How often to check for tasks | `5` (prod), `2` (test) |
+| `TASK_TIMEOUT` | Overall task timeout | `1800` |
+| `PREFLIGHT_MAX_RETRIES` | Service availability retries | `3` |
+| `TRANSIENT_FAILURE_MAX_RETRIES` | Auto-recovery attempts | `3` |
+
+### Maintenance
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `MAINTENANCE_AUTO_START` | Auto-start cleanup | `false` |
+| `MAINTENANCE_INTERVAL_SECONDS` | Cleanup interval | `3600` |
+| `STARTUP_CLEANUP_ENABLED` | Startup task cleanup | `true` |
+| `STARTUP_CLEANUP_RUNNING_TIMEOUT` | RUNNING task timeout (min) | `120` |
+| `STARTUP_CLEANUP_PENDING_TIMEOUT` | PENDING task timeout (min) | `240` |
+
+### Celery (optional)
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `USE_CELERY_ANALYSIS` | Use Celery instead of ThreadPool | `false` |
+| `CELERY_BROKER_URL` | Redis broker URL | `redis://localhost:6379/0` |

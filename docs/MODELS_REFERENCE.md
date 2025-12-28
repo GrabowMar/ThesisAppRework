@@ -78,8 +78,15 @@ generated/apps/{model_slug}/app{N}/
 Generated apps are tracked in the database (`GeneratedApplication` model) with:
 - `model_slug` - Normalized model identifier
 - `app_number` - Sequence number
+- `provider` - Model provider (e.g., "openai", "anthropic")
+- `template_name` - Requirement template used
+- `generation_mode` - GUARDED or UNGUARDED
 - `container_status` - Current Docker state
 - `missing_since` - Timestamp when filesystem directory went missing (7-day grace period before deletion)
+- `parent_app_id` - Links to parent if regeneration
+- `batch_id` - Groups apps created together
+- Generation failure tracking: `generation_failed`, `failure_reason`, `failure_count`
+- Fix tracking: `fixes_applied`, `fix_count`, `last_fix_applied_at`, `analysis_status`
 
 > **Note**: If an app's filesystem directory is deleted, it's marked with `missing_since` but not removed from DB for 7 days, allowing recovery.
 

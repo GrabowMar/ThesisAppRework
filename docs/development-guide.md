@@ -98,6 +98,7 @@ Available modes:
 | `Reload` | Hot reload for code changes |
 | `Wipeout` | Full reset (WARNING: data loss) |
 | `Password` | Reset admin password |
+| `Health` | Check service health |
 
 ## Running Tests
 
@@ -156,6 +157,10 @@ pytest --cov=src --cov-report=html
 | `integration` | Requires services |
 | `slow` | Long-running tests |
 | `analyzer` | Requires Docker analyzers |
+| `api` | API endpoint tests |
+| `websocket` | WebSocket protocol tests |
+| `web_ui` | Web UI interaction tests |
+| `async` | Asynchronous tests |
 
 ## Code Style
 
@@ -283,8 +288,10 @@ ANALYZER_AUTO_START=false
 DATABASE_URL=sqlite:///src/data/thesis_app.db
 
 # Timeouts (seconds)
-STATIC_ANALYSIS_TIMEOUT=300
-SECURITY_ANALYSIS_TIMEOUT=600
+STATIC_ANALYSIS_TIMEOUT=1800
+SECURITY_ANALYSIS_TIMEOUT=1800
+PERFORMANCE_TIMEOUT=1800
+AI_ANALYSIS_TIMEOUT=2400
 ```
 
 ## Git Workflow
