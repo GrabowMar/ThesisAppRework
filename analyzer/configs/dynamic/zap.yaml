@@ -35,7 +35,7 @@ spider:
 # ============================================================================
 ajax_spider:
   # Enable AJAX spider for JavaScript-rendered content
-  enabled: true
+  enabled: false
   
   # Browser to use (htmlunit, firefox, chrome)
   browser: "htmlunit"
@@ -141,7 +141,7 @@ presets:
       max_depth: 10
       max_duration: 180
     ajax_spider:
-      enabled: true
+      enabled: false
       max_duration: 60
     passive_scan:
       wait_time: 30
@@ -154,7 +154,7 @@ presets:
       max_depth: 10
       max_duration: 300
     ajax_spider:
-      enabled: true
+      enabled: false
       max_duration: 120
     passive_scan:
       wait_time: 30

@@ -23,7 +23,7 @@ from analyzer.shared.path_utils import resolve_app_source_path
 from analyzer.shared.service_base import BaseWSService
 from analyzer.shared.tool_logger import ToolExecutionLogger
 from parsers import parse_tool_output
-from sarif_parsers import parse_tool_output_to_sarif, build_sarif_document, get_available_sarif_parsers
+from sarif_parsers import parse_tool_output_to_sarif, build_sarif_document, get_available_sarif_parsers, remap_ruff_sarif_severity
 
 # Import configuration loader
 try:
@@ -772,6 +772,11 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             if result.get('status') != 'error' and 'output' in result:
                 try:
                     sarif_data = json.loads(result['output'])
+                    
+                    # Remap severity levels (Ruff marks everything as "error", but whitespace should be low)
+                    sarif_data = remap_ruff_sarif_severity(sarif_data)
+                    self.log.info("Applied Ruff severity remapping for whitespace and formatting rules")
+                    
                     result['sarif'] = sarif_data
                     result['format'] = 'sarif'
                     # Extract issue count

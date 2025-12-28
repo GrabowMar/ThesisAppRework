@@ -91,12 +91,14 @@ def extract_issues_from_sarif(sarif_data: Dict[str, Any]) -> List[Dict[str, Any]
             level = (result_item.get('level') or 'warning').lower()
             severity = level_map.get(level, 'MEDIUM')
 
+            properties = result_item.get('properties') or {}
+
             issue: Dict[str, Any] = {
                 'rule': rule_id,
                 'rule_id': rule_id,
                 'level': level,
                 'severity': severity,
-                'issue_severity': (result_item.get('properties', {}).get('issue_severity') or severity).upper(),
+                'issue_severity': (properties.get('issue_severity') or severity).upper(),
                 'message': message,
                 'tool': driver.get('name') or 'SARIF tool'
             }
@@ -112,7 +114,6 @@ def extract_issues_from_sarif(sarif_data: Dict[str, Any]) -> List[Dict[str, Any]
                 issue['line'] = region.get('startLine')
                 issue['column'] = region.get('startColumn')
 
-            properties = result_item.get('properties') or {}
             if 'issue_confidence' in properties:
                 issue['confidence'] = properties['issue_confidence']
             if 'issue_severity' in properties:

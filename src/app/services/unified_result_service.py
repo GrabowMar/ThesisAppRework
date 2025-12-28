@@ -353,14 +353,22 @@ class UnifiedResultService:
             import uuid
             result_id = f"{task_id}_{finding.get('tool', 'unknown')}_{idx}_{uuid.uuid4().hex[:8]}"
             
+            # Handle file path which might be a dict or string
+            file_val = finding.get('file')
+            file_path_str = ''
+            if isinstance(file_val, dict):
+                file_path_str = str(file_val.get('path', ''))
+            elif file_val:
+                file_path_str = str(file_val)
+
             result = AnalysisResult(
                 result_id=result_id,
                 task_id=task_id,
                 tool_name=finding.get('tool', 'unknown'),
-                title=finding.get('message', 'No title')[:500],
-                description=finding.get('message', ''),
+                title=str(finding.get('message', 'No title'))[:500],
+                description=str(finding.get('message', '')),
                 severity=self._parse_severity(finding.get('severity')),
-                file_path=finding.get('file'),
+                file_path=file_path_str[:500],
                 line_number=self._parse_int(finding.get('line')),
                 result_type='finding'
             )
@@ -520,6 +528,12 @@ class UnifiedResultService:
             
         sarif_data = tool_data.get('sarif')
         if sarif_data and isinstance(sarif_data, dict):
+            # Normalize Ruff SARIF severities before persisting.
+            # Ruff's native SARIF output marks most findings as "error"; we remap
+            # whitespace/formatting/etc. to reduce inflated severity.
+            if self._is_ruff_sarif(tool_name, sarif_data):
+                self._remap_ruff_sarif_severity_in_place(sarif_data)
+
             # Generate filename
             safe_tool = tool_name.replace('/', '_').replace('\\', '_')
             filename = f"{safe_tool}.sarif.json"
@@ -538,6 +552,79 @@ class UnifiedResultService:
                 logger.debug(f"Extracted SARIF for {tool_name} to {filename}")
             except Exception as e:
                 logger.warning(f"Failed to extract SARIF for {tool_name}: {e}")
+
+    def _is_ruff_sarif(self, tool_name: str, sarif_data: Dict[str, Any]) -> bool:
+        """Return True if the SARIF document appears to originate from Ruff."""
+        if str(tool_name).lower() == 'ruff':
+            return True
+        runs = sarif_data.get('runs')
+        if not isinstance(runs, list):
+            return False
+        for run in runs:
+            if not isinstance(run, dict):
+                continue
+            driver_name = (
+                run.get('tool', {})
+                .get('driver', {})
+                .get('name', '')
+            )
+            if isinstance(driver_name, str) and 'ruff' in driver_name.lower():
+                return True
+        return False
+
+    def _remap_ruff_sarif_severity_in_place(self, sarif_data: Dict[str, Any]) -> None:
+        """Mutate a Ruff SARIF document to use more realistic `result.level` values."""
+
+        def _get_ruff_severity(rule_id: str) -> tuple[str, str]:
+            # Keep this mapping aligned with analyzer/services/static-analyzer/sarif_parsers.py.
+            if rule_id in ['W291', 'W292', 'W293', 'W503', 'W504', 'W605']:
+                return ('note', 'low')
+            if rule_id.startswith('I') or rule_id in ['E401', 'E402']:
+                return ('warning', 'medium')
+            if rule_id.startswith('S'):
+                if rule_id in ['S104', 'S105', 'S106', 'S107', 'S108']:
+                    return ('error', 'high')
+                if rule_id in ['S311', 'S324']:
+                    return ('error', 'high')
+                return ('warning', 'medium')
+            if rule_id in ['E999', 'F821', 'F822', 'F823']:
+                return ('error', 'high')
+            if rule_id in ['F401', 'F403', 'F405', 'F841']:
+                return ('warning', 'medium')
+            if rule_id.startswith('C') or rule_id in ['E501']:
+                return ('warning', 'medium')
+            if rule_id.startswith('E7'):
+                if rule_id in ['E711', 'E712', 'E721']:
+                    return ('warning', 'medium')
+                return ('warning', 'low')
+            if rule_id.startswith('E'):
+                return ('warning', 'medium')
+            return ('warning', 'low')
+
+        runs = sarif_data.get('runs')
+        if not isinstance(runs, list):
+            return
+
+        for run in runs:
+            if not isinstance(run, dict):
+                continue
+            results = run.get('results')
+            if not isinstance(results, list):
+                continue
+            for result in results:
+                if not isinstance(result, dict):
+                    continue
+                rule_id = result.get('ruleId')
+                if not isinstance(rule_id, str) or not rule_id:
+                    continue
+                level, severity_category = _get_ruff_severity(rule_id)
+                result['level'] = level
+
+                props = result.get('properties')
+                if not isinstance(props, dict):
+                    props = {}
+                    result['properties'] = props
+                props['problem.severity'] = severity_category
 
     def _write_service_snapshots(self, payload: Dict[str, Any], task_dir: Path) -> None:
         """Write individual service results to separate files for debugging."""
@@ -1063,52 +1150,87 @@ class UnifiedResultService:
                 
                 if (not issues or len(issues) == 0) and sarif_ref:
                     try:
-                        sarif_file = None
-                        if isinstance(sarif_ref, dict):
-                            sarif_file = sarif_ref.get('sarif_file') or sarif_ref.get('path') or sarif_ref.get('file')
-                        elif isinstance(sarif_ref, str):
-                            sarif_file = sarif_ref
-                        
-                        if sarif_file:
-                            # Resolve SARIF path
-                            task_dir = resolve_task_directory(results_data, task_id)
-                            if task_dir:
-                                task_root = task_dir.resolve()
-                                sarif_path_obj = Path(sarif_file)
-                                sarif_full_path = sarif_path_obj if sarif_path_obj.is_absolute() else (task_root / sarif_path_obj).resolve()
-                                
-                                if sarif_full_path.exists():
-                                    with open(sarif_full_path, 'r', encoding='utf-8') as f:
-                                        sarif_data = json.load(f)
-                                    
-                                    extracted_issues = extract_issues_from_sarif(sarif_data)
-                                    if extracted_issues:
-                                        tool_data['issues'] = extracted_issues
-                                        tool_data['total_issues'] = len(extracted_issues)
-                                        # Also update top-level findings if this is a security tool
-                                        # This is tricky because 'findings' is a separate list.
-                                        # We might need to append to it.
-                                        if service_name in ['static-analyzer', 'static', 'dynamic-analyzer', 'dynamic']:
-                                            current_findings = results_data.get('findings', [])
-                                            # Add tool info to findings
-                                            for issue in extracted_issues:
-                                                issue['service'] = service_name
-                                                issue['tool'] = tool_name
-                                                issue['category'] = 'security' # Assumption
-                                                current_findings.append(issue)
-                                            results_data['findings'] = current_findings
-                                            
-                                            # Update summary counts
-                                            summary = results_data.get('summary', {})
-                                            summary['total_findings'] = len(current_findings)
-                                            
-                                            # Update severity breakdown
-                                            breakdown = summary.get('severity_breakdown', {})
-                                            for issue in extracted_issues:
-                                                sev = issue.get('severity', 'info').lower()
-                                                breakdown[sev] = breakdown.get(sev, 0) + 1
-                                            summary['severity_breakdown'] = breakdown
-                                            
-                                            logger.info(f"Hydrated {len(extracted_issues)} issues for {tool_name} from SARIF")
+                        sarif_data = None
+
+                        # Case 1: Inline SARIF document (common during initial store, before extraction to files)
+                        if isinstance(sarif_ref, dict) and isinstance(sarif_ref.get('runs'), list):
+                            sarif_data = sarif_ref
+
+                        # Case 2: SARIF reference (file path)
+                        if sarif_data is None:
+                            sarif_file = None
+                            if isinstance(sarif_ref, dict):
+                                sarif_file = sarif_ref.get('sarif_file') or sarif_ref.get('path') or sarif_ref.get('file')
+                            elif isinstance(sarif_ref, str):
+                                sarif_file = sarif_ref
+
+                            if sarif_file:
+                                task_dir = resolve_task_directory(results_data, task_id)
+                                if task_dir:
+                                    task_root = task_dir.resolve()
+                                    sarif_path_obj = Path(sarif_file)
+                                    sarif_full_path = sarif_path_obj if sarif_path_obj.is_absolute() else (task_root / sarif_path_obj).resolve()
+
+                                    if sarif_full_path.exists():
+                                        with open(sarif_full_path, 'r', encoding='utf-8') as f:
+                                            sarif_data = json.load(f)
+
+                        if sarif_data:
+                            # Apply Ruff severity remapping before extraction so UI/DB see corrected levels.
+                            if self._is_ruff_sarif(tool_name, sarif_data):
+                                self._remap_ruff_sarif_severity_in_place(sarif_data)
+
+                            extracted_issues = extract_issues_from_sarif(sarif_data)
+                            if extracted_issues:
+                                tool_data['issues'] = extracted_issues
+                                tool_data['total_issues'] = len(extracted_issues)
+
+                                # Compute per-tool severity breakdown (for UI table column)
+                                breakdown_map: Dict[str, int] = {'high': 0, 'medium': 0, 'low': 0, 'info': 0}
+                                for issue in extracted_issues:
+                                    sev = str(issue.get('severity', 'INFO')).lower()
+                                    if sev == 'high':
+                                        breakdown_map['high'] += 1
+                                    elif sev == 'medium':
+                                        breakdown_map['medium'] += 1
+                                    elif sev == 'low':
+                                        breakdown_map['low'] += 1
+                                    else:
+                                        breakdown_map['info'] += 1
+                                tool_data['severity_breakdown'] = breakdown_map
+
+                                # Optionally roll up into top-level findings/summary
+                                if service_name in ['static-analyzer', 'static', 'dynamic-analyzer', 'dynamic']:
+                                    current_findings = results_data.get('findings', [])
+                                    if not isinstance(current_findings, list):
+                                        current_findings = []
+
+                                    # Categorize lightly: treat Ruff as quality, common security tools as security
+                                    tool_category = 'quality'
+                                    if str(tool_name).lower() in {'bandit', 'semgrep', 'detect-secrets', 'pip-audit', 'safety'}:
+                                        tool_category = 'security'
+
+                                    for issue in extracted_issues:
+                                        issue['service'] = service_name
+                                        issue['tool'] = tool_name
+                                        issue['category'] = tool_category
+                                        current_findings.append(issue)
+                                    results_data['findings'] = current_findings
+
+                                    summary = results_data.get('summary', {})
+                                    if not isinstance(summary, dict):
+                                        summary = {}
+                                        results_data['summary'] = summary
+                                    summary['total_findings'] = len(current_findings)
+
+                                    overall = summary.get('severity_breakdown', {})
+                                    if not isinstance(overall, dict):
+                                        overall = {}
+                                    for issue in extracted_issues:
+                                        sev = str(issue.get('severity', 'INFO')).lower()
+                                        overall[sev] = overall.get(sev, 0) + 1
+                                    summary['severity_breakdown'] = overall
+
+                                    logger.info(f"Hydrated {len(extracted_issues)} issues for {tool_name} from SARIF")
                     except Exception as e:
                         logger.warning(f"Failed to hydrate SARIF for {tool_name}: {e}")

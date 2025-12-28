@@ -567,11 +567,25 @@ class ContainerToolRegistry:
             parameters=[
                 ToolParameter("scan_types", "array", "Types of scans to perform",
                             ["ssl_security", "security_headers", "common_vulnerabilities"]),
+                ToolParameter(
+                    "run_ajax_spider",
+                    "boolean",
+                    "Enable ZAP AJAX Spider (discovers JS-rendered routes; may require browser dependencies)",
+                    False,
+                ),
                 ToolParameter("timeout", "integer", "Request timeout in seconds", 10,
                             min_value=5, max_value=60),
                 ToolParameter("max_redirects", "integer", "Maximum redirects to follow", 5,
                             min_value=0, max_value=20)
             ],
+            examples={
+                "baseline_safe": {
+                    "run_ajax_spider": False
+                },
+                "with_ajax_spider": {
+                    "run_ajax_spider": True
+                }
+            },
             documentation_url="https://www.zaproxy.org/"
         )
         

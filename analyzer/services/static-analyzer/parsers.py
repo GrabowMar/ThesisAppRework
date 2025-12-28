@@ -322,12 +322,18 @@ class Flake8Parser:
         
         # Map error codes to severity
         def get_severity(code: str) -> str:
-            if code.startswith('E') or code.startswith('F'):
-                return 'high'  # Errors and fatal
+            # Whitespace/formatting rules - LOW
+            if code in ['W291', 'W292', 'W293', 'W503', 'W504', 'W605']:
+                return 'low'
+            # Errors and fatal issues - HIGH
+            elif code.startswith('E') or code.startswith('F'):
+                return 'high'
+            # Other warnings - MEDIUM
             elif code.startswith('W'):
-                return 'medium'  # Warnings
+                return 'medium'
+            # Convention, complexity - LOW
             else:
-                return 'low'  # Convention, complexity
+                return 'low'
         
         issues = []
         severity_breakdown = {'high': 0, 'medium': 0, 'low': 0}

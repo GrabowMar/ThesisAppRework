@@ -22,7 +22,6 @@ xvfb-run -a ${ZAP_PATH}/zap.sh \
     -config api.addrs.addr.regex=true \
     -config ajaxSpider.browserId=htmlunit \
     -config api.disablekey=false \
-    -addonupdate \
     -addoninstall ascanrules \
     -addoninstall pscanrules \
     > /tmp/zap_stdout.log 2> /tmp/zap_stderr.log &

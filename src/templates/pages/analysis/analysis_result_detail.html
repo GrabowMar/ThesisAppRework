@@ -65,8 +65,9 @@
         </div>
         <div class="col-auto border-start ps-3">
           <span class="text-muted small">Findings:</span>
-          {% set total = summary.total_findings|default(descriptor.total_findings)|default(0) %}
-          <strong class="{% if total > 20 %}text-danger{% elif total > 10 %}text-warning{% else %}text-success{% endif %}">{{ total }}</strong>
+          {# Always show the consolidated findings total to avoid mismatches with the execution summary #}
+          {% set total_value = summary.total_findings|default(descriptor.total_findings)|default(0) %}
+          <strong class="{% if total_value > 20 %}text-danger{% elif total_value > 10 %}text-warning{% else %}text-success{% endif %}">{{ total_value }}</strong>
         </div>
         <div class="col-auto border-start ps-3">
           <span class="text-muted small">Tools:</span>

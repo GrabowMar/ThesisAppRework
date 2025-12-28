@@ -85,9 +85,24 @@ class ConfigLoader:
             "min_confidence": 60
         },
         "zap": {
-            "spider_depth": 10,
-            "passive_scan_wait": 30,
-            "ajax_spider_enabled": True,
+            "spider": {
+                "max_depth": 10,
+                "thread_count": 5,
+                "max_duration": 180,
+                "max_children": 0
+            },
+            "passive_scan": {
+                "wait_time": 30
+            },
+            "ajax_spider": {
+                "enabled": False,
+                "max_duration": 60,
+                "browser": "htmlunit"
+            },
+            "active_scan": {
+                "enabled": False,
+                "max_duration": 300
+            },
             "scan_type": "baseline"
         },
         "nmap": {

@@ -1822,13 +1822,49 @@ class AnalyzerManager:
                         }
                     })
             
-            # Semgrep - try results first, then SARIF
+            # Semgrep - try issues first, then results, then SARIF
             semgrep = python_results.get('semgrep', {})
             if isinstance(semgrep, dict):
                 results_list = semgrep.get('results', [])
+                issues_list = semgrep.get('issues', [])
                 
+                if issues_list:
+                    logger.debug(f"[STATIC] Semgrep: found {len(issues_list)} issues in normalized format")
+                    for issue in issues_list:
+                        findings.append({
+                            'id': f"semgrep_{issue.get('rule_id', 'unknown')}_{issue.get('line', 0)}",
+                            'tool': 'semgrep',
+                            'rule_id': issue.get('rule_id'),
+                            'severity': self._normalize_severity(issue.get('severity', 'UNKNOWN')),
+                            'confidence': 'medium',
+                            'category': issue.get('category', 'security'),
+                            'type': 'vulnerability',
+                            'file': {
+                                'path': issue.get('file', '').replace('/app/sources/', ''),
+                                'line_start': issue.get('line'),
+                                'line_end': issue.get('line'),
+                                'column_start': issue.get('column'),
+                                'column_end': None
+                            },
+                            'message': {
+                                'title': issue.get('rule_id', ''),
+                                'description': issue.get('message', ''),
+                                'solution': issue.get('help_url', ''),
+                                'references': [issue.get('help_url')] if issue.get('help_url') else []
+                            },
+                            'evidence': {
+                                'code_snippet': '',
+                                'context_lines': 3
+                            },
+                            'metadata': {
+                                'cwe_id': None,
+                                'confidence': 'medium',
+                                'tags': [issue.get('rule_id', '')],
+                                'fix_available': False
+                            }
+                        })
                 # If results array is empty but SARIF exists, extract from SARIF
-                if not results_list and semgrep.get('sarif'):
+                elif not results_list and semgrep.get('sarif'):
                     logger.debug("[STATIC] Semgrep: extracting from SARIF")
                     sarif = semgrep['sarif']
                     if isinstance(sarif, dict) and 'runs' in sarif:
@@ -1908,59 +1944,109 @@ class AnalyzerManager:
             
             # MyPy
             mypy = python_results.get('mypy', {})
-            if isinstance(mypy, dict) and mypy.get('results'):
-                for result in mypy['results']:
-                    findings.append({
-                        'id': f"mypy_{result.get('line', 0)}_{result.get('column', 0)}",
-                        'tool': 'mypy',
-                        'rule_id': 'type-check',
-                        'severity': self._normalize_severity(result.get('severity', 'UNKNOWN')),
-                        'confidence': 'high',
-                        'category': 'quality',
-                        'type': 'type_error',
-                        'file': {
-                            'path': result.get('file', ''),
-                            'line_start': result.get('line'),
-                            'line_end': result.get('line'),
-                            'column_start': result.get('column'),
-                            'column_end': result.get('column')
-                        },
-                        'message': {
-                            'title': 'Type Error',
-                            'description': result.get('message', ''),
-                            'solution': 'Fix type annotations or imports',
-                            'references': []
-                        },
-                        'evidence': {
-                            'code_snippet': '',
-                            'context_lines': 3
-                        },
-                        'metadata': {
-                            'cwe_id': None,
+            if isinstance(mypy, dict):
+                if mypy.get('issues'):
+                    for issue in mypy['issues']:
+                        findings.append({
+                            'id': f"mypy_{issue.get('line', 0)}_{issue.get('column', 0)}",
+                            'tool': 'mypy',
+                            'rule_id': issue.get('rule', 'type-check'),
+                            'severity': self._normalize_severity(issue.get('severity', 'UNKNOWN')),
                             'confidence': 'high',
-                            'tags': ['type-error'],
-                            'fix_available': False
-                        }
-                    })
+                            'category': 'quality',
+                            'type': 'type_error',
+                            'file': {
+                                'path': issue.get('file', '').replace('/app/sources/', ''),
+                                'line_start': issue.get('line'),
+                                'line_end': issue.get('line'),
+                                'column_start': issue.get('column'),
+                                'column_end': issue.get('column')
+                            },
+                            'message': {
+                                'title': 'Type Error',
+                                'description': issue.get('message', ''),
+                                'solution': 'Fix type annotations or imports',
+                                'references': []
+                            },
+                            'evidence': {
+                                'code_snippet': '',
+                                'context_lines': 3
+                            },
+                            'metadata': {
+                                'cwe_id': None,
+                                'confidence': 'high',
+                                'tags': ['type-error'],
+                                'fix_available': False
+                            }
+                        })
+                elif mypy.get('results'):
+                    for result in mypy['results']:
+                        findings.append({
+                            'id': f"mypy_{result.get('line', 0)}_{result.get('column', 0)}",
+                            'tool': 'mypy',
+                            'rule_id': 'type-check',
+                            'severity': self._normalize_severity(result.get('severity', 'UNKNOWN')),
+                            'confidence': 'high',
+                            'category': 'quality',
+                            'type': 'type_error',
+                            'file': {
+                                'path': result.get('file', ''),
+                                'line_start': result.get('line'),
+                                'line_end': result.get('line'),
+                                'column_start': result.get('column'),
+                                'column_end': result.get('column')
+                            },
+                            'message': {
+                                'title': 'Type Error',
+                                'description': result.get('message', ''),
+                                'solution': 'Fix type annotations or imports',
+                                'references': []
+                            },
+                            'evidence': {
+                                'code_snippet': '',
+                                'context_lines': 3
+                            },
+                            'metadata': {
+                                'cwe_id': None,
+                                'confidence': 'high',
+                                'tags': ['type-error'],
+                                'fix_available': False
+                            }
+                        })
             
             # Vulture
             vulture = python_results.get('vulture', {})
             if isinstance(vulture, dict) and vulture.get('results'):
                 for result in vulture['results']:
+                    # Extract confidence from message if possible
+                    confidence = 'medium'
+                    msg = result.get('message', '')
+                    if 'confidence' in msg:
+                        try:
+                            conf_val = int(msg.split('confidence')[0].split('(')[-1].strip().replace('%', ''))
+                            if conf_val >= 90:
+                                confidence = 'high'
+                            elif conf_val >= 70:
+                                confidence = 'medium'
+                            else:
+                                confidence = 'low'
+                        except:
+                            pass
+
                     findings.append({
-                        'id': f"vulture_{result.get('line', 0)}",
+                        'id': f"vulture_{result.get('filename', 'unknown')}_{result.get('line', 0)}",
                         'tool': 'vulture',
                         'rule_id': 'unused-code',
                         'severity': 'low',
-                        'confidence': f"{result.get('confidence', 60)}%",
+                        'confidence': confidence,
                         'category': 'quality',
                         'type': 'code_smell',
                         'file': {
                             'path': result.get('filename', '').replace('/app/sources/', ''),
                             'line_start': result.get('line'),
                             'line_end': result.get('line'),
-                            'column_start': None,
-                            'column_end': None
+                            'column_start': 0,
+                            'column_end': 0
                         },
                         'message': {
                             'title': 'Unused Code',
@@ -1974,7 +2060,7 @@ class AnalyzerManager:
                         },
                         'metadata': {
                             'cwe_id': None,
-                            'confidence': f"{result.get('confidence', 60)}%",
+                            'confidence': confidence,
                             'tags': ['unused-code'],
                             'fix_available': True
                         }
@@ -2057,38 +2143,261 @@ class AnalyzerManager:
                         }
                     })
 
+            # Safety
+            safety = python_results.get('safety', {})
+            if isinstance(safety, dict) and safety.get('vulnerabilities'):
+                for vuln in safety['vulnerabilities']:
+                    findings.append({
+                        'id': f"safety_{vuln.get('vulnerability_id', 'unknown')}_{vuln.get('package_name', 'unknown')}",
+                        'tool': 'safety',
+                        'rule_id': vuln.get('vulnerability_id'),
+                        'severity': self._normalize_severity(vuln.get('severity', 'medium')),
+                        'confidence': 'high',
+                        'category': 'security',
+                        'type': 'dependency_vulnerability',
+                        'file': {
+                            'path': 'requirements.txt',
+                            'line_start': 0,
+                            'line_end': 0,
+                            'column_start': 0,
+                            'column_end': 0
+                        },
+                        'message': {
+                            'title': f"Vulnerability in {vuln.get('package_name', 'unknown')}",
+                            'description': vuln.get('advisory', ''),
+                            'solution': f"Upgrade {vuln.get('package_name')} to version {vuln.get('fixed_versions', [])}",
+                            'references': [vuln.get('more_info_url')] if vuln.get('more_info_url') else []
+                        },
+                        'evidence': {
+                            'code_snippet': f"{vuln.get('package_name')}=={vuln.get('analyzed_version')}",
+                            'context_lines': 1
+                        },
+                        'metadata': {
+                            'cwe_id': vuln.get('cwe_id'),
+                            'confidence': 'high',
+                            'tags': ['dependency'],
+                            'fix_available': bool(vuln.get('fixed_versions'))
+                        }
+                    })
+
+            # pip-audit
+            pip_audit = python_results.get('pip-audit', {})
+            if isinstance(pip_audit, dict) and pip_audit.get('vulnerabilities'):
+                for vuln in pip_audit['vulnerabilities']:
+                    # Collect references from aliases and URLs if available
+                    references = []
+                    if vuln.get('aliases'):
+                        references.extend([f"https://osv.dev/vulnerability/{alias}" for alias in vuln.get('aliases')])
+                    
+                    findings.append({
+                        'id': f"pip_audit_{vuln.get('id', 'unknown')}_{vuln.get('package', 'unknown')}",
+                        'tool': 'pip-audit',
+                        'rule_id': vuln.get('id'),
+                        'severity': 'high',
+                        'confidence': 'high',
+                        'category': 'security',
+                        'type': 'dependency_vulnerability',
+                        'file': {
+                            'path': 'requirements.txt',
+                            'line_start': 0,
+                            'line_end': 0,
+                            'column_start': 0,
+                            'column_end': 0
+                        },
+                        'message': {
+                            'title': f"Vulnerability in {vuln.get('package', 'unknown')}",
+                            'description': vuln.get('description', ''),
+                            'solution': f"Upgrade {vuln.get('package')} to fixed version: {vuln.get('fix_versions', [])}",
+                            'references': references
+                        },
+                        'evidence': {
+                            'code_snippet': f"{vuln.get('package')}=={vuln.get('version')}",
+                            'context_lines': 1
+                        },
+                        'metadata': {
+                            'cwe_id': None,
+                            'confidence': 'high',
+                            'tags': ['dependency'] + vuln.get('aliases', []),
+                            'fix_available': bool(vuln.get('fix_versions'))
+                        }
+                    })
+
+            # Ruff
+            ruff = python_results.get('ruff', {})
+            if isinstance(ruff, dict):
+                if ruff.get('issues'):
+                    for issue in ruff['issues']:
+                        findings.append({
+                            'id': f"ruff_{issue.get('rule_id', 'unknown')}_{issue.get('line', 0)}",
+                            'tool': 'ruff',
+                            'rule_id': issue.get('rule_id'),
+                            'severity': self._normalize_severity(issue.get('severity', 'warning')),
+                            'confidence': 'high',
+                            'category': issue.get('category', 'quality'),
+                            'type': 'code_quality',
+                            'file': {
+                                'path': issue.get('file', '').replace('/app/sources/', ''),
+                                'line_start': issue.get('line'),
+                                'line_end': issue.get('line'),
+                                'column_start': issue.get('column'),
+                                'column_end': None
+                            },
+                            'message': {
+                                'title': issue.get('message', ''),
+                                'description': issue.get('message', ''),
+                                'solution': 'Fix according to Ruff rules',
+                                'references': [issue.get('help_url')] if issue.get('help_url') else []
+                            },
+                            'evidence': {
+                                'code_snippet': '',
+                                'context_lines': 3
+                            },
+                            'metadata': {
+                                'cwe_id': None,
+                                'confidence': 'high',
+                                'tags': [issue.get('rule_id', '')],
+                                'fix_available': True
+                            }
+                        })
+                # Try SARIF first
+                elif ruff.get('sarif'):
+                    sarif = ruff['sarif']
+                    if isinstance(sarif, dict) and 'runs' in sarif:
+                        for run in sarif['runs']:
+                            for result in run.get('results', []):
+                                findings.append({
+                                    'id': f"ruff_{result.get('ruleId', 'unknown')}_{result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('startLine', 0)}",
+                                    'tool': 'ruff',
+                                    'rule_id': result.get('ruleId'),
+                                    'severity': self._normalize_severity(result.get('level', 'warning')),
+                                    'confidence': 'high',
+                                    'category': 'quality',
+                                    'type': 'code_quality',
+                                    'file': {
+                                        'path': result.get('locations', [{}])[0].get('physicalLocation', {}).get('artifactLocation', {}).get('uri', '').replace('/app/sources/', ''),
+                                        'line_start': result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('startLine'),
+                                        'line_end': result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('endLine'),
+                                        'column_start': result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('startColumn'),
+                                        'column_end': result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('endColumn')
+                                    },
+                                    'message': {
+                                        'title': result.get('message', {}).get('text', ''),
+                                        'description': result.get('message', {}).get('text', ''),
+                                        'solution': 'Fix according to Ruff rules',
+                                        'references': []
+                                    },
+                                    'evidence': {
+                                        'code_snippet': '',
+                                        'context_lines': 3
+                                    },
+                                    'metadata': {
+                                        'cwe_id': None,
+                                        'confidence': 'high',
+                                        'tags': [result.get('ruleId', '')],
+                                        'fix_available': True
+                                    }
+                                })
+
         # JavaScript/TypeScript tools
         js_results = results.get('javascript', {})
         if isinstance(js_results, dict):
             # ESLint
             eslint = js_results.get('eslint', {})
-            if isinstance(eslint, dict) and eslint.get('results'):
-                for file_result in eslint['results']:
-                    for issue in file_result.get('messages', []):
+            if isinstance(eslint, dict):
+                if eslint.get('issues'):
+                    for issue in eslint['issues']:
                         findings.append({
-                            'id': f"eslint_{issue.get('ruleId', 'unknown')}_{issue.get('line', 0)}",
+                            'id': f"eslint_{issue.get('rule_id', 'unknown')}_{issue.get('line', 0)}",
                             'tool': 'eslint',
-                            'rule_id': issue.get('ruleId'),
-                            'severity': self._normalize_severity('error' if issue.get('severity') == 2 else 'warning'),
+                            'rule_id': issue.get('rule_id'),
+                            'severity': self._normalize_severity(issue.get('severity', 'warning')),
                             'confidence': 'high',
-                            'category': 'quality',
+                            'category': issue.get('category', 'quality'),
                             'type': 'code_quality',
                             'file': {
-                                'path': file_result.get('filePath', '').replace('/app/sources/', ''),
+                                'path': issue.get('file', '').replace('/app/sources/', ''),
                                 'line_start': issue.get('line'),
-                                'line_end': issue.get('endLine', issue.get('line')),
+                                'line_end': issue.get('line'),
                                 'column_start': issue.get('column'),
-                                'column_end': issue.get('endColumn', issue.get('column'))
+                                'column_end': None
                             },
                             'message': {
-                                'title': issue.get('ruleId', 'ESLint Rule Violation'),
+                                'title': issue.get('rule_id', 'ESLint Rule Violation'),
                                 'description': issue.get('message', ''),
                                 'solution': 'Fix according to ESLint rule documentation.',
-                                'references': []
+                                'references': [issue.get('help_url')] if issue.get('help_url') else []
                             },
                             'evidence': {},
                             'metadata': {
-                                'fix_available': 'fix' in issue
+                                'fix_available': True
+                            }
+                        })
+                elif eslint.get('results'):
+                    for file_result in eslint['results']:
+                        for issue in file_result.get('messages', []):
+                            findings.append({
+                                'id': f"eslint_{issue.get('ruleId', 'unknown')}_{issue.get('line', 0)}",
+                                'tool': 'eslint',
+                                'rule_id': issue.get('ruleId'),
+                                'severity': self._normalize_severity('error' if issue.get('severity') == 2 else 'warning'),
+                                'confidence': 'high',
+                                'category': 'quality',
+                                'type': 'code_quality',
+                                'file': {
+                                    'path': file_result.get('filePath', '').replace('/app/sources/', ''),
+                                    'line_start': issue.get('line'),
+                                    'line_end': issue.get('endLine', issue.get('line')),
+                                    'column_start': issue.get('column'),
+                                    'column_end': issue.get('endColumn', issue.get('column'))
+                                },
+                                'message': {
+                                    'title': issue.get('ruleId', 'ESLint Rule Violation'),
+                                    'description': issue.get('message', ''),
+                                    'solution': 'Fix according to ESLint rule documentation.',
+                                    'references': []
+                                },
+                                'evidence': {},
+                                'metadata': {
+                                    'fix_available': 'fix' in issue
+                                }
+                            })
+
+            # npm-audit
+            npm_audit = js_results.get('npm-audit', {})
+            if isinstance(npm_audit, dict) and npm_audit.get('vulnerabilities'):
+                vulns = npm_audit['vulnerabilities']
+                if isinstance(vulns, dict):
+                    for pkg_name, vuln in vulns.items():
+                        findings.append({
+                            'id': f"npm_audit_{pkg_name}_{vuln.get('severity', 'unknown')}",
+                            'tool': 'npm-audit',
+                            'rule_id': 'npm-audit-vulnerability',
+                            'severity': self._normalize_severity(vuln.get('severity', 'low')),
+                            'confidence': 'high',
+                            'category': 'security',
+                            'type': 'dependency_vulnerability',
+                            'file': {
+                                'path': 'package.json',
+                                'line_start': 0,
+                                'line_end': 0,
+                                'column_start': 0,
+                                'column_end': 0
+                            },
+                            'message': {
+                                'title': f"Vulnerability in {pkg_name}",
+                                'description': f"Severity: {vuln.get('severity')}. Fix available: {vuln.get('fixAvailable', False)}",
+                                'solution': 'Run npm audit fix',
+                                'references': []
+                            },
+                            'evidence': {
+                                'code_snippet': f"{pkg_name}",
+                                'context_lines': 1
+                            },
+                            'metadata': {
+                                'cwe_id': None,
+                                'confidence': 'high',
+                                'tags': ['dependency', 'security'],
+                                'fix_available': isinstance(vuln.get('fixAvailable'), (bool, dict))
                             }
                         })
         
@@ -2109,7 +2418,7 @@ class AnalyzerManager:
                             'category': 'quality',
                             'type': 'code_style',
                             'file': {
-                                'path': warning.get('source', '').replace('/app/sources/', ''),
+                                'path': file_result.get('source', '').replace('/app/sources/', ''),
                                 'line_start': warning.get('line'),
                                 'line_end': warning.get('endLine', warning.get('line')),
                                 'column_start': warning.get('column'),
@@ -2668,6 +2977,7 @@ class AnalyzerManager:
     def _aggregate_findings(self, consolidated_results: Dict[str, Any]) -> Dict[str, Any]:
         """Aggregate findings from all analyzers into a comprehensive format."""
         all_findings: List[Dict[str, Any]] = []
+        seen_finding_ids: Set[str] = set()  # Track unique finding IDs
         findings_by_tool: Dict[str, int] = {}
         findings_by_severity: Dict[str, int] = {'high': 0, 'medium': 0, 'low': 0}
         tools_used: List[str] = []
@@ -2689,7 +2999,25 @@ class AnalyzerManager:
             logger.debug(f"[AGGREGATE] {analyzer_name}: extracting findings from service_results")
             findings = self._extract_findings_from_analyzer_result(analyzer_name, service_results)
             logger.debug(f"[AGGREGATE] {analyzer_name}: extracted {len(findings)} findings")
-            all_findings.extend(findings)
+            
+            # Deduplicate findings before adding
+            for finding in findings:
+                finding_id = finding.get('id')
+                if finding_id and finding_id in seen_finding_ids:
+                    logger.debug(f"[AGGREGATE] Skipping duplicate finding: {finding_id}")
+                    continue
+                
+                if finding_id:
+                    seen_finding_ids.add(finding_id)
+                
+                all_findings.append(finding)
+
+                # Update stats only for unique findings
+                tool = finding.get('tool', 'unknown')
+                severity = finding.get('severity', 'medium')
+                findings_by_tool[tool] = findings_by_tool.get(tool, 0) + 1
+                if severity in findings_by_severity:
+                    findings_by_severity[severity] += 1
 
             analysis_data = service_results.get('analysis', {})
             if isinstance(analysis_data, dict):
@@ -2698,13 +3026,6 @@ class AnalyzerManager:
                 if isinstance(used_in_analysis, list):
                     logger.debug(f"[AGGREGATE] {analyzer_name}: tools_used = {used_in_analysis}")
                     tools_used.extend(t for t in used_in_analysis if t not in tools_used)
-
-            for finding in findings:
-                tool = finding.get('tool', 'unknown')
-                severity = finding.get('severity', 'medium')
-                findings_by_tool[tool] = findings_by_tool.get(tool, 0) + 1
-                if severity in findings_by_severity:
-                    findings_by_severity[severity] += 1
 
         logger.info(f"[AGGREGATE] Total: {len(all_findings)} findings from {len(tools_used)} tools")
         logger.info(f"[AGGREGATE] By tool: {findings_by_tool}")

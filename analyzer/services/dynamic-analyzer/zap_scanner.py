@@ -83,7 +83,7 @@ class ZAPScanner:
                     'max_duration': 300,
                 },
                 'ajax_spider': {
-                    'enabled': True,  # Enable AJAX spider
+                    'enabled': False,  # Disabled by default (avoids browser/Selenium dependency)
                     'max_duration': 60,
                 },
                 **(runtime_config or {})
@@ -95,7 +95,7 @@ class ZAPScanner:
         self.default_thread_count = spider_config.get('thread_count', 5)
         self.default_max_duration = spider_config.get('max_duration', 300)
         self.passive_wait_time = self.config.get('passive_scan', {}).get('wait_time', 30)
-        self.ajax_spider_enabled = self.config.get('ajax_spider', {}).get('enabled', True)
+        self.ajax_spider_enabled = self.config.get('ajax_spider', {}).get('enabled', False)
         
         logger.info(f"ZAP config loaded: spider_depth={self.default_max_depth}, ajax_spider={self.ajax_spider_enabled}")
     

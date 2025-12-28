@@ -517,9 +517,19 @@ class Flake8SARIFParser:
             error_code = code_parts[0] if code_parts else 'UNKNOWN'
             message = code_parts[1] if len(code_parts) > 1 else 'No description'
             
-            # Determine level based on error code prefix
-            level = 'error' if error_code.startswith('E') else 'warning'
-            severity = 'high' if error_code.startswith('E') else 'medium'
+            # Determine level based on error code (matching parsers.py logic)
+            if error_code in ['W291', 'W292', 'W293', 'W503', 'W504', 'W605']:
+                level = 'note'
+                severity = 'low'
+            elif error_code.startswith('E') or error_code.startswith('F'):
+                level = 'error'
+                severity = 'high'
+            elif error_code.startswith('W'):
+                level = 'warning'
+                severity = 'medium'
+            else:
+                level = 'note'
+                severity = 'low'
             
             result = SARIFBuilder.create_result(
                 rule_id=error_code,
@@ -538,6 +548,59 @@ class Flake8SARIFParser:
 
 class RuffSARIFParser:
     """Parse Ruff JSON output to SARIF format."""
+    
+    @staticmethod
+    def _get_ruff_severity(rule_id: str) -> tuple[str, str]:
+        """
+        Map Ruff rule IDs to appropriate severity levels.
+        
+        Returns:
+            (sarif_level, severity_category) tuple
+            sarif_level: 'error' | 'warning' | 'note'
+            severity_category: 'critical' | 'high' | 'medium' | 'low' | 'info'
+        """
+        # Whitespace/formatting rules - LOW or INFO
+        if rule_id in ['W291', 'W292', 'W293', 'W503', 'W504', 'W605']:
+            return ('note', 'low')
+        
+        # Import sorting - MEDIUM
+        if rule_id.startswith('I') or rule_id in ['E401', 'E402']:
+            return ('warning', 'medium')
+        
+        # Security rules (Bandit-like) - HIGH to CRITICAL
+        if rule_id.startswith('S'):
+            # S1xx-S3xx: high security issues
+            if rule_id in ['S104', 'S105', 'S106', 'S107', 'S108']:
+                return ('error', 'high')  # Hardcoded passwords, bind all interfaces
+            # S311-S324: crypto/random - high
+            if rule_id in ['S311', 'S324']:
+                return ('error', 'high')
+            # Lower security issues
+            return ('warning', 'medium')
+        
+        # Critical syntax/logic errors
+        if rule_id in ['E999', 'F821', 'F822', 'F823']:
+            return ('error', 'high')  # Syntax errors, undefined names
+        
+        # Unused imports/variables - MEDIUM
+        if rule_id in ['F401', 'F403', 'F405', 'F841']:
+            return ('warning', 'medium')
+        
+        # Code complexity - MEDIUM
+        if rule_id.startswith('C') or rule_id in ['E501']:
+            return ('warning', 'medium')
+        
+        # Pycodestyle errors (E7xx) - mostly MEDIUM except critical ones
+        if rule_id.startswith('E7'):
+            if rule_id in ['E711', 'E712', 'E721']:
+                return ('warning', 'medium')  # Comparison issues
+            return ('warning', 'low')
+        
+        # Default: E-prefixed = MEDIUM, others = LOW
+        if rule_id.startswith('E'):
+            return ('warning', 'medium')
+        
+        return ('warning', 'low')
     
     @staticmethod
     def parse(raw_output: List[Dict[str, Any]], config: Optional[Dict] = None) -> Dict[str, Any]:
@@ -570,9 +633,8 @@ class RuffSARIFParser:
             location = issue.get('location', {})
             error_code = issue.get('code', 'UNKNOWN')
             
-            # Determine level based on error code prefix
-            level = 'error' if error_code.startswith('E') else 'warning'
-            severity = 'high' if error_code.startswith('E') else 'medium'
+            # Use intelligent severity mapping
+            level, severity = RuffSARIFParser._get_ruff_severity(error_code)
             
             result = SARIFBuilder.create_result(
                 rule_id=error_code,
@@ -816,3 +878,42 @@ def build_sarif_document(runs: List[Dict[str, Any]]) -> Dict[str, Any]:
         "version": "2.1.0",
         "runs": runs
     }
+
+
+def remap_ruff_sarif_severity(sarif_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Post-process Ruff SARIF output to correct severity levels.
+    
+    Ruff outputs all issues as "level": "error", but many should be lower severity.
+    This function remaps severities based on rule IDs.
+    
+    Args:
+        sarif_data: SARIF document from Ruff (with runs array)
+        
+    Returns:
+        Modified SARIF document with corrected severity levels
+    """
+    if not isinstance(sarif_data, dict) or 'runs' not in sarif_data:
+        return sarif_data
+    
+    for run in sarif_data.get('runs', []):
+        # Only process if this is a Ruff run
+        tool_name = run.get('tool', {}).get('driver', {}).get('name', '').lower()
+        if 'ruff' not in tool_name:
+            continue
+        
+        for result in run.get('results', []):
+            rule_id = result.get('ruleId', '')
+            
+            # Get correct severity for this rule
+            level, severity_category = RuffSARIFParser._get_ruff_severity(rule_id)
+            
+            # Update SARIF level
+            result['level'] = level
+            
+            # Update properties.problem.severity if it exists
+            if 'properties' not in result:
+                result['properties'] = {}
+            result['properties']['problem.severity'] = severity_category
+    
+    return sarif_data

@@ -208,6 +208,48 @@ class DynamicAnalyzer(BaseWSService):
                 'error': str(e),
                 'url': url
             }
+
+    @staticmethod
+    def _normalize_tool_config(tool_config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Normalize tool_config payload coming from the UI.
+
+        The wizard stores flat dicts per tool (e.g., {'zap': {'ajax_spider_enabled': true}}).
+        The ZAP scanner expects nested config matching zap.yaml (e.g., {'ajax_spider': {'enabled': true}}).
+        """
+        if not tool_config or not isinstance(tool_config, dict):
+            return {}
+
+        normalized: Dict[str, Any] = {}
+
+        for tool_name, raw in tool_config.items():
+            if not isinstance(tool_name, str):
+                continue
+            if not isinstance(raw, dict):
+                # Allow direct primitive overrides if a tool accepts them (rare)
+                normalized[tool_name] = raw
+                continue
+
+            if tool_name.lower() == 'zap':
+                zap_cfg = dict(raw)
+                # Map wizard-friendly boolean into nested config
+                enabled_key = None
+                if 'run_ajax_spider' in zap_cfg:
+                    enabled_key = 'run_ajax_spider'
+                elif 'ajax_spider_enabled' in zap_cfg:
+                    enabled_key = 'ajax_spider_enabled'
+
+                if enabled_key is not None:
+                    enabled_val = bool(zap_cfg.pop(enabled_key))
+                    zap_cfg.setdefault('ajax_spider', {})
+                    if isinstance(zap_cfg['ajax_spider'], dict):
+                        zap_cfg['ajax_spider'].setdefault('enabled', enabled_val)
+                    else:
+                        zap_cfg['ajax_spider'] = {'enabled': enabled_val}
+                normalized['zap'] = zap_cfg
+            else:
+                normalized[tool_name] = raw
+
+        return normalized
             result = self._exec('curl', cmd, timeout=15)
             
             if result.returncode != 0 and 'SSL' in result.stderr:
@@ -569,7 +611,14 @@ class DynamicAnalyzer(BaseWSService):
             'method': 'basic_check'
         }
     
-    async def analyze_running_app(self, model_slug: str, app_number: int, target_urls: List[str], selected_tools: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def analyze_running_app(
+        self,
+        model_slug: str,
+        app_number: int,
+        target_urls: List[str],
+        selected_tools: Optional[List[str]] = None,
+        tool_config: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """Perform comprehensive dynamic analysis on running application."""
         try:
             self.log.info("═" * 80)
@@ -579,6 +628,9 @@ class DynamicAnalyzer(BaseWSService):
             
             # Normalize tool selection to lowercase set
             selected_set = {t.lower() for t in selected_tools} if selected_tools else None
+
+            # Normalize per-tool config overrides
+            normalized_tool_config = self._normalize_tool_config(tool_config)
 
             results = {
                 'model_slug': model_slug,
@@ -703,7 +755,8 @@ class DynamicAnalyzer(BaseWSService):
                     host = list(hosts_to_scan)[0]  # Scan first host
                     # Tool gating: prefer nmap; otherwise allow basic curl-based check if curl selected
                     if selected_set is None or 'nmap' in selected_set:
-                        port_scan_result = await self.port_scan(host, list(ports_to_scan))
+                        nmap_cfg = normalized_tool_config.get('nmap') if isinstance(normalized_tool_config, dict) else None
+                        port_scan_result = await self.port_scan(host, list(ports_to_scan), config=nmap_cfg if isinstance(nmap_cfg, dict) else None)
                         results['results']['port_scan'] = port_scan_result
                         results['tools_used'] = list(set(results['tools_used'] + ['nmap']))
                         
@@ -735,6 +788,13 @@ class DynamicAnalyzer(BaseWSService):
                     zap_results = []
                     for url in zap_target_urls[:2]:  # Limit to first 2 URLs
                         # Run baseline scan (spider + passive)
+                        zap_cfg = normalized_tool_config.get('zap') if isinstance(normalized_tool_config, dict) else None
+                        # Apply per-run overrides by reloading ZAPScanner config
+                        if isinstance(zap_cfg, dict) and self.zap_scanner is not None:
+                            try:
+                                self.zap_scanner._load_config(zap_cfg)
+                            except Exception as e:
+                                self.log.warning(f"Failed to apply ZAP runtime config overrides: {e}")
                         zap_result = await self.run_zap_scan(url, scan_type='baseline')
                         zap_results.append(zap_result)
                     
@@ -855,6 +915,7 @@ class DynamicAnalyzer(BaseWSService):
                 model_slug = message_data.get("model_slug", "unknown")
                 app_number = message_data.get("app_number", 1)
                 target_urls = message_data.get("target_urls", [])
+                tool_config = message_data.get("config", {})
                 # Tool selection normalized
                 selected_tools = list(self.extract_selected_tools(message_data) or [])
 
@@ -873,7 +934,7 @@ class DynamicAnalyzer(BaseWSService):
                 await self.send_progress('starting', f"Starting dynamic analysis for {model_slug} app {app_number}",
                                          model_slug=model_slug, app_number=app_number)
 
-                analysis_results = await self.analyze_running_app(model_slug, app_number, target_urls, selected_tools)
+                analysis_results = await self.analyze_running_app(model_slug, app_number, target_urls, selected_tools, tool_config=tool_config)
 
                 response = {
                     "type": "dynamic_analysis_result",
