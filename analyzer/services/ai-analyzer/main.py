@@ -2934,7 +2934,7 @@ async def main():
         print("[ai-analyzer] - Default model: google/gemini-2.5-flash (cheaper than Haiku)")
         print("[ai-analyzer] - Batch mode: ON (3-4 API calls instead of 20+)")
         print("[ai-analyzer] - Optimized mode: ON (only LLM-generated files, ~60-70% token reduction)")
-        print("[ai-analyzer] - Code limit: 4000 chars (reduced tokens)")
+        print("[ai-analyzer] - Code limit: 30000 chars (reduced tokens)")
         print("[ai-analyzer] ============================================")
         
         # Log API key presence for visibility
@@ -2945,7 +2945,7 @@ async def main():
         print(f"[ai-analyzer] AI_MODEL={os.getenv('AI_MODEL', 'google/gemini-2.5-flash')} (env or default)")
         print(f"[ai-analyzer] AI_BATCH_MODE={os.getenv('AI_BATCH_MODE', 'true')} (env or default)")
         print(f"[ai-analyzer] AI_OPTIMIZED_MODE={os.getenv('AI_OPTIMIZED_MODE', 'true')} (env or default)")
-        print(f"[ai-analyzer] AI_CODE_TRUNCATION_LIMIT={os.getenv('AI_CODE_TRUNCATION_LIMIT', '4000')} (env or default)")
+        print(f"[ai-analyzer] AI_CODE_TRUNCATION_LIMIT={os.getenv('AI_CODE_TRUNCATION_LIMIT', '30000')} (env or default)")
         
         print("[ai-analyzer] Initializing service...")
         service = AIAnalyzer()
