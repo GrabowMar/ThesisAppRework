@@ -200,11 +200,19 @@ class PipelineExecutionService:
         
         # Execute generation job
         if job['stage'] == 'generation':
+            # FIX: Advance job_index FIRST and commit to prevent race condition
+            # This ensures the next poll sees the updated index before we execute
+            # The duplicate detection in _execute_generation_job handles edge cases
+            # Note: advance_job_index() before add_generation_result() is safe because:
+            #   1. add_generation_result() resets job_index=0 on stage transition anyway
+            #   2. Duplicate detection in _execute_generation_job handles concurrent executions
+            pipeline.advance_job_index()
+            db.session.commit()
+            
+            # Execute generation - may cause stage transition
             stage_transitioned = self._execute_generation_job(pipeline, job)
-            # Only advance job index if we didn't transition to a new stage
-            # Stage transition resets job_index to 0, advancing would skip job 0
-            if not stage_transitioned:
-                pipeline.advance_job_index()
+            
+            # Commit the generation results (and possibly stage transition)
             db.session.commit()
             self._emit_progress_update(pipeline)
     
@@ -274,14 +282,56 @@ class PipelineExecutionService:
             if job is None:
                 break  # No more jobs to submit
             
+            # Get job key for duplicate tracking
+            model_slug = job.get('model_slug')
+            app_number = job.get('app_number')
+            job_key = f"{model_slug}:{app_number}"
+            
+            # FIX: Advance job_index FIRST and commit to prevent race condition
+            # This ensures the next poll sees the updated index before we do the work
+            pipeline.advance_job_index()
+            db.session.commit()
+            
             # Skip if generation failed for this job
             if not job.get('success', False):
                 self._log(
                     "Skipping analysis for %s app %s - generation failed",
-                    job.get('model_slug'), job.get('app_number')
+                    model_slug, app_number
                 )
-                pipeline.add_analysis_task_id('skipped', success=False)
-                pipeline.advance_job_index()
+                pipeline.add_analysis_task_id('skipped:generation_failed', success=False,
+                                              model_slug=model_slug, app_number=app_number)
+                db.session.commit()
+                continue
+            
+            # FIX: Check if this model:app combo was already submitted (duplicate guard)
+            progress = pipeline.progress
+            existing_task_ids = progress.get('analysis', {}).get('task_ids', [])
+            submitted_apps = progress.get('analysis', {}).get('submitted_apps', [])
+            
+            if job_key in submitted_apps:
+                self._log(
+                    "Skipping duplicate analysis submission for %s app %d (already in submitted_apps)",
+                    model_slug, app_number
+                )
+                continue
+            
+            # Double-check against existing tasks (belt-and-suspenders)
+            already_submitted = False
+            for task_id in existing_task_ids:
+                if task_id.startswith('skipped') or task_id.startswith('error:'):
+                    continue
+                existing_task = AnalysisTask.query.filter_by(task_id=task_id).first()
+                if (existing_task and 
+                    existing_task.target_model == model_slug and 
+                    existing_task.target_app_number == app_number):
+                    self._log(
+                        "Skipping duplicate analysis for %s app %d (already have task %s)",
+                        model_slug, app_number, task_id
+                    )
+                    already_submitted = True
+                    break
+            
+            if already_submitted:
                 continue
             
             # Submit analysis task
@@ -291,9 +341,8 @@ class PipelineExecutionService:
                     self._in_flight_tasks[pipeline_id].add(task_id)
                 in_flight_count += 1
             
-            pipeline.advance_job_index()
-        
-        db.session.commit()
+            # Commit after task submission to record the task_id
+            db.session.commit()
         
         # STEP 4: Check if all analysis is complete
         if self._check_analysis_tasks_completion(pipeline):
@@ -339,7 +388,8 @@ class PipelineExecutionService:
                 level='warning'
             )
             skip_marker = f'skipped:app_missing:{validation_msg}'
-            pipeline.add_analysis_task_id(skip_marker, success=False)
+            pipeline.add_analysis_task_id(skip_marker, success=False, 
+                                          model_slug=model_slug, app_number=app_number)
             return skip_marker
         
         # STEP 2: Start app containers if autoStartContainers is enabled
@@ -406,7 +456,8 @@ class PipelineExecutionService:
                     model_slug, app_number, level='error'
                 )
                 error_marker = 'error:no_valid_tools'
-                pipeline.add_analysis_task_id(error_marker, success=False)
+                pipeline.add_analysis_task_id(error_marker, success=False,
+                                              model_slug=model_slug, app_number=app_number)
                 return error_marker
             
             # Get container management options from pipeline config (matching API format)
@@ -441,7 +492,8 @@ class PipelineExecutionService:
             )
             # ========== END MATCHING CUSTOM WIZARD BEHAVIOR ==========
             
-            pipeline.add_analysis_task_id(task.task_id, success=True)
+            pipeline.add_analysis_task_id(task.task_id, success=True,
+                                          model_slug=model_slug, app_number=app_number)
             
             self._log(
                 "Created analysis task %s for %s app %d (unified=%s, services=%d, tools=%d)",
@@ -457,7 +509,8 @@ class PipelineExecutionService:
                 level='error'
             )
             error_marker = f'error:{str(e)}'
-            pipeline.add_analysis_task_id(error_marker, success=False)
+            pipeline.add_analysis_task_id(error_marker, success=False,
+                                          model_slug=model_slug, app_number=app_number)
             return error_marker
     
     def _check_completed_analysis_tasks(self, pipeline: PipelineExecution):
@@ -861,13 +914,24 @@ class PipelineExecutionService:
         job_index = job.get('job_index', pipeline.current_job_index)
         model_slug = job['model_slug']
         template_slug = job['template_slug']
+        job_key = f"{model_slug}:{template_slug}"
         
         # ROBUST DUPLICATE DETECTION:
-        # 1. Check by job_index: if result already exists at this index, skip
-        # 2. Check by model+template: fallback for edge cases
+        # 1. Check submitted_jobs set first (prevents race condition duplicates)
+        # 2. Check by job_index: if result already exists at this index, skip
+        # 3. Check by model+template: fallback for edge cases
         # This prevents duplicates on server restart and race conditions
         progress = pipeline.progress
         existing_results = progress.get('generation', {}).get('results', [])
+        submitted_jobs = progress.get('generation', {}).get('submitted_jobs', [])
+        
+        # Check 0: submitted_jobs set (prevents race condition duplicates)
+        if job_key in submitted_jobs:
+            self._log(
+                "Skipping duplicate generation for %s with template %s (already in submitted_jobs)",
+                model_slug, template_slug
+            )
+            return False  # No stage transition (job was skipped)
         
         # Check 1: Job-index-based detection (most reliable)
         if job_index < len(existing_results):

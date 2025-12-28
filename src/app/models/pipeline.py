@@ -183,6 +183,16 @@ class PipelineExecution(db.Model):
         progress = self.progress
         progress['generation']['results'].append(result)
         
+        # Track submitted model:template pairs for duplicate prevention
+        model_slug = result.get('model_slug')
+        template_slug = result.get('template_slug')
+        if model_slug and template_slug:
+            if 'submitted_jobs' not in progress['generation']:
+                progress['generation']['submitted_jobs'] = []
+            job_key = f"{model_slug}:{template_slug}"
+            if job_key not in progress['generation']['submitted_jobs']:
+                progress['generation']['submitted_jobs'].append(job_key)
+        
         if result.get('success', False):
             progress['generation']['completed'] += 1
         else:
@@ -206,7 +216,8 @@ class PipelineExecution(db.Model):
         self.progress = progress
         return stage_transitioned
     
-    def add_analysis_task_id(self, task_id: str, success: bool = True, created_only: bool = True) -> None:
+    def add_analysis_task_id(self, task_id: str, success: bool = True, created_only: bool = True,
+                             model_slug: str = None, app_number: int = None) -> None:
         """Record an analysis task.
         
         Args:
@@ -214,9 +225,19 @@ class PipelineExecution(db.Model):
             success: Whether task creation succeeded (not execution)
             created_only: If True, task was just created and not yet executed.
                          Don't increment completed - let poll loop handle it.
+            model_slug: Model slug for duplicate tracking
+            app_number: App number for duplicate tracking
         """
         progress = self.progress
         progress['analysis']['task_ids'].append(task_id)
+        
+        # Track submitted model:app pairs to prevent race condition duplicates
+        if model_slug and app_number is not None:
+            if 'submitted_apps' not in progress['analysis']:
+                progress['analysis']['submitted_apps'] = []
+            job_key = f"{model_slug}:{app_number}"
+            if job_key not in progress['analysis']['submitted_apps']:
+                progress['analysis']['submitted_apps'].append(job_key)
         
         # For skipped or error tasks, mark as failed immediately
         if task_id.startswith('skipped') or task_id.startswith('error:'):
