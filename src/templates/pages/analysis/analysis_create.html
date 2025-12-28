@@ -263,10 +263,49 @@
                       </div>
                     </div>
                     <div class="card-body p-0">
+                      <!-- AI Analyzer Info Banner -->
+                      <div class="px-3 py-2 bg-warning-lt border-bottom">
+                        <div class="d-flex align-items-start gap-2">
+                          <i class="fas fa-robot text-warning mt-1"></i>
+                          <div class="small">
+                            <strong>LLM-Powered Analysis</strong>
+                            <p class="mb-0 text-muted">Uses Claude 3.5 Haiku via OpenRouter to analyze code against requirements and quality metrics.</p>
+                          </div>
+                        </div>
+                      </div>
                       <div class="table-responsive" id="ai-tools">
                         <div class="text-center py-4">
                           <div class="spinner-border spinner-border-sm text-warning" role="status"></div>
                           <p class="mb-0 small text-muted mt-2">Loading tools…</p>
+                        </div>
+                      </div>
+                      <!-- AI Analyzer Capabilities Summary -->
+                      <div class="px-3 py-2 bg-light-subtle border-top">
+                        <div class="row g-2 small">
+                          <div class="col-6">
+                            <div class="d-flex align-items-center gap-1">
+                              <i class="fas fa-clipboard-check text-success"></i>
+                              <span class="text-muted">Requirements Compliance</span>
+                            </div>
+                          </div>
+                          <div class="col-6">
+                            <div class="d-flex align-items-center gap-1">
+                              <i class="fas fa-code text-primary"></i>
+                              <span class="text-muted">Code Quality Metrics</span>
+                            </div>
+                          </div>
+                          <div class="col-6">
+                            <div class="d-flex align-items-center gap-1">
+                              <i class="fas fa-layer-group text-info"></i>
+                              <span class="text-muted">Backend/Frontend/Admin</span>
+                            </div>
+                          </div>
+                          <div class="col-6">
+                            <div class="d-flex align-items-center gap-1">
+                              <i class="fas fa-bug text-danger"></i>
+                              <span class="text-muted">Anti-Pattern Detection</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -671,11 +710,19 @@
                 <div class="help-content" data-help="3">
                   <h6 class="mb-2">Analysis Configuration</h6>
                   <ul class="small mb-3">
-                    <li><strong>Tool Selection:</strong> Pick individual tools from categories</li>
-                    <li><strong>Security Tools:</strong> Vulnerability scanners, dependency checkers</li>
-                    <li><strong>Performance Tools:</strong> Load testing, resource monitoring</li>
-                    <li><strong>Quality Tools:</strong> Static analysis, linters, complexity metrics</li>
+                    <li><strong>Static Analysis:</strong> Bandit, Semgrep, ESLint, Pylint - code linting and security</li>
+                    <li><strong>Dynamic Analysis:</strong> OWASP ZAP, nmap - runtime security scanning</li>
+                    <li><strong>Performance:</strong> Locust, aiohttp - load testing and benchmarks</li>
+                    <li><strong>AI Analysis:</strong> LLM-powered requirements and quality checks</li>
                   </ul>
+                  <div class="alert alert-warning alert-sm mb-2">
+                    <i class="fas fa-brain me-1"></i>
+                    <strong>AI Analysis Tools:</strong>
+                    <ul class="mb-0 mt-1 ps-3 small">
+                      <li><strong>Requirements Scanner:</strong> Checks backend, frontend, and admin requirements compliance</li>
+                      <li><strong>Code Quality Analyzer:</strong> Evaluates error handling, types, and anti-patterns</li>
+                    </ul>
+                  </div>
                   <div class="alert alert-success alert-sm">
                     <i class="fas fa-check me-1"></i>
                     <strong>Tip:</strong> Use "Select All" for comprehensive analysis or pick specific tools.
@@ -1518,6 +1565,26 @@ function renderContainerTools(container, tools) {
     
     console.log('Rendering', tools.length, 'tools for container:', container);
     
+    // Enhanced descriptions for AI analyzer tools
+    const aiToolEnhancements = {
+        'requirements-scanner': {
+            icon: 'fas fa-clipboard-check',
+            iconColor: 'text-success',
+            badge: 'LLM-Powered',
+            badgeClass: 'bg-warning-lt text-warning',
+            features: ['Backend Requirements', 'Frontend Requirements', 'Admin Requirements'],
+            note: 'Analyzes code against the template specification requirements'
+        },
+        'code-quality-analyzer': {
+            icon: 'fas fa-code',
+            iconColor: 'text-primary',
+            badge: 'LLM-Powered',
+            badgeClass: 'bg-warning-lt text-warning',
+            features: ['Error Handling', 'Type Coverage', 'Anti-Patterns', 'Best Practices'],
+            note: 'Evaluates code quality metrics and patterns'
+        }
+    };
+    
     const rowsHtml = tools.map(tool => {
         const toolName = String(tool.name || tool.id || '');
         const displayName = escapeHtml(tool.display_name || toolName);
@@ -1535,6 +1602,22 @@ function renderContainerTools(container, tools) {
         if (!isAvailable) {
             rowClasses.push('opacity-50');
         }
+        
+        // Check if this is an AI tool with enhanced rendering
+        const aiEnhancement = container === 'ai-analyzer' ? aiToolEnhancements[toolName] : null;
+        
+        let enhancedContent = '';
+        if (aiEnhancement) {
+            const featuresHtml = aiEnhancement.features.map(f => 
+                `<span class="badge bg-light text-muted me-1"><i class="fas fa-check-circle text-success me-1"></i>${f}</span>`
+            ).join('');
+            enhancedContent = `
+                <div class="mt-2">
+                    <div class="d-flex flex-wrap gap-1 mb-1">${featuresHtml}</div>
+                    <div class="text-muted small fst-italic"><i class="fas fa-info-circle me-1"></i>${aiEnhancement.note}</div>
+                </div>
+            `;
+        }
 
         return `
           <tr class="${rowClasses.join(' ')}">
@@ -1546,12 +1629,15 @@ function renderContainerTools(container, tools) {
             <td>
               <label class="fw-semibold d-flex flex-column" for="tool-${toolName}">
                 <span class="d-flex align-items-center gap-2">
+                  ${aiEnhancement ? `<i class="${aiEnhancement.icon} ${aiEnhancement.iconColor}"></i>` : ''}
                   <span>${displayName}</span>
                   <span class="${statusClass}">${statusLabel}</span>
+                  ${aiEnhancement ? `<span class="${aiEnhancement.badgeClass} badge">${aiEnhancement.badge}</span>` : ''}
                 </span>
                 <span class="small text-muted">${description}</span>
               </label>
               ${languages}
+              ${enhancedContent}
             </td>
             <td class="text-end">
               <div class="btn-list">
@@ -2105,11 +2191,18 @@ function updateSelectedToolsSummary() {
     Object.keys(toolsByContainer).forEach(containerName => {
         const tools = toolsByContainer[containerName];
         const containerColor = {
-            'static-analyzer': 'danger',
-            'dynamic-analyzer': 'warning',
+            'static-analyzer': 'primary',
+            'dynamic-analyzer': 'success',
             'performance-tester': 'info',
-            'ai-analyzer': 'primary'
+            'ai-analyzer': 'warning'
         }[containerName] || 'secondary';
+        
+        const containerIcon = {
+            'static-analyzer': 'fas fa-search',
+            'dynamic-analyzer': 'fas fa-play',
+            'performance-tester': 'fas fa-tachometer-alt',
+            'ai-analyzer': 'fas fa-brain'
+        }[containerName] || 'fas fa-tools';
         
         const containerDisplayName = {
             'static-analyzer': 'Static Analysis',
@@ -2120,13 +2213,14 @@ function updateSelectedToolsSummary() {
         
         toolBadgesHtml += `
             <div class="mb-2">
-                <small class="text-muted fw-bold">${containerDisplayName}:</small><br>
+                <small class="text-muted fw-bold"><i class="${containerIcon} me-1"></i>${containerDisplayName}:</small><br>
         `;
         
         tools.forEach(tool => {
+            const toolIcon = containerName === 'ai-analyzer' ? 'fas fa-robot' : 'fas fa-tools';
             toolBadgesHtml += `
                 <span class="badge bg-${containerColor} me-1 mb-1">
-                    <i class="fas fa-tools me-1"></i>
+                    <i class="${toolIcon} me-1"></i>
                     ${escapeHtml(tool.display_name || tool.name)}
                     <button type="button" class="btn-close btn-close-white ms-1" 
                             onclick="toggleTool('${escapeHtml(tool.name)}', '${escapeHtml(tool.display_name)}', '${escapeHtml(tool.container)}')"

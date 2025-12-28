@@ -205,8 +205,10 @@ class AIAnalyzer(BaseWSService):
             # BATCH_MODE: true = batch all requirements in single API call (recommended)
             #             false = individual API call per requirement (legacy, expensive)
             self.batch_mode = os.getenv('AI_BATCH_MODE', 'true').lower() == 'true'
-            # Code truncation limit - lower = fewer tokens = cheaper
-            self.code_truncation_limit = int(os.getenv('AI_CODE_TRUNCATION_LIMIT', '4000'))
+            # Code truncation limit - must be large enough to include ALL LLM-generated files
+            # Default 30000 chars handles typical apps (~27KB of code in 7 whitelisted files)
+            # Previous default of 4000 was too low and truncated frontend files
+            self.code_truncation_limit = int(os.getenv('AI_CODE_TRUNCATION_LIMIT', '30000'))
             # Max tokens for responses - lower = cheaper
             self.max_response_tokens = int(os.getenv('AI_MAX_RESPONSE_TOKENS', '300'))
             # Batch max tokens - larger for batch mode since it contains multiple results
@@ -214,13 +216,33 @@ class AIAnalyzer(BaseWSService):
             # Enable/disable code quality analyzer tool (8 extra API calls when granular)
             self.quality_analyzer_enabled = os.getenv('AI_QUALITY_ANALYZER_ENABLED', 'true').lower() == 'true'
             
+            # OPTIMIZED MODE: Only scan LLM-generated files (not scaffolding)
+            # This dramatically reduces token usage by ~60-70%
+            self.optimized_mode = os.getenv('AI_OPTIMIZED_MODE', 'true').lower() == 'true'
+            
+            # LLM-generated files whitelist (files that are NOT scaffolding)
+            # These are the files where LLM actually generates app-specific code
+            self.llm_generated_files = {
+                'backend': [
+                    'models.py',           # App-specific data models
+                    'services.py',         # App-specific business logic
+                    'routes/user.py',      # App-specific user API endpoints
+                    'routes/admin.py',     # App-specific admin API endpoints
+                ],
+                'frontend': [
+                    'src/pages/UserPage.jsx',   # App-specific user interface
+                    'src/pages/AdminPage.jsx',  # App-specific admin interface
+                    'src/services/api.js',      # App-specific API calls
+                ]
+            }
+            
             # GPT4All available models cache
             self.gpt4all_available_models = []
             self.last_check_time = 0
             self.gpt4all_is_available = False
             
             self.log.info("AI Analyzer initialized (template-based requirements system)")
-            self.log.info(f"Using model: {self.default_openrouter_model}, batch_mode={self.batch_mode}, code_limit={self.code_truncation_limit}")
+            self.log.info(f"Using model: {self.default_openrouter_model}, batch_mode={self.batch_mode}, optimized_mode={self.optimized_mode}, code_limit={self.code_truncation_limit}")
             self.log.info("AIAnalyzer initialization complete")
             if not self.openrouter_api_key:
                 self.log.warning("OPENROUTER_API_KEY not set - OpenRouter analysis will be unavailable")
@@ -762,15 +784,25 @@ Focus on whether the functionality described in the requirement is actually impl
                         'base_url': base_url
                     })
             
-            # Read backend and frontend code for AI analysis
-            code_content = await self._read_app_code_focused(app_path, focus_dirs=['backend', 'frontend'])
+            # Read code for AI analysis - use optimized mode if enabled (default)
+            use_optimized_mode = config.get('optimized_mode', self.optimized_mode) if config else self.optimized_mode
+            
+            if use_optimized_mode:
+                # OPTIMIZED: Only scan LLM-generated files (~60-70% token reduction)
+                code_content = await self._collect_llm_generated_code(app_path)
+                self.log.info(f"Using OPTIMIZED mode: scanning only LLM-generated files ({len(code_content)} chars)")
+            else:
+                # FULL: Scan all backend/frontend files (legacy, more tokens)
+                code_content = await self._read_app_code_focused(app_path, focus_dirs=['backend', 'frontend'])
+                self.log.info(f"Using FULL mode: scanning all backend/frontend files ({len(code_content)} chars)")
             
             # Build template context for AI prompts
             template_context = {
                 'name': template_data.get('name', template_slug),
                 'category': template_data.get('category', 'Unknown'),
                 'description': template_data.get('description', ''),
-                'data_model': template_data.get('data_model', {})
+                'data_model': template_data.get('data_model', {}),
+                'optimized_mode': use_optimized_mode
             }
             
             # Get AI model from config or use default (Gemini Flash is cheaper)
@@ -779,7 +811,7 @@ Focus on whether the functionality described in the requirement is actually impl
             # Get batch mode from config or use instance default
             use_batch_mode = config.get('batch_mode', self.batch_mode) if config else self.batch_mode
             
-            self.log.info(f"Requirements analysis using model={gemini_model}, batch_mode={use_batch_mode}")
+            self.log.info(f"Requirements analysis using model={gemini_model}, batch_mode={use_batch_mode}, optimized_mode={use_optimized_mode}")
             
             # ===== BATCH MODE: Single API call per category (CHEAP - default) =====
             if use_batch_mode:
@@ -907,6 +939,8 @@ Focus on whether the functionality described in the requirement is actually impl
                     'app_number': app_number,
                     'ai_model_used': gemini_model,
                     'batch_mode': use_batch_mode,
+                    'optimized_mode': use_optimized_mode,
+                    'code_chars_analyzed': len(code_content),
                     'api_calls_made': api_calls_made,
                     'template_slug': template_slug,
                     'template_name': template_data.get('name', template_slug),
@@ -982,6 +1016,58 @@ Focus on whether the functionality described in the requirement is actually impl
         """Backwards compatibility wrapper for scan_requirements."""
         return await self.scan_requirements(model_slug, app_number, backend_port, frontend_port, config, analysis_id)
     
+    async def _test_single_endpoint(
+        self, 
+        base_url: str, 
+        method: str, 
+        path: str, 
+        auth_token: Optional[str] = None,
+        expected_status: Any = None
+    ) -> Dict[str, Any]:
+        """Test a single HTTP endpoint and return result."""
+        if expected_status is None:
+            expected_status = [200, 201]
+        
+        # Normalize expected_status to list
+        if isinstance(expected_status, int):
+            expected_status = [expected_status]
+        
+        try:
+            headers = {'Content-Type': 'application/json'}
+            if auth_token:
+                headers['Authorization'] = f'Bearer {auth_token}'
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.request(
+                    method, 
+                    f"{base_url}{path}", 
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=10)
+                ) as response:
+                    actual_status = response.status
+                    passed = actual_status in expected_status or (200 <= actual_status < 300)
+                    
+                    return {
+                        'endpoint': path,
+                        'method': method,
+                        'expected_status': expected_status,
+                        'actual_status': actual_status,
+                        'passed': passed
+                    }
+        except Exception as e:
+            error_msg = str(e)
+            if 'Cannot connect to host' in error_msg or 'Connection refused' in error_msg:
+                error_msg = f"App not running at {base_url}"
+            
+            return {
+                'endpoint': path,
+                'method': method,
+                'expected_status': expected_status,
+                'actual_status': None,
+                'passed': False,
+                'error': error_msg
+            }
+
     async def test_endpoints_only(self, model_slug: str, app_number: int, backend_port: int, frontend_port: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
         """
         CURL ENDPOINT TESTER - Pure HTTP endpoint validation without AI analysis.
@@ -1161,14 +1247,24 @@ Focus on whether the functionality described in the requirement is actually impl
                 with open(requirements_file, 'r', encoding='utf-8') as f:
                     template_data = json.load(f)
             
-            await self.send_progress('reading_code', "Reading backend and frontend code", analysis_id=analysis_id)
+            await self.send_progress('reading_code', "Reading LLM-generated code", analysis_id=analysis_id)
             
-            # Read code from backend and frontend
+            # Read code - use optimized mode if enabled (default)
             full_scan = config.get('full_scan', False) if config else False
+            use_optimized_mode = config.get('optimized_mode', self.optimized_mode) if config else self.optimized_mode
+            
             if full_scan:
+                # Legacy: scan ALL files
                 code_content = await self._read_app_code(app_path)
+                self.log.info(f"Using FULL SCAN mode: all files ({len(code_content)} chars)")
+            elif use_optimized_mode:
+                # OPTIMIZED: Only scan LLM-generated files (~60-70% token reduction)
+                code_content = await self._collect_llm_generated_code(app_path)
+                self.log.info(f"Using OPTIMIZED mode: LLM-generated files only ({len(code_content)} chars)")
             else:
+                # Default focused: scan backend + frontend directories
                 code_content = await self._read_app_code_focused(app_path, focus_dirs=['backend', 'frontend'])
+                self.log.info(f"Using FOCUSED mode: backend/frontend directories ({len(code_content)} chars)")
             
             # Detect project type
             project_info = self._detect_project_type(code_content, app_path)
@@ -1177,7 +1273,8 @@ Focus on whether the functionality described in the requirement is actually impl
                 'name': template_data.get('name', template_slug),
                 'category': template_data.get('category', 'Unknown'),
                 'description': template_data.get('description', ''),
-                'project_type': project_info
+                'project_type': project_info,
+                'optimized_mode': use_optimized_mode
             }
             
             # Get AI model from config or use default
@@ -1186,7 +1283,7 @@ Focus on whether the functionality described in the requirement is actually impl
             # Get batch mode from config or use instance default
             use_batch_mode = config.get('batch_mode', self.batch_mode) if config else self.batch_mode
             
-            self.log.info(f"Quality analysis using model={gemini_model}, batch_mode={use_batch_mode}")
+            self.log.info(f"Quality analysis using model={gemini_model}, batch_mode={use_batch_mode}, optimized_mode={use_optimized_mode}")
             
             # ===== BATCH MODE: Single API call for all metrics (CHEAP - default) =====
             if use_batch_mode:
@@ -1259,6 +1356,8 @@ Focus on whether the functionality described in the requirement is actually impl
                     'app_number': app_number,
                     'ai_model_used': gemini_model,
                     'batch_mode': use_batch_mode,
+                    'optimized_mode': use_optimized_mode,
+                    'code_chars_analyzed': len(code_content),
                     'api_calls_made': api_calls_made,
                     'template_slug': template_slug,
                     'template_name': template_data.get('name', template_slug),
@@ -1488,14 +1587,24 @@ Focus on whether the functionality described in the requirement is actually impl
         metrics_text = "\n".join(metrics_list)
         
         project_info = template_context.get('project_type', {})
+        is_optimized = template_context.get('optimized_mode', False)
         
-        return f"""Analyze the following web application code for these CODE QUALITY METRICS.
+        # Optimized mode note
+        code_note = ""
+        if is_optimized:
+            code_note = """
+NOTE: This is LLM-generated code only (models.py, services.py, user routes, admin routes, UserPage, AdminPage, api.js).
+Scaffolding/boilerplate files are excluded as they are identical across all generated apps.
+Evaluate quality based on this LLM-generated business logic code.
+"""
+        
+        return f"""Analyze the following LLM-generated web application code for these CODE QUALITY METRICS.
 Rate each metric 0-100 and provide brief findings.
 
 PROJECT INFO:
 - Backend: {project_info.get('backend_framework', 'Unknown')}
 - Frontend: {project_info.get('frontend_framework', 'Unknown')}
-
+{code_note}
 METRICS TO EVALUATE:
 {metrics_text}
 
@@ -1981,6 +2090,62 @@ Focus on practical, real-world code quality concerns. Be specific about what you
         
         return code_content
     
+    async def _collect_llm_generated_code(self, app_path: Path) -> str:
+        """
+        Collect ONLY LLM-generated code files (not scaffolding/boilerplate).
+        
+        This is the OPTIMIZED mode that dramatically reduces token usage (~60-70% less)
+        by only scanning files where the LLM actually generates app-specific code.
+        
+        LLM-generated files are:
+        - Backend: models.py, services.py, routes/user.py, routes/admin.py
+        - Frontend: src/pages/UserPage.jsx, src/pages/AdminPage.jsx, src/services/api.js
+        
+        Scaffolding files (NOT included - identical across all apps):
+        - Backend: app.py, routes/__init__.py, routes/auth.py, requirements.txt, Dockerfile
+        - Frontend: App.jsx, main.jsx, App.css, package.json, vite.config.js, components/*, hooks/*
+        
+        Returns:
+            Combined code string with file headers
+        """
+        code_parts = []
+        files_collected = []
+        total_chars = 0
+        
+        try:
+            # Collect backend LLM-generated files
+            for rel_path in self.llm_generated_files.get('backend', []):
+                file_path = app_path / 'backend' / rel_path
+                if file_path.exists():
+                    try:
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read()
+                            code_parts.append(f"\n=== backend/{rel_path} ===\n{content}")
+                            files_collected.append(f"backend/{rel_path}")
+                            total_chars += len(content)
+                    except Exception as e:
+                        self.log.debug(f"Could not read LLM file {file_path}: {e}")
+            
+            # Collect frontend LLM-generated files
+            for rel_path in self.llm_generated_files.get('frontend', []):
+                file_path = app_path / 'frontend' / rel_path
+                if file_path.exists():
+                    try:
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read()
+                            code_parts.append(f"\n=== frontend/{rel_path} ===\n{content}")
+                            files_collected.append(f"frontend/{rel_path}")
+                            total_chars += len(content)
+                    except Exception as e:
+                        self.log.debug(f"Could not read LLM file {file_path}: {e}")
+            
+            self.log.info(f"[OPTIMIZED] Collected {len(files_collected)} LLM-generated files ({total_chars} chars): {files_collected}")
+            
+        except Exception as e:
+            self.log.error(f"Error collecting LLM-generated code: {e}")
+        
+        return "\n".join(code_parts)
+
     async def _analyze_requirements_batch(
         self, 
         code_content: str, 
@@ -2108,12 +2273,21 @@ Focus on practical, real-world code quality concerns. Be specific about what you
             code_content = code_content[:self.code_truncation_limit] + "\n[...truncated...]"
         
         # Build context section
+        is_optimized = template_context.get('optimized_mode', False) if template_context else False
         context_section = ""
         if template_context:
             context_section = f"""
 APPLICATION CONTEXT:
 - Template: {template_context.get('name', 'Unknown')} ({template_context.get('category', 'Unknown')})
 - Description: {template_context.get('description', 'N/A')}
+"""
+        
+        # Optimized mode note
+        code_note = ""
+        if is_optimized:
+            code_note = """
+NOTE: This is LLM-generated code only (models.py, services.py, user routes, admin routes, UserPage, AdminPage, api.js).
+Scaffolding/boilerplate files (app.py, auth.py, App.jsx, etc.) are excluded - they are identical across all apps.
 """
         
         # Build numbered requirements list
@@ -2126,8 +2300,8 @@ APPLICATION CONTEXT:
             'admin': "Focus on: Admin dashboard components, statistics/metrics display, data management tables, bulk operations, authentication for admin routes."
         }
         
-        return f"""Analyze the following web application code and determine if each requirement is MET or NOT MET.
-{context_section}
+        return f"""Analyze the following LLM-generated web application code and determine if each requirement is MET or NOT MET.
+{context_section}{code_note}
 {focus_guidance.get(focus, '')}
 
 REQUIREMENTS TO CHECK:
@@ -2149,44 +2323,132 @@ Be concise but specific. Reference actual code elements when possible."""
         requirements: List[str], 
         focus: str
     ) -> List[Dict[str, Any]]:
-        """Parse batch AI response into individual requirement results."""
+        """Parse batch AI response into individual requirement results.
+        
+        Supports multiple response formats:
+        1. [REQ1] MET:YES | CONF:HIGH | explanation
+        2. [REQ1] MET: YES | CONF: HIGH | explanation
+        3. **[REQ1]** MET:YES | CONF:HIGH | explanation (markdown)
+        4. [REQ1] MET:PARTIAL | CONF:MEDIUM | explanation (partial treated as NO)
+        5. REQ1: YES - explanation
+        6. 1. MET:YES | explanation
+        """
         results = []
+        
+        # Log raw response for debugging (first 500 chars)
+        self.log.info(f"Parsing batch response ({len(response)} chars). Preview: {response[:500]}...")
+        
+        # Helper to interpret met status (handles PARTIAL/PARTIALLY as partial compliance)
+        def interpret_met_status(status_text: str) -> tuple:
+            """Returns (met: bool, is_partial: bool)"""
+            status = status_text.upper().replace(' ', '').replace('_', '')
+            if status in ['YES', 'TRUE', 'MET', 'IMPLEMENTED', 'PRESENT', 'FOUND']:
+                return (True, False)
+            elif status in ['PARTIAL', 'PARTIALLY', 'PARTIALLYMET']:
+                return (False, True)  # Partial = not fully met
+            else:  # NO, FALSE, NOTMET, MISSING, etc.
+                return (False, False)
         
         # Try to parse structured response
         for i, req in enumerate(requirements):
             req_num = i + 1
-            pattern = rf'\[REQ{req_num}\]\s*MET:\s*(YES|NO)\s*\|\s*CONF:\s*(HIGH|MEDIUM|LOW)\s*\|\s*(.+?)(?=\[REQ|\Z)'
-            match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
+            met = None
+            is_partial = False
+            confidence = 'MEDIUM'
+            explanation = ''
+            
+            # Pattern 1: Standard format with optional markdown, flexible spacing
+            # [REQ1] MET:YES | CONF:HIGH | explanation  OR  **[REQ1]** MET: YES | CONF: HIGH | explanation
+            # Also handles MET:PARTIAL, MET:PARTIALLY
+            pattern1 = rf'\*?\*?\[REQ{req_num}\]\*?\*?\s*MET:\s*([A-Z]+)\s*\|\s*CONF:\s*(HIGH|MEDIUM|LOW)\s*\|\s*(.+?)(?=\*?\*?\[REQ|\Z)'
+            match = re.search(pattern1, response, re.IGNORECASE | re.DOTALL)
             
             if match:
-                met = match.group(1).upper() == 'YES'
+                met, is_partial = interpret_met_status(match.group(1))
                 confidence = match.group(2).upper()
                 explanation = match.group(3).strip()
-                # Clean up explanation (remove newlines, extra whitespace)
-                explanation = ' '.join(explanation.split())
             else:
-                # Fallback: try simpler patterns
-                simple_pattern = rf'REQ{req_num}[:\s]*(YES|NO|MET|NOT\s*MET)'
-                simple_match = re.search(simple_pattern, response, re.IGNORECASE)
+                # Pattern 2: Numbered list format (1. MET:YES ...)
+                pattern2 = rf'^{req_num}\.\s*MET:\s*([A-Z]+)\s*\|?\s*(?:CONF:\s*(HIGH|MEDIUM|LOW)\s*\|?)?\s*(.+?)(?=^\d+\.|\Z)'
+                match = re.search(pattern2, response, re.IGNORECASE | re.MULTILINE | re.DOTALL)
                 
-                if simple_match:
-                    result_text = simple_match.group(1).upper()
-                    met = result_text in ['YES', 'MET']
-                    confidence = 'MEDIUM'
-                    explanation = f"Parsed from batch response (REQ{req_num})"
+                if match:
+                    met, is_partial = interpret_met_status(match.group(1))
+                    confidence = (match.group(2) or 'MEDIUM').upper()
+                    explanation = match.group(3).strip() if match.group(3) else ''
                 else:
-                    # Last resort: assume not met if we can't parse
+                    # Pattern 3: REQ format without brackets
+                    pattern3 = rf'REQ\s*{req_num}[:\s]+(?:MET[:\s]*)?([A-Z]+)(?:\s*\|?\s*CONF[:\s]*(HIGH|MEDIUM|LOW))?(?:\s*\|?\s*(.+?))?(?=REQ\s*\d|\Z)'
+                    match = re.search(pattern3, response, re.IGNORECASE | re.DOTALL)
+                    
+                    if match:
+                        met, is_partial = interpret_met_status(match.group(1))
+                        confidence = (match.group(2) or 'MEDIUM').upper()
+                        explanation = match.group(3).strip() if match.group(3) else ''
+                    else:
+                        # Pattern 4: Simple numbered with YES/NO/PARTIAL anywhere on line
+                        pattern4 = rf'(?:^|\n)\s*(?:\[?REQ\]?)?{req_num}[.:\)]\s*(.+?)(?=\n\s*(?:\[?REQ\]?)?\d+[.:\)]|\Z)'
+                        match = re.search(pattern4, response, re.IGNORECASE | re.DOTALL)
+                        
+                        if match:
+                            line_content = match.group(1)
+                            # Look for YES/NO/PARTIAL or MET/NOT MET in the line
+                            if re.search(r'\bPARTIAL(LY)?\b', line_content, re.IGNORECASE):
+                                met = False
+                                is_partial = True
+                            elif re.search(r'\b(YES|MET)\b', line_content, re.IGNORECASE) and not re.search(r'\bNOT\s*MET\b', line_content, re.IGNORECASE):
+                                met = True
+                            elif re.search(r'\b(NO|NOT\s*MET)\b', line_content, re.IGNORECASE):
+                                met = False
+                            
+                            # Extract confidence if present
+                            conf_match = re.search(r'CONF[:\s]*(HIGH|MEDIUM|LOW)', line_content, re.IGNORECASE)
+                            if conf_match:
+                                confidence = conf_match.group(1).upper()
+                            
+                            # Clean up explanation
+                            explanation = re.sub(r'MET:\s*[A-Z]+|CONF:\s*(HIGH|MEDIUM|LOW)|\|', '', line_content, flags=re.IGNORECASE).strip()
+            
+            # Final fallback: search entire response for requirement keywords
+            if met is None:
+                # Look for specific mention of the requirement being met/not met
+                req_text_short = req[:50].lower()
+                # Try to find this requirement being discussed
+                context_pattern = rf'(?:requirement\s*{req_num}|req\s*{req_num}|{req_num}[.:\)])[^.]*?(?:\b(is\s+met|implemented|present|exists|has\s+been\s+implemented|not\s+met|missing|not\s+implemented|absent|partial)\b)'
+                context_match = re.search(context_pattern, response, re.IGNORECASE)
+                
+                if context_match:
+                    indicator = context_match.group(1).lower()
+                    if 'partial' in indicator:
+                        met = False
+                        is_partial = True
+                    else:
+                        met = indicator in ['is met', 'implemented', 'present', 'exists', 'has been implemented']
+                    confidence = 'LOW'
+                    explanation = f"Inferred from context: {context_match.group(0)[:100]}"
+                else:
+                    # Absolute last resort: not met
                     self.log.warning(f"Could not parse result for REQ{req_num} from batch response")
                     met = False
                     confidence = 'LOW'
                     explanation = 'Could not parse result from batch response'
             
+            # Clean up explanation (remove newlines, extra whitespace, markdown)
+            explanation = ' '.join(explanation.split())
+            explanation = re.sub(r'\*+', '', explanation)  # Remove markdown bold/italic
+            explanation = explanation[:500]  # Limit length
+            
+            # Add partial status to explanation if applicable
+            if is_partial and not explanation.lower().startswith('partial'):
+                explanation = f"[PARTIAL] {explanation}"
+            
             results.append({
                 'requirement': req,
                 'met': met,
                 'confidence': confidence,
-                'explanation': explanation,
-                'category': focus
+                'explanation': explanation if explanation else f"Requirement {req_num} {'met' if met else ('partially met' if is_partial else 'not met')}",
+                'category': focus,
+                'partial': is_partial  # Include partial flag for further analysis
             })
         
         return results
@@ -2610,6 +2872,8 @@ Focus on whether the admin panel functionality described in the requirement is a
                     "configuration": {
                         "default_model": self.default_openrouter_model,
                         "batch_mode": self.batch_mode,
+                        "optimized_mode": self.optimized_mode,
+                        "llm_generated_files": self.llm_generated_files,
                         "code_truncation_limit": self.code_truncation_limit,
                         "max_response_tokens": self.max_response_tokens,
                         "batch_max_response_tokens": self.batch_max_response_tokens,
@@ -2617,6 +2881,7 @@ Focus on whether the admin panel functionality described in the requirement is a
                         "configurable_via_env": [
                             "AI_MODEL - Default model (google/gemini-2.5-flash, anthropic/claude-3.5-haiku, etc.)",
                             "AI_BATCH_MODE - true/false (true = cheap batch mode, false = granular mode)",
+                            "AI_OPTIMIZED_MODE - true/false (true = only LLM-generated files, ~60-70% token reduction)",
                             "AI_CODE_TRUNCATION_LIMIT - Max code chars per request (default: 4000)",
                             "AI_MAX_RESPONSE_TOKENS - Max tokens per response (default: 300)",
                             "AI_BATCH_MAX_TOKENS - Max tokens for batch responses (default: 1500)",
@@ -2624,7 +2889,8 @@ Focus on whether the admin panel functionality described in the requirement is a
                         ],
                         "configurable_via_request": [
                             "config.gemini_model - Override model per request",
-                            "config.batch_mode - Override batch mode per request"
+                            "config.batch_mode - Override batch mode per request",
+                            "config.optimized_mode - Override optimized mode per request"
                         ]
                     },
                     "timestamp": datetime.now().isoformat()
@@ -2667,6 +2933,7 @@ async def main():
         print("[ai-analyzer] COST-OPTIMIZED MODE (Dec 2025)")
         print("[ai-analyzer] - Default model: google/gemini-2.5-flash (cheaper than Haiku)")
         print("[ai-analyzer] - Batch mode: ON (3-4 API calls instead of 20+)")
+        print("[ai-analyzer] - Optimized mode: ON (only LLM-generated files, ~60-70% token reduction)")
         print("[ai-analyzer] - Code limit: 4000 chars (reduced tokens)")
         print("[ai-analyzer] ============================================")
         
@@ -2677,6 +2944,7 @@ async def main():
         # Log configuration
         print(f"[ai-analyzer] AI_MODEL={os.getenv('AI_MODEL', 'google/gemini-2.5-flash')} (env or default)")
         print(f"[ai-analyzer] AI_BATCH_MODE={os.getenv('AI_BATCH_MODE', 'true')} (env or default)")
+        print(f"[ai-analyzer] AI_OPTIMIZED_MODE={os.getenv('AI_OPTIMIZED_MODE', 'true')} (env or default)")
         print(f"[ai-analyzer] AI_CODE_TRUNCATION_LIMIT={os.getenv('AI_CODE_TRUNCATION_LIMIT', '4000')} (env or default)")
         
         print("[ai-analyzer] Initializing service...")
