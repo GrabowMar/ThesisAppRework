@@ -599,8 +599,19 @@ Focus on whether the functionality described in the requirement is actually impl
             admin_username = app_env.get('ADMIN_USERNAME', 'admin')
             admin_password = app_env.get('ADMIN_PASSWORD', 'admin2025')
             
-            # Load requirements template
-            template_slug = config.get('template_slug', 'crud_todo_list') if config else 'crud_todo_list'
+            # Load requirements template with smart detection
+            template_slug = config.get('template_slug') if config else None
+            
+            # If no template_slug provided or it's the default, try to detect it
+            if not template_slug or template_slug == 'crud_todo_list':
+                detected_template = self._detect_template_from_app(model_slug, app_number)
+                if detected_template:
+                    template_slug = detected_template
+                    self.log.info(f"Using auto-detected template: {template_slug}")
+                else:
+                    template_slug = template_slug or 'crud_todo_list'  # Keep provided or use default
+                    self.log.warning(f"Could not detect template, using: {template_slug}")
+            
             requirements_file = self._find_requirements_template(template_slug)
             if not requirements_file:
                 return {
@@ -996,8 +1007,15 @@ Focus on whether the functionality described in the requirement is actually impl
                     'tool_name': 'curl-endpoint-tester'
                 }
             
-            # Load template for endpoints
-            template_slug = config.get('template_slug', 'crud_todo_list') if config else 'crud_todo_list'
+            # Load template for endpoints with smart detection
+            template_slug = config.get('template_slug') if config else None
+            if not template_slug or template_slug == 'crud_todo_list':
+                detected_template = self._detect_template_from_app(model_slug, app_number)
+                if detected_template:
+                    template_slug = detected_template
+                else:
+                    template_slug = template_slug or 'crud_todo_list'
+            
             requirements_file = self._find_requirements_template(template_slug)
             if not requirements_file:
                 return {
@@ -1128,8 +1146,15 @@ Focus on whether the functionality described in the requirement is actually impl
             self.log.info(f"Code quality analysis for {model_slug} app {app_number}")
             await self.send_progress('starting', f"Starting code quality analysis for {model_slug} app {app_number}", analysis_id=analysis_id)
             
-            # Load template for context (optional)
-            template_slug = config.get('template_slug', 'crud_todo_list') if config else 'crud_todo_list'
+            # Load template for context with smart detection
+            template_slug = config.get('template_slug') if config else None
+            if not template_slug or template_slug == 'crud_todo_list':
+                detected_template = self._detect_template_from_app(model_slug, app_number)
+                if detected_template:
+                    template_slug = detected_template
+                else:
+                    template_slug = template_slug or 'crud_todo_list'
+            
             template_data = {}
             requirements_file = self._find_requirements_template(template_slug)
             if requirements_file:
@@ -1776,6 +1801,131 @@ Focus on practical, real-world code quality concerns. Be specific about what you
                 })
         
         return recommendations[:5]  # Return top 5 priority recommendations
+    
+    def _detect_template_from_app(self, model_slug: str, app_number: int) -> Optional[str]:
+        """Detect the template_slug from app metadata or code analysis.
+        
+        Detection methods (in order of reliability):
+        1. Read from generation payload files (most reliable - contains original prompt)
+        2. Analyze code for app-type keywords
+        3. Return None to use fallback
+        
+        Returns:
+            template_slug if detected, None otherwise
+        """
+        # Template patterns: keywords that indicate specific templates
+        template_patterns = {
+            'api_url_shortener': [
+                'url shortener', 'shorten url', 'short_code', 'original_url',
+                '/api/shorten', '/shorten', 'shortcode', 'click_count'
+            ],
+            'api_weather_display': [
+                'weather', 'temperature', 'forecast', 'humidity', 
+                'weather api', 'weather data', 'openweathermap'
+            ],
+            'auth_user_login': [
+                'user login', 'authentication', 'login system', 'auth system',
+                'user management', 'register user', '/api/auth/login'
+            ],
+            'crud_todo_list': [
+                'todo list', 'todo app', 'task list', 'task manager',
+                '/api/todos', 'completed', 'due_date', 'todo item'
+            ],
+            'crud_book_library': [
+                'book library', 'library system', 'book management',
+                '/api/books', 'author', 'isbn', 'borrower'
+            ],
+            'realtime_chat_room': [
+                'chat room', 'real-time chat', 'chat application',
+                'websocket', 'socket.io', 'chat message', '/chat'
+            ],
+            'ecommerce_shopping_cart': [
+                'shopping cart', 'e-commerce', 'ecommerce', 'cart items',
+                '/api/cart', 'add to cart', 'checkout', 'product'
+            ],
+            'booking_reservations': [
+                'reservation', 'booking system', 'book appointment',
+                '/api/booking', 'schedule', 'availability', 'time slot'
+            ],
+        }
+        
+        detected_template = None
+        
+        # Method 1: Read from payload files (most reliable)
+        try:
+            payload_dirs = [
+                Path(f"/app/generated/raw/payloads/{model_slug}/app{app_number}"),
+                Path(__file__).parent.parent.parent.parent / "generated" / "raw" / "payloads" / model_slug / f"app{app_number}"
+            ]
+            
+            for payload_dir in payload_dirs:
+                if payload_dir.exists():
+                    # Read the most recent backend payload (contains requirements prompt)
+                    payload_files = sorted(payload_dir.glob("*_backend_*_payload.json"), reverse=True)
+                    if not payload_files:
+                        payload_files = sorted(payload_dir.glob("*_payload.json"), reverse=True)
+                    
+                    for payload_file in payload_files[:1]:  # Just the first/most recent
+                        try:
+                            with open(payload_file, 'r', encoding='utf-8') as f:
+                                payload_data = json.load(f)
+                            
+                            # Extract the prompt content
+                            messages = payload_data.get('payload', {}).get('messages', [])
+                            prompt_text = ""
+                            for msg in messages:
+                                content = msg.get('content', '')
+                                if isinstance(content, str):
+                                    prompt_text += content.lower() + " "
+                            
+                            # Check patterns against prompt
+                            for template_slug, patterns in template_patterns.items():
+                                match_count = sum(1 for p in patterns if p in prompt_text)
+                                if match_count >= 2:  # At least 2 pattern matches
+                                    self.log.info(f"Detected template '{template_slug}' from payload file ({match_count} matches)")
+                                    return template_slug
+                        except Exception as e:
+                            self.log.debug(f"Could not read payload file {payload_file}: {e}")
+                    break
+        except Exception as e:
+            self.log.debug(f"Payload-based template detection failed: {e}")
+        
+        # Method 2: Analyze app code for keywords
+        try:
+            app_dirs = [
+                Path(f"/app/generated/apps/{model_slug}/app{app_number}"),
+                Path(__file__).parent.parent.parent.parent / "generated" / "apps" / model_slug / f"app{app_number}"
+            ]
+            
+            for app_dir in app_dirs:
+                if app_dir.exists():
+                    code_content = ""
+                    # Read backend files (Python)
+                    for py_file in (app_dir / "backend").rglob("*.py"):
+                        if any(x in str(py_file) for x in ['__pycache__', 'venv']):
+                            continue
+                        try:
+                            code_content += py_file.read_text(encoding='utf-8', errors='ignore').lower() + " "
+                        except:
+                            pass
+                    
+                    # Check patterns
+                    best_match = None
+                    best_score = 0
+                    for template_slug, patterns in template_patterns.items():
+                        match_count = sum(1 for p in patterns if p in code_content)
+                        if match_count > best_score and match_count >= 2:
+                            best_score = match_count
+                            best_match = template_slug
+                    
+                    if best_match:
+                        self.log.info(f"Detected template '{best_match}' from code analysis ({best_score} matches)")
+                        return best_match
+                    break
+        except Exception as e:
+            self.log.debug(f"Code-based template detection failed: {e}")
+        
+        return None
     
     def _find_requirements_template(self, template_slug: str) -> Optional[Path]:
         """Find requirements template file by slug.

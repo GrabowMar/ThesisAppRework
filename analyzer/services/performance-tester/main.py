@@ -259,8 +259,16 @@ class PerformanceTester(BaseWSService):
             await self.send_progress('locust_start', f'Locust starting: {url}', 
                                    users=users, spawn_rate=spawn_rate, duration=run_time)
             
-            # Create simple locustfile
+            # Create simple locustfile that tests both frontend and backend
             locustfile_path = self.test_output_dir / "simple_locustfile.py"
+            # Determine if this is a frontend URL (typically higher port) or backend
+            # Frontend serves index page at '/', backend has /api/health
+            parsed_url = urlparse(url)
+            port = parsed_url.port or 80
+            # Frontend typically runs on ports 8000+, backend on 5000-ish
+            # Test the appropriate endpoint based on the target
+            test_endpoint = '/api/health' if port < 6000 else '/'
+            
             locustfile_content = f'''
 from locust import HttpUser, task, between
 
@@ -268,9 +276,15 @@ class SimpleUser(HttpUser):
     host = "{url}"
     wait_time = between(1, 2)
     
-    @task
-    def load_test(self):
-        self.client.get("/")
+    @task(3)
+    def load_test_main(self):
+        """Test main endpoint (index for frontend, health for backend)"""
+        self.client.get("{test_endpoint}")
+    
+    @task(1)
+    def load_test_health(self):
+        """Test health endpoint if backend"""
+        self.client.get("/api/health")
 '''
             locustfile_path.write_text(locustfile_content)
             

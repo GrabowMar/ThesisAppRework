@@ -1281,6 +1281,109 @@ class AnalyzerManager:
             logger.debug(f"Performance result normalization failed: {e}")
         return raw_result
     
+    def _detect_template_from_app(self, model_slug: str, app_number: int) -> Optional[str]:
+        """Detect template_slug from app payload files or code analysis.
+        
+        Same logic as AI analyzer's _detect_template_from_app for consistency.
+        """
+        import json
+        from pathlib import Path
+        
+        # Template patterns: keywords that indicate specific templates
+        template_patterns = {
+            'api_url_shortener': [
+                'url shortener', 'shorten url', 'short_code', 'original_url',
+                '/api/shorten', '/shorten', 'shortcode', 'click_count'
+            ],
+            'api_weather_display': [
+                'weather', 'temperature', 'forecast', 'humidity', 
+                'weather api', 'weather data', 'openweathermap'
+            ],
+            'auth_user_login': [
+                'user login', 'authentication', 'login system', 'auth system',
+                'user management', 'register user', '/api/auth/login'
+            ],
+            'crud_todo_list': [
+                'todo list', 'todo app', 'task list', 'task manager',
+                '/api/todos', 'completed', 'due_date', 'todo item'
+            ],
+            'crud_book_library': [
+                'book library', 'library system', 'book management',
+                '/api/books', 'author', 'isbn', 'borrower'
+            ],
+            'realtime_chat_room': [
+                'chat room', 'real-time chat', 'chat application',
+                'websocket', 'socket.io', 'chat message', '/chat'
+            ],
+            'ecommerce_shopping_cart': [
+                'shopping cart', 'e-commerce', 'ecommerce', 'cart items',
+                '/api/cart', 'add to cart', 'checkout', 'product'
+            ],
+            'booking_reservations': [
+                'reservation', 'booking system', 'book appointment',
+                '/api/booking', 'schedule', 'availability', 'time slot'
+            ],
+        }
+        
+        # Method 1: Read from payload files
+        try:
+            base_path = Path(__file__).parent.parent / "generated" / "raw" / "payloads" / model_slug / f"app{app_number}"
+            if base_path.exists():
+                payload_files = sorted(base_path.glob("*_backend_*_payload.json"), reverse=True)
+                if not payload_files:
+                    payload_files = sorted(base_path.glob("*_payload.json"), reverse=True)
+                
+                for payload_file in payload_files[:1]:
+                    try:
+                        with open(payload_file, 'r', encoding='utf-8') as f:
+                            payload_data = json.load(f)
+                        
+                        messages = payload_data.get('payload', {}).get('messages', [])
+                        prompt_text = ""
+                        for msg in messages:
+                            content = msg.get('content', '')
+                            if isinstance(content, str):
+                                prompt_text += content.lower() + " "
+                        
+                        for template_slug, patterns in template_patterns.items():
+                            match_count = sum(1 for p in patterns if p in prompt_text)
+                            if match_count >= 2:
+                                logger.info(f"Detected template '{template_slug}' from payload ({match_count} matches)")
+                                return template_slug
+                    except Exception as e:
+                        logger.debug(f"Could not read payload file: {e}")
+        except Exception as e:
+            logger.debug(f"Payload-based template detection failed: {e}")
+        
+        # Method 2: Analyze app code
+        try:
+            base_path = Path(__file__).parent.parent / "generated" / "apps" / model_slug / f"app{app_number}"
+            if base_path.exists():
+                code_content = ""
+                for py_file in (base_path / "backend").rglob("*.py"):
+                    if any(x in str(py_file) for x in ['__pycache__', 'venv']):
+                        continue
+                    try:
+                        code_content += py_file.read_text(encoding='utf-8', errors='ignore').lower() + " "
+                    except:
+                        pass
+                
+                best_match = None
+                best_score = 0
+                for template_slug, patterns in template_patterns.items():
+                    match_count = sum(1 for p in patterns if p in code_content)
+                    if match_count > best_score and match_count >= 2:
+                        best_score = match_count
+                        best_match = template_slug
+                
+                if best_match:
+                    logger.info(f"Detected template '{best_match}' from code ({best_score} matches)")
+                    return best_match
+        except Exception as e:
+            logger.debug(f"Code-based template detection failed: {e}")
+        
+        return None
+    
     def _resolve_ai_config(self, model_slug: str, app_number: int, 
                           tools: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
         """Resolve AI analyzer configuration including template_slug and ports.
@@ -1319,36 +1422,12 @@ class AnalyzerManager:
             except Exception as e:
                 logger.debug(f"Could not query database for template_slug: {e}")
             
-            # Fallback: try to infer from directory structure
+            # Smart detection from payload files or code analysis
             if not template_slug:
-                # Use _normalize_and_validate_app to find the app path
-                validation = self._normalize_and_validate_app(model_slug, app_number, include_failed=True)
-                if isinstance(validation, tuple):
-                    _, app_path = validation
-                    # Check path structure - could be:
-                    # - Flat: generated/apps/{model}/app{N}  (parent is model name)
-                    # - Template-based: generated/apps/{model}/{template_slug}/app{N}  (parent is template)
-                    parts = Path(app_path).parts
-                    if len(parts) >= 3:
-                        # Get parent (potential template) and grandparent (potential model)
-                        potential_template = parts[-2]
-                        potential_model = parts[-3] if len(parts) >= 3 else None
-                        
-                        # Only use path-based template if parent is NOT the model name
-                        # (i.e., it's a template-based structure, not flat)
-                        if (potential_template and 
-                            not potential_template.startswith('app') and
-                            potential_template != potential_model and
-                            potential_model == 'apps'):
-                            # This is template-based structure: apps/{model}/{template}/app{N}
-                            # potential_model would be 'apps', and we need parts[-3] to be model
-                            pass  # Skip - this is flat structure
-                        elif (potential_template and 
-                              not potential_template.startswith('app') and
-                              potential_template != normalize_model_slug(model_slug)):
-                            # parent is different from model, so it's a template
-                            template_slug = potential_template
-                            logger.info(f"Inferred template_slug from path: {template_slug}")
+                detected = self._detect_template_from_app(model_slug, app_number)
+                if detected:
+                    template_slug = detected
+                    logger.info(f"Using auto-detected template: {template_slug}")
             
             # Final fallback
             if not template_slug:
@@ -1391,7 +1470,7 @@ class AnalyzerManager:
         """
         logger.info(f"🤖 Running AI analysis on {model_slug} app {app_number}")
         
-        # Determine template_slug: from parameter, DB, or fallback
+        # Determine template_slug: from parameter, DB, smart detection, or fallback
         if not template_slug:
             # Try to get template_slug from database
             try:
@@ -1418,12 +1497,20 @@ class AnalyzerManager:
                     if app_record and app_record.template_slug:
                         template_slug = app_record.template_slug
                         logger.info(f"Found template_slug from database: {template_slug}")
-                    else:
-                        logger.warning(f"No template_slug in database for {model_slug}/app{app_number}, using default")
-                        template_slug = 'crud_todo_list'  # Fallback default
             except Exception as e:
-                logger.warning(f"Could not query database for template_slug: {e}")
-                template_slug = 'crud_todo_list'  # Fallback default
+                logger.debug(f"Could not query database for template_slug: {e}")
+            
+            # Smart detection from payload files or code analysis if DB doesn't have it
+            if not template_slug:
+                detected = self._detect_template_from_app(model_slug, app_number)
+                if detected:
+                    template_slug = detected
+                    logger.info(f"Using auto-detected template: {template_slug}")
+            
+            # Final fallback
+            if not template_slug:
+                logger.warning(f"No template_slug detected for {model_slug}/app{app_number}, using default")
+                template_slug = 'crud_todo_list'
         
         # Resolve port configuration
         ports_tuple = self._resolve_app_ports(model_slug, app_number)

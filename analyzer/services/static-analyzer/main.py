@@ -261,6 +261,155 @@ class StaticAnalyzer(BaseWSService):
         
         return sarif_data
     
+    def _detect_python_framework(self, source_path: Path) -> Dict[str, bool]:
+        """Detect which Python web frameworks are used in the source code.
+        
+        Scans Python files and requirements.txt for framework indicators to avoid
+        applying irrelevant Semgrep rules (e.g., Django rules on Flask apps).
+        
+        Returns:
+            Dict with framework names as keys and boolean presence as values.
+        """
+        frameworks = {
+            'flask': False,
+            'django': False,
+            'fastapi': False,
+            'tornado': False,
+            'bottle': False,
+            'pyramid': False,
+        }
+        
+        # Framework detection patterns (imports and common usage)
+        patterns = {
+            'flask': [
+                'from flask import', 'import flask', 
+                'Flask(__name__)', '@app.route', 'Flask('
+            ],
+            'django': [
+                'from django', 'import django',
+                'INSTALLED_APPS', 'django.conf.settings', 'urlpatterns',
+                'from django.db import models', 'django.urls'
+            ],
+            'fastapi': [
+                'from fastapi import', 'import fastapi',
+                'FastAPI()', '@app.get', '@app.post'
+            ],
+            'tornado': [
+                'from tornado', 'import tornado',
+                'tornado.web', 'tornado.ioloop'
+            ],
+            'bottle': [
+                'from bottle import', 'import bottle',
+                'Bottle()', '@route'
+            ],
+            'pyramid': [
+                'from pyramid', 'import pyramid',
+                'Configurator()', 'pyramid.config'
+            ],
+        }
+        
+        # Check requirements.txt/requirements-*.txt for dependencies
+        for req_file in source_path.glob('**/requirements*.txt'):
+            try:
+                content = req_file.read_text(encoding='utf-8', errors='ignore').lower()
+                for framework in frameworks:
+                    if framework in content:
+                        frameworks[framework] = True
+                        self.log.info(f"Detected {framework} in {req_file.name}")
+            except Exception as e:
+                self.log.debug(f"Could not read {req_file}: {e}")
+        
+        # Check setup.py/pyproject.toml for dependencies
+        for setup_file in ['setup.py', 'pyproject.toml']:
+            setup_path = source_path / setup_file
+            if setup_path.exists():
+                try:
+                    content = setup_path.read_text(encoding='utf-8', errors='ignore').lower()
+                    for framework in frameworks:
+                        if framework in content:
+                            frameworks[framework] = True
+                            self.log.info(f"Detected {framework} in {setup_file}")
+                except Exception as e:
+                    self.log.debug(f"Could not read {setup_file}: {e}")
+        
+        # Scan Python files for imports and usage patterns
+        python_files_checked = 0
+        max_files_to_check = 20  # Limit for performance
+        
+        for py_file in source_path.rglob('*.py'):
+            if python_files_checked >= max_files_to_check:
+                break
+            # Skip ignored directories
+            if any(part in self.default_ignores for part in py_file.parts):
+                continue
+            
+            try:
+                content = py_file.read_text(encoding='utf-8', errors='ignore')
+                for framework, pattern_list in patterns.items():
+                    if not frameworks[framework]:  # Only check if not already detected
+                        for pattern in pattern_list:
+                            if pattern in content:
+                                frameworks[framework] = True
+                                self.log.info(f"Detected {framework} in {py_file.name} (pattern: {pattern})")
+                                break
+                python_files_checked += 1
+            except Exception as e:
+                self.log.debug(f"Could not read {py_file}: {e}")
+        
+        detected = [f for f, v in frameworks.items() if v]
+        if detected:
+            self.log.info(f"Framework detection complete: {', '.join(detected)}")
+        else:
+            self.log.info("No specific Python web framework detected")
+        
+        return frameworks
+    
+    def _filter_semgrep_rulesets(self, rulesets: List[str], frameworks: Dict[str, bool]) -> List[str]:
+        """Filter Semgrep rulesets based on detected frameworks.
+        
+        Removes framework-specific rulesets that don't apply to the project.
+        For example, removes p/django rules if only Flask is detected.
+        
+        Args:
+            rulesets: Original list of Semgrep rulesets
+            frameworks: Dict of detected frameworks from _detect_python_framework
+            
+        Returns:
+            Filtered list of rulesets appropriate for the project
+        """
+        # Framework-specific rulesets that should only apply when framework is detected
+        framework_rulesets = {
+            'p/flask': 'flask',
+            'p/django': 'django',
+            'p/fastapi': 'fastapi',
+        }
+        
+        # If no frameworks detected, keep all rulesets (conservative)
+        any_framework_detected = any(frameworks.values())
+        if not any_framework_detected:
+            self.log.info("No frameworks detected, keeping all Semgrep rulesets")
+            return rulesets
+        
+        filtered = []
+        removed = []
+        
+        for ruleset in rulesets:
+            # Check if this is a framework-specific ruleset
+            if ruleset in framework_rulesets:
+                required_framework = framework_rulesets[ruleset]
+                if frameworks.get(required_framework, False):
+                    filtered.append(ruleset)
+                else:
+                    removed.append(ruleset)
+            else:
+                # Not framework-specific, keep it
+                filtered.append(ruleset)
+        
+        if removed:
+            self.log.info(f"Filtered out Semgrep rulesets (framework not detected): {', '.join(removed)}")
+        
+        return filtered
+    
     def _generate_pylintrc(self, config: Dict[str, Any]) -> str:
         """Generate .pylintrc configuration file content."""
         # Default disabled checks to avoid fatal errors on generated code
@@ -501,7 +650,12 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     'p/react',             # React security patterns
                 ])
             
-            # Build command with all rulesets
+            # Detect Python frameworks and filter rulesets to avoid false positives
+            # E.g., don't apply p/django rules to Flask apps
+            detected_frameworks = self._detect_python_framework(source_path)
+            rulesets = self._filter_semgrep_rulesets(rulesets, detected_frameworks)
+            
+            # Build command with filtered rulesets
             cmd = ['semgrep', 'scan', '--sarif']
             for ruleset in rulesets:
                 cmd.extend(['--config', ruleset])
