@@ -494,9 +494,17 @@ class UnifiedResultService:
         """
         Extract SARIF data from payload to separate files to reduce JSON size.
         Modifies payload in-place to replace SARIF data with file references.
+        
+        Handles:
+        - services.*.analysis.sarif_export (large SARIF aggregation)
+        - services.*.analysis.results.{lang}.{tool}.sarif
+        - services.*.analysis.tool_results.{tool}.sarif
+        - tools.{tool}.sarif and tools.{tool}.output (if large)
         """
         sarif_dir = task_dir / "sarif"
         sarif_dir.mkdir(exist_ok=True)
+        
+        EXTRACTION_THRESHOLD_KB = 500  # Extract to file if >500KB
         
         services = payload.get('services', {})
         for service_name, service_data in services.items():
@@ -505,6 +513,31 @@ class UnifiedResultService:
                 
             # Check for tools with SARIF
             analysis = service_data.get('analysis', {})
+            if not isinstance(analysis, dict):
+                continue
+            
+            # NEW: Handle sarif_export at analysis level
+            if 'sarif_export' in analysis and isinstance(analysis['sarif_export'], dict):
+                sarif_export = analysis['sarif_export']
+                if 'sarif_file' not in sarif_export:  # Not already a reference
+                    sarif_json = json.dumps(sarif_export, default=str)
+                    size_kb = len(sarif_json.encode('utf-8')) / 1024
+                    
+                    if size_kb > EXTRACTION_THRESHOLD_KB:
+                        filename = f"{service_name}_sarif_export.sarif.json"
+                        file_path = sarif_dir / filename
+                        
+                        try:
+                            with open(file_path, 'w', encoding='utf-8') as f:
+                                json.dump(sarif_export, f, indent=2)
+                            analysis['sarif_export'] = {
+                                'sarif_file': f"sarif/{filename}",
+                                'extracted_size_kb': round(size_kb, 2),
+                                'extracted_at': datetime.now(timezone.utc).isoformat()
+                            }
+                            logger.info(f"Extracted sarif_export for {service_name} ({size_kb:.1f}KB)")
+                        except Exception as e:
+                            logger.warning(f"Failed to extract sarif_export for {service_name}: {e}")
             
             # Handle static analyzer structure (grouped by language)
             if service_name in ['static-analyzer', 'static']:
@@ -513,6 +546,7 @@ class UnifiedResultService:
                     if isinstance(lang_tools, dict):
                         for tool_name, tool_data in lang_tools.items():
                             self._process_sarif_extraction(tool_name, tool_data, sarif_dir)
+                            self._process_output_extraction(tool_name, tool_data, sarif_dir, EXTRACTION_THRESHOLD_KB)
             
             # Handle flat structure (other analyzers)
             else:
@@ -521,12 +555,52 @@ class UnifiedResultService:
                 if isinstance(results, dict):
                     for tool_name, tool_data in results.items():
                         self._process_sarif_extraction(tool_name, tool_data, sarif_dir)
+                        self._process_output_extraction(tool_name, tool_data, sarif_dir, EXTRACTION_THRESHOLD_KB)
                 
                 # Check 'tool_results'
                 tool_results = analysis.get('tool_results', {})
                 if isinstance(tool_results, dict):
                     for tool_name, tool_data in tool_results.items():
                         self._process_sarif_extraction(tool_name, tool_data, sarif_dir)
+                        self._process_output_extraction(tool_name, tool_data, sarif_dir, EXTRACTION_THRESHOLD_KB)
+        
+        # NEW: Handle tools section (flat tool map)
+        tools = payload.get('tools', {})
+        if isinstance(tools, dict):
+            for tool_name, tool_data in tools.items():
+                if isinstance(tool_data, dict):
+                    self._process_sarif_extraction(f"tool_{tool_name}", tool_data, sarif_dir)
+                    self._process_output_extraction(f"tool_{tool_name}", tool_data, sarif_dir, EXTRACTION_THRESHOLD_KB)
+    
+    def _process_output_extraction(self, tool_name: str, tool_data: Dict[str, Any], sarif_dir: Path, threshold_kb: int = 500) -> None:
+        """Helper to extract large 'output' fields from tool entries."""
+        if not isinstance(tool_data, dict):
+            return
+        
+        output_data = tool_data.get('output')
+        if output_data and not isinstance(output_data, dict) or (isinstance(output_data, dict) and 'output_file' not in output_data):
+            output_json = json.dumps(output_data, default=str) if not isinstance(output_data, str) else output_data
+            size_kb = len(output_json.encode('utf-8')) / 1024
+            
+            if size_kb > threshold_kb:
+                safe_tool = tool_name.replace('/', '_').replace('\\', '_')
+                filename = f"{safe_tool}_output.json"
+                file_path = sarif_dir / filename
+                
+                try:
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        if isinstance(output_data, str):
+                            f.write(output_data)
+                        else:
+                            json.dump(output_data, f, indent=2, default=str)
+                    
+                    tool_data['output'] = {
+                        'output_file': f"sarif/{filename}",
+                        'extracted_size_kb': round(size_kb, 2)
+                    }
+                    logger.debug(f"Extracted output for {tool_name} ({size_kb:.1f}KB)")
+                except Exception as e:
+                    logger.warning(f"Failed to extract output for {tool_name}: {e}")
 
     def _process_sarif_extraction(self, tool_name: str, tool_data: Dict[str, Any], sarif_dir: Path) -> None:
         """Helper to extract SARIF from a single tool entry."""

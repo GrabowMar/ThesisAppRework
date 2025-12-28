@@ -1744,14 +1744,14 @@ class TaskExecutionService:
                     f"[SUBTASK] Completed subtask {subtask_id} for {service_name}: {result.get('status')}"
                 )
                 
-                # Return standardized format with BOTH 'analysis' and 'payload' keys
-                # 'analysis' is what templates expect, 'payload' is for backward compat
+                # Return standardized format with 'analysis' key only (no duplicate 'payload')
+                # 'analysis' is what templates expect
                 return {
                     'status': result.get('status', 'error'),
                     'service_name': service_name,
                     'subtask_id': subtask_id,
                     'analysis': analysis_data,      # Template-compatible key
-                    'payload': raw_payload,         # Backward compatibility
+                    # REMOVED: 'payload' key was duplicating 'analysis', causing bloated result files
                     'error': result.get('error')
                 }
                 
@@ -1878,7 +1878,7 @@ class TaskExecutionService:
                         'status': result.get('status', 'error'),
                         'service': service_name,
                         'analysis': analysis_data,        # What templates expect
-                        'payload': payload_data,          # Backward compatibility
+                        # REMOVED: 'payload' duplication causing bloated files
                         'error': result.get('error')
                     }
                     
@@ -2512,6 +2512,11 @@ class TaskExecutionService:
         
         Returns a copy of services with SARIF data replaced by file references.
         Matches analyzer_manager.py implementation.
+        
+        Handles:
+        - analysis.sarif_export (large SARIF aggregation)
+        - analysis.tool_results.{tool}.sarif (dynamic/performance)
+        - analysis.results.{category}.{tool}.sarif (static/security)
         """
         services_copy = {}
         
@@ -2530,6 +2535,30 @@ class TaskExecutionService:
                 continue
             
             analysis_copy = dict(analysis)
+            
+            # NEW: Handle sarif_export at the analysis level (large SARIF aggregation)
+            if 'sarif_export' in analysis_copy and isinstance(analysis_copy['sarif_export'], dict):
+                sarif_export = analysis_copy['sarif_export']
+                # Don't re-extract if already a reference
+                if 'sarif_file' not in sarif_export:
+                    sarif_json = json.dumps(sarif_export, default=str)
+                    size_kb = len(sarif_json.encode('utf-8')) / 1024
+                    
+                    # Only extract if large (>500KB)
+                    if size_kb > 500:
+                        sarif_filename = f"{service_name}_sarif_export.sarif.json"
+                        sarif_path = sarif_dir / sarif_filename
+                        
+                        try:
+                            with open(sarif_path, 'w', encoding='utf-8') as f:
+                                json.dump(sarif_export, f, indent=2, default=str)
+                            self._log(f"Extracted sarif_export for {service_name} to {sarif_filename} ({size_kb:.1f}KB)", level='info')
+                            analysis_copy['sarif_export'] = {
+                                'sarif_file': f"sarif/{sarif_filename}",
+                                'extracted_size_kb': round(size_kb, 2)
+                            }
+                        except Exception as e:
+                            self._log(f"Failed to extract sarif_export for {service_name}: {e}", level='error')
             
             # Handle tool_results (dynamic, performance)
             if 'tool_results' in analysis_copy and isinstance(analysis_copy['tool_results'], dict):
@@ -2572,6 +2601,8 @@ class TaskExecutionService:
                             continue
                         
                         tool_copy = dict(tool_data)
+                        
+                        # Extract 'sarif' key
                         if 'sarif' in tool_copy and isinstance(tool_copy['sarif'], dict):
                             sarif_filename = f"{service_name}_{category}_{tool_name}.sarif.json"
                             sarif_path = sarif_dir / sarif_filename
@@ -2584,6 +2615,31 @@ class TaskExecutionService:
                                 del tool_copy['sarif']
                             except Exception as e:
                                 self._log(f"Failed to extract SARIF for {category}/{tool_name}: {e}", level='error')
+                        
+                        # NEW: Extract 'output' key if large (often duplicate of sarif)
+                        if 'output' in tool_copy:
+                            output_data = tool_copy['output']
+                            if output_data:
+                                output_json = json.dumps(output_data, default=str) if not isinstance(output_data, str) else output_data
+                                size_kb = len(output_json.encode('utf-8')) / 1024
+                                
+                                if size_kb > 500:  # Only extract if large
+                                    output_filename = f"{service_name}_{category}_{tool_name}_output.json"
+                                    output_path = sarif_dir / output_filename
+                                    
+                                    try:
+                                        with open(output_path, 'w', encoding='utf-8') as f:
+                                            if isinstance(output_data, str):
+                                                f.write(output_data)
+                                            else:
+                                                json.dump(output_data, f, indent=2, default=str)
+                                        self._log(f"Extracted output for {category}/{tool_name} ({size_kb:.1f}KB)", level='info')
+                                        tool_copy['output'] = {
+                                            'output_file': f"sarif/{output_filename}",
+                                            'extracted_size_kb': round(size_kb, 2)
+                                        }
+                                    except Exception as e:
+                                        self._log(f"Failed to extract output for {category}/{tool_name}: {e}", level='error')
                         
                         category_copy[tool_name] = tool_copy
                     

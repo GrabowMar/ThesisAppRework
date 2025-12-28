@@ -6,9 +6,12 @@ Slim Existing Results
 Retroactively process existing bloated result JSON files to reduce their size.
 
 Operations:
-1. Strip SARIF rule definitions (keep only id, name, shortDescription)
-2. Remove top-level 'findings' array (data is in tools/services)
-3. Compress inline SARIF to file references if not already done
+1. Remove 'payload' duplication in services (keep only 'analysis')
+2. Extract 'sarif_export' to separate files
+3. Extract tool 'sarif' and 'output' (if large) to separate files
+4. Strip SARIF rule definitions (keep only id, name, shortDescription)
+5. Remove top-level 'findings' array (data is in tools/services)
+6. Strip duplicate results between analysis and payload
 
 Usage:
     python scripts/slim_existing_results.py [--dry-run] [--backup]
@@ -31,6 +34,152 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / 'src'))
 
 RESULTS_DIR = PROJECT_ROOT / 'results'
+
+# Threshold for extracting to separate file (500KB)
+EXTRACTION_THRESHOLD_KB = 500
+
+
+def extract_sarif_export_to_file(data: dict, sarif_dir: Path, prefix: str, dry_run: bool = False) -> dict:
+    """Extract sarif_export data to a separate file and replace with reference.
+    
+    Args:
+        data: Dict containing 'sarif_export' key
+        sarif_dir: Directory to save SARIF files
+        prefix: Prefix for the filename (e.g., 'static')
+        dry_run: If True, don't create files
+        
+    Returns:
+        Modified data dict with sarif_export replaced by reference
+    """
+    if 'sarif_export' not in data:
+        return data
+    
+    sarif_export = data['sarif_export']
+    if not isinstance(sarif_export, dict):
+        return data
+    
+    # Already a reference?
+    if 'sarif_file' in sarif_export and len(sarif_export) <= 2:
+        return data
+    
+    # Check size - only extract if large
+    sarif_json = json.dumps(sarif_export, default=str)
+    size_kb = len(sarif_json.encode('utf-8')) / 1024
+    
+    if size_kb < EXTRACTION_THRESHOLD_KB:
+        # Just strip rules in place
+        return data
+    
+    # Extract to file
+    sarif_filename = f"{prefix}_sarif_export.sarif.json"
+    sarif_path = sarif_dir / sarif_filename
+    
+    if not dry_run:
+        sarif_dir.mkdir(parents=True, exist_ok=True)
+        with open(sarif_path, 'w', encoding='utf-8') as f:
+            json.dump(sarif_export, f, indent=2, default=str)
+    
+    # Replace with reference
+    data['sarif_export'] = {
+        'sarif_file': f"sarif/{sarif_filename}",
+        'extracted_size_kb': round(size_kb, 2)
+    }
+    
+    return data
+
+
+def extract_tool_sarif_to_file(tool_data: dict, sarif_dir: Path, tool_name: str, dry_run: bool = False) -> tuple:
+    """Extract tool's sarif/output data to separate files if large.
+    
+    Args:
+        tool_data: Tool data dict
+        sarif_dir: Directory to save files
+        tool_name: Name of the tool
+        dry_run: If True, don't create files
+        
+    Returns:
+        Tuple of (modified tool_data, bytes_saved)
+    """
+    bytes_saved = 0
+    
+    # Extract 'sarif' key
+    if 'sarif' in tool_data and isinstance(tool_data['sarif'], dict):
+        sarif_data = tool_data['sarif']
+        
+        # Already a reference?
+        if 'sarif_file' not in sarif_data:
+            sarif_json = json.dumps(sarif_data, default=str)
+            size_kb = len(sarif_json.encode('utf-8')) / 1024
+            
+            if size_kb >= EXTRACTION_THRESHOLD_KB:
+                sarif_filename = f"tool_{tool_name}.sarif.json"
+                sarif_path = sarif_dir / sarif_filename
+                
+                if not dry_run:
+                    sarif_dir.mkdir(parents=True, exist_ok=True)
+                    with open(sarif_path, 'w', encoding='utf-8') as f:
+                        json.dump(sarif_data, f, indent=2, default=str)
+                
+                bytes_saved += len(sarif_json.encode('utf-8'))
+                tool_data['sarif'] = {
+                    'sarif_file': f"sarif/{sarif_filename}",
+                    'extracted_size_kb': round(size_kb, 2)
+                }
+    
+    # Extract 'output' key if it's large (often duplicate of sarif)
+    if 'output' in tool_data:
+        output_data = tool_data['output']
+        if output_data:
+            output_json = json.dumps(output_data, default=str) if not isinstance(output_data, str) else output_data
+            size_kb = len(output_json.encode('utf-8')) / 1024
+            
+            if size_kb >= EXTRACTION_THRESHOLD_KB:
+                output_filename = f"tool_{tool_name}_output.json"
+                output_path = sarif_dir / output_filename
+                
+                if not dry_run:
+                    sarif_dir.mkdir(parents=True, exist_ok=True)
+                    with open(output_path, 'w', encoding='utf-8') as f:
+                        if isinstance(output_data, str):
+                            f.write(output_data)
+                        else:
+                            json.dump(output_data, f, indent=2, default=str)
+                
+                bytes_saved += len(output_json.encode('utf-8'))
+                tool_data['output'] = {
+                    'output_file': f"sarif/{output_filename}",
+                    'extracted_size_kb': round(size_kb, 2)
+                }
+    
+    return tool_data, bytes_saved
+
+
+def remove_payload_duplication(services: dict) -> tuple:
+    """Remove 'payload' key from services, keeping only 'analysis'.
+    
+    Args:
+        services: Services dict with potentially duplicated data
+        
+    Returns:
+        Tuple of (cleaned services, bytes_saved)
+    """
+    bytes_saved = 0
+    
+    for service_name, service_data in services.items():
+        if not isinstance(service_data, dict):
+            continue
+        
+        # Check if both 'payload' and 'analysis' exist
+        if 'payload' in service_data and 'analysis' in service_data:
+            payload_json = json.dumps(service_data['payload'], default=str)
+            bytes_saved += len(payload_json.encode('utf-8'))
+            del service_data['payload']
+        elif 'payload' in service_data and 'analysis' not in service_data:
+            # Only payload exists - rename to analysis
+            service_data['analysis'] = service_data['payload']
+            del service_data['payload']
+    
+    return services, bytes_saved
 
 
 def strip_sarif_rules(sarif_data: dict, aggressive: bool = False) -> dict:
@@ -168,6 +317,10 @@ def slim_result_file(file_path: Path, dry_run: bool = False, backup: bool = True
         'rules_stripped': 0,
         'findings_removed': False,
         'empty_issues_removed': 0,
+        'payload_removed': 0,
+        'sarif_extracted': 0,
+        'tool_sarif_extracted': 0,
+        'bytes_saved_extraction': 0,
         'error': None
     }
     
@@ -180,8 +333,45 @@ def slim_result_file(file_path: Path, dry_run: bool = False, backup: bool = True
     
     # Track if we made changes
     modified = False
+    sarif_dir = file_path.parent / 'sarif'
     
-    # 1. Remove top-level 'findings' array if present
+    # 0. Remove 'payload' duplication in services (MAJOR savings)
+    services = data.get('services', {})
+    if isinstance(services, dict):
+        services, payload_bytes_saved = remove_payload_duplication(services)
+        if payload_bytes_saved > 0:
+            stats['payload_removed'] = payload_bytes_saved
+            stats['bytes_saved_extraction'] += payload_bytes_saved
+            modified = True
+    
+    # 1. Extract sarif_export from services.*.analysis
+    for service_name, service_data in services.items():
+        if not isinstance(service_data, dict):
+            continue
+        
+        analysis = service_data.get('analysis', {})
+        if isinstance(analysis, dict) and 'sarif_export' in analysis:
+            service_data['analysis'] = extract_sarif_export_to_file(
+                analysis, sarif_dir, f"{service_name}", dry_run
+            )
+            if 'sarif_file' in service_data['analysis'].get('sarif_export', {}):
+                stats['sarif_extracted'] += 1
+                modified = True
+    
+    # 2. Extract large tool sarif/output from tools section
+    tools = data.get('tools', {})
+    if isinstance(tools, dict):
+        for tool_name, tool_data in tools.items():
+            if isinstance(tool_data, dict):
+                tools[tool_name], bytes_saved = extract_tool_sarif_to_file(
+                    tool_data, sarif_dir, tool_name, dry_run
+                )
+                if bytes_saved > 0:
+                    stats['tool_sarif_extracted'] += 1
+                    stats['bytes_saved_extraction'] += bytes_saved
+                    modified = True
+    
+    # 3. Remove top-level 'findings' array if present
     if 'findings' in data:
         del data['findings']
         stats['findings_removed'] = True
@@ -194,24 +384,21 @@ def slim_result_file(file_path: Path, dry_run: bool = False, backup: bool = True
             stats['findings_removed'] = True
             modified = True
     
-    # 2. Clean up empty issues arrays in tools section (confusing with total_issues counts)
-    tools = data.get('tools', {})
-    if isinstance(tools, dict):
-        for tool_name, tool_data in tools.items():
-            if isinstance(tool_data, dict) and 'issues' in tool_data:
-                issues = tool_data.get('issues', [])
-                if isinstance(issues, list) and len(issues) == 0:
-                    del tool_data['issues']
-                    stats['empty_issues_removed'] += 1
-                    modified = True
+    # 4. Clean up empty issues arrays in tools section
+    for tool_name, tool_data in tools.items():
+        if isinstance(tool_data, dict) and 'issues' in tool_data:
+            issues = tool_data.get('issues', [])
+            if isinstance(issues, list) and len(issues) == 0:
+                del tool_data['issues']
+                stats['empty_issues_removed'] += 1
+                modified = True
     
-    # 3. Process SARIF data throughout the structure (keys named 'sarif')
-    sarif_dir = file_path.parent / 'sarif'
+    # 5. Process remaining inline SARIF data throughout the structure
     data = process_sarif_in_structure(data, sarif_dir, stats, aggressive)
     if stats['sarif_stripped'] > 0:
         modified = True
     
-    # 4. Strip any remaining tool.driver.rules patterns (deeply nested SARIF)
+    # 6. Strip any remaining tool.driver.rules patterns (deeply nested SARIF)
     rule_stats = {'rules_stripped': 0}
     strip_all_sarif_rules_recursive(data, rule_stats, aggressive)
     stats['rules_stripped'] = rule_stats['rules_stripped']
@@ -506,10 +693,19 @@ def main():
         total_original += stats['original_size']
         total_new += stats['new_size']
         
-        has_changes = stats['sarif_stripped'] > 0 or stats.get('rules_stripped', 0) > 0 or stats['findings_removed'] or stats.get('empty_issues_removed', 0) > 0
+        has_changes = (stats['sarif_stripped'] > 0 or stats.get('rules_stripped', 0) > 0 or 
+                      stats['findings_removed'] or stats.get('empty_issues_removed', 0) > 0 or
+                      stats.get('payload_removed', 0) > 0 or stats.get('sarif_extracted', 0) > 0 or 
+                      stats.get('tool_sarif_extracted', 0) > 0)
         if has_changes:
             reduction = (1 - stats['new_size'] / stats['original_size']) * 100 if stats['original_size'] > 0 else 0
             status = []
+            if stats.get('payload_removed', 0) > 0:
+                status.append(f"payload removed ({format_size(stats['payload_removed'])})")
+            if stats.get('sarif_extracted', 0) > 0:
+                status.append(f"{stats['sarif_extracted']} sarif_export extracted")
+            if stats.get('tool_sarif_extracted', 0) > 0:
+                status.append(f"{stats['tool_sarif_extracted']} tool SARIF extracted")
             if stats['findings_removed']:
                 status.append("findings removed")
                 total_findings_removed += 1
