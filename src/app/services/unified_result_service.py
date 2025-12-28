@@ -340,11 +340,18 @@ class UnifiedResultService:
         
         # Update summary fields for list view performance
         summary = payload.get('summary', {})
-        task.issues_found = summary.get('total_findings', len(payload.get('findings', [])))
+        # Get total from summary, fallback to counting from tools if no top-level findings
+        total_findings = summary.get('total_findings', 0)
+        task.issues_found = total_findings
         task.set_severity_breakdown(summary.get('severity_breakdown', {}))
         
-        # Extract and store individual findings as AnalysisResult records
+        # Extract findings - prefer top-level 'findings' for backward compat,
+        # but also extract from 'tools' for new slim format
         findings = payload.get('findings', [])
+        if not findings:
+            # New slim format: extract from tools section
+            findings = self._extract_findings_from_tools(payload)
+        
         for idx, finding in enumerate(findings[:100]):  # Limit to 100 findings
             if not isinstance(finding, dict):
                 continue
@@ -625,6 +632,56 @@ class UnifiedResultService:
                     props = {}
                     result['properties'] = props
                 props['problem.severity'] = severity_category
+
+    def _extract_findings_from_tools(self, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Extract findings from tools section for slim result format.
+        
+        New slim format doesn't include top-level 'findings' array.
+        Extract from tools.*.issues or services.*.analysis.results.
+        """
+        findings = []
+        
+        # Try tools section first (normalized, flat structure)
+        tools = payload.get('tools', {})
+        for tool_name, tool_data in tools.items():
+            if not isinstance(tool_data, dict):
+                continue
+            # Get issues from tool data
+            issues = tool_data.get('issues', [])
+            if isinstance(issues, list):
+                for issue in issues:
+                    if isinstance(issue, dict):
+                        finding = dict(issue)
+                        finding.setdefault('tool', tool_name)
+                        findings.append(finding)
+        
+        # If no findings from tools, try services structure
+        if not findings:
+            services = payload.get('services', {})
+            for service_name, service_data in services.items():
+                if not isinstance(service_data, dict):
+                    continue
+                analysis = service_data.get('analysis', {})
+                if not isinstance(analysis, dict):
+                    continue
+                # Try results.{lang}.{tool}.issues
+                results = analysis.get('results', {})
+                if isinstance(results, dict):
+                    for lang, lang_tools in results.items():
+                        if not isinstance(lang_tools, dict):
+                            continue
+                        for tool_name, tool_data in lang_tools.items():
+                            if not isinstance(tool_data, dict):
+                                continue
+                            issues = tool_data.get('issues', [])
+                            if isinstance(issues, list):
+                                for issue in issues:
+                                    if isinstance(issue, dict):
+                                        finding = dict(issue)
+                                        finding.setdefault('tool', tool_name)
+                                        findings.append(finding)
+        
+        return findings
 
     def _write_service_snapshots(self, payload: Dict[str, Any], task_dir: Path) -> None:
         """Write individual service results to separate files for debugging."""

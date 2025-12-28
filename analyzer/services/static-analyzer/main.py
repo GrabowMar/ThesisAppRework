@@ -213,6 +213,53 @@ class StaticAnalyzer(BaseWSService):
         
         self.log.info(f"Detected tools: {tools}")
         return tools
+
+    def _strip_sarif_rules(self, sarif_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Strip bulky rule definitions from SARIF to reduce file size.
+        
+        SARIF 'tool.driver.rules' contains full rule catalog (thousands of entries
+        with lengthy descriptions). We preserve only minimal rule info needed for
+        display: id, name, shortDescription.
+        
+        This reduces Semgrep output by ~60-80% (85k+ lines -> ~5k lines).
+        """
+        if not isinstance(sarif_data, dict):
+            return sarif_data
+            
+        runs = sarif_data.get('runs', [])
+        for run in runs:
+            if not isinstance(run, dict):
+                continue
+            tool = run.get('tool', {})
+            if not isinstance(tool, dict):
+                continue
+            driver = tool.get('driver', {})
+            if not isinstance(driver, dict):
+                continue
+            
+            rules = driver.get('rules', [])
+            if rules:
+                # Keep only essential fields: id, name, shortDescription
+                slim_rules = []
+                for rule in rules:
+                    if not isinstance(rule, dict):
+                        continue
+                    slim_rule = {
+                        'id': rule.get('id', ''),
+                    }
+                    if rule.get('name'):
+                        slim_rule['name'] = rule['name']
+                    if rule.get('shortDescription'):
+                        # Keep shortDescription but truncate if very long
+                        short_desc = rule['shortDescription']
+                        if isinstance(short_desc, dict) and 'text' in short_desc:
+                            text = short_desc['text'][:200] if len(short_desc.get('text', '')) > 200 else short_desc['text']
+                            slim_rule['shortDescription'] = {'text': text}
+                    slim_rules.append(slim_rule)
+                driver['rules'] = slim_rules
+                self.log.info(f"Stripped SARIF rules: {len(rules)} -> {len(slim_rules)} (kept id/name/shortDesc only)")
+        
+        return sarif_data
     
     def _generate_pylintrc(self, config: Dict[str, Any]) -> str:
         """Generate .pylintrc configuration file content."""
@@ -463,6 +510,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             if result.get('status') != 'error' and 'output' in result:
                 try:
                     sarif_data = json.loads(result['output'])
+                    # CRITICAL: Strip bulky rule definitions to reduce file size by ~60%
+                    # Semgrep includes the entire rule catalog (thousands of rules) in tool.driver.rules
+                    # We only need the results - rule IDs are sufficient for lookups
+                    sarif_data = self._strip_sarif_rules(sarif_data)
                     result['sarif'] = sarif_data
                     result['format'] = 'sarif'
                     # Extract issue count

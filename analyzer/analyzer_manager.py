@@ -3039,10 +3039,50 @@ class AnalyzerManager:
             'findings': all_findings
         }
 
+    def _strip_sarif_rules(self, sarif_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Strip bulky rule definitions from SARIF to reduce file size.
+        
+        SARIF 'tool.driver.rules' contains full rule catalog with lengthy descriptions.
+        We preserve only: id, name, shortDescription (truncated).
+        """
+        if not isinstance(sarif_data, dict):
+            return sarif_data
+            
+        runs = sarif_data.get('runs', [])
+        for run in runs:
+            if not isinstance(run, dict):
+                continue
+            tool = run.get('tool', {})
+            if not isinstance(tool, dict):
+                continue
+            driver = tool.get('driver', {})
+            if not isinstance(driver, dict):
+                continue
+            
+            rules = driver.get('rules', [])
+            if rules and len(rules) > 10:  # Only strip if there are many rules
+                slim_rules = []
+                for rule in rules:
+                    if not isinstance(rule, dict):
+                        continue
+                    slim_rule = {'id': rule.get('id', '')}
+                    if rule.get('name'):
+                        slim_rule['name'] = rule['name']
+                    if rule.get('shortDescription'):
+                        short_desc = rule['shortDescription']
+                        if isinstance(short_desc, dict) and 'text' in short_desc:
+                            text = short_desc['text'][:200] if len(short_desc.get('text', '')) > 200 else short_desc['text']
+                            slim_rule['shortDescription'] = {'text': text}
+                    slim_rules.append(slim_rule)
+                driver['rules'] = slim_rules
+        
+        return sarif_data
+
     def _extract_sarif_to_files(self, consolidated_results: Dict[str, Any], sarif_dir: Path) -> Dict[str, Any]:
         """Extract SARIF data from service results to separate files.
         
         Returns a copy of consolidated_results with SARIF data replaced by file references.
+        Also strips bulky rule definitions before writing to reduce file size.
         """
         services_copy = {}
         
@@ -3072,9 +3112,9 @@ class AnalyzerManager:
                     tool_copy = dict(tool_data)
                     
                     # Extract SARIF if present
-                    if 'sarif' in tool_copy:
-                        sarif_data = tool_copy['sarif']
-                        sarif_filename = f"{service_name}_{tool_name}.sarif.json"
+                    if 'sarif' in tool_copy and isinstance(tool_copy['sarif'], dict):
+                        sarif_data = self._strip_sarif_rules(tool_copy['sarif'])
+                        sarif_filename = f"{tool_name}.sarif.json"
                         sarif_path = sarif_dir / sarif_filename
                         
                         try:
@@ -3109,9 +3149,9 @@ class AnalyzerManager:
                         tool_copy = dict(tool_data)
                         
                         # Extract SARIF if present
-                        if 'sarif' in tool_copy:
-                            sarif_data = tool_copy['sarif']
-                            sarif_filename = f"{service_name}_{category}_{tool_name}.sarif.json"
+                        if 'sarif' in tool_copy and isinstance(tool_copy['sarif'], dict):
+                            sarif_data = self._strip_sarif_rules(tool_copy['sarif'])
+                            sarif_filename = f"{tool_name}.sarif.json"
                             sarif_path = sarif_dir / sarif_filename
                             
                             try:
@@ -3204,15 +3244,17 @@ class AnalyzerManager:
                         'tools_used': sorted(list(set(tools_executed) | set(normalized_tools.keys()))),
                         'tools_failed': sorted(tools_failed),
                         'tools_skipped': sorted(tools_skipped),
-                        'status': 'completed'
+                        'status': 'completed',
+                        'overall_status': 'completed'  # For backward compat
                     },
                     # Keep raw per-service payloads, but order consistently for readability
                     # NOW with SARIF extracted to separate files
                     'services': self._ordered_services(services_with_sarif_refs),
                     # Flat, organized view of tools across all services
-                    'tools': normalized_tools,
-                    # Findings extracted from all services
-                    'findings': aggregated_findings.get('findings')
+                    'tools': normalized_tools
+                    # NOTE: 'findings' array REMOVED to reduce file size by ~15-20%
+                    # Findings are already in services.*.analysis.results - use those directly
+                    # Web app updated to read from services/tools instead of top-level findings
                 }
             }
 
