@@ -3043,7 +3043,8 @@ class AnalyzerManager:
         """Strip bulky rule definitions from SARIF to reduce file size.
         
         SARIF 'tool.driver.rules' contains full rule catalog with lengthy descriptions.
-        We preserve only: id, name, shortDescription (truncated).
+        We preserve only: id, name, shortDescription (truncated to 200 chars).
+        Always strips rules to minimize file size.
         """
         if not isinstance(sarif_data, dict):
             return sarif_data
@@ -3060,7 +3061,7 @@ class AnalyzerManager:
                 continue
             
             rules = driver.get('rules', [])
-            if rules and len(rules) > 10:  # Only strip if there are many rules
+            if rules:  # Always strip rules to reduce size
                 slim_rules = []
                 for rule in rules:
                     if not isinstance(rule, dict):

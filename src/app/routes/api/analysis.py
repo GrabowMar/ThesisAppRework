@@ -355,6 +355,85 @@ def run_analysis():
         return api_error(f"Failed to run analysis: {str(e)}", 500)
 
 
+@analysis_bp.route('/task/<task_id>', methods=['GET'])
+def get_task_status(task_id: str):
+    """
+    Get status and details of an analysis task.
+    
+    Endpoint: GET /api/analysis/task/<task_id>
+    
+    Returns:
+    {
+        "success": true,
+        "data": {
+            "task_id": "task_abc123",
+            "status": "running",
+            "progress_percentage": 45,
+            "model_slug": "openai_gpt-4",
+            "app_number": 1,
+            "analysis_type": "security",
+            "created_at": "2025-12-13T10:00:00",
+            "started_at": "2025-12-13T10:00:05",
+            "completed_at": null,
+            "error_message": null,
+            "subtasks": [...]
+        }
+    }
+    """
+    try:
+        from app.services.task_service import AnalysisTaskService
+        from app.models import AnalysisTask
+        
+        # Get task from database
+        task = AnalysisTaskService.get_task(task_id)
+        
+        if not task:
+            return api_error(f"Task not found: {task_id}", 404)
+        
+        # Build response data
+        task_data = {
+            'task_id': task.task_id,
+            'status': task.status.value if hasattr(task.status, 'value') else str(task.status),
+            'progress_percentage': task.progress_percentage or 0,
+            'model_slug': task.target_model,
+            'app_number': task.target_app_number,
+            'analysis_type': task.analysis_type,
+            'created_at': task.created_at.isoformat() if task.created_at else None,
+            'started_at': task.started_at.isoformat() if task.started_at else None,
+            'completed_at': task.completed_at.isoformat() if task.completed_at else None,
+            'error_message': task.error_message,
+            'is_main_task': task.is_main_task,
+            'service_name': task.service_name
+        }
+        
+        # Include subtasks if this is a main task
+        if task.is_main_task:
+            subtasks = AnalysisTask.query.filter_by(parent_task_id=task.task_id).all()
+            task_data['subtasks'] = [
+                {
+                    'task_id': st.task_id,
+                    'status': st.status.value if hasattr(st.status, 'value') else str(st.status),
+                    'progress_percentage': st.progress_percentage or 0,
+                    'service_name': st.service_name,
+                    'error_message': st.error_message
+                }
+                for st in subtasks
+            ]
+        
+        # Include result summary if completed
+        if task.result_summary:
+            task_data['result_summary'] = task.result_summary
+        
+        return jsonify({
+            'success': True,
+            'data': task_data
+        })
+        
+    except Exception as e:
+        logger.exception(f"Error getting task status: {str(e)}")
+        return api_error(f"Failed to get task status: {str(e)}", 500)
+
+
 @analysis_bp.route('/results/<result_id>/tools/<tool_name>', methods=['GET'])
 def get_tool_details(result_id: str, tool_name: str):
     """

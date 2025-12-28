@@ -33,8 +33,13 @@ sys.path.insert(0, str(PROJECT_ROOT / 'src'))
 RESULTS_DIR = PROJECT_ROOT / 'results'
 
 
-def strip_sarif_rules(sarif_data: dict) -> dict:
-    """Strip bulky rule definitions from SARIF, keeping only essential fields."""
+def strip_sarif_rules(sarif_data: dict, aggressive: bool = False) -> dict:
+    """Strip bulky rule definitions from SARIF, keeping only essential fields.
+    
+    Args:
+        sarif_data: SARIF data dict
+        aggressive: If True, strip ALL rules regardless of count. If False, only strip if >10 rules.
+    """
     if not isinstance(sarif_data, dict):
         return sarif_data
     
@@ -45,7 +50,7 @@ def strip_sarif_rules(sarif_data: dict) -> dict:
         
         # Handle nested SARIF (sarif_export can have runs containing runs)
         if 'runs' in run:
-            strip_sarif_rules(run)
+            strip_sarif_rules(run, aggressive)
             
         tool = run.get('tool', {})
         if not isinstance(tool, dict):
@@ -55,7 +60,8 @@ def strip_sarif_rules(sarif_data: dict) -> dict:
             continue
         
         rules = driver.get('rules', [])
-        if rules and len(rules) > 10:
+        # In aggressive mode, strip all rules. Otherwise only if >10
+        if rules and (aggressive or len(rules) > 10):
             slim_rules = []
             for rule in rules:
                 if not isinstance(rule, dict):
@@ -74,15 +80,22 @@ def strip_sarif_rules(sarif_data: dict) -> dict:
     return sarif_data
 
 
-def strip_all_sarif_rules_recursive(data, stats: dict):
-    """Recursively find and strip ANY tool.driver.rules pattern throughout the structure."""
+def strip_all_sarif_rules_recursive(data, stats: dict, aggressive: bool = False):
+    """Recursively find and strip ANY tool.driver.rules pattern throughout the structure.
+    
+    Args:
+        data: Data structure to process
+        stats: Stats dict to update
+        aggressive: If True, strip ALL rules regardless of count
+    """
     if isinstance(data, dict):
         # Check if this dict has tool.driver.rules pattern
         if 'tool' in data and isinstance(data.get('tool'), dict):
             driver = data['tool'].get('driver', {})
             if isinstance(driver, dict) and 'rules' in driver:
                 rules = driver['rules']
-                if isinstance(rules, list) and len(rules) > 10:
+                # In aggressive mode, strip all rules. Otherwise only if >10
+                if isinstance(rules, list) and (aggressive or len(rules) > 10):
                     slim_rules = []
                     for rule in rules:
                         if not isinstance(rule, dict):
@@ -101,14 +114,14 @@ def strip_all_sarif_rules_recursive(data, stats: dict):
         
         # Recurse into all dict values
         for key, value in data.items():
-            strip_all_sarif_rules_recursive(value, stats)
+            strip_all_sarif_rules_recursive(value, stats, aggressive)
             
     elif isinstance(data, list):
         for item in data:
-            strip_all_sarif_rules_recursive(item, stats)
+            strip_all_sarif_rules_recursive(item, stats, aggressive)
 
 
-def process_sarif_in_structure(data: dict, sarif_dir: Path, stats: dict) -> dict:
+def process_sarif_in_structure(data: dict, sarif_dir: Path, stats: dict, aggressive: bool = False) -> dict:
     """Recursively find and process SARIF data in the structure."""
     if not isinstance(data, dict):
         return data
@@ -122,15 +135,15 @@ def process_sarif_in_structure(data: dict, sarif_dir: Path, stats: dict) -> dict
                 continue
             
             # Strip rules and potentially extract
-            stripped = strip_sarif_rules(value)
+            stripped = strip_sarif_rules(value, aggressive)
             stats['sarif_stripped'] += 1
             result[key] = stripped
             
         elif isinstance(value, dict):
-            result[key] = process_sarif_in_structure(value, sarif_dir, stats)
+            result[key] = process_sarif_in_structure(value, sarif_dir, stats, aggressive)
         elif isinstance(value, list):
             result[key] = [
-                process_sarif_in_structure(item, sarif_dir, stats) if isinstance(item, dict) else item
+                process_sarif_in_structure(item, sarif_dir, stats, aggressive) if isinstance(item, dict) else item
                 for item in value
             ]
         else:
@@ -139,14 +152,22 @@ def process_sarif_in_structure(data: dict, sarif_dir: Path, stats: dict) -> dict
     return result
 
 
-def slim_result_file(file_path: Path, dry_run: bool = False, backup: bool = True) -> dict:
-    """Process a single result file and return stats."""
+def slim_result_file(file_path: Path, dry_run: bool = False, backup: bool = True, aggressive: bool = True) -> dict:
+    """Process a single result file and return stats.
+    
+    Args:
+        file_path: Path to result JSON file
+        dry_run: If True, don't modify files
+        backup: If True, create .bak files
+        aggressive: If True, strip ALL SARIF rules (default True for max reduction)
+    """
     stats = {
         'original_size': file_path.stat().st_size,
         'new_size': 0,
         'sarif_stripped': 0,
         'rules_stripped': 0,
         'findings_removed': False,
+        'empty_issues_removed': 0,
         'error': None
     }
     
@@ -173,15 +194,26 @@ def slim_result_file(file_path: Path, dry_run: bool = False, backup: bool = True
             stats['findings_removed'] = True
             modified = True
     
-    # 2. Process SARIF data throughout the structure (keys named 'sarif')
+    # 2. Clean up empty issues arrays in tools section (confusing with total_issues counts)
+    tools = data.get('tools', {})
+    if isinstance(tools, dict):
+        for tool_name, tool_data in tools.items():
+            if isinstance(tool_data, dict) and 'issues' in tool_data:
+                issues = tool_data.get('issues', [])
+                if isinstance(issues, list) and len(issues) == 0:
+                    del tool_data['issues']
+                    stats['empty_issues_removed'] += 1
+                    modified = True
+    
+    # 3. Process SARIF data throughout the structure (keys named 'sarif')
     sarif_dir = file_path.parent / 'sarif'
-    data = process_sarif_in_structure(data, sarif_dir, stats)
+    data = process_sarif_in_structure(data, sarif_dir, stats, aggressive)
     if stats['sarif_stripped'] > 0:
         modified = True
     
-    # 3. Strip any remaining tool.driver.rules patterns (deeply nested SARIF)
+    # 4. Strip any remaining tool.driver.rules patterns (deeply nested SARIF)
     rule_stats = {'rules_stripped': 0}
-    strip_all_sarif_rules_recursive(data, rule_stats)
+    strip_all_sarif_rules_recursive(data, rule_stats, aggressive)
     stats['rules_stripped'] = rule_stats['rules_stripped']
     if rule_stats['rules_stripped'] > 0:
         modified = True
@@ -270,8 +302,15 @@ def find_service_files(results_dir: Path) -> list:
     return files
 
 
-def slim_service_file(file_path: Path, dry_run: bool = False, backup: bool = True) -> dict:
-    """Process a service snapshot file and strip SARIF rules."""
+def slim_service_file(file_path: Path, dry_run: bool = False, backup: bool = True, aggressive: bool = True) -> dict:
+    """Process a service snapshot file and strip SARIF rules.
+    
+    Args:
+        file_path: Path to service JSON file
+        dry_run: If True, don't modify files
+        backup: If True, create .bak files
+        aggressive: If True, strip ALL SARIF rules
+    """
     stats = {
         'original_size': file_path.stat().st_size,
         'new_size': 0,
@@ -289,11 +328,11 @@ def slim_service_file(file_path: Path, dry_run: bool = False, backup: bool = Tru
     
     # Process SARIF throughout the structure (keys named 'sarif')
     sarif_dir = file_path.parent.parent / 'sarif'
-    data = process_sarif_in_structure(data, sarif_dir, stats)
+    data = process_sarif_in_structure(data, sarif_dir, stats, aggressive)
     
     # Strip any remaining tool.driver.rules patterns (deeply nested)
     rule_stats = {'rules_stripped': 0}
-    strip_all_sarif_rules_recursive(data, rule_stats)
+    strip_all_sarif_rules_recursive(data, rule_stats, aggressive)
     stats['rules_stripped'] = rule_stats['rules_stripped']
     
     if stats['sarif_stripped'] == 0 and stats['rules_stripped'] == 0:
@@ -320,8 +359,15 @@ def slim_service_file(file_path: Path, dry_run: bool = False, backup: bool = Tru
     return stats
 
 
-def slim_sarif_file(file_path: Path, dry_run: bool = False, backup: bool = True) -> dict:
-    """Process a single SARIF file and strip rules."""
+def slim_sarif_file(file_path: Path, dry_run: bool = False, backup: bool = True, aggressive: bool = True) -> dict:
+    """Process a single SARIF file and strip rules.
+    
+    Args:
+        file_path: Path to SARIF JSON file
+        dry_run: If True, don't modify files
+        backup: If True, create .bak files
+        aggressive: If True, strip ALL rules regardless of count
+    """
     stats = {
         'original_size': file_path.stat().st_size,
         'new_size': 0,
@@ -342,8 +388,8 @@ def slim_sarif_file(file_path: Path, dry_run: bool = False, backup: bool = True)
         rules = run.get('tool', {}).get('driver', {}).get('rules', [])
         original_rules += len(rules) if isinstance(rules, list) else 0
     
-    # Strip rules
-    stripped = strip_sarif_rules(data)
+    # Strip rules (always strip in aggressive mode, otherwise only if >10)
+    stripped = strip_sarif_rules(data, aggressive)
     
     # Count new rules
     new_rules = 0
@@ -351,7 +397,8 @@ def slim_sarif_file(file_path: Path, dry_run: bool = False, backup: bool = True)
         rules = run.get('tool', {}).get('driver', {}).get('rules', [])
         new_rules += len(rules) if isinstance(rules, list) else 0
     
-    if original_rules <= 10:
+    # Skip if no change (non-aggressive mode and <=10 rules)
+    if not aggressive and original_rules <= 10:
         stats['new_size'] = stats['original_size']
         return stats
     
@@ -386,18 +433,47 @@ def format_size(size_bytes: int) -> str:
     return f"{size_bytes:.1f} TB"
 
 
+def cleanup_backup_files(results_dir: Path, dry_run: bool = False) -> dict:
+    """Remove all .bak files created during slimming."""
+    stats = {'count': 0, 'size': 0}
+    
+    for bak_file in results_dir.rglob('*.bak'):
+        stats['count'] += 1
+        stats['size'] += bak_file.stat().st_size
+        if not dry_run:
+            bak_file.unlink()
+    
+    return stats
+
+
 def main():
     parser = argparse.ArgumentParser(description='Slim existing result JSON files')
     parser.add_argument('--dry-run', action='store_true', help='Show changes without modifying')
     parser.add_argument('--backup', dest='backup', action='store_true', default=True, help='Create .bak files')
     parser.add_argument('--no-backup', dest='backup', action='store_false', help='Skip backup creation')
+    parser.add_argument('--cleanup-backups', action='store_true', help='Remove all .bak files instead of slimming')
+    parser.add_argument('--conservative', action='store_true', help='Only strip rules if >10 (default: strip ALL)')
     args = parser.parse_args()
     
     if not RESULTS_DIR.exists():
         print(f"Results directory not found: {RESULTS_DIR}")
         return 1
     
+    # Handle backup cleanup mode
+    if args.cleanup_backups:
+        print(f"Cleaning up backup files in: {RESULTS_DIR}")
+        stats = cleanup_backup_files(RESULTS_DIR, dry_run=args.dry_run)
+        print(f"Found {stats['count']} backup file(s) totaling {format_size(stats['size'])}")
+        if args.dry_run:
+            print("[DRY RUN] No files were deleted.")
+        else:
+            print(f"Deleted {stats['count']} backup file(s), freed {format_size(stats['size'])}")
+        return 0
+    
+    aggressive = not args.conservative
+    
     print(f"Scanning for result files in: {RESULTS_DIR}")
+    print(f"Mode: {'conservative (>10 rules)' if args.conservative else 'aggressive (ALL rules)'}")
     files = find_result_files(RESULTS_DIR)
     sarif_files = find_sarif_files(RESULTS_DIR)
     service_files = find_service_files(RESULTS_DIR)
@@ -420,7 +496,7 @@ def main():
     # Process main result files
     for file_path in files:
         rel_path = file_path.relative_to(RESULTS_DIR)
-        stats = slim_result_file(file_path, dry_run=args.dry_run, backup=args.backup)
+        stats = slim_result_file(file_path, dry_run=args.dry_run, backup=args.backup, aggressive=aggressive)
         
         if stats['error']:
             print(f"  ✗ {rel_path}: {stats['error']}")
@@ -430,7 +506,7 @@ def main():
         total_original += stats['original_size']
         total_new += stats['new_size']
         
-        has_changes = stats['sarif_stripped'] > 0 or stats.get('rules_stripped', 0) > 0 or stats['findings_removed']
+        has_changes = stats['sarif_stripped'] > 0 or stats.get('rules_stripped', 0) > 0 or stats['findings_removed'] or stats.get('empty_issues_removed', 0) > 0
         if has_changes:
             reduction = (1 - stats['new_size'] / stats['original_size']) * 100 if stats['original_size'] > 0 else 0
             status = []
@@ -443,6 +519,8 @@ def main():
             if stats.get('rules_stripped', 0) > 0:
                 status.append(f"{stats['rules_stripped']} rule sets stripped")
                 total_rules_stripped += stats['rules_stripped']
+            if stats.get('empty_issues_removed', 0) > 0:
+                status.append(f"{stats['empty_issues_removed']} empty issues removed")
             
             print(f"  ✓ {rel_path}")
             print(f"    {format_size(stats['original_size'])} → {format_size(stats['new_size'])} ({reduction:.1f}% reduction)")
@@ -459,7 +537,7 @@ def main():
         print(f"\nProcessing {len(service_files)} service file(s)...")
         for file_path in service_files:
             rel_path = file_path.relative_to(RESULTS_DIR)
-            stats = slim_service_file(file_path, dry_run=args.dry_run, backup=args.backup)
+            stats = slim_service_file(file_path, dry_run=args.dry_run, backup=args.backup, aggressive=aggressive)
             
             if stats['error']:
                 print(f"  ✗ {rel_path}: {stats['error']}")
@@ -486,7 +564,7 @@ def main():
         print(f"\nProcessing {len(sarif_files)} SARIF file(s)...")
         for file_path in sarif_files:
             rel_path = file_path.relative_to(RESULTS_DIR)
-            stats = slim_sarif_file(file_path, dry_run=args.dry_run, backup=args.backup)
+            stats = slim_sarif_file(file_path, dry_run=args.dry_run, backup=args.backup, aggressive=aggressive)
             
             if stats['error']:
                 print(f"  ✗ {rel_path}: {stats['error']}")
