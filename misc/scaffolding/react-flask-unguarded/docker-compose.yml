@@ -1,7 +1,7 @@
 ```dockercompose
 # Minimal Docker Compose for Unguarded Generation Mode
 # AI model is responsible for defining application architecture
-version: '3.8'
+# Uses shared thesis-apps-network to prevent Docker network pool exhaustion
 
 services:
   backend:
@@ -26,7 +26,7 @@ services:
       retries: 3
       start_period: 60s
     networks:
-      - app-network
+      - thesis-apps-network
 
   frontend:
     build:
@@ -48,12 +48,12 @@ services:
       retries: 3
       start_period: 60s
     networks:
-      - app-network
+      - thesis-apps-network
 
 volumes:
   backend-data:
     driver: local
 
 networks:
-  app-network:
-    driver: bridge
+  thesis-apps-network:
+    external: true

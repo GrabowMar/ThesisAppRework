@@ -381,6 +381,20 @@ function Initialize-Environment {
         }
     }
 
+    # Ensure shared Docker network exists (prevents network pool exhaustion)
+    Write-Status "Ensuring shared Docker network exists..." "Info"
+    try {
+        $networkExists = docker network ls --filter name=thesis-apps-network --format "{{.Name}}" 2>$null
+        if (-not $networkExists) {
+            docker network create thesis-apps-network 2>$null | Out-Null
+            Write-Status "  Created shared network: thesis-apps-network" "Success"
+        } else {
+            Write-Status "  Shared network exists: thesis-apps-network" "Success"
+        }
+    } catch {
+        Write-Status "  Warning: Could not create shared network (Docker may not be running)" "Warning"
+    }
+
     # Set environment variables
     $env:FLASK_ENV = 'development'
     $env:HOST = '127.0.0.1'
