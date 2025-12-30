@@ -1,5 +1,10 @@
 # Database Models - Define all SQLAlchemy models here
 # This file is imported by app.py and shared across user/admin routes
+#
+# IMPORTANT: The User model below is SCAFFOLDING - do not replace it!
+# Your generated models should be added AFTER the User model.
+# The User model provides authentication functionality required by auth.py.
+#
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import bcrypt
@@ -7,7 +12,8 @@ import bcrypt
 db = SQLAlchemy()
 
 # ============================================================================
-# USER MODEL - Authentication base model (DO NOT REMOVE)
+# USER MODEL - SCAFFOLDING (DO NOT MODIFY OR REMOVE)
+# This model is required for authentication. Add your models below it.
 # ============================================================================
 class User(db.Model):
     """User model for authentication - all apps include this base model."""

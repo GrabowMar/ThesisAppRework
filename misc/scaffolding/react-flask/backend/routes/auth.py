@@ -79,6 +79,38 @@ def token_required(f):
     return decorated
 
 
+def token_optional(f):
+    """Decorator for routes that work with or without authentication.
+    
+    If valid token is provided, current_user is the User object.
+    If no token or invalid token, current_user is None.
+    
+    Usage:
+        @user_bp.route('/items')
+        @token_optional
+        def list_items(current_user):
+            if current_user:
+                return jsonify({'user_items': ...})
+            return jsonify({'public_items': ...})
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        current_user = None
+        
+        # Try to get token from Authorization header
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:]
+            payload = decode_token(token)
+            if payload:
+                user = User.query.get(payload['user_id'])
+                if user and user.is_active:
+                    current_user = user
+        
+        return f(current_user, *args, **kwargs)
+    return decorated
+
+
 def admin_required(f):
     """Decorator to require admin user for route access.
     

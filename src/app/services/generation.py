@@ -1299,6 +1299,124 @@ class CodeMerger:
             # Admin query: restricted to admin-specific files only
             return self._merge_backend_admin(app_dir, all_blocks)
     
+    def _merge_models_with_scaffolding_user(self, models_path: Path, llm_code: str) -> str:
+        """Merge LLM-generated models with scaffolding's User model.
+        
+        The scaffolding's User model (with set_password, check_password) is critical
+        for authentication. LLM-generated code may replace it with a stripped version.
+        This method ensures the User model from scaffolding is preserved while 
+        adding any new models from LLM output.
+        
+        Args:
+            models_path: Path to existing models.py (from scaffolding)
+            llm_code: LLM-generated models code
+            
+        Returns:
+            Merged models code with scaffolding User model preserved
+        """
+        import re
+        
+        # Check if scaffolding models.py exists with the User model
+        if not models_path.exists():
+            return llm_code
+        
+        existing_code = models_path.read_text(encoding='utf-8')
+        
+        # Quick check: if existing code has set_password method
+        has_scaffolding_user = 'def set_password(' in existing_code and 'def check_password(' in existing_code
+        
+        if not has_scaffolding_user:
+            # No protected User model in scaffolding, just use LLM code
+            return llm_code
+        
+        # Check if LLM code has a User model that lacks required methods
+        llm_has_user = re.search(r'^class\s+User\s*\(', llm_code, re.MULTILINE)
+        llm_user_has_methods = 'def set_password(' in llm_code and 'def check_password(' in llm_code
+        
+        if not llm_has_user:
+            # LLM didn't generate a User model - just append after scaffolding
+            logger.info("LLM models don't include User class - preserving scaffolding User")
+            # Find the end of scaffolding User model and append LLM models
+            # Remove duplicate imports from LLM code
+            llm_code_clean = self._remove_duplicate_imports(existing_code, llm_code)
+            return existing_code + "\n\n# LLM-generated models:\n" + llm_code_clean
+        
+        if llm_user_has_methods:
+            # LLM generated a complete User model - use it
+            logger.info("LLM User model has required methods - using LLM version")
+            return llm_code
+        
+        # LLM has a User model but missing methods - need to merge
+        logger.info("LLM User model missing set_password/check_password - merging with scaffolding")
+        
+        # Strategy: Extract scaffolding User class and use it instead of LLM's User
+        scaffolding_user_match = re.search(
+            r'^(class\s+User\s*\([^)]*\):.*?)(?=^class\s|\Z)',
+            existing_code,
+            re.MULTILINE | re.DOTALL
+        )
+        
+        if not scaffolding_user_match:
+            logger.warning("Could not extract scaffolding User class - using LLM code as-is")
+            return llm_code
+        
+        scaffolding_user = scaffolding_user_match.group(1).rstrip()
+        
+        # Remove the LLM's User class
+        merged_code = re.sub(
+            r'^class\s+User\s*\([^)]*\):.*?(?=^class\s|\Z)',
+            '',
+            llm_code,
+            flags=re.MULTILINE | re.DOTALL
+        )
+        
+        # Add scaffolding User after imports
+        # Find where imports end (after last import line)
+        import_end = 0
+        for match in re.finditer(r'^(?:from\s|import\s).*$', merged_code, re.MULTILINE):
+            import_end = max(import_end, match.end())
+        
+        # Also find db = SQLAlchemy() line
+        db_match = re.search(r'^db\s*=\s*SQLAlchemy\(\)', merged_code, re.MULTILINE)
+        if db_match:
+            import_end = max(import_end, db_match.end())
+        
+        # Insert scaffolding User after imports/db init
+        if import_end > 0:
+            merged_code = (
+                merged_code[:import_end] + 
+                "\n\n# User model with authentication (from scaffolding - DO NOT REMOVE):\n" +
+                scaffolding_user + 
+                "\n\n# Application models:\n" +
+                merged_code[import_end:].lstrip()
+            )
+        else:
+            # No clear import section, prepend User model
+            merged_code = scaffolding_user + "\n\n" + merged_code
+        
+        return merged_code
+    
+    def _remove_duplicate_imports(self, existing_code: str, new_code: str) -> str:
+        """Remove import lines from new_code that already exist in existing_code."""
+        import re
+        existing_imports = set()
+        for match in re.finditer(r'^(?:from\s.+|import\s.+)$', existing_code, re.MULTILINE):
+            existing_imports.add(match.group(0).strip())
+        
+        lines = []
+        for line in new_code.split('\n'):
+            stripped = line.strip()
+            if stripped.startswith(('from ', 'import ')):
+                if stripped not in existing_imports:
+                    lines.append(line)
+            elif stripped.startswith('db = SQLAlchemy()'):
+                # Skip duplicate db init
+                continue
+            else:
+                lines.append(line)
+        
+        return '\n'.join(lines)
+
     def _merge_backend_user(self, app_dir: Path, all_blocks: List[Dict], generated_content: str) -> bool:
         """Handle backend merge for 'user' query - writes to models.py, services.py, routes/user.py.
         
@@ -1380,6 +1498,12 @@ class CodeMerger:
                 
                 # Create parent directory if needed
                 target_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Special handling for models.py: merge with scaffolding User model
+                if target_path == models_path:
+                    code = self._merge_models_with_scaffolding_user(models_path, code)
+                    logger.info("Merged LLM models with scaffolding User model")
+                
                 target_path.write_text(code, encoding='utf-8')
                 logger.info(f"✓ Wrote {len(code)} chars to {target_path.name}")
                 files_written += 1
