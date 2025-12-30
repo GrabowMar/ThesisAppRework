@@ -1,0 +1,365 @@
+# Application Generation Process
+
+This document describes the code generation architecture used in ThesisAppRework. The system generates full-stack web applications by combining immutable Docker scaffolding with AI-generated application code.
+
+## Architecture Overview
+
+```mermaid
+flowchart TB
+    subgraph Input["Input Layer"]
+        Template["Requirement Template\n(JSON)"]
+        Model["LLM Model\n(via OpenRouter)"]
+        Scaffolding["Docker Scaffolding\n(Immutable)"]
+    end
+    
+    subgraph Generation["Generation Pipeline"]
+        Reserve["1. Atomic App Reservation"]
+        Copy["2. Copy Scaffolding"]
+        Prompt["3. Build Prompts"]
+        API["4. OpenRouter API Calls"]
+        Merge["5. Code Merging"]
+        Heal["6. Post-Generation Healing"]
+    end
+    
+    subgraph Output["Output Layer"]
+        App["Generated Application"]
+        Backend["Flask Backend"]
+        Frontend["React Frontend"]
+        Docker["Docker Compose"]
+    end
+    
+    Template --> Reserve
+    Model --> API
+    Scaffolding --> Copy
+    
+    Reserve --> Copy
+    Copy --> Prompt
+    Prompt --> API
+    API --> Merge
+    Merge --> Heal
+    Heal --> App
+    
+    App --> Backend
+    App --> Frontend
+    App --> Docker
+```
+
+## Core Design Principle: Scaffolding-First Architecture
+
+The generation system follows a **"scaffolding-first"** approach where Docker infrastructure is treated as **immutable ("sacred")**:
+
+| Component | Modifiable by AI? | Description |
+|-----------|-------------------|-------------|
+| `docker-compose.yml` | ❌ Never | Container orchestration |
+| `Dockerfile` (backend/frontend) | ❌ Never | Build configuration |
+| `nginx.conf` | ❌ Never | Reverse proxy config |
+| `vite.config.js` | ❌ Never | Build tool config |
+| `tailwind.config.js` | ❌ Never | CSS framework config |
+| `app.py` (router only) | ❌ Never | Flask app initialization |
+| `App.jsx` (router only) | ❌ Never | React routing setup |
+| `models.py`, `services.py` | ✅ Yes | Business logic |
+| `pages/*.jsx`, `hooks/*.js` | ✅ Yes | UI components |
+
+This ensures:
+- **Reproducible builds** across all generated applications
+- **Consistent deployment** via Docker Compose
+- **Isolation of AI variability** to application-level code only
+
+## Generation Modes
+
+### GUARDED Mode (Primary - Used for Research)
+
+The **GUARDED mode** is the primary generation strategy used for this research. It employs a structured **4-query system** that separates user-facing and admin functionality:
+
+```mermaid
+sequenceDiagram
+    participant GS as GenerationService
+    participant OR as OpenRouter API
+    participant FS as Filesystem
+    
+    Note over GS: Phase 1: Setup
+    GS->>FS: Reserve app slot (DB record)
+    GS->>FS: Copy scaffolding to app directory
+    
+    Note over GS: Phase 2: Backend Generation
+    GS->>OR: Query 1: Backend User Code
+    OR-->>GS: models.py, services.py, routes/user.py
+    GS->>FS: Write backend user files
+    
+    GS->>OR: Query 2: Backend Admin Code
+    OR-->>GS: routes/admin.py only
+    GS->>FS: Write admin routes (restricted)
+    
+    Note over GS: Phase 3: Frontend Generation
+    GS->>OR: Query 3: Frontend User Pages
+    OR-->>GS: UserPage.jsx, useData.js, api.js
+    GS->>FS: Write frontend user files
+    
+    GS->>OR: Query 4: Frontend Admin Pages
+    OR-->>GS: AdminPage.jsx only
+    GS->>FS: Write admin page (restricted)
+    
+    Note over GS: Phase 4: Post-Processing
+    GS->>FS: Run dependency healing
+    GS->>FS: Create stub files if needed
+    GS->>FS: Validate syntax
+```
+
+#### 4-Query File Restrictions
+
+Each query has a strict **file whitelist** enforced by the generation service:
+
+| Query | Component | Allowed Files |
+|-------|-----------|---------------|
+| 1 | Backend User | `models.py`, `services.py`, `routes/user.py` |
+| 2 | Backend Admin | `routes/admin.py` **only** |
+| 3 | Frontend User | `pages/UserPage.jsx`, `hooks/useData.js`, `services/api.js` |
+| 4 | Frontend Admin | `pages/AdminPage.jsx` **only** |
+
+**Why this restriction?**
+- Prevents AI from overwriting scaffolding files
+- Ensures admin code cannot accidentally modify user functionality
+- Creates predictable file structure for analysis
+
+### UNGUARDED Mode (Experimental - Not Used for Research)
+
+An alternative **UNGUARDED mode** exists that gives the AI "full creative control" over architecture decisions using only 2 queries (backend + frontend). However, this mode has a **very high failure rate** (>80% of applications fail to build or run) due to:
+
+- AI making incompatible architectural decisions
+- Missing or incorrect import statements
+- Routing conflicts with scaffolding
+- Inconsistent file naming conventions
+
+**This mode is NOT used for the research study** due to unreliable results.
+
+## Generation Workflow Detail
+
+### Step 1: Atomic App Reservation
+
+```python
+# Prevents race conditions in concurrent generation
+app_record = GeneratedApplication(
+    model_slug=normalized_slug,
+    app_number=next_available_number,
+    status='generating'
+)
+db.session.add(app_record)
+db.session.commit()
+```
+
+### Step 2: Scaffolding Copy
+
+The scaffolding from `misc/scaffolding/react-flask/` is copied to the target directory with port substitution:
+
+```
+misc/scaffolding/react-flask/
+├── .env.example          → .env (with allocated ports)
+├── docker-compose.yml    → docker-compose.yml
+├── backend/
+│   ├── Dockerfile
+│   ├── app.py           (Flask router - immutable)
+│   ├── models.py        (placeholder - replaced by AI)
+│   ├── services.py      (placeholder - replaced by AI)
+│   └── routes/
+│       ├── __init__.py
+│       ├── user.py      (placeholder - replaced by AI)
+│       └── admin.py     (placeholder - replaced by AI)
+└── frontend/
+    ├── Dockerfile
+    ├── vite.config.js
+    ├── tailwind.config.js
+    └── src/
+        ├── App.jsx      (React router - immutable)
+        ├── pages/       (AI-generated content)
+        └── hooks/       (AI-generated content)
+```
+
+### Step 3: Prompt Construction
+
+Prompts are built using **Jinja2 templates** with requirement data:
+
+```mermaid
+flowchart LR
+    subgraph Templates["Prompt Templates"]
+        System["System Prompt\n(misc/prompts/system/)"]
+        User["User Template\n(misc/templates/four-query/)"]
+    end
+    
+    subgraph Context["Template Context"]
+        Req["Requirements JSON"]
+        Scaffold["Scaffolding Content"]
+        Endpoints["API Endpoints"]
+    end
+    
+    subgraph Output["Final Prompt"]
+        Final["Complete Prompt\nfor OpenRouter"]
+    end
+    
+    System --> Final
+    User --> Final
+    Req --> User
+    Scaffold --> User
+    Endpoints --> User
+```
+
+#### System Prompts
+
+Located in `misc/prompts/system/`:
+
+| File | Purpose |
+|------|---------|
+| `backend_user.md` | Flask backend for user features |
+| `backend_admin.md` | Flask backend for admin features |
+| `frontend_user.md` | React frontend for user pages |
+| `frontend_admin.md` | React frontend for admin pages |
+
+#### User Prompt Templates
+
+Located in `misc/templates/four-query/`:
+
+| File | Query |
+|------|-------|
+| `backend_user.md.jinja2` | Query 1 |
+| `backend_admin.md.jinja2` | Query 2 |
+| `frontend_user.md.jinja2` | Query 3 |
+| `frontend_admin.md.jinja2` | Query 4 |
+
+### Step 4: OpenRouter API Integration
+
+```mermaid
+flowchart TB
+    subgraph Request["API Request"]
+        URL["https://openrouter.ai/api/v1/chat/completions"]
+        Headers["Headers:\n- Authorization: Bearer {key}\n- HTTP-Referer: {site}\n- X-Title: {name}"]
+        Payload["Payload:\n- model: {model_slug}\n- messages: [{role, content}]\n- max_tokens: {limit}"]
+    end
+    
+    subgraph Response["API Response"]
+        Content["Generated Code\n(Markdown with fenced blocks)"]
+        Usage["Token Usage Stats"]
+    end
+    
+    Request --> Response
+```
+
+#### Model-Specific Token Limits
+
+| Model Family | Max Tokens |
+|--------------|------------|
+| Anthropic Claude 3.5 | 16,384 |
+| OpenAI GPT-4o | 32,768 |
+| Google Gemini | 16,384 |
+| DeepSeek | 16,384 |
+| Default | 8,192 |
+
+> **Research Limitation**: Token limits vary by model, which may affect code completeness for complex templates. This is acknowledged as a controlled variable that cannot be fully standardized across providers.
+
+### Step 5: Code Merging
+
+The AI response contains code in markdown fenced blocks:
+
+```markdown
+```python:models.py
+from flask_sqlalchemy import SQLAlchemy
+...
+```
+
+```python:services.py
+class TodoService:
+...
+```
+```
+
+The merging process:
+1. **Extract** code blocks by filename pattern
+2. **Validate** Python syntax using `ast.parse()`
+3. **Transform** localhost URLs to relative API paths
+4. **Infer** missing dependencies and update `requirements.txt`
+5. **Write** files to appropriate locations
+
+### Step 6: Post-Generation Healing
+
+The `DependencyHealer` performs automatic fixes:
+
+| Issue | Fix Applied |
+|-------|-------------|
+| Missing `.jsx` extensions | Add extensions to imports |
+| Undefined exports | Create stub exports |
+| Missing npm packages | Add to `package.json` |
+| Python import errors | Add to `requirements.txt` |
+
+## Technology Stack
+
+### Backend (Flask)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| Flask | 3.0.0 | Web framework |
+| Flask-SQLAlchemy | 3.1.1 | ORM integration |
+| SQLAlchemy | 2.0.25 | Database ORM |
+| Flask-CORS | 4.0.0 | Cross-origin support |
+| Flask-JWT-Extended | 4.6.0 | JWT authentication |
+| bcrypt | 4.1.2 | Password hashing |
+| Werkzeug | 3.0.1 | WSGI utilities |
+
+### Frontend (React + Vite)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| React | 18.2.0 | UI framework |
+| React DOM | 18.2.0 | DOM rendering |
+| React Router DOM | 6.21.0 | Client routing |
+| Vite | 5.0.0 | Build tool |
+| Tailwind CSS | 3.4.0 | Utility CSS |
+| Axios | 1.6.0 | HTTP client |
+| react-hot-toast | 2.4.1 | Notifications |
+| @heroicons/react | 2.1.0 | Icons |
+
+### Database
+
+- **SQLite** - File-based database at `/app/data/app.db`
+- Chosen for simplicity and reproducibility (no external database server)
+
+### Deployment
+
+- **Docker Compose** - Container orchestration
+- **Nginx** - Static file serving for frontend
+- **Gunicorn** - Production WSGI server (optional)
+
+## Port Allocation
+
+Ports are deterministically allocated based on model and app number to prevent conflicts:
+
+```
+Backend Port  = 3000 + (model_index * 100) + app_number
+Frontend Port = 4000 + (model_index * 100) + app_number
+```
+
+Example for `openai_gpt-4` (index 0), app 1:
+- Backend: 3001
+- Frontend: 4001
+
+## Error Handling
+
+### Generation Failures
+
+| Failure Type | Handling |
+|--------------|----------|
+| API timeout | Retry up to 2 times with exponential backoff |
+| Invalid response | Mark app as `generation_failed` with reason |
+| Syntax errors | Attempt auto-fix, else mark failed |
+| Missing files | Create stub files to improve build success |
+
+### Success Metrics
+
+A generation is considered **successful** if:
+1. All 4 queries complete without API errors
+2. Backend Python files pass syntax validation
+3. Frontend JSX files are syntactically valid
+4. Docker build completes without errors
+
+## Related Documentation
+
+- [Template Specification](./TEMPLATE_SPECIFICATION.md) - Requirement template format
+- [Analysis Pipeline](./ANALYSIS_PIPELINE.md) - How generated apps are analyzed
+- [Architecture Overview](./ARCHITECTURE.md) - System architecture

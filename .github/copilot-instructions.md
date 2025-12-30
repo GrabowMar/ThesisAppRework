@@ -616,6 +616,9 @@ The repository maintains two documentation tiers:
 | [deployment-guide.md](../docs/deployment-guide.md) | Production deployment, Docker, environment |
 | [development-guide.md](../docs/development-guide.md) | Contributing, testing, code style |
 | [MODELS_REFERENCE.md](../docs/MODELS_REFERENCE.md) | Model slugs, providers, templates |
+| [GENERATION_PROCESS.md](../docs/GENERATION_PROCESS.md) | App generation workflow, GUARDED mode, scaffolding |
+| [TEMPLATE_SPECIFICATION.md](../docs/TEMPLATE_SPECIFICATION.md) | Requirement template format, 30 templates list |
+| [ANALYSIS_PIPELINE.md](../docs/ANALYSIS_PIPELINE.md) | 21 analysis tools, 4 services, SARIF output |
 
 ## Repository organization (clean state)
 - **Root directory**: Only essential files (README.md, requirements.txt, pytest.ini, docker-compose.yml, start.ps1)

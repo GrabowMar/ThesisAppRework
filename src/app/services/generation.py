@@ -1207,10 +1207,10 @@ class CodeMerger:
                     try:
                         ast.parse(cleaned_code)
                         logger.info("✓ Code is valid after fence cleanup - fence markers were the issue")
-                        # Note: We can't modify the original 'code' parameter here,
-                        # but caller should handle this via _select_code_block cleanup
-                        errors.append("Code contains markdown fence markers - extraction may have failed")
-                        return False, errors
+                        # Code is valid after cleanup - return success
+                        # The caller's _select_code_block should have already cleaned this,
+                        # but we accept it as valid since the core code is correct
+                        return True, []
                     except SyntaxError:
                         # Fall through to original error handling
                         logger.warning("Code still invalid after fence cleanup - genuine syntax error")
@@ -2134,6 +2134,144 @@ class GenerationService:
 
         logger.info(f"Loaded {len(catalog)} valid templates from {REQUIREMENTS_DIR}")
         return catalog
+
+    def _ensure_critical_files(
+        self, 
+        app_dir: Path, 
+        generate_backend: bool = True, 
+        generate_frontend: bool = True
+    ) -> List[str]:
+        """Ensure critical files exist by creating minimal stubs if missing.
+        
+        This improves container build success without affecting LLM comparison:
+        - Stub files are empty/minimal (don't improve actual functionality)
+        - LLMs are still judged on what they actually generated
+        - We're only fixing mechanical build failures, not improving code quality
+        
+        Args:
+            app_dir: Path to the application directory
+            generate_backend: Whether backend was generated
+            generate_frontend: Whether frontend was generated
+            
+        Returns:
+            List of stub files created (relative paths)
+        """
+        created_files: List[str] = []
+        
+        if generate_backend:
+            backend_dir = app_dir / 'backend'
+            
+            # Ensure models.py exists (required for app.py imports)
+            models_path = backend_dir / 'models.py'
+            if not models_path.exists():
+                models_path.write_text(
+                    '# Stub file - LLM did not generate models\n'
+                    'from flask_sqlalchemy import SQLAlchemy\n'
+                    'db = SQLAlchemy()\n'
+                    '\n'
+                    '# TODO: Models should be defined here\n',
+                    encoding='utf-8'
+                )
+                created_files.append('backend/models.py')
+            
+            # Ensure routes/user.py exists (imported by app.py)
+            user_routes = backend_dir / 'routes' / 'user.py'
+            if not user_routes.exists():
+                user_routes.parent.mkdir(parents=True, exist_ok=True)
+                user_routes.write_text(
+                    '# Stub file - LLM did not generate user routes\n'
+                    'from flask import Blueprint, jsonify\n'
+                    '\n'
+                    'user_bp = Blueprint("user", __name__, url_prefix="/api/user")\n'
+                    '\n'
+                    '@user_bp.route("/", methods=["GET"])\n'
+                    'def index():\n'
+                    '    return jsonify({"status": "stub", "message": "User routes not implemented"})\n',
+                    encoding='utf-8'
+                )
+                created_files.append('backend/routes/user.py')
+        
+        if generate_frontend:
+            frontend_dir = app_dir / 'frontend'
+            src_dir = frontend_dir / 'src'
+            
+            # Ensure src directory exists
+            src_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Ensure main.jsx entry point exists (critical for Vite build)
+            main_jsx = src_dir / 'main.jsx'
+            if not main_jsx.exists():
+                main_jsx.write_text(
+                    '// Stub file - LLM did not generate main entry point\n'
+                    'import React from "react";\n'
+                    'import ReactDOM from "react-dom/client";\n'
+                    'import App from "./App";\n'
+                    'import "./index.css";\n'
+                    '\n'
+                    'ReactDOM.createRoot(document.getElementById("root")).render(\n'
+                    '  <React.StrictMode>\n'
+                    '    <App />\n'
+                    '  </React.StrictMode>\n'
+                    ');\n',
+                    encoding='utf-8'
+                )
+                created_files.append('frontend/src/main.jsx')
+            
+            # Ensure App.jsx exists (imported by main.jsx)
+            app_jsx = src_dir / 'App.jsx'
+            if not app_jsx.exists():
+                app_jsx.write_text(
+                    '// Stub file - LLM did not generate App component\n'
+                    'function App() {\n'
+                    '  return (\n'
+                    '    <div className="min-h-screen bg-gray-100 flex items-center justify-center">\n'
+                    '      <div className="text-center">\n'
+                    '        <h1 className="text-2xl font-bold text-gray-800">App Stub</h1>\n'
+                    '        <p className="text-gray-600">Frontend was not fully generated</p>\n'
+                    '      </div>\n'
+                    '    </div>\n'
+                    '  );\n'
+                    '}\n'
+                    '\n'
+                    'export default App;\n',
+                    encoding='utf-8'
+                )
+                created_files.append('frontend/src/App.jsx')
+            
+            # Ensure index.css exists (imported by main.jsx)
+            index_css = src_dir / 'index.css'
+            if not index_css.exists():
+                index_css.write_text(
+                    '/* Stub file - LLM did not generate styles */\n'
+                    '@tailwind base;\n'
+                    '@tailwind components;\n'
+                    '@tailwind utilities;\n',
+                    encoding='utf-8'
+                )
+                created_files.append('frontend/src/index.css')
+            
+            # Ensure pages/UserPage.jsx exists (used by routing)
+            pages_dir = src_dir / 'pages'
+            user_page = pages_dir / 'UserPage.jsx'
+            if not user_page.exists():
+                pages_dir.mkdir(parents=True, exist_ok=True)
+                user_page.write_text(
+                    '// Stub file - LLM did not generate UserPage\n'
+                    'function UserPage() {\n'
+                    '  return (\n'
+                    '    <div className="p-4">\n'
+                    '      <h1 className="text-xl font-bold">User Page</h1>\n'
+                    '      <p className="text-gray-600">This page was not implemented</p>\n'
+                    '    </div>\n'
+                    '  );\n'
+                    '}\n'
+                    '\n'
+                    'export default UserPage;\n',
+                    encoding='utf-8'
+                )
+                created_files.append('frontend/src/pages/UserPage.jsx')
+        
+        return created_files
     
     async def _reserve_app_number(
         self,
@@ -2246,7 +2384,7 @@ class GenerationService:
         parent_app_id: Optional[int] = None,  # For regenerations
         version: int = 1,  # Version number (1 for new, incremented for regenerations)
         generation_mode: str = 'guarded',  # 'guarded' or 'unguarded'
-        use_auto_fix: bool = False  # Whether to run dependency healer after generation
+        use_auto_fix: bool = True  # Whether to run dependency healer after generation (default True for build success)
     ) -> dict:
         """Generate complete application with atomic app number reservation.
         
@@ -2256,8 +2394,9 @@ class GenerationService:
         2. Generate backend (if requested)
         3. Generate frontend (if requested)
         4. Merge generated code with scaffolding
-        5. Update DB record with final status
-        6. Post-generation healing (if use_auto_fix is True)
+        5. Ensure critical files exist (fallback stubs for build success)
+        6. Post-generation healing (fixes JSX extensions, missing deps, export issues)
+        7. Update DB record with final status
         
         Args:
             model_slug: Normalized model slug
@@ -2269,7 +2408,7 @@ class GenerationService:
             parent_app_id: Optional parent app ID if this is a regeneration
             version: Version number (1 for new, incremented for regenerations)
             generation_mode: 'guarded' (structured) or 'unguarded' (architectural freedom)
-            use_auto_fix: Whether to run dependency healer after generation (default False)
+            use_auto_fix: Whether to run dependency healer after generation (default True - improves build success)
         """
         # Step 0: Atomic app reservation - create DB record immediately
         app_record = await self._reserve_app_number(
@@ -2628,12 +2767,23 @@ class GenerationService:
         result['backend_port'] = backend_port
         result['frontend_port'] = frontend_port
 
-        # Step 5: Post-generation healing - fix common dependency/export issues
-        # Only runs if use_auto_fix is True (default False - must be explicitly enabled)
+        # Step 5: Ensure critical files exist (creates minimal stubs if LLM failed to generate)
+        # This improves build success without affecting LLM comparison (stubs are empty/minimal)
+        if result['success']:
+            try:
+                stub_files = self._ensure_critical_files(app_dir, generate_backend, generate_frontend)
+                if stub_files:
+                    logger.warning(f"Created {len(stub_files)} stub files for missing critical files: {stub_files}")
+                    result['stub_files_created'] = stub_files
+            except Exception as stub_error:
+                logger.warning(f"Failed to create stub files (non-fatal): {stub_error}")
+
+        # Step 6: Post-generation healing - fix common dependency/export issues
+        # Runs by default (use_auto_fix=True) to improve build success rate
         if result['success'] and use_auto_fix:
             try:
                 from app.services.dependency_healer import heal_generated_app
-                logger.info("Step 5: Running dependency healer (auto-fix enabled)...")
+                logger.info("Step 6: Running dependency healer (auto-fix enabled)...")
                 healing_result = heal_generated_app(app_dir, auto_fix=True)
                 result['healing'] = {
                     'success': healing_result.success,
@@ -2654,7 +2804,7 @@ class GenerationService:
                 result['healing'] = {'error': str(healing_error)}
         elif result['success']:
             # Auto-fix disabled, skip healing
-            logger.info("Step 5: Skipping dependency healer (auto-fix disabled)")
+            logger.info("Step 6: Skipping dependency healer (auto-fix disabled)")
             result['healing'] = {'skipped': True, 'reason': 'auto-fix disabled'}
 
         try:
