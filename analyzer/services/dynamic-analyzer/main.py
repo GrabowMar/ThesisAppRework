@@ -250,20 +250,6 @@ class DynamicAnalyzer(BaseWSService):
                 normalized[tool_name] = raw
 
         return normalized
-            result = self._exec('curl', cmd, timeout=15)
-            
-            if result.returncode != 0 and 'SSL' in result.stderr:
-                vulnerabilities.append({
-                    'type': 'SSL/TLS Configuration Issue',
-                    'severity': 'medium',
-                    'description': 'SSL/TLS connection failed or insecure configuration detected',
-                    'recommendation': 'Review SSL/TLS configuration and ensure proper certificates'
-                })
-            
-        except Exception as e:
-            self.log.warning(f"SSL security check failed: {e}")
-        
-        return {'vulnerabilities': vulnerabilities}
     
     async def _check_security_headers(self, url: str) -> Dict[str, Any]:
         """Check for missing security headers."""

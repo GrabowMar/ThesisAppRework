@@ -485,6 +485,9 @@ class AnalyzerManager:
         This is called before attempting analysis to prevent analyzing
         incomplete or broken apps.
         
+        NOTE: This check is skipped when running from async/CLI context to avoid
+        Flask app context conflicts with the event loop.
+        
         Args:
             model_slug: Normalized model slug
             app_number: App number
@@ -493,6 +496,18 @@ class AnalyzerManager:
             Error dict if generation failed, None if app is valid for analysis
         """
         try:
+            # Check if we're in an async context (event loop running)
+            # If so, skip DB check to avoid Flask context conflicts
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                if loop and loop.is_running():
+                    logger.debug("Running in async context - skipping Flask DB check")
+                    return None
+            except RuntimeError:
+                # No running event loop - safe to use Flask
+                pass
+            
             # Try to import Flask app context for DB access
             # This may fail if running standalone (CLI mode without Flask)
             try:
@@ -1179,7 +1194,7 @@ class AnalyzerManager:
             "id": str(uuid.uuid4())
         }
 
-        return await self.send_websocket_message('dynamic-analyzer', message, timeout=180)
+        return await self.send_websocket_message('dynamic-analyzer', message, timeout=300)
     
     async def run_performance_test(self, model_slug: str, app_number: int,
                                  target_url: Optional[str] = None, users: int = 10, 
@@ -4154,13 +4169,19 @@ async def main():
             else:
                 print("[OK] Analysis completed. Results summary:")
                 if isinstance(results, dict):
-                    # For comprehensive results (dict of dicts), print each section
-                    if any(isinstance(v, dict) for v in results.values()):
+                    # Check if this is a comprehensive result (keys are service names like static/dynamic/performance/ai)
+                    # vs a single-service result (has 'status' key at top level with 'analysis' nested dict)
+                    service_keys = {'static', 'dynamic', 'performance', 'ai'}
+                    is_comprehensive = any(k in service_keys for k in results.keys()) and 'status' not in results
+                    
+                    if is_comprehensive:
+                        # Comprehensive results: dict of service results
                         for key, result in results.items():
                             if isinstance(result, dict):
                                 status = result.get('status', 'unknown')
                                 print(f"  {key}: {status}")
                     else:
+                        # Single-service result: status at top level
                         status = results.get('status', 'unknown')
                         print(f"  type: {analysis_type}, status: {status}")
         
