@@ -99,7 +99,8 @@ class TestPipelineProgressTracking:
         progress['generation']['results'].append(result)
         if 'submitted_jobs' not in progress['generation']:
             progress['generation']['submitted_jobs'] = []
-        job_key = f"{result['model_slug']}:{result['template_slug']}"
+        # Use job_index in key to allow multiple apps with same model:template
+        job_key = f"{result['job_index']}:{result['model_slug']}:{result['template_slug']}"
         if job_key not in progress['generation']['submitted_jobs']:
             progress['generation']['submitted_jobs'].append(job_key)
         
@@ -108,16 +109,16 @@ class TestPipelineProgressTracking:
         
         # Verify submitted_jobs contains the job key
         assert 'submitted_jobs' in progress['generation']
-        assert 'model_a:template_a' in progress['generation']['submitted_jobs']
+        assert '0:model_a:template_a' in progress['generation']['submitted_jobs']
     
-    def test_submitted_jobs_prevents_duplicate_tracking(self):
-        """Verify that adding same model:template twice doesn't duplicate in submitted_jobs."""
+    def test_submitted_jobs_allows_multiple_apps_same_template(self):
+        """Verify that adding same model:template with different job_index works correctly."""
         progress = {
             'generation': {
                 'total': 2, 'completed': 1, 'failed': 0, 'status': 'running',
                 'results': [{'model_slug': 'model_a', 'template_slug': 'template_a',
-                            'app_number': 1, 'success': True}],
-                'submitted_jobs': ['model_a:template_a']  # Already has one entry
+                            'app_number': 1, 'success': True, 'job_index': 0}],
+                'submitted_jobs': ['0:model_a:template_a']  # Job 0 is done
             },
             'analysis': {
                 'total': 2, 'completed': 0, 'failed': 0, 'status': 'pending',
@@ -125,22 +126,25 @@ class TestPipelineProgressTracking:
             }
         }
         
-        # Try to add another result for same model:template
+        # Add another result for same model:template but different job_index
         result = {
             'model_slug': 'model_a',
             'template_slug': 'template_a',  # Same as before
             'app_number': 2,  # Different app number
             'success': True,
-            'job_index': 1
+            'job_index': 1  # Different job index
         }
         
         progress['generation']['results'].append(result)
-        job_key = f"{result['model_slug']}:{result['template_slug']}"
+        # Use job_index in key to allow multiple apps with same model:template
+        job_key = f"{result['job_index']}:{result['model_slug']}:{result['template_slug']}"
         if job_key not in progress['generation']['submitted_jobs']:
             progress['generation']['submitted_jobs'].append(job_key)
         
-        # Verify submitted_jobs only has one entry for this combo (no duplicate)
-        assert progress['generation']['submitted_jobs'].count('model_a:template_a') == 1
+        # Verify submitted_jobs has both entries (different job indices)
+        assert '0:model_a:template_a' in progress['generation']['submitted_jobs']
+        assert '1:model_a:template_a' in progress['generation']['submitted_jobs']
+        assert len(progress['generation']['submitted_jobs']) == 2
 
 
 class TestAnalysisStageJobIndexAdvancement:

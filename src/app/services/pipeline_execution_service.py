@@ -914,42 +914,32 @@ class PipelineExecutionService:
         job_index = job.get('job_index', pipeline.current_job_index)
         model_slug = job['model_slug']
         template_slug = job['template_slug']
-        job_key = f"{model_slug}:{template_slug}"
+        # Include job_index in key to allow multiple apps with same model:template
+        job_key = f"{job_index}:{model_slug}:{template_slug}"
         
         # ROBUST DUPLICATE DETECTION:
         # 1. Check submitted_jobs set first (prevents race condition duplicates)
         # 2. Check by job_index: if result already exists at this index, skip
-        # 3. Check by model+template: fallback for edge cases
         # This prevents duplicates on server restart and race conditions
         progress = pipeline.progress
         existing_results = progress.get('generation', {}).get('results', [])
         submitted_jobs = progress.get('generation', {}).get('submitted_jobs', [])
         
-        # Check 0: submitted_jobs set (prevents race condition duplicates)
+        # Check 0: submitted_jobs set using job_index-aware key (prevents race condition duplicates)
         if job_key in submitted_jobs:
             self._log(
-                "Skipping duplicate generation for %s with template %s (already in submitted_jobs)",
-                model_slug, template_slug
+                "Skipping duplicate generation for job %d: %s with template %s (already in submitted_jobs)",
+                job_index, model_slug, template_slug
             )
             return False  # No stage transition (job was skipped)
         
         # Check 1: Job-index-based detection (most reliable)
-        if job_index < len(existing_results):
-            existing = existing_results[job_index]
-            self._log(
-                "Skipping job %d: result already exists (model=%s, template=%s, app=%d)",
-                job_index, existing.get('model_slug'), existing.get('template_slug'),
-                existing.get('app_number', -1)
-            )
-            return False  # No stage transition (job was skipped)
-        
-        # Check 2: Model+template combination (handles out-of-order edge cases)
-        for existing_result in existing_results:
-            if (existing_result.get('model_slug') == model_slug and
-                existing_result.get('template_slug') == template_slug):
+        for existing in existing_results:
+            if existing.get('job_index') == job_index:
                 self._log(
-                    "Skipping duplicate generation for %s with template %s (already generated app %d)",
-                    model_slug, template_slug, existing_result.get('app_number')
+                    "Skipping job %d: result already exists (model=%s, template=%s, app=%d)",
+                    job_index, existing.get('model_slug'), existing.get('template_slug'),
+                    existing.get('app_number', -1)
                 )
                 return False  # No stage transition (job was skipped)
         
