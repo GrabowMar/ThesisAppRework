@@ -1368,106 +1368,65 @@ class TaskExecutionService:
             self._log(error_msg, level='error')
             raise RuntimeError(error_msg)
         
-        # PRE-FLIGHT CHECK: Verify all required analyzer services are accessible
-        # This prevents tasks from failing due to transient connectivity issues
+        # PRE-FLIGHT CHECK: Verify which analyzer services are accessible
+        # Changed to PARTIAL EXECUTION mode: run available services, fail only unavailable ones
         required_services = set()
         for subtask in subtasks:
             if subtask.service_name:
                 required_services.add(subtask.service_name)
         
+        inaccessible_services = set()
+        accessible_services = set()
+        
         if required_services:
-            inaccessible_services = self._preflight_check_services(required_services)
+            inaccessible_list = self._preflight_check_services(required_services)
+            inaccessible_services = set(inaccessible_list)
+            accessible_services = required_services - inaccessible_services
+            
             if inaccessible_services:
-                # Some services are not accessible - check if we should retry
-                error_msg = (
-                    f"Pre-flight check failed: The following analyzer services are not accessible: "
-                    f"{', '.join(inaccessible_services)}. "
-                    f"Ensure Docker containers are running and healthy. "
-                    f"Run 'python analyzer/analyzer_manager.py status' to check."
+                # PARTIAL EXECUTION: Mark only the unavailable service subtasks as failed
+                # Continue with available services
+                self._log(
+                    f"[PREFLIGHT] {len(inaccessible_services)} service(s) unavailable: {', '.join(inaccessible_services)}. "
+                    f"Will run {len(accessible_services)} available service(s): {', '.join(accessible_services) if accessible_services else 'none'}",
+                    level='warning'
                 )
                 
-                # Check retry count for main task - allow up to 3 automatic retries
-                meta = main_task.get_metadata() if hasattr(main_task, 'get_metadata') else {}
-                retry_count = meta.get('preflight_retry_count', 0)
-                max_retries = int(os.environ.get('PREFLIGHT_MAX_RETRIES', '3'))
-                
-                if retry_count < max_retries:
-                    # Schedule for retry - reset main task and subtasks to PENDING
-                    retry_delay = 30 * (2 ** retry_count)  # Exponential backoff: 30s, 60s, 120s
-                    self._log(
-                        f"[PREFLIGHT] Services unavailable (attempt {retry_count + 1}/{max_retries}), "
-                        f"scheduling retry in {retry_delay}s for task {main_task_id}",
-                        level='warning'
-                    )
-                    
-                    # Update retry count in metadata
-                    if hasattr(main_task, 'set_metadata'):
-                        updated_meta = dict(meta)
-                        updated_meta['preflight_retry_count'] = retry_count + 1
-                        updated_meta['last_preflight_failure'] = datetime.now(timezone.utc).isoformat()
-                        updated_meta['last_preflight_error'] = error_msg
-                        updated_meta['scheduled_retry_at'] = (
-                            datetime.now(timezone.utc) + 
-                            __import__('datetime').timedelta(seconds=retry_delay)
-                        ).isoformat()
-                        main_task.set_metadata(updated_meta)
-                    
-                    # Reset main task to PENDING for retry
-                    main_task.status = AnalysisStatus.PENDING
-                    main_task.started_at = None
-                    main_task.progress_percentage = 0.0
-                    
-                    # Reset subtasks to PENDING (not FAILED)
-                    for subtask in subtasks:
-                        subtask.status = AnalysisStatus.PENDING
-                        subtask.started_at = None
-                        subtask.progress_percentage = 0.0
-                    
-                    db.session.commit()
-                    
-                    # Use a non-blocking sleep to avoid holding up the executor
-                    # The task will be picked up again on the next poll cycle after the delay
-                    self._log(
-                        f"[PREFLIGHT] Task {main_task_id} reset to PENDING (retry {retry_count + 1}/{max_retries})"
-                    )
-                    
-                    # Return a special status to indicate retry scheduled
-                    return {
-                        'status': 'retry_scheduled',
-                        'retry_count': retry_count + 1,
-                        'retry_delay': retry_delay,
-                        'error': error_msg,
-                        'payload': {
-                            'message': f'Pre-flight check failed, retry scheduled (attempt {retry_count + 1}/{max_retries})',
-                            'inaccessible_services': list(inaccessible_services),
-                            'retry_in_seconds': retry_delay
-                        }
-                    }
-                else:
-                    # Max retries exceeded - mark as permanently failed
-                    self._log(
-                        f"[PREFLIGHT] Max retries ({max_retries}) exceeded for task {main_task_id}, marking as FAILED",
-                        level='error'
-                    )
-                    self._log(error_msg, level='error')
-                    
-                    # Mark all subtasks as failed with detailed error
-                    final_error = (
-                        f"{error_msg} "
-                        f"(failed after {max_retries} retry attempts)"
-                    )
-                    for subtask in subtasks:
+                # Mark subtasks for inaccessible services as FAILED immediately
+                for subtask in subtasks:
+                    if subtask.service_name in inaccessible_services:
                         subtask.status = AnalysisStatus.FAILED
-                        subtask.error_message = final_error
+                        subtask.error_message = (
+                            f"Service {subtask.service_name} not accessible. "
+                            f"Ensure Docker container is running: docker compose up -d {subtask.service_name}"
+                        )
                         subtask.completed_at = datetime.now(timezone.utc)
-                    db.session.commit()
-                    
-                    raise RuntimeError(final_error)
-            
-            self._log(
-                f"[PREFLIGHT] All {len(required_services)} analyzer services verified accessible: "
-                f"{', '.join(required_services)}"
-            )
+                        self._log(
+                            f"[PREFLIGHT] Marked subtask {subtask.task_id} ({subtask.service_name}) as FAILED - service unavailable",
+                            level='warning'
+                        )
+                
+                db.session.commit()
+                
+                # If NO services are accessible, fail the entire task
+                if not accessible_services:
+                    error_msg = (
+                        f"All analyzer services are unavailable: {', '.join(inaccessible_services)}. "
+                        f"Ensure Docker containers are running: cd analyzer && docker compose up -d"
+                    )
+                    self._log(f"[PREFLIGHT] {error_msg}", level='error')
+                    raise RuntimeError(error_msg)
+                
+                # Filter subtasks to only include those with accessible services
+                subtasks = [s for s in subtasks if s.service_name in accessible_services]
+                self._log(
+                    f"[PREFLIGHT] Continuing with {len(subtasks)} subtask(s) for accessible services"
+                )
+            else:
+                self._log(
+                    f"[PREFLIGHT] All {len(required_services)} analyzer services verified accessible: "
+                    f"{', '.join(required_services)}"
+                )
             
         # Try to use Celery first
         use_celery = os.environ.get('USE_CELERY_ANALYSIS', 'false').lower() == 'true'
