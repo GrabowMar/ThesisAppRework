@@ -375,15 +375,82 @@ def _collect_artifacts(app_path: Path) -> Dict[str, Optional[Path]]:
     }
 
 
+def _format_payload_content(data: Dict[str, Any]) -> str:
+    """Format a payload JSON into a readable string with metadata and messages."""
+    payload = data.get('payload', {})
+    parts = []
+    parts.append(f"=== REQUEST METADATA ===")
+    parts.append(f"Timestamp: {data.get('timestamp', 'N/A')}")
+    parts.append(f"Run ID: {data.get('run_id', 'N/A')}")
+    parts.append(f"Model: {payload.get('model', 'N/A')}")
+    parts.append(f"Temperature: {payload.get('temperature', 'N/A')}")
+    parts.append(f"Max Tokens: {payload.get('max_tokens', 'N/A')}")
+    provider = payload.get('provider', {})
+    if provider:
+        parts.append(f"Provider Settings: allow_fallbacks={provider.get('allow_fallbacks')}, data_collection={provider.get('data_collection')}")
+    parts.append("")
+    # Add all messages
+    messages = payload.get('messages', [])
+    for msg in messages:
+        role = msg.get('role', 'unknown').upper()
+        content = msg.get('content', '')
+        parts.append(f"=== {role} ===")
+        parts.append(content)
+        parts.append("")
+    return '\n'.join(parts)
+
+
+def _format_response_content(data: Dict[str, Any]) -> str:
+    """Format a response JSON into a readable string with metadata and content."""
+    resp = data.get('response', {})
+    parts = []
+    parts.append(f"=== RESPONSE METADATA ===")
+    parts.append(f"Timestamp: {data.get('timestamp', 'N/A')}")
+    parts.append(f"Run ID: {data.get('run_id', 'N/A')}")
+    parts.append(f"Response ID: {resp.get('id', 'N/A')}")
+    parts.append(f"Model: {resp.get('model', 'N/A')}")
+    parts.append(f"Provider: {resp.get('provider', 'N/A')}")
+    # Usage stats
+    usage = resp.get('usage', {})
+    if usage:
+        parts.append(f"")
+        parts.append(f"=== USAGE ===")
+        parts.append(f"Prompt Tokens: {usage.get('prompt_tokens', 'N/A')}")
+        parts.append(f"Completion Tokens: {usage.get('completion_tokens', 'N/A')}")
+        parts.append(f"Total Tokens: {usage.get('total_tokens', 'N/A')}")
+        parts.append(f"Cost: ${usage.get('cost', 'N/A')}")
+    # Choice info
+    choices = resp.get('choices', [])
+    if choices:
+        choice = choices[0]
+        parts.append(f"")
+        parts.append(f"=== COMPLETION ===")
+        parts.append(f"Finish Reason: {choice.get('finish_reason', 'N/A')}")
+        parts.append(f"")
+        parts.append(f"=== ASSISTANT ===")
+        content = choice.get('message', {}).get('content', '')
+        parts.append(content)
+    return '\n'.join(parts)
+
+
 def _collect_app_prompts(app_number: int, model_slug: str = None) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str], str]:
     """
     Collect FULL prompts and responses from generated/raw/{payloads,responses}/{model_slug}/app{number}/*.json files
+    Supports the 4-query system: backend_user, backend_admin, frontend_user, frontend_admin
     Falls back to misc/app_templates for legacy support
     Returns: (prompts, responses, template_files, source_dir)
+    
+    Keys in prompts/responses dicts:
+    - backend_user: First backend query (user functionality)
+    - backend_admin: Second backend query (admin functionality)
+    - frontend_user: First frontend query (user pages)
+    - frontend_admin: Second frontend query (admin pages)
+    - backend: Legacy key (same as backend_user for backwards compatibility)
+    - frontend: Legacy key (same as frontend_user for backwards compatibility)
     """
-    prompts = {'backend': '', 'frontend': ''}
-    responses = {'backend': '', 'frontend': ''}
-    template_files = {'backend_file': '', 'frontend_file': ''}
+    prompts: Dict[str, str] = {}
+    responses: Dict[str, str] = {}
+    template_files: Dict[str, str] = {}
     
     # Try new location first: generated/raw/payloads/{model_slug}/app{number}/
     if model_slug:
@@ -394,64 +461,45 @@ def _collect_app_prompts(app_number: int, model_slug: str = None) -> Tuple[Dict[
         if payloads_dir.exists():
             try:
                 import json
+                # Sort files by timestamp in filename to determine user vs admin
+                # Format: {model}_app{N}_{component}_{timestamp}_payload.json
+                # Earlier timestamp = user query, later timestamp = admin query
                 backend_files = sorted(payloads_dir.glob(f'*_app{app_number}_backend_*_payload.json'))
                 frontend_files = sorted(payloads_dir.glob(f'*_app{app_number}_frontend_*_payload.json'))
                 current_app.logger.info(f"Found backend files: {len(backend_files)}, frontend files: {len(frontend_files)}")
                 
-                if backend_files:
-                    template_files['backend_file'] = backend_files[0].name
-                    with open(backend_files[0], 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        # Build complete payload representation
-                        payload = data.get('payload', {})
-                        parts = []
-                        parts.append(f"=== REQUEST METADATA ===")
-                        parts.append(f"Timestamp: {data.get('timestamp', 'N/A')}")
-                        parts.append(f"Run ID: {data.get('run_id', 'N/A')}")
-                        parts.append(f"Model: {payload.get('model', 'N/A')}")
-                        parts.append(f"Temperature: {payload.get('temperature', 'N/A')}")
-                        parts.append(f"Max Tokens: {payload.get('max_tokens', 'N/A')}")
-                        provider = payload.get('provider', {})
-                        if provider:
-                            parts.append(f"Provider Settings: allow_fallbacks={provider.get('allow_fallbacks')}, data_collection={provider.get('data_collection')}")
-                        parts.append("")
-                        # Add all messages
-                        messages = payload.get('messages', [])
-                        for msg in messages:
-                            role = msg.get('role', 'unknown').upper()
-                            content = msg.get('content', '')
-                            parts.append(f"=== {role} ===")
-                            parts.append(content)
-                            parts.append("")
-                        prompts['backend'] = '\n'.join(parts)
-                        current_app.logger.info(f"Loaded backend prompt, length: {len(prompts['backend'])}")
+                # Process backend files (user = first, admin = second)
+                for idx, backend_file in enumerate(backend_files[:2]):  # Max 2 backend queries
+                    query_type = 'backend_user' if idx == 0 else 'backend_admin'
+                    template_files[f'{query_type}_file'] = backend_file.name
+                    try:
+                        with open(backend_file, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            prompts[query_type] = _format_payload_content(data)
+                            current_app.logger.info(f"Loaded {query_type} prompt, length: {len(prompts[query_type])}")
+                    except Exception as err:
+                        current_app.logger.warning(f"Failed to load {query_type} prompt: {err}")
                 
-                if frontend_files:
-                    template_files['frontend_file'] = frontend_files[0].name
-                    with open(frontend_files[0], 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        payload = data.get('payload', {})
-                        parts = []
-                        parts.append(f"=== REQUEST METADATA ===")
-                        parts.append(f"Timestamp: {data.get('timestamp', 'N/A')}")
-                        parts.append(f"Run ID: {data.get('run_id', 'N/A')}")
-                        parts.append(f"Model: {payload.get('model', 'N/A')}")
-                        parts.append(f"Temperature: {payload.get('temperature', 'N/A')}")
-                        parts.append(f"Max Tokens: {payload.get('max_tokens', 'N/A')}")
-                        provider = payload.get('provider', {})
-                        if provider:
-                            parts.append(f"Provider Settings: allow_fallbacks={provider.get('allow_fallbacks')}, data_collection={provider.get('data_collection')}")
-                        parts.append("")
-                        messages = payload.get('messages', [])
-                        for msg in messages:
-                            role = msg.get('role', 'unknown').upper()
-                            content = msg.get('content', '')
-                            parts.append(f"=== {role} ===")
-                            parts.append(content)
-                            parts.append("")
-                        prompts['frontend'] = '\n'.join(parts)
-                        current_app.logger.info(f"Loaded frontend prompt, length: {len(prompts['frontend'])}")
+                # Process frontend files (user = first, admin = second)
+                for idx, frontend_file in enumerate(frontend_files[:2]):  # Max 2 frontend queries
+                    query_type = 'frontend_user' if idx == 0 else 'frontend_admin'
+                    template_files[f'{query_type}_file'] = frontend_file.name
+                    try:
+                        with open(frontend_file, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            prompts[query_type] = _format_payload_content(data)
+                            current_app.logger.info(f"Loaded {query_type} prompt, length: {len(prompts[query_type])}")
+                    except Exception as err:
+                        current_app.logger.warning(f"Failed to load {query_type} prompt: {err}")
                 
+                # Legacy keys for backwards compatibility
+                if 'backend_user' in prompts:
+                    prompts['backend'] = prompts['backend_user']
+                    template_files['backend_file'] = template_files.get('backend_user_file', '')
+                if 'frontend_user' in prompts:
+                    prompts['frontend'] = prompts['frontend_user']
+                    template_files['frontend_file'] = template_files.get('frontend_user_file', '')
+                    
             except Exception as err:
                 current_app.logger.warning("Failed to load prompts from raw payloads for %s/app%s: %s", model_slug, app_number, err)
         
@@ -462,77 +510,39 @@ def _collect_app_prompts(app_number: int, model_slug: str = None) -> Tuple[Dict[
                 backend_resp_files = sorted(responses_dir.glob(f'*_app{app_number}_backend_*_response.json'))
                 frontend_resp_files = sorted(responses_dir.glob(f'*_app{app_number}_frontend_*_response.json'))
                 
-                if backend_resp_files:
-                    with open(backend_resp_files[0], 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        resp = data.get('response', {})
-                        parts = []
-                        parts.append(f"=== RESPONSE METADATA ===")
-                        parts.append(f"Timestamp: {data.get('timestamp', 'N/A')}")
-                        parts.append(f"Run ID: {data.get('run_id', 'N/A')}")
-                        parts.append(f"Response ID: {resp.get('id', 'N/A')}")
-                        parts.append(f"Model: {resp.get('model', 'N/A')}")
-                        parts.append(f"Provider: {resp.get('provider', 'N/A')}")
-                        # Usage stats
-                        usage = resp.get('usage', {})
-                        if usage:
-                            parts.append(f"")
-                            parts.append(f"=== USAGE ===")
-                            parts.append(f"Prompt Tokens: {usage.get('prompt_tokens', 'N/A')}")
-                            parts.append(f"Completion Tokens: {usage.get('completion_tokens', 'N/A')}")
-                            parts.append(f"Total Tokens: {usage.get('total_tokens', 'N/A')}")
-                            parts.append(f"Cost: ${usage.get('cost', 'N/A')}")
-                        # Choice info
-                        choices = resp.get('choices', [])
-                        if choices:
-                            choice = choices[0]
-                            parts.append(f"")
-                            parts.append(f"=== COMPLETION ===")
-                            parts.append(f"Finish Reason: {choice.get('finish_reason', 'N/A')}")
-                            parts.append(f"")
-                            parts.append(f"=== ASSISTANT ===")
-                            content = choice.get('message', {}).get('content', '')
-                            parts.append(content)
-                        responses['backend'] = '\n'.join(parts)
-                        current_app.logger.info(f"Loaded backend response, length: {len(responses['backend'])}")
+                # Process backend response files (user = first, admin = second)
+                for idx, resp_file in enumerate(backend_resp_files[:2]):
+                    query_type = 'backend_user' if idx == 0 else 'backend_admin'
+                    try:
+                        with open(resp_file, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            responses[query_type] = _format_response_content(data)
+                            current_app.logger.info(f"Loaded {query_type} response, length: {len(responses[query_type])}")
+                    except Exception as err:
+                        current_app.logger.warning(f"Failed to load {query_type} response: {err}")
                 
-                if frontend_resp_files:
-                    with open(frontend_resp_files[0], 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        resp = data.get('response', {})
-                        parts = []
-                        parts.append(f"=== RESPONSE METADATA ===")
-                        parts.append(f"Timestamp: {data.get('timestamp', 'N/A')}")
-                        parts.append(f"Run ID: {data.get('run_id', 'N/A')}")
-                        parts.append(f"Response ID: {resp.get('id', 'N/A')}")
-                        parts.append(f"Model: {resp.get('model', 'N/A')}")
-                        parts.append(f"Provider: {resp.get('provider', 'N/A')}")
-                        usage = resp.get('usage', {})
-                        if usage:
-                            parts.append(f"")
-                            parts.append(f"=== USAGE ===")
-                            parts.append(f"Prompt Tokens: {usage.get('prompt_tokens', 'N/A')}")
-                            parts.append(f"Completion Tokens: {usage.get('completion_tokens', 'N/A')}")
-                            parts.append(f"Total Tokens: {usage.get('total_tokens', 'N/A')}")
-                            parts.append(f"Cost: ${usage.get('cost', 'N/A')}")
-                        choices = resp.get('choices', [])
-                        if choices:
-                            choice = choices[0]
-                            parts.append(f"")
-                            parts.append(f"=== COMPLETION ===")
-                            parts.append(f"Finish Reason: {choice.get('finish_reason', 'N/A')}")
-                            parts.append(f"")
-                            parts.append(f"=== ASSISTANT ===")
-                            content = choice.get('message', {}).get('content', '')
-                            parts.append(content)
-                        responses['frontend'] = '\n'.join(parts)
-                        current_app.logger.info(f"Loaded frontend response, length: {len(responses['frontend'])}")
+                # Process frontend response files (user = first, admin = second)
+                for idx, resp_file in enumerate(frontend_resp_files[:2]):
+                    query_type = 'frontend_user' if idx == 0 else 'frontend_admin'
+                    try:
+                        with open(resp_file, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            responses[query_type] = _format_response_content(data)
+                            current_app.logger.info(f"Loaded {query_type} response, length: {len(responses[query_type])}")
+                    except Exception as err:
+                        current_app.logger.warning(f"Failed to load {query_type} response: {err}")
+                
+                # Legacy keys for backwards compatibility
+                if 'backend_user' in responses:
+                    responses['backend'] = responses['backend_user']
+                if 'frontend_user' in responses:
+                    responses['frontend'] = responses['frontend_user']
                 
             except Exception as err:
                 current_app.logger.warning("Failed to load responses for %s/app%s: %s", model_slug, app_number, err)
         
-        if prompts['backend'] or prompts['frontend']:
-            current_app.logger.info(f"Returning prompts from raw payloads")
+        if prompts:
+            current_app.logger.info(f"Returning prompts from raw payloads: {list(prompts.keys())}")
             return prompts, responses, template_files, str(payloads_dir)
     
     # Fallback to legacy location: misc/app_templates
@@ -544,9 +554,11 @@ def _collect_app_prompts(app_number: int, model_slug: str = None) -> Tuple[Dict[
             if backend_md:
                 template_files['backend_file'] = backend_md[0].name
                 prompts['backend'] = backend_md[0].read_text(encoding='utf-8', errors='ignore')
+                prompts['backend_user'] = prompts['backend']  # For consistency
             if frontend_md:
                 template_files['frontend_file'] = frontend_md[0].name
                 prompts['frontend'] = frontend_md[0].read_text(encoding='utf-8', errors='ignore')
+                prompts['frontend_user'] = prompts['frontend']  # For consistency
         except Exception as err:
             current_app.logger.warning("Failed to load prompts from templates for app %s: %s", app_number, err)
     
