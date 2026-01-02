@@ -866,21 +866,50 @@ class DynamicAnalyzer(BaseWSService):
                     if zap_result.get('status') == 'success':
                         total_vulnerabilities += zap_result.get('total_alerts', 0)
             
+            # Determine analysis status based on actual results
+            # CRITICAL: Don't report "completed" if no targets were reachable
+            if reachable_count == 0:
+                analysis_status = 'targets_unreachable'
+            elif reachable_count < len(target_urls):
+                analysis_status = 'partial_connectivity'
+            else:
+                analysis_status = 'completed'
+            
             results['summary'] = {
                 'total_urls_tested': len(target_urls),
                 'reachable_urls': reachable_count,
                 'vulnerabilities_found': total_vulnerabilities,
                 'total_findings': total_vulnerabilities,
-                'analysis_status': 'completed'
+                'analysis_status': analysis_status
             }
             
             # Log completion summary
             self.log.info("═" * 80)
-            self.log.info(f"✅ DYNAMIC ANALYSIS COMPLETE")
-            self.log.info(f"   🎯 URLs Tested: {len(target_urls)}")
-            self.log.info(f"   ✅ Reachable: {reachable_count}")
-            self.log.info(f"   ⚠️  Vulnerabilities: {total_vulnerabilities}")
+            if analysis_status == 'targets_unreachable':
+                self.log.warning(f"⚠️  DYNAMIC ANALYSIS: NO TARGETS REACHABLE")
+                self.log.warning(f"   🎯 URLs Tested: {len(target_urls)}")
+                self.log.warning(f"   ❌ Reachable: 0/{len(target_urls)}")
+                self.log.warning(f"   ℹ️  No security analysis possible - app containers may not be running")
+            elif analysis_status == 'partial_connectivity':
+                self.log.warning(f"⚠️  DYNAMIC ANALYSIS PARTIAL")
+                self.log.warning(f"   🎯 URLs Tested: {len(target_urls)}")
+                self.log.warning(f"   ⚠️  Reachable: {reachable_count}/{len(target_urls)}")
+                self.log.info(f"   ⚠️  Vulnerabilities: {total_vulnerabilities}")
+            else:
+                self.log.info(f"✅ DYNAMIC ANALYSIS COMPLETE")
+                self.log.info(f"   🎯 URLs Tested: {len(target_urls)}")
+                self.log.info(f"   ✅ Reachable: {reachable_count}")
+                self.log.info(f"   ⚠️  Vulnerabilities: {total_vulnerabilities}")
             self.log.info("═" * 80)
+            
+            # Set top-level status based on whether meaningful analysis was possible
+            if analysis_status == 'targets_unreachable':
+                results['status'] = 'targets_unreachable'
+                results['error'] = f'No targets reachable out of {len(target_urls)} tested. App containers may not be running.'
+            elif analysis_status == 'partial_connectivity':
+                results['status'] = 'partial'
+            else:
+                results['status'] = 'success'
             
             return results
             

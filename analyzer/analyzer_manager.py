@@ -3311,12 +3311,38 @@ class AnalyzerManager:
             # Derive failed/skipped lists from normalized tool statuses
             tools_failed = []
             tools_skipped = []
+            services_unreachable = []
+            services_partial = []
+            services_succeeded = []
+            
+            # Categorize services by their status
+            for svc_name, svc_data in consolidated_results.items():
+                if not isinstance(svc_data, dict):
+                    continue
+                svc_status = str(svc_data.get('status', 'unknown')).lower()
+                if svc_status in ('targets_unreachable', 'unreachable'):
+                    services_unreachable.append(svc_name)
+                elif svc_status in ('partial', 'partial_connectivity', 'partial_success'):
+                    services_partial.append(svc_name)
+                elif svc_status in ('success', 'completed', 'no_issues'):
+                    services_succeeded.append(svc_name)
+            
             for tname, tinfo in normalized_tools.items():
                 status = str(tinfo.get('status', 'unknown')).lower()
                 if status in ('skipped', 'not_available'):
                     tools_skipped.append(tname)
                 elif status not in ('success', 'completed', 'no_issues'):
                     tools_failed.append(tname)
+            
+            # Determine overall status based on service outcomes
+            if services_unreachable and not services_succeeded and not services_partial:
+                overall_status = 'targets_unreachable'
+            elif services_partial or (services_unreachable and services_succeeded):
+                overall_status = 'partial'
+            elif services_succeeded:
+                overall_status = 'completed'
+            else:
+                overall_status = 'unknown'
 
             # 2. Build the full consolidated task metadata dictionary (use services_with_sarif_refs)
             task_metadata = {
@@ -3340,15 +3366,17 @@ class AnalyzerManager:
                     },
                     'summary': {
                         'total_findings': aggregated_findings.get('findings_total'),
-                        'services_executed': len([k for k, v in consolidated_results.items() if isinstance(v, dict) and v.get('status') == 'success']),
+                        'services_executed': len(services_succeeded),
+                        'services_unreachable': len(services_unreachable),
+                        'services_partial': len(services_partial),
                         'tools_executed': len(normalized_tools),
                         'severity_breakdown': aggregated_findings.get('findings_by_severity'),
                         'findings_by_tool': aggregated_findings.get('findings_by_tool'),
                         'tools_used': sorted(list(set(tools_executed) | set(normalized_tools.keys()))),
                         'tools_failed': sorted(tools_failed),
                         'tools_skipped': sorted(tools_skipped),
-                        'status': 'completed',
-                        'overall_status': 'completed'  # For backward compat
+                        'status': overall_status,
+                        'overall_status': overall_status  # For backward compat
                     },
                     # Keep raw per-service payloads, but order consistently for readability
                     # NOW with SARIF extracted to separate files

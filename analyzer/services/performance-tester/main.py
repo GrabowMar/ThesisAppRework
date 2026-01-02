@@ -709,10 +709,55 @@ scenarios:
             if tool_runs:
                 results['results']['tool_runs'] = tool_runs
             results['tool_results'] = tool_summary
-            # Provide overall status hint
-            results['status'] = 'success' if any(t.get('status') == 'success' for t in tool_summary.values()) else 'partial' if tool_summary else 'error'
+            
+            # CRITICAL: Determine status based on actual connectivity and test success
+            # Count how many URLs were actually reachable
+            reachable_count = 0
+            total_urls = len(target_urls)
+            for url in target_urls:
+                url_res = results['results'].get(url, {})
+                conn = url_res.get('connectivity', {})
+                if conn.get('status') == 'success':
+                    reachable_count += 1
+            
+            # Determine overall status
+            tools_succeeded = any(t.get('status') == 'success' for t in tool_summary.values())
+            
+            if reachable_count == 0:
+                # No URLs were reachable - this is the key case we need to handle!
+                results['status'] = 'targets_unreachable'
+                results['error'] = f'No targets reachable out of {total_urls} tested. App containers may not be running.'
+                results['summary'] = {
+                    'total_urls_tested': total_urls,
+                    'reachable_urls': 0,
+                    'analysis_status': 'targets_unreachable',
+                    'note': 'Performance testing could not be performed - targets unreachable'
+                }
+            elif reachable_count < total_urls:
+                # Partial connectivity
+                results['status'] = 'partial'
+                results['summary'] = {
+                    'total_urls_tested': total_urls,
+                    'reachable_urls': reachable_count,
+                    'analysis_status': 'partial_connectivity'
+                }
+            elif tools_succeeded:
+                results['status'] = 'success'
+                results['summary'] = {
+                    'total_urls_tested': total_urls,
+                    'reachable_urls': reachable_count,
+                    'analysis_status': 'completed'
+                }
+            else:
+                # URLs reachable but tools failed
+                results['status'] = 'error'
+                results['summary'] = {
+                    'total_urls_tested': total_urls,
+                    'reachable_urls': reachable_count,
+                    'analysis_status': 'tools_failed'
+                }
 
-            self.log.info(f"Performance testing completed. Tools used: {results['tools_used']}")
+            self.log.info(f"Performance testing completed. Status: {results['status']}, Tools used: {results['tools_used']}")
             return results
             
         except Exception as e:
