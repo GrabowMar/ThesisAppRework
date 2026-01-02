@@ -103,6 +103,23 @@ function goToStep(step) {
     // Special handling for review step
     if (step === 3) updateReviewSummary();
     
+    // Special handling for analysis step - trigger HTMX tool loading
+    if (step === 2) {
+        // Trigger HTMX to load tools when Step 2 becomes visible
+        // The intersect trigger doesn't work for display:none -> visible transitions
+        setTimeout(() => {
+            const toolContainers = ['static-tools-list', 'dynamic-tools-list', 'performance-tools-list', 'ai-tools-list'];
+            toolContainers.forEach(id => {
+                const el = document.getElementById(id);
+                // Only trigger if still showing spinner (not yet loaded)
+                if (el && el.querySelector('.spinner-border')) {
+                    console.log('[AutomationWizard] Triggering HTMX load for:', id);
+                    htmx.trigger(el, 'loadTools');
+                }
+            });
+        }, 50); // Small delay to ensure panel is visible
+    }
+    
     // Special handling for execution step
     if (step === 4) {
         // Hide stepper, show metrics

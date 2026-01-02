@@ -434,6 +434,28 @@ with app.app_context(): get_maintenance_service()._run_maintenance()"
 - **Transient failure recovery**: Failed tasks due to service unavailability are auto-recovered when services become available (checked every 5 min)
 - **Configuration**: `PREFLIGHT_MAX_RETRIES` and `TRANSIENT_FAILURE_MAX_RETRIES` env vars control retry limits (default: 3)
 
+### Target App Container Auto-Management (Jan 2026)
+Dynamic and performance analyzers require the target application containers to be running. The system now automatically manages container lifecycle:
+
+- **Auto-detection**: Before executing `dynamic-analyzer` or `performance-tester` subtasks, the system checks target app container status
+- **Auto-start stopped containers**: If containers exist but are stopped, they are automatically started
+- **Auto-rebuild missing containers**: If no containers exist (Option A), the system will build and start them
+- **Wait for readiness**: Polls container status with 60-second timeout (2-second intervals) until containers are healthy
+- **Graceful failure**: If containers can't be started/built, the subtask is marked as `skipped` (not `failed`) with a clear error message
+- **Port resolution**: After containers are ready, backend/frontend ports are resolved from the app's `.env` file
+
+**Behavior per scenario**:
+| Scenario | Action | Result |
+|----------|--------|--------|
+| Containers running | None needed | Proceed to analysis |
+| Containers stopped | Auto-start | Wait for ready, then analyze |
+| No containers exist | Auto-build + start | Wait for ready, then analyze |
+| Build/start fails | Skip subtask | Error logged, other services continue |
+
+**Log markers**: Watch for `[CONTAINER-MGMT]` and `[CONTAINER-CHECK]` in logs to trace container management actions.
+
+**Implementation**: See `_ensure_target_app_running()` and `_check_target_app_containers_ready()` in [task_execution_service.py](../src/app/services/task_execution_service.py).
+
 ### Container Rebuild Strategies
 - **Fast incremental** (`./start.ps1 -Mode Rebuild`): 
   - Uses BuildKit cache mounts (30-90 seconds)

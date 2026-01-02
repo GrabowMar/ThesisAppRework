@@ -12,7 +12,8 @@
       </div>
       <div class="card-body">
         <div class="row g-3" id="tools-grid">
-          {# Tool categories loaded via HTMX on intersect (when visible) #}
+          {# Tool categories loaded via HTMX when Step 2 becomes visible #}
+          {# Using custom 'loadTools' event triggered by JS when navigating to Step 2 #}
           <div class="col-lg-6">
             <div class="card card-sm border">
               <div class="card-header py-2">
@@ -20,7 +21,7 @@
               </div>
               <div class="card-body p-0" id="static-tools-list"
                    hx-get="/automation/fragments/tools/static"
-                   hx-trigger="intersect once"
+                   hx-trigger="loadTools once"
                    hx-swap="innerHTML">
                 <div class="text-center py-3">
                   <div class="spinner-border spinner-border-sm text-primary"></div>
@@ -35,7 +36,7 @@
               </div>
               <div class="card-body p-0" id="dynamic-tools-list"
                    hx-get="/automation/fragments/tools/dynamic"
-                   hx-trigger="intersect once"
+                   hx-trigger="loadTools once"
                    hx-swap="innerHTML">
                 <div class="text-center py-3">
                   <div class="spinner-border spinner-border-sm text-success"></div>
@@ -50,7 +51,7 @@
               </div>
               <div class="card-body p-0" id="performance-tools-list"
                    hx-get="/automation/fragments/tools/performance"
-                   hx-trigger="intersect once"
+                   hx-trigger="loadTools once"
                    hx-swap="innerHTML">
                 <div class="text-center py-3">
                   <div class="spinner-border spinner-border-sm text-info"></div>
@@ -65,7 +66,7 @@
               </div>
               <div class="card-body p-0" id="ai-tools-list"
                    hx-get="/automation/fragments/tools/ai"
-                   hx-trigger="intersect once"
+                   hx-trigger="loadTools once"
                    hx-swap="innerHTML">
                 <div class="text-center py-3">
                   <div class="spinner-border spinner-border-sm text-warning"></div>

@@ -1590,6 +1590,257 @@ class TaskExecutionService:
             }
         }
     
+    # ==========================================================================
+    # TARGET APP CONTAINER MANAGEMENT (for dynamic/performance analysis)
+    # ==========================================================================
+    
+    def _check_target_app_containers_ready(
+        self,
+        model_slug: str,
+        app_number: int,
+        timeout_seconds: int = 60,
+        poll_interval: float = 2.0
+    ) -> Dict[str, Any]:
+        """Check if target application containers are running and ready.
+        
+        Polls container status with timeout to wait for containers to start.
+        
+        Args:
+            model_slug: Target model identifier
+            app_number: Target app number
+            timeout_seconds: Max time to wait for containers (default: 60s)
+            poll_interval: Time between status checks (default: 2s)
+            
+        Returns:
+            Dict with:
+                - 'ready': bool - True if containers are running
+                - 'containers_found': int - Number of containers found
+                - 'states': List[str] - Container states
+                - 'error': Optional[str] - Error message if not ready
+                - 'backend_port': Optional[int] - Backend port if available
+                - 'frontend_port': Optional[int] - Frontend port if available
+        """
+        import time as _time
+        
+        try:
+            docker_mgr = ServiceLocator.get_docker_manager()
+            if not docker_mgr:
+                return {
+                    'ready': False,
+                    'error': 'Docker manager not available',
+                    'containers_found': 0,
+                    'states': []
+                }
+            
+            start_time = _time.time()
+            last_status = None
+            
+            while (_time.time() - start_time) < timeout_seconds:
+                status_summary = docker_mgr.container_status_summary(model_slug, app_number)
+                last_status = status_summary
+                
+                containers_found = status_summary.get('containers_found', 0)
+                states = set(status_summary.get('states', []))
+                
+                # Check if containers are running
+                if containers_found > 0 and 'running' in states:
+                    # Containers are running - try to resolve ports
+                    backend_port, frontend_port = None, None
+                    try:
+                        from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
+                        analyzer_mgr = get_analyzer_wrapper().manager
+                        ports = analyzer_mgr._resolve_app_ports(model_slug, app_number)
+                        if ports:
+                            backend_port, frontend_port = ports
+                    except Exception as port_err:
+                        self._log(f"[CONTAINER-CHECK] Could not resolve ports: {port_err}", level='debug')
+                    
+                    self._log(
+                        f"[CONTAINER-CHECK] {model_slug}/app{app_number} containers ready: "
+                        f"found={containers_found}, states={states}, "
+                        f"backend_port={backend_port}, frontend_port={frontend_port}"
+                    )
+                    
+                    return {
+                        'ready': True,
+                        'containers_found': containers_found,
+                        'states': list(states),
+                        'backend_port': backend_port,
+                        'frontend_port': frontend_port,
+                        'error': None
+                    }
+                
+                # Not ready yet - wait and retry
+                elapsed = _time.time() - start_time
+                remaining = timeout_seconds - elapsed
+                
+                if remaining > poll_interval:
+                    self._log(
+                        f"[CONTAINER-CHECK] Waiting for {model_slug}/app{app_number} containers... "
+                        f"found={containers_found}, states={states}, elapsed={elapsed:.1f}s",
+                        level='debug'
+                    )
+                    _time.sleep(poll_interval)
+                else:
+                    break
+            
+            # Timeout reached - containers not ready
+            elapsed = _time.time() - start_time
+            containers_found = last_status.get('containers_found', 0) if last_status else 0
+            states = list(last_status.get('states', [])) if last_status else []
+            
+            error_msg = f"Containers not ready after {elapsed:.1f}s (found={containers_found}, states={states})"
+            self._log(f"[CONTAINER-CHECK] {model_slug}/app{app_number}: {error_msg}", level='warning')
+            
+            return {
+                'ready': False,
+                'containers_found': containers_found,
+                'states': states,
+                'error': error_msg,
+                'backend_port': None,
+                'frontend_port': None
+            }
+            
+        except Exception as e:
+            self._log(f"[CONTAINER-CHECK] Error checking containers: {e}", level='error', exc_info=True)
+            return {
+                'ready': False,
+                'error': str(e),
+                'containers_found': 0,
+                'states': []
+            }
+    
+    def _ensure_target_app_running(
+        self,
+        model_slug: str,
+        app_number: int,
+        auto_start: bool = True,
+        auto_rebuild: bool = True,
+        wait_timeout: int = 60
+    ) -> Dict[str, Any]:
+        """Ensure target application containers are running for dynamic/performance analysis.
+        
+        This method implements the smart container lifecycle management:
+        1. Check if containers exist and are running
+        2. If containers exist but stopped → start them
+        3. If no containers exist and auto_rebuild=True → build and start
+        4. Wait for containers to be ready with polling
+        
+        Args:
+            model_slug: Target model identifier
+            app_number: Target app number
+            auto_start: If True, auto-start stopped containers (default: True)
+            auto_rebuild: If True, rebuild missing containers (default: True) 
+            wait_timeout: Max seconds to wait for containers to be ready (default: 60)
+            
+        Returns:
+            Dict with:
+                - 'ready': bool - True if containers are running and ready
+                - 'action_taken': str - What action was taken ('none', 'started', 'rebuilt', 'failed')
+                - 'error': Optional[str] - Error message if not ready
+                - 'backend_port': Optional[int] - Backend port if available
+                - 'frontend_port': Optional[int] - Frontend port if available
+        """
+        try:
+            docker_mgr = ServiceLocator.get_docker_manager()
+            if not docker_mgr:
+                return {
+                    'ready': False,
+                    'action_taken': 'failed',
+                    'error': 'Docker manager not available'
+                }
+            
+            # Step 1: Check current container status
+            status_summary = docker_mgr.container_status_summary(model_slug, app_number)
+            containers_found = status_summary.get('containers_found', 0)
+            states = set(status_summary.get('states', []))
+            
+            self._log(
+                f"[CONTAINER-MGMT] {model_slug}/app{app_number}: found={containers_found}, states={states}"
+            )
+            
+            # Case A: Containers exist and running → already ready
+            if containers_found > 0 and 'running' in states:
+                self._log(f"[CONTAINER-MGMT] Containers already running")
+                return self._check_target_app_containers_ready(
+                    model_slug, app_number, timeout_seconds=10
+                ) | {'action_taken': 'none'}
+            
+            # Case B: Containers exist but stopped → start them
+            if containers_found > 0 and 'running' not in states:
+                if not auto_start:
+                    return {
+                        'ready': False,
+                        'action_taken': 'none',
+                        'error': f'Containers exist but not running (states: {states}). Auto-start disabled.'
+                    }
+                
+                self._log(f"[CONTAINER-MGMT] Starting stopped containers...")
+                start_result = docker_mgr.start_containers(model_slug, app_number)
+                
+                if not start_result.get('success'):
+                    error_msg = start_result.get('error', 'Unknown start error')
+                    self._log(f"[CONTAINER-MGMT] Failed to start containers: {error_msg}", level='error')
+                    return {
+                        'ready': False,
+                        'action_taken': 'failed',
+                        'error': f'Failed to start containers: {error_msg}'
+                    }
+                
+                self._log(f"[CONTAINER-MGMT] Containers started, waiting for ready...")
+                check_result = self._check_target_app_containers_ready(
+                    model_slug, app_number, timeout_seconds=wait_timeout
+                )
+                check_result['action_taken'] = 'started'
+                return check_result
+            
+            # Case C: No containers exist → need to build
+            if containers_found == 0:
+                if not auto_rebuild:
+                    return {
+                        'ready': False,
+                        'action_taken': 'none',
+                        'error': 'No containers found. Auto-rebuild disabled.'
+                    }
+                
+                self._log(f"[CONTAINER-MGMT] No containers found, building...")
+                build_result = docker_mgr.build_containers(
+                    model_slug, app_number,
+                    no_cache=False,  # Use cache for faster builds
+                    start_after=True  # Start after building
+                )
+                
+                if not build_result.get('success'):
+                    error_msg = build_result.get('error', 'Unknown build error')
+                    self._log(f"[CONTAINER-MGMT] Failed to build containers: {error_msg}", level='error')
+                    return {
+                        'ready': False,
+                        'action_taken': 'failed',
+                        'error': f'Failed to build containers: {error_msg}'
+                    }
+                
+                self._log(f"[CONTAINER-MGMT] Containers built and started, waiting for ready...")
+                check_result = self._check_target_app_containers_ready(
+                    model_slug, app_number, timeout_seconds=wait_timeout
+                )
+                check_result['action_taken'] = 'rebuilt'
+                return check_result
+            
+            # Shouldn't reach here
+            return {
+                'ready': False,
+                'action_taken': 'none',
+                'error': 'Unknown container state'
+            }
+            
+        except Exception as e:
+            self._log(f"[CONTAINER-MGMT] Error ensuring app running: {e}", level='error', exc_info=True)
+            return {
+                'ready': False,
+                'action_taken': 'failed',
+                'error': str(e)
+            }
+
     def _execute_subtask_in_thread(
         self,
         subtask_id: int,
@@ -1651,6 +1902,65 @@ class TaskExecutionService:
                         'analysis': {},
                         'payload': {}
                     }
+                
+                # ==============================================================
+                # TARGET APP CONTAINER PRE-FLIGHT CHECK (dynamic/performance only)
+                # ==============================================================
+                # Dynamic and performance analyzers need target app containers running
+                # Skip this check for static/ai analyzers (they read source code, not running apps)
+                services_requiring_running_app = {'dynamic-analyzer', 'performance-tester'}
+                
+                if service_name in services_requiring_running_app:
+                    self._log(
+                        f"[SUBTASK] {service_name} requires running app - checking containers for {model_slug}/app{app_number}"
+                    )
+                    
+                    # Ensure target app containers are running (auto-start/rebuild as needed)
+                    container_result = self._ensure_target_app_running(
+                        model_slug=model_slug,
+                        app_number=app_number,
+                        auto_start=True,   # Auto-start stopped containers
+                        auto_rebuild=True,  # Auto-rebuild if no containers exist (Option A)
+                        wait_timeout=60     # 60-second timeout with 2s polling
+                    )
+                    
+                    if not container_result.get('ready'):
+                        action_taken = container_result.get('action_taken', 'none')
+                        error_msg = container_result.get('error', 'Target app containers not available')
+                        
+                        self._log(
+                            f"[SUBTASK] Skipping {service_name} subtask {subtask_id} - "
+                            f"containers not ready (action={action_taken}): {error_msg}",
+                            level='warning'
+                        )
+                        
+                        # Mark subtask as SKIPPED (user choice: failed builds block dynamic analysis)
+                        subtask.status = AnalysisStatus.FAILED
+                        subtask.error_message = (
+                            f"Target app containers unavailable for {service_name}. "
+                            f"Action attempted: {action_taken}. Error: {error_msg}"
+                        )
+                        subtask.completed_at = datetime.now(timezone.utc)
+                        db.session.commit()
+                        
+                        return {
+                            'status': 'skipped',
+                            'error': f'Target app containers not available: {error_msg}',
+                            'service_name': service_name,
+                            'subtask_id': subtask_id,
+                            'analysis': {},
+                            'payload': {},
+                            'container_check': container_result
+                        }
+                    
+                    # Log successful container check
+                    action_taken = container_result.get('action_taken', 'none')
+                    backend_port = container_result.get('backend_port')
+                    frontend_port = container_result.get('frontend_port')
+                    self._log(
+                        f"[SUBTASK] Containers ready for {service_name} (action={action_taken}, "
+                        f"ports: backend={backend_port}, frontend={frontend_port})"
+                    )
                 
                 # Mark as running
                 subtask.status = AnalysisStatus.RUNNING
