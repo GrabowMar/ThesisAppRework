@@ -264,6 +264,59 @@ def fragment_pipeline_progress(pipeline_id: str):
         return '<div class="alert alert-danger">Error loading pipeline status</div>'
 
 
+@automation_bp.route('/fragments/tools/<category>')
+def fragment_tools(category: str):
+    """Return tools list fragment for a specific category via HTMX.
+    
+    Uses intersect trigger so tools load when the container scrolls into view.
+    This fixes the issue where tools don't load on initial page load because
+    Step 2 panel is hidden.
+    """
+    valid_categories = ['static', 'dynamic', 'performance', 'ai']
+    if category not in valid_categories:
+        return '<div class="p-2 text-danger small"><i class="fas fa-exclamation-triangle me-1"></i>Invalid category</div>', 400
+    
+    try:
+        from app.engines.container_tool_registry import get_container_tool_registry, AnalyzerContainer
+        
+        registry = get_container_tool_registry()
+        all_tools = registry.get_all_tools()
+        
+        # Map category to container enum
+        category_to_container = {
+            'static': AnalyzerContainer.STATIC,
+            'dynamic': AnalyzerContainer.DYNAMIC,
+            'performance': AnalyzerContainer.PERFORMANCE,
+            'ai': AnalyzerContainer.AI,
+        }
+        
+        target_container = category_to_container[category]
+        category_tools = [
+            {
+                'name': tool.name,
+                'display_name': tool.display_name,
+                'description': tool.description,
+                'available': tool.available,
+            }
+            for tool in all_tools.values()
+            if tool.container == target_container
+        ]
+        
+        return render_template(
+            'pages/automation/partials/_tools_list.html',
+            tools=category_tools,
+            category=category,
+        )
+        
+    except ImportError as e:
+        current_app.logger.warning(f"Container tool registry not available: {e}")
+        return '<div class="p-2 text-muted small">Tool registry not available</div>'
+        
+    except Exception as e:
+        current_app.logger.exception(f"Error getting tools for {category}: {e}")
+        return f'<div class="p-2 text-danger small"><i class="fas fa-exclamation-triangle me-1"></i>Error loading tools</div>'
+
+
 @automation_bp.route('/fragments/stage/<stage_name>')
 def fragment_stage(stage_name: str):
     """Return stage configuration fragment."""

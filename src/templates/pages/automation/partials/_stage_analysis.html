@@ -12,13 +12,16 @@
       </div>
       <div class="card-body">
         <div class="row g-3" id="tools-grid">
-          {# Tool categories loaded dynamically #}
+          {# Tool categories loaded via HTMX on intersect (when visible) #}
           <div class="col-lg-6">
             <div class="card card-sm border">
               <div class="card-header py-2">
                 <h4 class="card-title mb-0"><i class="fas fa-search text-primary me-2"></i>Static Analysis</h4>
               </div>
-              <div class="card-body p-0" id="static-tools-list">
+              <div class="card-body p-0" id="static-tools-list"
+                   hx-get="/automation/fragments/tools/static"
+                   hx-trigger="intersect once"
+                   hx-swap="innerHTML">
                 <div class="text-center py-3">
                   <div class="spinner-border spinner-border-sm text-primary"></div>
                 </div>
@@ -30,7 +33,10 @@
               <div class="card-header py-2">
                 <h4 class="card-title mb-0"><i class="fas fa-play text-success me-2"></i>Dynamic Analysis</h4>
               </div>
-              <div class="card-body p-0" id="dynamic-tools-list">
+              <div class="card-body p-0" id="dynamic-tools-list"
+                   hx-get="/automation/fragments/tools/dynamic"
+                   hx-trigger="intersect once"
+                   hx-swap="innerHTML">
                 <div class="text-center py-3">
                   <div class="spinner-border spinner-border-sm text-success"></div>
                 </div>
@@ -42,7 +48,10 @@
               <div class="card-header py-2">
                 <h4 class="card-title mb-0"><i class="fas fa-tachometer-alt text-info me-2"></i>Performance Testing</h4>
               </div>
-              <div class="card-body p-0" id="performance-tools-list">
+              <div class="card-body p-0" id="performance-tools-list"
+                   hx-get="/automation/fragments/tools/performance"
+                   hx-trigger="intersect once"
+                   hx-swap="innerHTML">
                 <div class="text-center py-3">
                   <div class="spinner-border spinner-border-sm text-info"></div>
                 </div>
@@ -54,7 +63,10 @@
               <div class="card-header py-2">
                 <h4 class="card-title mb-0"><i class="fas fa-brain text-warning me-2"></i>AI Analysis</h4>
               </div>
-              <div class="card-body p-0" id="ai-tools-list">
+              <div class="card-body p-0" id="ai-tools-list"
+                   hx-get="/automation/fragments/tools/ai"
+                   hx-trigger="intersect once"
+                   hx-swap="innerHTML">
                 <div class="text-center py-3">
                   <div class="spinner-border spinner-border-sm text-warning"></div>
                 </div>

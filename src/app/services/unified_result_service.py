@@ -27,7 +27,16 @@ from app.models.analysis_models import AnalysisResult, AnalysisTask
 from app.models.simple_tool_results import ToolResult, ToolSummary
 from app.models.results_cache import AnalysisResultsCache
 from app.paths import RESULTS_DIR
-from app.utils.analysis_utils import resolve_task_directory, extract_issues_from_sarif
+from app.utils.analysis_utils import resolve_task_directory
+
+# Import shared SARIF utilities - consolidated from analyzer_manager.py
+from app.utils.sarif_utils import (
+    extract_sarif_to_files,
+    extract_issues_from_sarif,
+    load_sarif_from_reference,
+    is_ruff_sarif,
+    remap_ruff_sarif_severity
+)
 
 logger = logging.getLogger(__name__)
 
@@ -454,8 +463,13 @@ class UnifiedResultService:
         task_dir.mkdir(parents=True, exist_ok=True)
         
         # 1. Extract SARIF files to reduce main JSON size
-        # This modifies the payload in-place to reference the extracted files
-        self._extract_sarif_to_files(payload, task_dir)
+        # Uses shared utility from sarif_utils - modifies services in-place
+        services = payload.get('services', {})
+        if services:
+            sarif_dir = task_dir / "sarif"
+            sarif_dir.mkdir(exist_ok=True)
+            extracted_services = extract_sarif_to_files(services, sarif_dir)
+            payload['services'] = extracted_services
         
         # 2. Write per-service snapshots
         self._write_service_snapshots(payload, task_dir)
@@ -490,222 +504,9 @@ class UnifiedResultService:
                 temp_path.unlink()
             raise Exception(f"File write failed: {e}") from e
 
-    def _extract_sarif_to_files(self, payload: Dict[str, Any], task_dir: Path) -> None:
-        """
-        Extract SARIF data from payload to separate files to reduce JSON size.
-        Modifies payload in-place to replace SARIF data with file references.
-        
-        Handles:
-        - services.*.analysis.sarif_export (large SARIF aggregation)
-        - services.*.analysis.results.{lang}.{tool}.sarif
-        - services.*.analysis.tool_results.{tool}.sarif
-        - tools.{tool}.sarif and tools.{tool}.output (if large)
-        """
-        sarif_dir = task_dir / "sarif"
-        sarif_dir.mkdir(exist_ok=True)
-        
-        EXTRACTION_THRESHOLD_KB = 500  # Extract to file if >500KB
-        
-        services = payload.get('services', {})
-        for service_name, service_data in services.items():
-            if not isinstance(service_data, dict):
-                continue
-                
-            # Check for tools with SARIF
-            analysis = service_data.get('analysis', {})
-            if not isinstance(analysis, dict):
-                continue
-            
-            # NEW: Handle sarif_export at analysis level
-            if 'sarif_export' in analysis and isinstance(analysis['sarif_export'], dict):
-                sarif_export = analysis['sarif_export']
-                if 'sarif_file' not in sarif_export:  # Not already a reference
-                    sarif_json = json.dumps(sarif_export, default=str)
-                    size_kb = len(sarif_json.encode('utf-8')) / 1024
-                    
-                    if size_kb > EXTRACTION_THRESHOLD_KB:
-                        filename = f"{service_name}_sarif_export.sarif.json"
-                        file_path = sarif_dir / filename
-                        
-                        try:
-                            with open(file_path, 'w', encoding='utf-8') as f:
-                                json.dump(sarif_export, f, indent=2)
-                            analysis['sarif_export'] = {
-                                'sarif_file': f"sarif/{filename}",
-                                'extracted_size_kb': round(size_kb, 2),
-                                'extracted_at': datetime.now(timezone.utc).isoformat()
-                            }
-                            logger.info(f"Extracted sarif_export for {service_name} ({size_kb:.1f}KB)")
-                        except Exception as e:
-                            logger.warning(f"Failed to extract sarif_export for {service_name}: {e}")
-            
-            # Handle static analyzer structure (grouped by language)
-            if service_name in ['static-analyzer', 'static']:
-                results = analysis.get('results', {})
-                for lang, lang_tools in results.items():
-                    if isinstance(lang_tools, dict):
-                        for tool_name, tool_data in lang_tools.items():
-                            self._process_sarif_extraction(tool_name, tool_data, sarif_dir)
-                            self._process_output_extraction(tool_name, tool_data, sarif_dir, EXTRACTION_THRESHOLD_KB)
-            
-            # Handle flat structure (other analyzers)
-            else:
-                # Check 'results'
-                results = analysis.get('results', {})
-                if isinstance(results, dict):
-                    for tool_name, tool_data in results.items():
-                        self._process_sarif_extraction(tool_name, tool_data, sarif_dir)
-                        self._process_output_extraction(tool_name, tool_data, sarif_dir, EXTRACTION_THRESHOLD_KB)
-                
-                # Check 'tool_results'
-                tool_results = analysis.get('tool_results', {})
-                if isinstance(tool_results, dict):
-                    for tool_name, tool_data in tool_results.items():
-                        self._process_sarif_extraction(tool_name, tool_data, sarif_dir)
-                        self._process_output_extraction(tool_name, tool_data, sarif_dir, EXTRACTION_THRESHOLD_KB)
-        
-        # NEW: Handle tools section (flat tool map)
-        tools = payload.get('tools', {})
-        if isinstance(tools, dict):
-            for tool_name, tool_data in tools.items():
-                if isinstance(tool_data, dict):
-                    self._process_sarif_extraction(f"tool_{tool_name}", tool_data, sarif_dir)
-                    self._process_output_extraction(f"tool_{tool_name}", tool_data, sarif_dir, EXTRACTION_THRESHOLD_KB)
-    
-    def _process_output_extraction(self, tool_name: str, tool_data: Dict[str, Any], sarif_dir: Path, threshold_kb: int = 500) -> None:
-        """Helper to extract large 'output' fields from tool entries."""
-        if not isinstance(tool_data, dict):
-            return
-        
-        output_data = tool_data.get('output')
-        if output_data and not isinstance(output_data, dict) or (isinstance(output_data, dict) and 'output_file' not in output_data):
-            output_json = json.dumps(output_data, default=str) if not isinstance(output_data, str) else output_data
-            size_kb = len(output_json.encode('utf-8')) / 1024
-            
-            if size_kb > threshold_kb:
-                safe_tool = tool_name.replace('/', '_').replace('\\', '_')
-                filename = f"{safe_tool}_output.json"
-                file_path = sarif_dir / filename
-                
-                try:
-                    with open(file_path, 'w', encoding='utf-8') as f:
-                        if isinstance(output_data, str):
-                            f.write(output_data)
-                        else:
-                            json.dump(output_data, f, indent=2, default=str)
-                    
-                    tool_data['output'] = {
-                        'output_file': f"sarif/{filename}",
-                        'extracted_size_kb': round(size_kb, 2)
-                    }
-                    logger.debug(f"Extracted output for {tool_name} ({size_kb:.1f}KB)")
-                except Exception as e:
-                    logger.warning(f"Failed to extract output for {tool_name}: {e}")
-
-    def _process_sarif_extraction(self, tool_name: str, tool_data: Dict[str, Any], sarif_dir: Path) -> None:
-        """Helper to extract SARIF from a single tool entry."""
-        if not isinstance(tool_data, dict):
-            return
-            
-        sarif_data = tool_data.get('sarif')
-        if sarif_data and isinstance(sarif_data, dict):
-            # Normalize Ruff SARIF severities before persisting.
-            # Ruff's native SARIF output marks most findings as "error"; we remap
-            # whitespace/formatting/etc. to reduce inflated severity.
-            if self._is_ruff_sarif(tool_name, sarif_data):
-                self._remap_ruff_sarif_severity_in_place(sarif_data)
-
-            # Generate filename
-            safe_tool = tool_name.replace('/', '_').replace('\\', '_')
-            filename = f"{safe_tool}.sarif.json"
-            file_path = sarif_dir / filename
-            
-            try:
-                # Write SARIF to file
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump(sarif_data, f, indent=2)
-                
-                # Replace in payload with reference
-                tool_data['sarif'] = {
-                    "sarif_file": f"sarif/{filename}",
-                    "extracted_at": datetime.now(timezone.utc).isoformat()
-                }
-                logger.debug(f"Extracted SARIF for {tool_name} to {filename}")
-            except Exception as e:
-                logger.warning(f"Failed to extract SARIF for {tool_name}: {e}")
-
-    def _is_ruff_sarif(self, tool_name: str, sarif_data: Dict[str, Any]) -> bool:
-        """Return True if the SARIF document appears to originate from Ruff."""
-        if str(tool_name).lower() == 'ruff':
-            return True
-        runs = sarif_data.get('runs')
-        if not isinstance(runs, list):
-            return False
-        for run in runs:
-            if not isinstance(run, dict):
-                continue
-            driver_name = (
-                run.get('tool', {})
-                .get('driver', {})
-                .get('name', '')
-            )
-            if isinstance(driver_name, str) and 'ruff' in driver_name.lower():
-                return True
-        return False
-
-    def _remap_ruff_sarif_severity_in_place(self, sarif_data: Dict[str, Any]) -> None:
-        """Mutate a Ruff SARIF document to use more realistic `result.level` values."""
-
-        def _get_ruff_severity(rule_id: str) -> tuple[str, str]:
-            # Keep this mapping aligned with analyzer/services/static-analyzer/sarif_parsers.py.
-            if rule_id in ['W291', 'W292', 'W293', 'W503', 'W504', 'W605']:
-                return ('note', 'low')
-            if rule_id.startswith('I') or rule_id in ['E401', 'E402']:
-                return ('warning', 'medium')
-            if rule_id.startswith('S'):
-                if rule_id in ['S104', 'S105', 'S106', 'S107', 'S108']:
-                    return ('error', 'high')
-                if rule_id in ['S311', 'S324']:
-                    return ('error', 'high')
-                return ('warning', 'medium')
-            if rule_id in ['E999', 'F821', 'F822', 'F823']:
-                return ('error', 'high')
-            if rule_id in ['F401', 'F403', 'F405', 'F841']:
-                return ('warning', 'medium')
-            if rule_id.startswith('C') or rule_id in ['E501']:
-                return ('warning', 'medium')
-            if rule_id.startswith('E7'):
-                if rule_id in ['E711', 'E712', 'E721']:
-                    return ('warning', 'medium')
-                return ('warning', 'low')
-            if rule_id.startswith('E'):
-                return ('warning', 'medium')
-            return ('warning', 'low')
-
-        runs = sarif_data.get('runs')
-        if not isinstance(runs, list):
-            return
-
-        for run in runs:
-            if not isinstance(run, dict):
-                continue
-            results = run.get('results')
-            if not isinstance(results, list):
-                continue
-            for result in results:
-                if not isinstance(result, dict):
-                    continue
-                rule_id = result.get('ruleId')
-                if not isinstance(rule_id, str) or not rule_id:
-                    continue
-                level, severity_category = _get_ruff_severity(rule_id)
-                result['level'] = level
-
-                props = result.get('properties')
-                if not isinstance(props, dict):
-                    props = {}
-                    result['properties'] = props
-                props['problem.severity'] = severity_category
+    # NOTE: SARIF extraction methods (_extract_sarif_to_files, _process_sarif_extraction,
+    # _process_output_extraction, _is_ruff_sarif, _remap_ruff_sarif_severity_in_place)
+    # have been removed. Now using shared utilities from app.utils.sarif_utils.
 
     def _extract_findings_from_tools(self, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract findings from tools section for slim result format.
@@ -1236,6 +1037,8 @@ class UnifiedResultService:
         """
         Hydrate tool results with issues from SARIF files if issues are missing.
         Modifies results_data in-place.
+        
+        Uses shared utilities from app.utils.sarif_utils for SARIF handling.
         """
         services = results_data.get('services', {})
         if not services:
@@ -1281,35 +1084,14 @@ class UnifiedResultService:
                 
                 if (not issues or len(issues) == 0) and sarif_ref:
                     try:
-                        sarif_data = None
-
-                        # Case 1: Inline SARIF document (common during initial store, before extraction to files)
-                        if isinstance(sarif_ref, dict) and isinstance(sarif_ref.get('runs'), list):
-                            sarif_data = sarif_ref
-
-                        # Case 2: SARIF reference (file path)
-                        if sarif_data is None:
-                            sarif_file = None
-                            if isinstance(sarif_ref, dict):
-                                sarif_file = sarif_ref.get('sarif_file') or sarif_ref.get('path') or sarif_ref.get('file')
-                            elif isinstance(sarif_ref, str):
-                                sarif_file = sarif_ref
-
-                            if sarif_file:
-                                task_dir = resolve_task_directory(results_data, task_id)
-                                if task_dir:
-                                    task_root = task_dir.resolve()
-                                    sarif_path_obj = Path(sarif_file)
-                                    sarif_full_path = sarif_path_obj if sarif_path_obj.is_absolute() else (task_root / sarif_path_obj).resolve()
-
-                                    if sarif_full_path.exists():
-                                        with open(sarif_full_path, 'r', encoding='utf-8') as f:
-                                            sarif_data = json.load(f)
+                        # Use shared utility to load SARIF from reference
+                        task_dir = resolve_task_directory(results_data, task_id)
+                        sarif_data = load_sarif_from_reference(sarif_ref, task_dir)
 
                         if sarif_data:
-                            # Apply Ruff severity remapping before extraction so UI/DB see corrected levels.
-                            if self._is_ruff_sarif(tool_name, sarif_data):
-                                self._remap_ruff_sarif_severity_in_place(sarif_data)
+                            # Apply Ruff severity remapping using shared utility
+                            if is_ruff_sarif(tool_name, sarif_data):
+                                remap_ruff_sarif_severity(sarif_data)
 
                             extracted_issues = extract_issues_from_sarif(sarif_data)
                             if extracted_issues:

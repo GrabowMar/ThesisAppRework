@@ -1,0 +1,21 @@
+{# Tools list partial - rendered via HTMX for lazy loading #}
+{% if tools %}
+<div class="list-group list-group-flush">
+  {% for tool in tools %}
+  <label class="list-group-item">
+    <input class="form-check-input me-2" type="checkbox" 
+           name="analysis_tool" value="{{ tool.name }}"
+           {{ '' if tool.available else 'disabled' }}>
+    <span class="fw-medium">{{ tool.display_name or tool.name }}</span>
+    {% if not tool.available %}
+    <span class="badge bg-secondary ms-2">unavailable</span>
+    {% endif %}
+    {% if tool.description %}
+    <span class="text-muted small d-block">{{ tool.description }}</span>
+    {% endif %}
+  </label>
+  {% endfor %}
+</div>
+{% else %}
+<div class="p-2 text-muted small">No tools available</div>
+{% endif %}

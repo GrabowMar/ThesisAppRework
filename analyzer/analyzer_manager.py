@@ -69,6 +69,27 @@ except ImportError:
         ]
         return list(dict.fromkeys(variants))  # dedupe
 
+# Import shared analysis utilities
+try:
+    from app.utils.sarif_utils import (
+        extract_sarif_to_files as shared_extract_sarif,
+        strip_sarif_rules as shared_strip_sarif,
+    )
+    from app.utils.tool_normalization import (
+        normalize_severity as shared_normalize_severity,
+        collect_normalized_tools as shared_collect_tools,
+        aggregate_findings_from_services as shared_aggregate_findings,
+        categorize_services as shared_categorize_services,
+        determine_overall_status as shared_determine_status,
+    )
+    from app.utils.result_builder import (
+        save_result_to_filesystem as shared_save_result,
+        build_universal_format as shared_build_universal,
+    )
+    SHARED_UTILS_AVAILABLE = True
+except ImportError:
+    SHARED_UTILS_AVAILABLE = False
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -3063,7 +3084,14 @@ class AnalyzerManager:
         return findings
     
     def _normalize_severity(self, severity: str) -> str:
-        """Normalize severity levels to standard format."""
+        """Normalize severity levels to standard format.
+        
+        Uses shared utility if available, otherwise falls back to local implementation.
+        """
+        if SHARED_UTILS_AVAILABLE:
+            return shared_normalize_severity(severity)
+        
+        # Fallback implementation
         severity_lower = str(severity).lower()
         if severity_lower in ['critical', 'fatal', 'high']:
             return 'high'
@@ -3077,7 +3105,14 @@ class AnalyzerManager:
             return 'medium'
     
     def _aggregate_findings(self, consolidated_results: Dict[str, Any]) -> Dict[str, Any]:
-        """Aggregate findings from all analyzers into a comprehensive format."""
+        """Aggregate findings from all analyzers into a comprehensive format.
+        
+        Uses shared utility when available for consistent results across entry points.
+        """
+        if SHARED_UTILS_AVAILABLE:
+            return shared_aggregate_findings(consolidated_results)
+        
+        # Fallback implementation for standalone CLI use
         all_findings: List[Dict[str, Any]] = []
         seen_finding_ids: Set[str] = set()  # Track unique finding IDs
         findings_by_tool: Dict[str, int] = {}
@@ -3144,10 +3179,16 @@ class AnalyzerManager:
     def _strip_sarif_rules(self, sarif_data: Dict[str, Any]) -> Dict[str, Any]:
         """Strip bulky rule definitions from SARIF to reduce file size.
         
+        Uses shared utility if available, otherwise falls back to local implementation.
+        
         SARIF 'tool.driver.rules' contains full rule catalog with lengthy descriptions.
         We preserve only: id, name, shortDescription (truncated to 200 chars).
         Always strips rules to minimize file size.
         """
+        if SHARED_UTILS_AVAILABLE:
+            return shared_strip_sarif(sarif_data)
+        
+        # Fallback implementation
         if not isinstance(sarif_data, dict):
             return sarif_data
             
@@ -3184,9 +3225,15 @@ class AnalyzerManager:
     def _extract_sarif_to_files(self, consolidated_results: Dict[str, Any], sarif_dir: Path) -> Dict[str, Any]:
         """Extract SARIF data from service results to separate files.
         
+        Uses shared utility if available, otherwise falls back to local implementation.
+        
         Returns a copy of consolidated_results with SARIF data replaced by file references.
         Also strips bulky rule definitions before writing to reduce file size.
         """
+        if SHARED_UTILS_AVAILABLE:
+            return shared_extract_sarif(consolidated_results, sarif_dir)
+        
+        # Fallback implementation
         services_copy = {}
         
         for service_name, service_result in consolidated_results.items():
@@ -3311,21 +3358,26 @@ class AnalyzerManager:
             # Derive failed/skipped lists from normalized tool statuses
             tools_failed = []
             tools_skipped = []
-            services_unreachable = []
-            services_partial = []
-            services_succeeded = []
             
-            # Categorize services by their status
-            for svc_name, svc_data in consolidated_results.items():
-                if not isinstance(svc_data, dict):
-                    continue
-                svc_status = str(svc_data.get('status', 'unknown')).lower()
-                if svc_status in ('targets_unreachable', 'unreachable'):
-                    services_unreachable.append(svc_name)
-                elif svc_status in ('partial', 'partial_connectivity', 'partial_success'):
-                    services_partial.append(svc_name)
-                elif svc_status in ('success', 'completed', 'no_issues'):
-                    services_succeeded.append(svc_name)
+            # Categorize services by their status - use shared utility when available
+            if SHARED_UTILS_AVAILABLE:
+                services_succeeded, services_partial, services_unreachable = shared_categorize_services(consolidated_results)
+            else:
+                # Fallback implementation
+                services_unreachable = []
+                services_partial = []
+                services_succeeded = []
+                
+                for svc_name, svc_data in consolidated_results.items():
+                    if not isinstance(svc_data, dict):
+                        continue
+                    svc_status = str(svc_data.get('status', 'unknown')).lower()
+                    if svc_status in ('targets_unreachable', 'unreachable'):
+                        services_unreachable.append(svc_name)
+                    elif svc_status in ('partial', 'partial_connectivity', 'partial_success'):
+                        services_partial.append(svc_name)
+                    elif svc_status in ('success', 'completed', 'no_issues'):
+                        services_succeeded.append(svc_name)
             
             for tname, tinfo in normalized_tools.items():
                 status = str(tinfo.get('status', 'unknown')).lower()
@@ -3334,15 +3386,19 @@ class AnalyzerManager:
                 elif status not in ('success', 'completed', 'no_issues'):
                     tools_failed.append(tname)
             
-            # Determine overall status based on service outcomes
-            if services_unreachable and not services_succeeded and not services_partial:
-                overall_status = 'targets_unreachable'
-            elif services_partial or (services_unreachable and services_succeeded):
-                overall_status = 'partial'
-            elif services_succeeded:
-                overall_status = 'completed'
+            # Determine overall status based on service outcomes - use shared utility when available
+            if SHARED_UTILS_AVAILABLE:
+                overall_status = shared_determine_status(services_succeeded, services_partial, services_unreachable)
             else:
-                overall_status = 'unknown'
+                # Fallback implementation
+                if services_unreachable and not services_succeeded and not services_partial:
+                    overall_status = 'targets_unreachable'
+                elif services_partial or (services_unreachable and services_succeeded):
+                    overall_status = 'partial'
+                elif services_succeeded:
+                    overall_status = 'completed'
+                else:
+                    overall_status = 'unknown'
 
             # 2. Build the full consolidated task metadata dictionary (use services_with_sarif_refs)
             task_metadata = {
@@ -3723,10 +3779,16 @@ class AnalyzerManager:
     def _collect_normalized_tools(self, consolidated_results: Dict[str, Any]) -> Dict[str, Any]:
         """Collect a flat map of tool -> minimal, consistent summary across services.
 
+        Uses shared utility as base, then applies special handling for AI analyzer format.
+        
         Each entry contains: status, total_issues, executed, duration_seconds (if present),
         severity_breakdown (if present), and error (if present).
         """
-        tools: Dict[str, Any] = {}
+        if SHARED_UTILS_AVAILABLE:
+            # Use shared utility for basic collection
+            tools = shared_collect_tools(consolidated_results)
+        else:
+            tools: Dict[str, Any] = {}
 
         if not isinstance(consolidated_results, dict):
             return tools
@@ -3739,35 +3801,44 @@ class AnalyzerManager:
             '_project_metadata'
         }
 
-        # Prefer per-service analysis.tool_results when available
+        # Prefer per-service analysis.tool_results when available (if shared utils didn't populate)
+        if not SHARED_UTILS_AVAILABLE:
+            for service_name, service_result in consolidated_results.items():
+                if not isinstance(service_result, dict):
+                    continue
+                analysis = service_result.get('analysis', {})
+                if not isinstance(analysis, dict):
+                    continue
+                
+                # Check for tool_results at top level
+                tool_results = analysis.get('tool_results')
+                if isinstance(tool_results, dict):
+                    for tname, tdata in tool_results.items():
+                        if tname in tools or not isinstance(tdata, dict):
+                            continue
+                        # Skip metadata keys (case-insensitive)
+                        if tname.lower() in METADATA_KEYS:
+                            continue
+                        tools[tname] = {
+                            'status': tdata.get('status', 'unknown'),
+                            'duration_seconds': tdata.get('duration') or tdata.get('duration_seconds'),
+                            'total_issues': tdata.get('total_issues'),
+                            'executed': tdata.get('executed', False),
+                            'severity_breakdown': tdata.get('severity_breakdown'),
+                            'error': tdata.get('error')
+                        }
+        
+        # Handle AI analyzer's multi-tool format: analysis.tools.{requirements-scanner, code-quality-analyzer}
+        # This special handling is needed because AI analyzer has unique response structure
         for service_name, service_result in consolidated_results.items():
-            if not isinstance(service_result, dict):
+            if not isinstance(service_result, dict) or service_name != 'ai':
                 continue
             analysis = service_result.get('analysis', {})
             if not isinstance(analysis, dict):
                 continue
             
-            # Check for tool_results at top level
-            tool_results = analysis.get('tool_results')
-            if isinstance(tool_results, dict):
-                for tname, tdata in tool_results.items():
-                    if tname in tools or not isinstance(tdata, dict):
-                        continue
-                    # Skip metadata keys (case-insensitive)
-                    if tname.lower() in METADATA_KEYS:
-                        continue
-                    tools[tname] = {
-                        'status': tdata.get('status', 'unknown'),
-                        'duration_seconds': tdata.get('duration') or tdata.get('duration_seconds'),
-                        'total_issues': tdata.get('total_issues'),
-                        'executed': tdata.get('executed', False),
-                        'severity_breakdown': tdata.get('severity_breakdown'),
-                        'error': tdata.get('error')
-                    }
-            
-            # Handle AI analyzer's multi-tool format: analysis.tools.{requirements-scanner, code-quality-analyzer}
             ai_tools_map = analysis.get('tools', {})
-            if isinstance(ai_tools_map, dict) and service_name == 'ai':
+            if isinstance(ai_tools_map, dict):
                 for tname, tdata in ai_tools_map.items():
                     if tname in tools or not isinstance(tdata, dict):
                         continue
@@ -3823,30 +3894,38 @@ class AnalyzerManager:
                         'compliance_percentage': compliance_pct,
                         'error': tdata.get('error')
                     }
-            
-            # Also check for static analyzer's nested structure: analysis.results.python/javascript/css
-            results = analysis.get('results', {})
-            if isinstance(results, dict):
-                for lang_category in ['python', 'javascript', 'css']:
-                    lang_tools = results.get(lang_category, {})
-                    if isinstance(lang_tools, dict):
-                        for tname, tdata in lang_tools.items():
-                            if tname in tools or not isinstance(tdata, dict):
-                                continue
-                            # Skip metadata keys (case-insensitive)
-                            if tname.lower() in METADATA_KEYS:
-                                continue
-                            # Verify this looks like a tool result (has expected tool fields)
-                            if not ('tool' in tdata or 'executed' in tdata or 'status' in tdata):
-                                continue
-                            tools[tname] = {
-                                'status': tdata.get('status', 'unknown'),
-                                'duration_seconds': None,  # Static analyzer doesn't track per-tool duration
-                                'total_issues': tdata.get('total_issues', 0),
-                                'executed': tdata.get('executed', False),
-                                'severity_breakdown': None,
-                                'error': tdata.get('error')
-                            }
+        
+        # Also check for static analyzer's nested structure: analysis.results.python/javascript/css
+        if not SHARED_UTILS_AVAILABLE:
+            for service_name, service_result in consolidated_results.items():
+                if not isinstance(service_result, dict):
+                    continue
+                analysis = service_result.get('analysis', {})
+                if not isinstance(analysis, dict):
+                    continue
+                
+                results = analysis.get('results', {})
+                if isinstance(results, dict):
+                    for lang_category in ['python', 'javascript', 'css']:
+                        lang_tools = results.get(lang_category, {})
+                        if isinstance(lang_tools, dict):
+                            for tname, tdata in lang_tools.items():
+                                if tname in tools or not isinstance(tdata, dict):
+                                    continue
+                                # Skip metadata keys (case-insensitive)
+                                if tname.lower() in METADATA_KEYS:
+                                    continue
+                                # Verify this looks like a tool result (has expected tool fields)
+                                if not ('tool' in tdata or 'executed' in tdata or 'status' in tdata):
+                                    continue
+                                tools[tname] = {
+                                    'status': tdata.get('status', 'unknown'),
+                                    'duration_seconds': None,  # Static analyzer doesn't track per-tool duration
+                                    'total_issues': tdata.get('total_issues', 0),
+                                    'executed': tdata.get('executed', False),
+                                    'severity_breakdown': None,
+                                    'error': tdata.get('error')
+                                }
 
         # Fallback/augment from lightweight raw_outputs if needed
         if not tools:

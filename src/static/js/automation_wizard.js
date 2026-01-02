@@ -1306,11 +1306,45 @@ function clearActivityLog() {
 // Tool Selection Helpers
 // ============================================================================
 
+// Simple cache for tools data (survives step navigation but not page refresh)
+const toolsCache = {
+    data: null,
+    timestamp: null,
+    maxAge: 5 * 60 * 1000, // 5 minutes
+    
+    isValid() {
+        return this.data && this.timestamp && (Date.now() - this.timestamp < this.maxAge);
+    },
+    
+    set(data) {
+        this.data = data;
+        this.timestamp = Date.now();
+    },
+    
+    get() {
+        return this.isValid() ? this.data : null;
+    },
+    
+    clear() {
+        this.data = null;
+        this.timestamp = null;
+    }
+};
+
 /**
- * Load available analysis tools
+ * Load available analysis tools (fallback/programmatic use)
+ * Note: Primary loading is now done via HTMX with hx-trigger="intersect once"
  */
 async function loadAnalysisTools() {
     const wizard = window.AutomationWizard;
+    
+    // Check cache first
+    const cached = toolsCache.get();
+    if (cached) {
+        console.log('[AutomationWizard] Using cached tools data');
+        renderToolLists(cached);
+        return;
+    }
     
     try {
         console.log('[AutomationWizard] Loading analysis tools from:', wizard.endpoints.getTools);
@@ -1332,6 +1366,8 @@ async function loadAnalysisTools() {
         }
         
         if (data.tools) {
+            // Cache the tools data
+            toolsCache.set(data.tools);
             renderToolLists(data.tools);
         } else {
             console.warn('[AutomationWizard] No tools in response');
@@ -1544,8 +1580,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         goToStep(1);
     }
     
-    // Load analysis tools (don't await - let it load in background)
-    loadAnalysisTools();
+    // Note: Analysis tools are now loaded via HTMX with hx-trigger="intersect once"
+    // This ensures tools load when Step 2 becomes visible, fixing the initial load issue.
+    // The loadAnalysisTools() function is kept as a fallback for programmatic refresh.
     
     // Setup event listeners for selection changes (using event delegation for dynamic content)
     document.addEventListener('change', function(e) {
