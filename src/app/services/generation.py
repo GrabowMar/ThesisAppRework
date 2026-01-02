@@ -1519,6 +1519,28 @@ class CodeMerger:
         logger.info(f"Backend user merge complete: {files_written} files written")
         return files_written > 0
     
+    def _infer_admin_backend_filename(self, code: str) -> str:
+        """Infer the appropriate admin filename from Python code content.
+        
+        When LLM generates code without explicit filename, try to determine
+        what file it should be based on the code content.
+        """
+        code_lower = code.lower()
+        
+        # Check for Flask Blueprint admin routes
+        if '@admin_bp.route' in code or "blueprint('admin" in code_lower or '/api/admin/' in code:
+            return 'routes/admin.py'
+        
+        # Check for admin-related decorators/functions
+        if 'admin_' in code_lower and ('def ' in code or '@app.route' in code):
+            return 'routes/admin.py'
+        
+        # Check for service functions that might be admin-related
+        if 'class admin' in code_lower or 'def admin' in code_lower:
+            return 'services.py'  # Will be appended
+        
+        return ''
+    
     def _merge_backend_admin(self, app_dir: Path, all_blocks: List[Dict]) -> bool:
         """Handle backend merge for 'admin' query - restricted to admin files only."""
         backend_dir = app_dir / 'backend'
@@ -1541,6 +1563,13 @@ class CodeMerger:
             # Only process Python files
             if lang not in {'python', 'py'}:
                 continue
+            
+            # If filename is missing, try to infer it from code content
+            if not filename:
+                inferred = self._infer_admin_backend_filename(code)
+                if inferred:
+                    logger.info(f"[ADMIN] Inferred filename '{inferred}' from code content (LLM did not provide filename)")
+                    filename = inferred
             
             filename_lower = filename.lower() if filename else ''
             
@@ -1803,6 +1832,33 @@ class CodeMerger:
         logger.info(f"Frontend user merge complete: {files_written} files written")
         return True
     
+    def _infer_admin_frontend_filename(self, code: str, lang: str) -> str:
+        """Infer the appropriate admin filename from code content.
+        
+        When LLM generates code without explicit filename, try to determine
+        what file it should be based on the code content.
+        """
+        code_lower = code.lower()
+        
+        # Check for AdminPage component (most common admin file)
+        if 'function adminpage' in code_lower or 'const adminpage' in code_lower or 'export default adminpage' in code_lower:
+            return 'pages/AdminPage.jsx'
+        
+        # Check for admin API functions
+        if 'adminget' in code_lower or '/api/admin/' in code or '/admin/' in code:
+            if 'api.get' in code_lower or 'api.post' in code_lower or 'export const admin' in code_lower:
+                return 'services/api.js'
+        
+        # Check for generic admin component exports
+        if 'export default' in code_lower and 'admin' in code_lower:
+            return 'pages/AdminPage.jsx'
+        
+        # Check for admin table or admin-specific components
+        if 'admintable' in code_lower:
+            return 'components/AdminTable.jsx'
+        
+        return ''
+    
     def _merge_frontend_admin(self, app_dir: Path, all_blocks: List[Dict]) -> bool:
         """Handle frontend merge for 'admin' query - restricted to admin files only."""
         frontend_src_dir = app_dir / 'frontend' / 'src'
@@ -1816,6 +1872,13 @@ class CodeMerger:
             
             if not code:
                 continue
+            
+            # If filename is missing, try to infer it from code content
+            if not filename and lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
+                inferred = self._infer_admin_frontend_filename(code, lang)
+                if inferred:
+                    logger.info(f"[ADMIN] Inferred filename '{inferred}' from code content (LLM did not provide filename)")
+                    filename = inferred
             
             filename_lower = filename.lower() if filename else ''
             

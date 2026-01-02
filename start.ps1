@@ -1240,16 +1240,132 @@ with app.app_context():
     return $true
 }
 
+function Stop-BlockingProcesses {
+    <#
+    .SYNOPSIS
+        Forcefully stops any processes that might be blocking database access.
+    
+    .DESCRIPTION
+        This function kills Python processes related to the ThesisAppRework project
+        that may be holding locks on the SQLite database file.
+    #>
+    
+    Write-Status "Killing processes that may block database access..." "Info"
+    
+    $killedCount = 0
+    
+    # 1. Kill any Python processes in the project directory
+    try {
+        $projectPythonProcs = Get-Process -Name "python", "pythonw" -ErrorAction SilentlyContinue | 
+            Where-Object { 
+                $_.Path -like "*ThesisAppRework*" -or 
+                $_.CommandLine -like "*ThesisAppRework*" 
+            }
+        
+        foreach ($proc in $projectPythonProcs) {
+            Write-Host "    • Killing Python process PID $($proc.Id): $($proc.Path)" -ForegroundColor Gray
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            $killedCount++
+        }
+    } catch {
+        # Silently continue if no processes found
+    }
+    
+    # 2. Kill any processes using python.exe from the .venv specifically
+    try {
+        $venvPythonProcs = Get-Process -Name "python", "pythonw" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Path -like "*$($Script:ROOT_DIR)*" }
+        
+        foreach ($proc in $venvPythonProcs) {
+            if ($proc.Id -notin $projectPythonProcs.Id) {
+                Write-Host "    • Killing venv Python process PID $($proc.Id)" -ForegroundColor Gray
+                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+                $killedCount++
+            }
+        }
+    } catch {
+        # Silently continue
+    }
+    
+    # 3. Kill Flask processes (they may hold DB connections)
+    try {
+        $flaskProcs = Get-Process -ErrorAction SilentlyContinue |
+            Where-Object { $_.ProcessName -like "*python*" -and $_.MainWindowTitle -like "*Flask*" }
+        
+        foreach ($proc in $flaskProcs) {
+            Write-Host "    • Killing Flask process PID $($proc.Id)" -ForegroundColor Gray
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            $killedCount++
+        }
+    } catch {
+        # Silently continue
+    }
+    
+    # 4. Force kill any remaining python processes that might hold sqlite locks
+    # This is a more aggressive approach - only used if database removal fails
+    
+    if ($killedCount -gt 0) {
+        Write-Status "  Killed $killedCount process(es)" "Success"
+        # Give OS time to release file handles
+        Start-Sleep -Seconds 2
+    } else {
+        Write-Status "  No blocking processes found" "Info"
+    }
+    
+    return $killedCount
+}
+
+function Stop-AllBlockingProcesses {
+    <#
+    .SYNOPSIS
+        Aggressively kills ALL Python processes that could be blocking database access.
+    
+    .DESCRIPTION
+        This is a more aggressive version that kills all Python/pythonw processes.
+        Used as a fallback when Stop-BlockingProcesses is not sufficient.
+    #>
+    
+    Write-Status "Force killing ALL Python processes..." "Warning"
+    
+    $killedCount = 0
+    
+    try {
+        # Get all python processes
+        $allPythonProcs = Get-Process -Name "python", "pythonw" -ErrorAction SilentlyContinue
+        
+        foreach ($proc in $allPythonProcs) {
+            try {
+                Write-Host "    • Force killing Python PID $($proc.Id)" -ForegroundColor Gray
+                Stop-Process -Id $proc.Id -Force -ErrorAction Stop
+                $killedCount++
+            } catch {
+                # Process may have already exited
+            }
+        }
+    } catch {
+        # No processes found
+    }
+    
+    if ($killedCount -gt 0) {
+        Write-Status "  Force killed $killedCount Python process(es)" "Success"
+        # Give OS time to release file handles
+        Start-Sleep -Seconds 3
+    }
+    
+    return $killedCount
+}
+
 function Invoke-Wipeout {
     Write-Banner "⚠️  WIPEOUT - Reset to Default State" "Red"
     
     Write-Host "This will:" -ForegroundColor Yellow
     Write-Host "  • Stop all running services" -ForegroundColor Yellow
+    Write-Host "  • Kill all Python processes that may block database" -ForegroundColor Yellow
     Write-Host "  • Delete the database (src/data/)" -ForegroundColor Yellow
     Write-Host "  • Remove all generated apps (generated/)" -ForegroundColor Yellow
     Write-Host "  • Remove all analysis results (results/)" -ForegroundColor Yellow
     Write-Host "  • Remove all reports (reports/)" -ForegroundColor Yellow
-    Write-Host "  • Remove all Docker containers and images (except analyzer-related)" -ForegroundColor Yellow
+    Write-Host "  • Remove all Docker containers, images, and volumes (except analyzer-related)" -ForegroundColor Yellow
     Write-Host "  • Create fresh admin user" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "⚠️  THIS CANNOT BE UNDONE! ⚠️" -ForegroundColor Red -BackgroundColor Black
@@ -1269,6 +1385,9 @@ function Invoke-Wipeout {
     Write-Status "Stopping all services..." "Info"
     Stop-AllServices
     Start-Sleep -Seconds 2
+    
+    # 2. Kill any Python processes that might be blocking database access
+    Stop-BlockingProcesses
     
     # 2. Remove non-analyzer Docker containers and images
     Write-Status "Removing non-analyzer Docker containers..." "Info"
@@ -1393,29 +1512,119 @@ function Invoke-Wipeout {
             Write-Status "  No images found" "Info"
         }
         
-        # Clean up dangling images and volumes
-        Write-Status "Cleaning up dangling resources..." "Info"
+        # Clean up dangling images
+        Write-Status "Cleaning up dangling images..." "Info"
         docker image prune -f 2>$null | Out-Null
-        docker volume prune -f 2>$null | Out-Null
-        Write-Status "  Dangling resources cleaned" "Success"
+        Write-Status "  Dangling images cleaned" "Success"
         
     } catch {
         Write-Status "  Error removing images: $_" "Warning"
     }
     
-    # 3. Remove database
+    # 3. Remove non-analyzer Docker volumes
+    Write-Status "Removing non-analyzer Docker volumes..." "Info"
+    try {
+        # Define volume patterns to KEEP (analyzer-related)
+        $volumeKeepPatterns = @(
+            'analyzer*',
+            '*static-analyzer*',
+            '*dynamic-analyzer*',
+            '*performance-tester*',
+            '*ai-analyzer*',
+            '*gateway*',
+            '*celery*',
+            '*redis*'
+        )
+        
+        # Get all volumes
+        $allVolumes = docker volume ls --format "{{.Name}}" 2>$null
+        
+        if ($allVolumes) {
+            $removedCount = 0
+            
+            foreach ($volumeName in $allVolumes) {
+                if ([string]::IsNullOrWhiteSpace($volumeName)) { continue }
+                
+                $volumeName = $volumeName.Trim()
+                
+                # Check if this volume should be KEPT (analyzer-related)
+                $shouldKeep = $false
+                foreach ($pattern in $volumeKeepPatterns) {
+                    if ($volumeName -like $pattern) {
+                        $shouldKeep = $true
+                        break
+                    }
+                }
+                
+                if (-not $shouldKeep) {
+                    Write-Host "    • Removing volume: $volumeName" -ForegroundColor Gray
+                    docker volume rm -f $volumeName 2>$null | Out-Null
+                    $removedCount++
+                }
+            }
+            
+            if ($removedCount -gt 0) {
+                Write-Status "  Removed $removedCount volume(s)" "Success"
+            } else {
+                Write-Status "  No non-analyzer volumes to remove" "Info"
+            }
+        } else {
+            Write-Status "  No volumes found" "Info"
+        }
+        
+        # Clean up dangling volumes
+        Write-Status "Cleaning up dangling volumes..." "Info"
+        docker volume prune -f 2>$null | Out-Null
+        Write-Status "  Dangling volumes cleaned" "Success"
+        
+    } catch {
+        Write-Status "  Error removing volumes: $_" "Warning"
+    }
+    
+    # 4. Remove database
     $dbDir = Join-Path $Script:SRC_DIR "data"
     if (Test-Path $dbDir) {
         Write-Status "Removing database..." "Info"
-        try {
-            Remove-Item -Path $dbDir -Recurse -Force -ErrorAction Stop
-            Write-Status "  Database removed" "Success"
-        } catch {
-            Write-Status "  Failed to remove database: $_" "Error"
+        
+        $dbRemoved = $false
+        $maxAttempts = 3
+        
+        for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            try {
+                Remove-Item -Path $dbDir -Recurse -Force -ErrorAction Stop
+                Write-Status "  Database removed" "Success"
+                $dbRemoved = $true
+                break
+            } catch {
+                $errorMsg = $_.Exception.Message
+                Write-Status "  Attempt $attempt/$maxAttempts failed: $errorMsg" "Warning"
+                
+                if ($attempt -lt $maxAttempts) {
+                    # Try more aggressive process killing
+                    Write-Status "  Attempting to release file locks..." "Info"
+                    
+                    if ($attempt -eq 1) {
+                        # First retry: kill project-specific Python processes
+                        Stop-BlockingProcesses
+                    } else {
+                        # Second retry: kill ALL Python processes
+                        Stop-AllBlockingProcesses
+                    }
+                    
+                    Start-Sleep -Seconds 2
+                }
+            }
+        }
+        
+        if (-not $dbRemoved) {
+            Write-Status "  ⚠️ CRITICAL: Could not remove database after $maxAttempts attempts!" "Error"
+            Write-Host "    Try manually:" -ForegroundColor Yellow
+            Write-Host "      1. Run: taskkill /F /IM python.exe" -ForegroundColor Gray
+            Write-Host "      2. Run: Remove-Item -Path '$dbDir' -Recurse -Force" -ForegroundColor Gray
         }
     }
     
-    # 4. Remove generated apps
+    # 5. Remove generated apps
     $generatedDir = Join-Path $Script:ROOT_DIR "generated"
     if (Test-Path $generatedDir) {
         Write-Status "Removing generated apps..." "Info"
@@ -1427,7 +1636,7 @@ function Invoke-Wipeout {
         }
     }
     
-    # 5. Remove results
+    # 6. Remove results
     $resultsDir = Join-Path $Script:ROOT_DIR "results"
     if (Test-Path $resultsDir) {
         Write-Status "Removing analysis results..." "Info"
@@ -1440,7 +1649,7 @@ function Invoke-Wipeout {
         }
     }
 
-    # 6. Remove reports
+    # 7. Remove reports
     $reportsDir = Join-Path $Script:ROOT_DIR "reports"
     if (Test-Path $reportsDir) {
         Write-Status "Removing reports..." "Info"
@@ -1453,7 +1662,7 @@ function Invoke-Wipeout {
         }
     }
     
-    # 7. Remove ALL logs (same as Clean menu option)
+    # 8. Remove ALL logs (same as Clean menu option)
     Write-Status "Removing all logs..." "Info"
     
     # Remove all log files from logs directory
@@ -1468,11 +1677,11 @@ function Invoke-Wipeout {
         Remove-Item -Path $stderrLog -Force -ErrorAction SilentlyContinue
     }
     
-    # 8. Remove PID files
+    # 9. Remove PID files
     Write-Status "Removing PID files..." "Info"
     Get-ChildItem -Path $Script:RUN_DIR -Filter "*.pid" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
     
-    # 9. Recreate database and admin user
+    # 10. Recreate database and admin user
     Write-Status "Initializing fresh database..." "Info"
     $createAdminScript = Join-Path $Script:ROOT_DIR "scripts\create_admin.py"
     
