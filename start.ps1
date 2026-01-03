@@ -584,19 +584,64 @@ function Stop-Service {
             Remove-Item $config.PidFile -Force
         }
     } else {
-        # Process-based services
+        # Process-based services (Flask)
+        $stopped = $false
+        
+        # First try to stop via PID file
         if (Test-Path $config.PidFile) {
             $processId = Get-Content $config.PidFile -Raw
-            $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+            $processId = $processId.Trim()
             
-            if ($process) {
-                Write-Status "  Stopping $ServiceName (PID: $processId)..." "Info"
-                $process.Kill()
-                $process.WaitForExit(5000)
-                Write-Status "  $ServiceName stopped" "Success"
+            if ($processId -match '^\d+$') {
+                $process = Get-Process -Id ([int]$processId) -ErrorAction SilentlyContinue
+                
+                if ($process) {
+                    Write-Status "  Stopping $ServiceName (PID: $processId)..." "Info"
+                    try {
+                        $process.Kill()
+                        $process.WaitForExit(5000)
+                        $stopped = $true
+                        Write-Status "  $ServiceName stopped" "Success"
+                    } catch {
+                        Write-Status "  Warning: Could not kill process $processId" "Warning"
+                    }
+                }
             }
             
-            Remove-Item $config.PidFile -Force
+            Remove-Item $config.PidFile -Force -ErrorAction SilentlyContinue
+        }
+        
+        # Also try to find and kill any Flask processes running main.py (fallback)
+        if (-not $stopped) {
+            try {
+                $flaskProcesses = Get-Process -Name "python*" -ErrorAction SilentlyContinue | Where-Object {
+                    try {
+                        $cmdLine = (Get-CimInstance Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue).CommandLine
+                        $cmdLine -and $cmdLine -like "*main.py*"
+                    } catch { $false }
+                }
+                
+                if ($flaskProcesses) {
+                    foreach ($proc in $flaskProcesses) {
+                        Write-Status "  Stopping $ServiceName process (PID: $($proc.Id))..." "Info"
+                        try {
+                            $proc | Stop-Process -Force -ErrorAction SilentlyContinue
+                            $stopped = $true
+                        } catch {
+                            # Process might have already exited
+                        }
+                    }
+                    if ($stopped) {
+                        Write-Status "  $ServiceName stopped" "Success"
+                    }
+                }
+            } catch {
+                # Ignore errors in fallback cleanup
+            }
+        }
+        
+        if (-not $stopped) {
+            Write-Status "  $ServiceName was not running" "Info"
         }
     }
 
@@ -1079,17 +1124,52 @@ function Invoke-Reload {
     Stop-AllServices
     
     # Brief pause to ensure clean shutdown
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 1
+    
+    # Kill any remaining Flask/Python processes in our project directory
+    Write-Status "Ensuring clean shutdown of Flask processes..." "Info"
+    $killedCount = 0
+    try {
+        # Kill any Python processes running main.py from our project
+        Get-Process -Name "python*" -ErrorAction SilentlyContinue | Where-Object {
+            try {
+                $cmdLine = (Get-CimInstance Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue).CommandLine
+                $cmdLine -and ($cmdLine -like "*$($Script:ROOT_DIR)*" -or $cmdLine -like "*main.py*")
+            } catch { $false }
+        } | ForEach-Object {
+            Write-Host "    Killing process $($_.Id) ($($_.ProcessName))..." -ForegroundColor DarkGray
+            $_ | Stop-Process -Force -ErrorAction SilentlyContinue
+            $killedCount++
+        }
+    } catch {
+        Write-Host "    Warning: Could not check for orphan processes" -ForegroundColor DarkYellow
+    }
+    
+    if ($killedCount -gt 0) {
+        Write-Status "  Killed $killedCount orphan process(es)" "Info"
+        Start-Sleep -Seconds 1
+    }
+    
+    # Clean up PID file to ensure fresh start
+    if (Test-Path $Script:CONFIG.Flask.PidFile) {
+        Remove-Item $Script:CONFIG.Flask.PidFile -Force -ErrorAction SilentlyContinue
+        Write-Status "  Removed stale PID file" "Info"
+    }
+    
+    # Brief pause to ensure ports are released
+    Start-Sleep -Seconds 1
     
     # Reset stuck tasks
     Write-Status "Resetting stuck tasks..." "Info"
     $fixScript = Join-Path $Script:ROOT_DIR "scripts\fix_task_statuses.py"
     if (Test-Path $fixScript) {
-        & $Script:PYTHON_CMD $fixScript
+        & $Script:PYTHON_CMD $fixScript 2>$null | Out-Null
     }
 
-    # Start services again
+    # Start services again in background mode
     Write-Status "Restarting services..." "Info"
+    
+    # Set background mode for this reload
     $Script:Background = $true
     
     if (Start-FullStack) {

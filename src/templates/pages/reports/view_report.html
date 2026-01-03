@@ -224,7 +224,388 @@
     const s = statusMap[status?.toLowerCase()] || statusMap[taskStatus?.toLowerCase()] || { class: 'bg-secondary', icon: 'question', text: status || 'Unknown' };
     return `<span class="badge ${s.class}"><i class="fa-solid fa-${s.icon} me-1"></i>${s.text}</span>`;
   }
-  
+
+  // Build LOC per-app table (helper for quantitative section)
+  function buildLocPerAppTable(perAppData) {
+    if (!perAppData) return '';
+    // Handle both array and object formats
+    let apps = Array.isArray(perAppData) ? perAppData : Object.values(perAppData);
+    if (apps.length === 0) return '';
+    let html = '<div class="mt-3">';
+    html += '<h5 class="text-muted mb-2">Per-Application Breakdown</h5>';
+    html += '<div class="table-responsive"><table class="table table-sm table-vcenter"><thead><tr>';
+    html += '<th>App</th><th class="text-end">Backend LOC</th><th class="text-end">Frontend LOC</th>';
+    html += '<th class="text-end">Total LOC</th><th class="text-end">Issues</th><th class="text-end">Issues/100 LOC</th>';
+    html += '</tr></thead><tbody>';
+    apps.forEach(app => {
+      const colorClass = (app.issues_per_100_loc || 0) > 5 ? 'text-danger' : (app.issues_per_100_loc || 0) > 2 ? 'text-warning' : 'text-success';
+      html += '<tr>';
+      html += '<td><strong>App ' + (app.app_number || '?') + '</strong></td>';
+      html += '<td class="text-end">' + formatNumber(app.backend_loc || 0) + '</td>';
+      html += '<td class="text-end">' + formatNumber(app.frontend_loc || 0) + '</td>';
+      html += '<td class="text-end">' + formatNumber(app.total_loc || 0) + '</td>';
+      html += '<td class="text-end">' + formatNumber(app.issues_count || 0) + '</td>';
+      html += '<td class="text-end ' + colorClass + '">' + (app.issues_per_100_loc || 0).toFixed(2) + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div></div>';
+    return html;
+  }
+
+  // Build performance metrics card
+  function buildPerformanceMetricsCard(perf) {
+    if (!perf || Object.keys(perf).length === 0) return '';
+    
+    // Handle nested structure from backend
+    const p95 = perf.p95_response_time || {};
+    const p99 = perf.p99_response_time || {};
+    const rps = perf.requests_per_second || {};
+    const errorRate = perf.error_rate || {};
+    
+    let html = '<div class="card mb-3"><div class="card-header">';
+    html += '<h3 class="card-title"><i class="fa-solid fa-gauge-high me-2"></i>Performance Metrics</h3></div>';
+    html += '<div class="card-body">';
+    
+    // Top row: main summary metrics
+    html += '<div class="row g-3 mb-3">';
+    html += '<div class="col-md-3 col-6"><div class="text-center p-2 bg-light rounded">';
+    html += '<div class="h3 mb-0">' + formatNumber(perf.tests_count || perf.total_tests || 0) + '</div>';
+    html += '<div class="text-muted small">Performance Tests</div></div></div>';
+    
+    html += '<div class="col-md-3 col-6"><div class="text-center p-2 bg-light rounded">';
+    const avgP95 = p95.mean || perf.avg_response_time_ms || 0;
+    const p95Class = avgP95 <= 200 ? 'text-success' : avgP95 <= 500 ? 'text-warning' : 'text-danger';
+    html += '<div class="h3 mb-0 ' + p95Class + '">' + avgP95.toFixed(0) + '</div>';
+    html += '<div class="text-muted small">Mean P95 (ms)</div></div></div>';
+    
+    html += '<div class="col-md-3 col-6"><div class="text-center p-2 bg-light rounded">';
+    const avgRps = rps.mean || perf.avg_requests_per_sec || 0;
+    html += '<div class="h3 mb-0">' + avgRps.toFixed(1) + '</div>';
+    html += '<div class="text-muted small">Mean Requests/sec</div></div></div>';
+    
+    html += '<div class="col-md-3 col-6"><div class="text-center p-2 bg-light rounded">';
+    const avgErr = errorRate.mean || perf.avg_error_rate || 0;
+    const errClass = avgErr <= 1 ? 'text-success' : avgErr <= 5 ? 'text-warning' : 'text-danger';
+    html += '<div class="h3 mb-0 ' + errClass + '">' + (avgErr * 100).toFixed(2) + '%</div>';
+    html += '<div class="text-muted small">Mean Error Rate</div></div></div>';
+    html += '</div>';
+    
+    // Latency breakdown with min/median/max
+    if (Object.keys(p95).length > 0 || Object.keys(p99).length > 0) {
+      html += '<div class="row g-3 mb-3">';
+      
+      // P95 breakdown
+      if (Object.keys(p95).length > 0) {
+        html += '<div class="col-md-6"><div class="border rounded p-2">';
+        html += '<h6 class="mb-2 text-muted"><i class="fa-solid fa-chart-line me-1"></i>P95 Response Time (ms)</h6>';
+        html += '<div class="d-flex justify-content-between small">';
+        html += '<span>Min: <strong>' + (p95.min || 0).toFixed(0) + '</strong></span>';
+        html += '<span>Median: <strong>' + (p95.median || 0).toFixed(0) + '</strong></span>';
+        html += '<span>Max: <strong class="text-danger">' + (p95.max || 0).toFixed(0) + '</strong></span>';
+        html += '</div></div></div>';
+      }
+      
+      // P99 breakdown
+      if (Object.keys(p99).length > 0) {
+        html += '<div class="col-md-6"><div class="border rounded p-2">';
+        html += '<h6 class="mb-2 text-muted"><i class="fa-solid fa-chart-line me-1"></i>P99 Response Time (ms)</h6>';
+        html += '<div class="d-flex justify-content-between small">';
+        html += '<span>Min: <strong>' + (p99.min || 0).toFixed(0) + '</strong></span>';
+        html += '<span>Median: <strong>' + (p99.median || 0).toFixed(0) + '</strong></span>';
+        html += '<span>Max: <strong class="text-danger">' + (p99.max || 0).toFixed(0) + '</strong></span>';
+        html += '</div></div></div>';
+      }
+      html += '</div>';
+    }
+    
+    // Request totals
+    if (perf.total_requests || perf.failed_requests) {
+      html += '<div class="row g-2">';
+      html += '<div class="col-6 col-md-4"><div class="text-center small">';
+      html += '<span class="text-muted">Total Requests:</span> <strong>' + formatNumber(perf.total_requests || 0) + '</strong>';
+      html += '</div></div>';
+      html += '<div class="col-6 col-md-4"><div class="text-center small">';
+      html += '<span class="text-muted">Failed:</span> <strong class="text-danger">' + formatNumber(perf.failed_requests || 0) + '</strong>';
+      html += '</div></div>';
+      if (rps.min !== undefined && rps.max !== undefined) {
+        html += '<div class="col-12 col-md-4"><div class="text-center small">';
+        html += '<span class="text-muted">RPS Range:</span> <strong>' + (rps.min || 0).toFixed(1) + ' - ' + (rps.max || 0).toFixed(1) + '</strong>';
+        html += '</div></div>';
+      }
+      html += '</div>';
+    }
+    
+    // Legacy fallback for old format
+    if (perf.p50_response_time_ms || perf.p95_response_time_ms) {
+      html += '<div class="row g-3 mt-2">';
+      html += '<div class="col-md-4 col-6"><div class="text-center p-2">';
+      html += '<div class="h4 mb-0">' + (perf.p50_response_time_ms || 0).toFixed(0) + ' ms</div>';
+      html += '<div class="text-muted small">P50 Latency</div></div></div>';
+      html += '<div class="col-md-4 col-6"><div class="text-center p-2">';
+      html += '<div class="h4 mb-0">' + (perf.p95_response_time_ms || 0).toFixed(0) + ' ms</div>';
+      html += '<div class="text-muted small">P95 Latency</div></div></div>';
+      html += '<div class="col-md-4 col-6"><div class="text-center p-2">';
+      html += '<div class="h4 mb-0">' + (perf.p99_response_time_ms || 0).toFixed(0) + ' ms</div>';
+      html += '<div class="text-muted small">P99 Latency</div></div></div>';
+      html += '</div>';
+    }
+    
+    html += '</div></div>';
+    return html;
+  }
+
+  // Build security metrics card with enhanced breakdown
+  function buildSecurityMetricsCard(sec) {
+    if (!sec || Object.keys(sec).length === 0) return '';
+    
+    // Extract severity breakdown if available
+    const severityBreakdown = sec.severity_breakdown || {};
+    
+    let html = '<div class="card"><div class="card-header">';
+    html += '<h3 class="card-title"><i class="fa-solid fa-shield-halved me-2"></i>Security Analysis</h3></div>';
+    html += '<div class="card-body">';
+    
+    // Main metrics row
+    html += '<div class="row g-2 mb-3">';
+    html += '<div class="col-6 col-md-3"><div class="text-center">';
+    html += '<div class="h3 mb-0">' + formatNumber(sec.analyses_count || sec.total_analyses || 0) + '</div>';
+    html += '<div class="text-muted small">Security Scans</div></div></div>';
+    html += '<div class="col-6 col-md-3"><div class="text-center">';
+    html += '<div class="h3 mb-0">' + formatNumber(sec.total_issues || sec.total_vulnerabilities || 0) + '</div>';
+    html += '<div class="text-muted small">Total Issues</div></div></div>';
+    html += '<div class="col-6 col-md-3"><div class="text-center">';
+    const toolSuccessRate = sec.tool_success_rate || 0;
+    html += '<div class="h3 mb-0 ' + (toolSuccessRate >= 80 ? 'text-success' : 'text-warning') + '">' + toolSuccessRate.toFixed(0) + '%</div>';
+    html += '<div class="text-muted small">Tool Success</div></div></div>';
+    html += '<div class="col-6 col-md-3"><div class="text-center">';
+    html += '<div class="h3 mb-0">' + formatNumber(sec.tools_run_count || 0) + '</div>';
+    html += '<div class="text-muted small">Tools Run</div></div></div>';
+    html += '</div>';
+    
+    // Severity breakdown row
+    html += '<div class="row g-2">';
+    html += '<div class="col-3"><div class="text-center p-1 rounded" style="background-color: #f8d7da;">';
+    html += '<div class="h4 mb-0 text-danger">' + formatNumber(severityBreakdown.critical || sec.critical_count || 0) + '</div>';
+    html += '<div class="text-muted small">Critical</div></div></div>';
+    html += '<div class="col-3"><div class="text-center p-1 rounded" style="background-color: #fff3cd;">';
+    html += '<div class="h4 mb-0 text-warning">' + formatNumber(severityBreakdown.high || sec.high_count || 0) + '</div>';
+    html += '<div class="text-muted small">High</div></div></div>';
+    html += '<div class="col-3"><div class="text-center p-1 rounded" style="background-color: #d1e7dd;">';
+    html += '<div class="h4 mb-0 text-info">' + formatNumber(severityBreakdown.medium || sec.medium_count || 0) + '</div>';
+    html += '<div class="text-muted small">Medium</div></div></div>';
+    html += '<div class="col-3"><div class="text-center p-1 rounded" style="background-color: #e2e3e5;">';
+    html += '<div class="h4 mb-0 text-secondary">' + formatNumber(severityBreakdown.low || sec.low_count || 0) + '</div>';
+    html += '<div class="text-muted small">Low</div></div></div>';
+    html += '</div>';
+    
+    // Additional info row
+    if (sec.avg_duration_per_analysis || sec.avg_issues_per_analysis) {
+      html += '<div class="row g-2 mt-2">';
+      html += '<div class="col-6"><div class="text-center">';
+      html += '<div class="h5 mb-0">' + (sec.avg_duration_per_analysis || 0).toFixed(1) + 's</div>';
+      html += '<div class="text-muted small">Avg Duration</div></div></div>';
+      html += '<div class="col-6"><div class="text-center">';
+      html += '<div class="h5 mb-0">' + (sec.avg_issues_per_analysis || 0).toFixed(1) + '</div>';
+      html += '<div class="text-muted small">Avg Issues/Scan</div></div></div>';
+      html += '</div>';
+    }
+    
+    html += '</div></div>';
+    return html;
+  }
+
+  // Build AI metrics card with enhanced quality scores
+  function buildAiMetricsCard(ai) {
+    if (!ai || Object.keys(ai).length === 0) return '';
+    
+    // Extract sub-scores if available (from backend ai_analysis metrics)
+    const overallScore = ai.overall_score || {};
+    const codeQuality = ai.code_quality_score || {};
+    const securityScore = ai.security_score || {};
+    const maintainabilityScore = ai.maintainability_score || {};
+    const tokenUsage = ai.token_usage || {};
+    
+    let html = '<div class="card"><div class="card-header">';
+    html += '<h3 class="card-title"><i class="fa-solid fa-robot me-2"></i>AI Analysis Quality Scores</h3></div>';
+    html += '<div class="card-body">';
+    
+    // Main score metrics
+    html += '<div class="row g-2 mb-3">';
+    html += '<div class="col-6 col-md-3"><div class="text-center">';
+    html += '<div class="h3 mb-0">' + formatNumber(ai.analyses_count || ai.total_analyses || 0) + '</div>';
+    html += '<div class="text-muted small">AI Reviews</div></div></div>';
+    html += '<div class="col-6 col-md-3"><div class="text-center">';
+    const overallMean = overallScore.mean || ai.avg_compliance_score || 0;
+    html += '<div class="h3 mb-0 ' + (overallMean >= 70 ? 'text-success' : overallMean >= 50 ? 'text-warning' : 'text-danger') + '">' + overallMean.toFixed(0) + '%</div>';
+    html += '<div class="text-muted small">Overall Score</div></div></div>';
+    html += '<div class="col-6 col-md-3"><div class="text-center">';
+    const qualityMean = codeQuality.mean || ai.avg_quality_score || 0;
+    html += '<div class="h3 mb-0">' + qualityMean.toFixed(0) + '</div>';
+    html += '<div class="text-muted small">Code Quality</div></div></div>';
+    html += '<div class="col-6 col-md-3"><div class="text-center">';
+    const secMean = securityScore.mean || 0;
+    html += '<div class="h3 mb-0">' + secMean.toFixed(0) + '</div>';
+    html += '<div class="text-muted small">Security Score</div></div></div>';
+    html += '</div>';
+    
+    // Additional metrics row
+    html += '<div class="row g-2">';
+    html += '<div class="col-6 col-md-3"><div class="text-center">';
+    const maintMean = maintainabilityScore.mean || 0;
+    html += '<div class="h4 mb-0">' + maintMean.toFixed(0) + '</div>';
+    html += '<div class="text-muted small">Maintainability</div></div></div>';
+    html += '<div class="col-6 col-md-3"><div class="text-center">';
+    const totalTokens = tokenUsage.total_tokens || ai.total_tokens_used || 0;
+    html += '<div class="h4 mb-0">' + formatNumber(totalTokens) + '</div>';
+    html += '<div class="text-muted small">Tokens Used</div></div></div>';
+    html += '<div class="col-6 col-md-3"><div class="text-center">';
+    const aiCost = ai.total_ai_analysis_cost_usd || 0;
+    html += '<div class="h4 mb-0">$' + aiCost.toFixed(4) + '</div>';
+    html += '<div class="text-muted small">AI Cost</div></div></div>';
+    html += '<div class="col-6 col-md-3"><div class="text-center">';
+    const scoreRange = overallScore.max && overallScore.min ? (overallScore.max - overallScore.min).toFixed(0) : '-';
+    html += '<div class="h4 mb-0">' + scoreRange + '</div>';
+    html += '<div class="text-muted small">Score Range</div></div></div>';
+    html += '</div>';
+    
+    html += '</div></div>';
+    return html;
+  }
+
+  // Build Docker/Container status card
+  function buildDockerStatusCard(docker) {
+    if (!docker || Object.keys(docker).length === 0) return '';
+    const totalApps = docker.total_apps || 0;
+    const running = docker.running || 0;
+    const stopped = docker.stopped || 0;
+    const errorCount = docker.error || 0;
+    const neverBuilt = docker.never_built || 0;
+    const buildSuccessRate = docker.build_success_rate || 0;
+    const statusBreakdown = docker.status_breakdown || {};
+    
+    let html = '<div class="card mb-3"><div class="card-header">';
+    html += '<h3 class="card-title"><i class="fa-brands fa-docker me-2"></i>Docker Container Status</h3></div>';
+    html += '<div class="card-body">';
+    
+    // Main status indicators
+    html += '<div class="row g-3 mb-3">';
+    html += '<div class="col-md-3 col-6"><div class="text-center p-2 bg-light rounded">';
+    html += '<div class="h3 mb-0 text-success">' + formatNumber(running) + '</div>';
+    html += '<div class="text-muted small">Running</div></div></div>';
+    html += '<div class="col-md-3 col-6"><div class="text-center p-2 bg-light rounded">';
+    html += '<div class="h3 mb-0 text-secondary">' + formatNumber(stopped) + '</div>';
+    html += '<div class="text-muted small">Stopped</div></div></div>';
+    html += '<div class="col-md-3 col-6"><div class="text-center p-2 bg-light rounded">';
+    html += '<div class="h3 mb-0 text-danger">' + formatNumber(errorCount) + '</div>';
+    html += '<div class="text-muted small">Error/Failed</div></div></div>';
+    html += '<div class="col-md-3 col-6"><div class="text-center p-2 bg-light rounded">';
+    html += '<div class="h3 mb-0 text-warning">' + formatNumber(neverBuilt) + '</div>';
+    html += '<div class="text-muted small">Never Built</div></div></div>';
+    html += '</div>';
+    
+    // Build success rate progress bar
+    const rateClass = buildSuccessRate >= 80 ? 'bg-success' : buildSuccessRate >= 50 ? 'bg-warning' : 'bg-danger';
+    html += '<div class="mb-3">';
+    html += '<div class="d-flex justify-content-between mb-1">';
+    html += '<span class="text-muted small">Build Success Rate</span>';
+    html += '<span class="fw-bold">' + buildSuccessRate.toFixed(1) + '%</span>';
+    html += '</div>';
+    html += '<div class="progress" style="height: 10px;">';
+    html += '<div class="progress-bar ' + rateClass + '" role="progressbar" style="width: ' + buildSuccessRate + '%" aria-valuenow="' + buildSuccessRate + '" aria-valuemin="0" aria-valuemax="100"></div>';
+    html += '</div></div>';
+    
+    // Status breakdown table (if multiple statuses)
+    const statusKeys = Object.keys(statusBreakdown);
+    if (statusKeys.length > 0) {
+      html += '<div class="table-responsive">';
+      html += '<table class="table table-sm table-borderless mb-0">';
+      html += '<tbody>';
+      statusKeys.forEach(function(status) {
+        const count = statusBreakdown[status];
+        const pct = totalApps > 0 ? ((count / totalApps) * 100).toFixed(1) : 0;
+        const badgeClass = status === 'running' ? 'bg-success' : 
+                           status === 'stopped' ? 'bg-secondary' :
+                           status === 'error' ? 'bg-danger' :
+                           status === 'never_built' ? 'bg-warning' : 'bg-info';
+        html += '<tr><td><span class="badge ' + badgeClass + ' me-2">' + status.replace(/_/g, ' ') + '</span></td>';
+        html += '<td class="text-end">' + count + '</td>';
+        html += '<td class="text-end text-muted small">(' + pct + '%)</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    
+    html += '</div></div>';
+    return html;
+  }
+
+  // Build generation summary card with fix breakdown
+  function buildGenerationSummaryCard(gen) {
+    if (!gen || Object.keys(gen).length === 0) return '';
+    
+    const fixCounts = gen.fix_counts || {};
+    const successRate = gen.success_rate || 0;
+    
+    let html = '<div class="card"><div class="card-header">';
+    html += '<h3 class="card-title"><i class="fa-solid fa-code-branch me-2"></i>Generation Summary</h3></div>';
+    html += '<div class="card-body">';
+    
+    // Main metrics row
+    html += '<div class="row g-2 mb-3">';
+    html += '<div class="col-6 col-md-3"><div class="text-center p-2 bg-light rounded">';
+    html += '<div class="h3 mb-0">' + formatNumber(gen.total_apps || 0) + '</div>';
+    html += '<div class="text-muted small">Total Apps</div></div></div>';
+    
+    html += '<div class="col-6 col-md-3"><div class="text-center p-2 bg-light rounded">';
+    html += '<div class="h3 mb-0 text-success">' + formatNumber(gen.successful_apps || 0) + '</div>';
+    html += '<div class="text-muted small">Successful</div></div></div>';
+    
+    html += '<div class="col-6 col-md-3"><div class="text-center p-2 bg-light rounded">';
+    html += '<div class="h3 mb-0 text-danger">' + formatNumber(gen.failed_apps || 0) + '</div>';
+    html += '<div class="text-muted small">Failed</div></div></div>';
+    
+    html += '<div class="col-6 col-md-3"><div class="text-center p-2 bg-light rounded">';
+    const rateClass = successRate >= 80 ? 'text-success' : successRate >= 50 ? 'text-warning' : 'text-danger';
+    html += '<div class="h3 mb-0 ' + rateClass + '">' + successRate.toFixed(0) + '%</div>';
+    html += '<div class="text-muted small">Success Rate</div></div></div>';
+    html += '</div>';
+    
+    // Fix breakdown row (if any fixes applied)
+    const totalFixes = fixCounts.total_fixes || 0;
+    if (totalFixes > 0) {
+      html += '<div class="border rounded p-2 mb-2">';
+      html += '<h6 class="mb-2 text-muted"><i class="fa-solid fa-wrench me-1"></i>Fixes Applied: ' + formatNumber(totalFixes) + '</h6>';
+      html += '<div class="row g-1 small">';
+      
+      if (fixCounts.retry_fixes > 0) {
+        html += '<div class="col-6 col-md-3"><span class="badge bg-info me-1">' + fixCounts.retry_fixes + '</span> Retry</div>';
+      }
+      if (fixCounts.automatic_fixes > 0) {
+        html += '<div class="col-6 col-md-3"><span class="badge bg-success me-1">' + fixCounts.automatic_fixes + '</span> Automatic</div>';
+      }
+      if (fixCounts.llm_fixes > 0) {
+        html += '<div class="col-6 col-md-3"><span class="badge bg-primary me-1">' + fixCounts.llm_fixes + '</span> LLM</div>';
+      }
+      if (fixCounts.manual_fixes > 0) {
+        html += '<div class="col-6 col-md-3"><span class="badge bg-secondary me-1">' + fixCounts.manual_fixes + '</span> Manual</div>';
+      }
+      
+      html += '</div></div>';
+    }
+    
+    // Additional stats
+    html += '<div class="row g-2">';
+    html += '<div class="col-6"><div class="text-center small">';
+    html += '<span class="text-muted">Total Attempts:</span> <strong>' + formatNumber(gen.total_generation_attempts || 0) + '</strong>';
+    html += '</div></div>';
+    html += '<div class="col-6"><div class="text-center small">';
+    html += '<span class="text-muted">Avg Attempts/App:</span> <strong>' + (gen.avg_attempts_per_app || 0).toFixed(1) + '</strong>';
+    html += '</div></div>';
+    html += '</div>';
+    
+    html += '</div></div>';
+    return html;
+  }
+
   // Render the report based on type
   function renderReport() {
     switch(reportType) {
@@ -254,6 +635,14 @@
     const execMetrics = d.execution_metrics || {};
     const frameworks = d.framework_distribution || {};
     const modelInfo = d.model_info || {};
+    // NEW: Quantitative metrics data
+    const quantMetrics = d.quantitative_metrics || {};
+    const locMetrics = d.loc_metrics || {};
+    const perfMetrics = quantMetrics.performance || {};
+    const aiMetrics = quantMetrics.ai_analysis || {};
+    const secMetrics = quantMetrics.security || {};
+    const dockerMetrics = quantMetrics.docker || {};
+    const generationMetrics = quantMetrics.generation || {};
     
     let html = `
       <!-- Summary Metrics -->
@@ -457,6 +846,115 @@
                         <strong>${count}</strong>
                       </div>
                     `).join('') : '<span class="text-muted">No data</span>'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Quantitative Metrics Section -->
+      <div class="research-section">
+        <div class="research-section-header section-collapse" data-bs-toggle="collapse" data-bs-target="#quant-section">
+          <h3 class="research-section-title"><i class="fa-solid fa-calculator"></i> Quantitative Metrics</h3>
+          <div class="research-section-actions">
+            <i class="fa-solid fa-chevron-down"></i>
+          </div>
+        </div>
+        <div class="collapse show" id="quant-section">
+          <!-- Lines of Code & Issue Density -->
+          <div class="card mb-3">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fa-solid fa-code me-2"></i>Lines of Code & Issue Density</h3>
+            </div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-md-3 col-6">
+                  <div class="text-center p-2 bg-light rounded">
+                    <div class="h2 mb-0 text-primary">${formatNumber(locMetrics.total_loc || 0)}</div>
+                    <div class="text-muted small">Total Lines of Code</div>
+                  </div>
+                </div>
+                <div class="col-md-3 col-6">
+                  <div class="text-center p-2 bg-light rounded">
+                    <div class="h2 mb-0 text-info">${formatNumber(locMetrics.backend_loc || 0)}</div>
+                    <div class="text-muted small">Backend LOC</div>
+                  </div>
+                </div>
+                <div class="col-md-3 col-6">
+                  <div class="text-center p-2 bg-light rounded">
+                    <div class="h2 mb-0 text-purple">${formatNumber(locMetrics.frontend_loc || 0)}</div>
+                    <div class="text-muted small">Frontend LOC</div>
+                  </div>
+                </div>
+                <div class="col-md-3 col-6">
+                  <div class="text-center p-2 bg-light rounded">
+                    <div class="h2 mb-0 ${(locMetrics.issues_per_100_loc || 0) > 5 ? 'text-danger' : (locMetrics.issues_per_100_loc || 0) > 2 ? 'text-warning' : 'text-success'}">${(locMetrics.issues_per_100_loc || 0).toFixed(2)}</div>
+                    <div class="text-muted small">Issues per 100 LOC</div>
+                  </div>
+                </div>
+              </div>
+              ${buildLocPerAppTable(locMetrics.per_app || [])}
+            </div>
+          </div>
+          
+          <!-- Performance Metrics -->
+          ${buildPerformanceMetricsCard(perfMetrics)}
+          
+          <!-- Docker/Container Status & Generation Summary -->
+          <div class="research-data-grid cols-2">
+            ${buildDockerStatusCard(dockerMetrics)}
+            ${buildGenerationSummaryCard(generationMetrics)}
+          </div>
+          
+          <!-- Security & AI Analysis Metrics -->
+          <div class="research-data-grid cols-2">
+            ${buildSecurityMetricsCard(secMetrics)}
+            ${buildAiMetricsCard(aiMetrics)}
+          </div>
+          
+          <!-- Generation Efficiency -->
+          <div class="card mt-3">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fa-solid fa-chart-line me-2"></i>Generation Efficiency Summary</h3>
+            </div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-md-2 col-4">
+                  <div class="text-center">
+                    <div class="h4 mb-0 text-success">${formatNumber(genStats.successful_generations || 0)}</div>
+                    <div class="text-muted small">Successful</div>
+                  </div>
+                </div>
+                <div class="col-md-2 col-4">
+                  <div class="text-center">
+                    <div class="h4 mb-0 text-danger">${formatNumber(genStats.failed_generations || 0)}</div>
+                    <div class="text-muted small">Failed</div>
+                  </div>
+                </div>
+                <div class="col-md-2 col-4">
+                  <div class="text-center">
+                    <div class="h4 mb-0">${((genStats.successful_generations || 0) / Math.max(1, (genStats.successful_generations || 0) + (genStats.failed_generations || 0)) * 100).toFixed(1)}%</div>
+                    <div class="text-muted small">Success Rate</div>
+                  </div>
+                </div>
+                <div class="col-md-2 col-4">
+                  <div class="text-center">
+                    <div class="h4 mb-0">${formatNumber(genStats.total_scripted_fixes + genStats.total_llm_fixes + genStats.total_manual_fixes || 0)}</div>
+                    <div class="text-muted small">Total Fixes</div>
+                  </div>
+                </div>
+                <div class="col-md-2 col-4">
+                  <div class="text-center">
+                    <div class="h4 mb-0">${(locMetrics.avg_loc_per_app || 0).toFixed(0)}</div>
+                    <div class="text-muted small">Avg LOC/App</div>
+                  </div>
+                </div>
+                <div class="col-md-2 col-4">
+                  <div class="text-center">
+                    <div class="h4 mb-0">${((summary.total_findings || 0) / Math.max(1, summary.total_apps || 1)).toFixed(1)}</div>
+                    <div class="text-muted small">Avg Issues/App</div>
+                  </div>
                 </div>
               </div>
             </div>

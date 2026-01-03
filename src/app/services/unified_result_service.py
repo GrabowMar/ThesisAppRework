@@ -784,6 +784,16 @@ class UnifiedResultService:
         # Get full services data (not just tools) - template needs this
         services = results_data.get('services', {})
         
+        # Also check for tools at top level (AI analyzer stores tools here)
+        # Priority: services > payload.tools > results_data.tools
+        tools_data = services
+        if not tools_data:
+            # AI analyzer stores tools at payload['tools'] (top-level)
+            tools_data = payload.get('tools', {})
+        if not tools_data:
+            # Fallback to results_data['tools'] if present
+            tools_data = results_data.get('tools', {})
+        
         # Determine status from summary or top-level
         status = (results_data.get('summary', {}).get('status') or 
                   results_data.get('status') or 
@@ -797,7 +807,7 @@ class UnifiedResultService:
             performance=performance,
             quality=quality,
             requirements=requirements,
-            tools=services,  # Use full services data instead of just tool results
+            tools=tools_data,  # Use services OR top-level tools (for AI analyzer)
             raw_data=payload,
             model_slug=model_slug,
             app_number=app_number,

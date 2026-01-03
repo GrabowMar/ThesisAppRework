@@ -4,14 +4,33 @@ Template Comparison Report Generator
 Generates cross-model comparison reports for apps using the same template.
 Shows how different models performed when implementing the same requirements.
 Includes generation metadata (cost, tokens, time) for full context.
+
+Focuses on QUANTITATIVE metrics (matching ModelReportGenerator standard):
+- Cross-model performance comparison
+- Lines of code (LOC) statistics per model
+- Issues per LOC ratios comparison
+- CWE/vulnerability categorization across models
+- Scientific statistics (mean, median, std_dev, CV)
+- Performance percentiles (P95/P99) comparison
+- AI quality scores comparison
+- Generation cost/token efficiency
 """
 import logging
-from typing import Dict, Any, List
+import re
+import statistics
+from typing import Dict, Any, List, Optional, Union
 from pathlib import Path
+from collections import Counter
 
 from .base_generator import BaseReportGenerator
 from ...extensions import db
-from ...models import AnalysisTask, GeneratedApplication
+from ...models import (
+    AnalysisTask, 
+    GeneratedApplication,
+    PerformanceTest,
+    OpenRouterAnalysis,
+    SecurityAnalysis
+)
 from ...constants import AnalysisStatus
 from ...services.service_locator import ServiceLocator
 from ...services.service_base import ValidationError, NotFoundError
@@ -21,8 +40,638 @@ from ..generation_statistics import load_generation_records
 logger = logging.getLogger(__name__)
 
 
+def _count_loc_from_files(model_slug: str, app_numbers: Union[int, List[int]]) -> Dict[str, Any]:
+    """
+    Count lines of code directly from generated app files.
+    
+    Fallback when generation metadata is unavailable.
+    Counts LOC in Python (.py) and JavaScript/JSX (.js, .jsx) files,
+    excluding scaffolding files.
+    
+    Args:
+        model_slug: Model identifier
+        app_numbers: Single app number (int) or list of app numbers to count
+        
+    Returns:
+        Dict with total_loc, backend_loc, frontend_loc, per_app breakdown
+    """
+    import os
+    
+    # Normalize app_numbers to a list
+    if isinstance(app_numbers, int):
+        app_numbers = [app_numbers]
+    
+    # Known scaffolding files to exclude (only count AI-generated code)
+    SCAFFOLDING_FILES = {
+        # Backend scaffolding (not AI-generated)
+        'app.py',  # Main Flask app setup
+        # Frontend scaffolding
+        'vite.config.js',
+        'tailwind.config.js', 
+        'postcss.config.js',
+    }
+    
+    SCAFFOLDING_DIRS = {
+        'node_modules',
+        '__pycache__',
+        '.git',
+        'dist',
+        'build',
+    }
+    
+    base_path = Path(__file__).resolve().parent.parent.parent.parent.parent / "generated" / "apps"
+    safe_slug = model_slug.replace('/', '_').replace('\\', '_')
+    model_path = base_path / safe_slug
+    
+    result = {
+        'total_loc': 0,
+        'backend_loc': 0,
+        'frontend_loc': 0,
+        'per_app': {},
+        'counted': False,
+    }
+    
+    if not model_path.exists():
+        return result
+    
+    for app_num in app_numbers:
+        app_path = model_path / f"app{app_num}"
+        if not app_path.exists():
+            continue
+        
+        app_backend_loc = 0
+        app_frontend_loc = 0
+        
+        # Count backend Python files
+        backend_path = app_path / "backend"
+        if backend_path.exists():
+            for root, dirs, files in os.walk(backend_path):
+                # Skip scaffolding directories
+                dirs[:] = [d for d in dirs if d not in SCAFFOLDING_DIRS]
+                
+                for filename in files:
+                    if filename.endswith('.py') and filename not in SCAFFOLDING_FILES:
+                        filepath = Path(root) / filename
+                        try:
+                            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                                # Count non-empty, non-comment lines
+                                lines = [l for l in f.readlines() 
+                                        if l.strip() and not l.strip().startswith('#')]
+                                app_backend_loc += len(lines)
+                        except Exception:
+                            pass
+        
+        # Count frontend JS/JSX files
+        frontend_path = app_path / "frontend" / "src"
+        if frontend_path.exists():
+            for root, dirs, files in os.walk(frontend_path):
+                dirs[:] = [d for d in dirs if d not in SCAFFOLDING_DIRS]
+                
+                for filename in files:
+                    if filename.endswith(('.js', '.jsx')) and filename not in SCAFFOLDING_FILES:
+                        filepath = Path(root) / filename
+                        try:
+                            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                                lines = [l for l in f.readlines() 
+                                        if l.strip() and not l.strip().startswith('//')]
+                                app_frontend_loc += len(lines)
+                        except Exception:
+                            pass
+        
+        app_total = app_backend_loc + app_frontend_loc
+        
+        result['per_app'][app_num] = {
+            'app_number': app_num,
+            'total_loc': app_total,
+            'backend_loc': app_backend_loc,
+            'frontend_loc': app_frontend_loc,
+        }
+        
+        result['backend_loc'] += app_backend_loc
+        result['frontend_loc'] += app_frontend_loc
+        result['total_loc'] += app_total
+    
+    result['counted'] = result['total_loc'] > 0
+    return result
+
+
 class AppReportGenerator(BaseReportGenerator):
-    """Generator for template-centric cross-model comparison reports."""
+    """Generate cross-model comparison reports for apps using the same template.
+    
+    Features (matching ModelReportGenerator standard):
+    - Multi-model comparison for the same requirement template
+    - Generation cost/efficiency analysis (tokens, cost, time)
+    - LOC statistics per model with issues-per-LOC ratios
+    - CWE vulnerability categorization across models
+    - Scientific statistics (mean, median, std_dev, coefficient of variation)
+    - Performance metrics comparison (P95/P99 latency, throughput)
+    - AI quality scores comparison
+    - Best/worst model identification with rankings
+    """
+    
+    # Tool classification for categorization (matching ModelReportGenerator)
+    KNOWN_TOOLS: Dict[str, Dict[str, str]] = {
+        # Python security
+        'bandit': {'category': 'security', 'language': 'python'},
+        'safety': {'category': 'security', 'language': 'python'},
+        'pip-audit': {'category': 'security', 'language': 'python'},
+        'semgrep': {'category': 'security', 'language': 'multi'},
+        
+        # Python quality
+        'pylint': {'category': 'quality', 'language': 'python'},
+        'flake8': {'category': 'quality', 'language': 'python'},
+        'ruff': {'category': 'quality', 'language': 'python'},
+        'mypy': {'category': 'type-checking', 'language': 'python'},
+        'vulture': {'category': 'quality', 'language': 'python'},
+        'radon': {'category': 'complexity', 'language': 'python'},
+        
+        # JavaScript/Node
+        'eslint': {'category': 'quality', 'language': 'javascript'},
+        'jshint': {'category': 'quality', 'language': 'javascript'},
+        'npm-audit': {'category': 'security', 'language': 'javascript'},
+        'stylelint': {'category': 'quality', 'language': 'css'},
+        
+        # Dynamic/Security
+        'zap': {'category': 'security', 'language': 'web'},
+        'zap-quick': {'category': 'security', 'language': 'web'},
+        'zap-baseline': {'category': 'security', 'language': 'web'},
+        'zap-full': {'category': 'security', 'language': 'web'},
+        'nmap': {'category': 'security', 'language': 'network'},
+        'curl': {'category': 'probe', 'language': 'http'},
+        
+        # Performance
+        'ab': {'category': 'performance', 'language': 'http'},
+        'aiohttp': {'category': 'performance', 'language': 'python'},
+        'locust': {'category': 'performance', 'language': 'python'},
+        'artillery': {'category': 'performance', 'language': 'javascript'},
+        
+        # AI
+        'ai_analysis': {'category': 'ai', 'language': 'multi'},
+        'openrouter': {'category': 'ai', 'language': 'multi'},
+        
+        # Secrets
+        'detect-secrets': {'category': 'security', 'language': 'multi'},
+    }
+    
+    # CWE categorization (matching ModelReportGenerator)
+    CWE_CATEGORIES: Dict[str, str] = {
+        'CWE-89': 'SQL Injection',
+        'CWE-79': 'Cross-Site Scripting (XSS)',
+        'CWE-78': 'OS Command Injection',
+        'CWE-94': 'Code Injection',
+        'CWE-502': 'Deserialization',
+        'CWE-798': 'Hardcoded Credentials',
+        'CWE-327': 'Weak Cryptography',
+        'CWE-326': 'Inadequate Encryption',
+        'CWE-22': 'Path Traversal',
+        'CWE-611': 'XML External Entity',
+        'CWE-918': 'SSRF',
+        'CWE-352': 'Cross-Site Request Forgery',
+        'CWE-287': 'Authentication Issues',
+        'CWE-306': 'Missing Authentication',
+        'CWE-862': 'Missing Authorization',
+        'CWE-863': 'Incorrect Authorization',
+        'CWE-200': 'Information Exposure',
+        'CWE-532': 'Log Injection',
+        'CWE-117': 'Log Forging',
+        'CWE-400': 'Resource Exhaustion',
+        'CWE-770': 'Allocation without Limits',
+    }
+    
+    # =====================================================================
+    # Helper Methods (matching ModelReportGenerator standard)
+    # =====================================================================
+    
+    def _extract_tools_from_services(self, services: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract flat tool results from nested service structure.
+        
+        Handles the nested structure from analyzer results:
+        services -> static-analyzer -> analysis -> tool_results -> bandit -> {status, issues}
+        """
+        flat_tools = {}
+        
+        if not isinstance(services, dict):
+            return flat_tools
+        
+        for service_name, service_data in services.items():
+            if not isinstance(service_data, dict):
+                continue
+            
+            # Try direct tool_results
+            tool_results = service_data.get('tool_results', {})
+            
+            # Try nested in analysis
+            if not tool_results and isinstance(service_data.get('analysis'), dict):
+                tool_results = service_data['analysis'].get('tool_results', {})
+            
+            # Try nested in results
+            if not tool_results and isinstance(service_data.get('results'), dict):
+                for lang_key, lang_data in service_data['results'].items():
+                    if isinstance(lang_data, dict):
+                        for tool_name, tool_data in lang_data.items():
+                            if isinstance(tool_data, dict) and 'status' in tool_data:
+                                flat_tools[tool_name] = tool_data
+            
+            # Add found tools
+            if isinstance(tool_results, dict):
+                for tool_name, tool_data in tool_results.items():
+                    if isinstance(tool_data, dict):
+                        flat_tools[tool_name] = tool_data
+        
+        return flat_tools
+    
+    def _extract_findings_from_services(self, services: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Extract flat list of findings from nested service structure.
+        
+        Looks for findings/issues in multiple locations:
+        - services -> {service} -> findings
+        - services -> {service} -> analysis -> findings
+        - services -> {service} -> results -> {lang} -> {tool} -> issues
+        """
+        all_findings = []
+        
+        if not isinstance(services, dict):
+            return all_findings
+        
+        for service_name, service_data in services.items():
+            if not isinstance(service_data, dict):
+                continue
+            
+            # Direct findings list
+            if isinstance(service_data.get('findings'), list):
+                for f in service_data['findings']:
+                    if isinstance(f, dict):
+                        f['service'] = service_name
+                        all_findings.append(f)
+            
+            # Nested in analysis
+            if isinstance(service_data.get('analysis'), dict):
+                analysis = service_data['analysis']
+                if isinstance(analysis.get('findings'), list):
+                    for f in analysis['findings']:
+                        if isinstance(f, dict):
+                            f['service'] = service_name
+                            all_findings.append(f)
+            
+            # Nested in results -> language -> tool -> issues
+            if isinstance(service_data.get('results'), dict):
+                for lang_key, lang_data in service_data['results'].items():
+                    if isinstance(lang_data, dict):
+                        for tool_name, tool_data in lang_data.items():
+                            if isinstance(tool_data, dict):
+                                issues = tool_data.get('issues', [])
+                                if isinstance(issues, list):
+                                    for issue in issues:
+                                        if isinstance(issue, dict):
+                                            issue['tool'] = tool_name
+                                            issue['service'] = service_name
+                                            all_findings.append(issue)
+        
+        return all_findings
+    
+    def _calculate_scientific_metrics(self, values: List[float]) -> Dict[str, float]:
+        """Calculate scientific statistics for a list of values.
+        
+        Returns mean, median, std_dev, variance, min, max, and coefficient of variation.
+        """
+        if not values:
+            return {
+                'mean': 0.0,
+                'median': 0.0,
+                'std_dev': 0.0,
+                'variance': 0.0,
+                'min': 0.0,
+                'max': 0.0,
+                'coefficient_of_variation': 0.0,
+                'count': 0
+            }
+        
+        clean_values = [float(v) for v in values if v is not None]
+        if not clean_values:
+            return {
+                'mean': 0.0,
+                'median': 0.0,
+                'std_dev': 0.0,
+                'variance': 0.0,
+                'min': 0.0,
+                'max': 0.0,
+                'coefficient_of_variation': 0.0,
+                'count': 0
+            }
+        
+        mean = statistics.mean(clean_values)
+        std_dev = statistics.stdev(clean_values) if len(clean_values) > 1 else 0.0
+        
+        return {
+            'mean': round(mean, 4),
+            'median': round(statistics.median(clean_values), 4),
+            'std_dev': round(std_dev, 4),
+            'variance': round(statistics.variance(clean_values) if len(clean_values) > 1 else 0.0, 4),
+            'min': round(min(clean_values), 4),
+            'max': round(max(clean_values), 4),
+            'coefficient_of_variation': round((std_dev / mean) if mean > 0 else 0.0, 4),
+            'count': len(clean_values)
+        }
+    
+    def _extract_cwe_statistics(self, findings: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Extract CWE statistics from findings list.
+        
+        Matches CWE IDs in rule_id, message, or cwe fields.
+        Categorizes by CWE type and calculates frequency.
+        """
+        cwe_counts: Counter = Counter()
+        cwe_findings: Dict[str, List[Dict]] = {}
+        
+        cwe_pattern = re.compile(r'CWE-\d+', re.IGNORECASE)
+        
+        for finding in findings:
+            if not isinstance(finding, dict):
+                continue
+            
+            # Look for CWE in multiple fields
+            cwe_ids = set()
+            
+            for field in ['rule_id', 'cwe', 'cwe_id', 'message', 'description']:
+                value = finding.get(field)
+                if isinstance(value, str):
+                    matches = cwe_pattern.findall(value.upper())
+                    cwe_ids.update(matches)
+                elif isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, str):
+                            matches = cwe_pattern.findall(item.upper())
+                            cwe_ids.update(matches)
+            
+            for cwe_id in cwe_ids:
+                cwe_counts[cwe_id] += 1
+                if cwe_id not in cwe_findings:
+                    cwe_findings[cwe_id] = []
+                cwe_findings[cwe_id].append(finding)
+        
+        # Build categorized output
+        categorized = {}
+        for cwe_id, count in cwe_counts.most_common():
+            category = self.CWE_CATEGORIES.get(cwe_id, 'Other')
+            if category not in categorized:
+                categorized[category] = {'total': 0, 'cwes': {}}
+            categorized[category]['total'] += count
+            categorized[category]['cwes'][cwe_id] = count
+        
+        return {
+            'total_cwe_findings': sum(cwe_counts.values()),
+            'unique_cwes': len(cwe_counts),
+            'cwe_counts': dict(cwe_counts.most_common()),
+            'by_category': categorized,
+            'top_5': dict(cwe_counts.most_common(5)),
+        }
+    
+    def _calculate_loc_metrics(
+        self, 
+        model_slug: str, 
+        app_numbers: Union[int, List[int]],
+        total_findings: int,
+        generation_meta: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Calculate LOC-based metrics including defect density.
+        
+        Uses generation metadata if available, otherwise counts directly from files.
+        
+        Args:
+            model_slug: The model identifier
+            app_numbers: Single app number (int) or list of app numbers
+            total_findings: Total number of findings
+            generation_meta: Optional pre-loaded generation metadata
+        """
+        # Normalize app_numbers to a list
+        if isinstance(app_numbers, int):
+            app_numbers = [app_numbers]
+        
+        # Try generation metadata first
+        total_loc = 0
+        backend_loc = 0
+        frontend_loc = 0
+        source = 'none'
+        
+        if generation_meta and generation_meta.get('total_loc', 0) > 0:
+            total_loc = generation_meta.get('total_loc', 0)
+            backend_loc = generation_meta.get('backend_loc', 0)
+            frontend_loc = generation_meta.get('frontend_loc', 0)
+            source = 'generation_metadata'
+        else:
+            # Fall back to direct file counting
+            file_counts = _count_loc_from_files(model_slug, app_numbers)
+            if file_counts.get('counted'):
+                total_loc = file_counts['total_loc']
+                backend_loc = file_counts['backend_loc']
+                frontend_loc = file_counts['frontend_loc']
+                source = 'file_count'
+        
+        # Calculate metrics
+        issues_per_kloc = (total_findings / (total_loc / 1000)) if total_loc > 0 else 0
+        defect_density = (total_findings / total_loc * 1000) if total_loc > 0 else 0
+        
+        return {
+            'total_loc': total_loc,
+            'backend_loc': backend_loc,
+            'frontend_loc': frontend_loc,
+            'issues_per_kloc': round(issues_per_kloc, 2),
+            'defect_density_per_kloc': round(defect_density, 2),
+            'loc_source': source,
+        }
+    
+    def _get_quantitative_metrics_for_model(
+        self, 
+        model_slug: str, 
+        app_numbers: Union[int, List[int]]
+    ) -> Dict[str, Any]:
+        """Get quantitative metrics from database tables for a model's apps.
+        
+        Queries PerformanceTest, OpenRouterAnalysis, SecurityAnalysis tables.
+        These tables use application_id FK, so we join through GeneratedApplication.
+        
+        Args:
+            model_slug: The model identifier
+            app_numbers: Single app number (int) or list of app numbers
+        """
+        # Normalize app_numbers to a list
+        if isinstance(app_numbers, int):
+            app_numbers = [app_numbers]
+        
+        result = {
+            'performance': {
+                'avg_response_time_ms': None,
+                'avg_requests_per_second': None,
+                'p95_latency_ms': None,
+                'p99_latency_ms': None,
+                'error_rate': None,
+                'test_count': 0,
+            },
+            'ai_analysis': {
+                'avg_quality_score': None,
+                'avg_requirements_score': None,
+                'avg_security_score': None,
+                'analysis_count': 0,
+            },
+            'security': {
+                'total_vulnerabilities': 0,
+                'critical_count': 0,
+                'high_count': 0,
+                'medium_count': 0,
+                'low_count': 0,
+                'scan_count': 0,
+            }
+        }
+        
+        # First get application IDs for this model's apps
+        try:
+            from app.models import GeneratedApplication
+            apps = GeneratedApplication.query.filter(
+                GeneratedApplication.model_slug == model_slug,
+                GeneratedApplication.app_number.in_(app_numbers)
+            ).all()
+            app_ids = [app.id for app in apps]
+            
+            if not app_ids:
+                return result
+        except Exception as e:
+            logger.warning(f"Error getting app IDs for metrics: {e}")
+            return result
+        
+        # Query PerformanceTest records by application_id
+        # Columns: application_id, average_response_time, p95_response_time, p99_response_time, error_rate, requests_per_second
+        try:
+            perf_tests = PerformanceTest.query.filter(
+                PerformanceTest.application_id.in_(app_ids)
+            ).all()
+            
+            if perf_tests:
+                response_times = [p.average_response_time for p in perf_tests if p.average_response_time]
+                rps_values = [p.requests_per_second for p in perf_tests if p.requests_per_second]
+                p95_values = [p.p95_response_time for p in perf_tests if p.p95_response_time]
+                p99_values = [p.p99_response_time for p in perf_tests if p.p99_response_time]
+                error_rates = [p.error_rate for p in perf_tests if p.error_rate is not None]
+                
+                result['performance'] = {
+                    'avg_response_time_ms': round(statistics.mean(response_times), 2) if response_times else None,
+                    'avg_requests_per_second': round(statistics.mean(rps_values), 2) if rps_values else None,
+                    'p95_latency_ms': round(statistics.mean(p95_values), 2) if p95_values else None,
+                    'p99_latency_ms': round(statistics.mean(p99_values), 2) if p99_values else None,
+                    'error_rate': round(statistics.mean(error_rates), 4) if error_rates else None,
+                    'test_count': len(perf_tests),
+                }
+        except Exception as e:
+            logger.warning(f"Error querying PerformanceTest: {e}")
+        
+        # Query OpenRouterAnalysis (AI quality scores) by application_id
+        # Columns: application_id, overall_score, code_quality_score, security_score, maintainability_score
+        try:
+            ai_analyses = OpenRouterAnalysis.query.filter(
+                OpenRouterAnalysis.application_id.in_(app_ids)
+            ).all()
+            
+            if ai_analyses:
+                # Use the actual column names from the model
+                quality_scores = [a.code_quality_score for a in ai_analyses if a.code_quality_score]
+                overall_scores = [a.overall_score for a in ai_analyses if a.overall_score]
+                sec_scores = [a.security_score for a in ai_analyses if a.security_score]
+                
+                result['ai_analysis'] = {
+                    'avg_quality_score': round(statistics.mean(quality_scores), 2) if quality_scores else None,
+                    'avg_requirements_score': round(statistics.mean(overall_scores), 2) if overall_scores else None,  # Use overall_score as proxy
+                    'avg_security_score': round(statistics.mean(sec_scores), 2) if sec_scores else None,
+                    'analysis_count': len(ai_analyses),
+                }
+        except Exception as e:
+            logger.warning(f"Error querying OpenRouterAnalysis: {e}")
+        
+        # Query SecurityAnalysis by application_id
+        # Columns: application_id, total_issues, critical_severity_count, high_severity_count, medium_severity_count, low_severity_count
+        try:
+            sec_analyses = SecurityAnalysis.query.filter(
+                SecurityAnalysis.application_id.in_(app_ids)
+            ).all()
+            
+            if sec_analyses:
+                result['security'] = {
+                    'total_vulnerabilities': sum(s.total_issues or 0 for s in sec_analyses),
+                    'critical_count': sum(s.critical_severity_count or 0 for s in sec_analyses),
+                    'high_count': sum(s.high_severity_count or 0 for s in sec_analyses),
+                    'medium_count': sum(s.medium_severity_count or 0 for s in sec_analyses),
+                    'low_count': sum(s.low_severity_count or 0 for s in sec_analyses),
+                    'scan_count': len(sec_analyses),
+                }
+        except Exception as e:
+            logger.warning(f"Error querying SecurityAnalysis: {e}")
+        
+        return result
+    
+    def _get_generation_metadata_for_model(
+        self, 
+        model_slug: str, 
+        app_numbers: Union[int, List[int]],
+        template_slug: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Get generation metadata (cost, tokens, time) for a model's apps.
+        
+        Loads from generation statistics JSON files.
+        
+        Args:
+            model_slug: The model identifier
+            app_numbers: Single app number (int) or list of app numbers
+            template_slug: Optional template filter
+        """
+        # Normalize app_numbers to a list
+        if isinstance(app_numbers, int):
+            app_numbers = [app_numbers]
+        
+        result = {
+            'total_cost': 0.0,
+            'total_tokens': 0,
+            'total_generation_time': 0.0,
+            'avg_cost_per_app': 0.0,
+            'avg_tokens_per_app': 0,
+            'avg_generation_time': 0.0,
+            'total_loc': 0,
+            'backend_loc': 0,
+            'frontend_loc': 0,
+            'app_count': 0,
+        }
+        
+        try:
+            records = load_generation_records()
+            
+            matching_records = []
+            for record in records:
+                if record.get('model_slug') == model_slug:
+                    app_num = record.get('app_number')
+                    template = record.get('template_slug')
+                    if app_num in app_numbers:
+                        # If template filter specified, check it
+                        if template_slug and template != template_slug:
+                            continue
+                        matching_records.append(record)
+            
+            if matching_records:
+                result['total_cost'] = sum(r.get('cost', 0) or 0 for r in matching_records)
+                result['total_tokens'] = sum(r.get('total_tokens', 0) or 0 for r in matching_records)
+                result['total_generation_time'] = sum(r.get('generation_time', 0) or 0 for r in matching_records)
+                result['total_loc'] = sum(r.get('loc', 0) or 0 for r in matching_records)
+                result['backend_loc'] = sum(r.get('backend_loc', 0) or 0 for r in matching_records)
+                result['frontend_loc'] = sum(r.get('frontend_loc', 0) or 0 for r in matching_records)
+                result['app_count'] = len(matching_records)
+                
+                if result['app_count'] > 0:
+                    result['avg_cost_per_app'] = round(result['total_cost'] / result['app_count'], 4)
+                    result['avg_tokens_per_app'] = int(result['total_tokens'] / result['app_count'])
+                    result['avg_generation_time'] = round(result['total_generation_time'] / result['app_count'], 2)
+        except Exception as e:
+            logger.warning(f"Error loading generation metadata: {e}")
+        
+        return result
+    
+    # =====================================================================
+    # Core Report Methods
+    # =====================================================================
     
     def validate_config(self) -> None:
         """Validate configuration for template comparison report."""
@@ -194,6 +843,27 @@ class AppReportGenerator(BaseReportGenerator):
             # Get app number from app_info
             app_number = app_info.app_number if app_info else latest_task.target_app_number
             
+            # === NEW: Calculate enhanced metrics for this model ===
+            # Scientific metrics for findings
+            severity_values = []
+            severity_map = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1, 'info': 0}
+            for f in findings:
+                sev = str(f.get('severity', 'info')).lower()
+                severity_values.append(severity_map.get(sev, 0))
+            scientific_metrics = self._calculate_scientific_metrics(severity_values) if severity_values else {}
+            
+            # CWE statistics from findings
+            cwe_statistics = self._extract_cwe_statistics(findings)
+            
+            # LOC metrics for this model's app
+            loc_metrics = self._calculate_loc_metrics(model_slug, app_number, findings_count)
+            
+            # Quantitative metrics from DB (performance tests, AI analysis)
+            quantitative_metrics = self._get_quantitative_metrics_for_model(model_slug, app_number)
+            
+            # Generation metadata (cost, tokens, time)
+            generation_metadata = self._get_generation_metadata_for_model(model_slug, app_number, template_slug)
+            
             models_data.append({
                 'model_slug': model_slug,
                 'task_id': latest_task.task_id,
@@ -212,6 +882,12 @@ class AppReportGenerator(BaseReportGenerator):
                 'all_tasks_count': len(model_tasks),
                 'analysis_status': 'completed',
                 'error_message': None,
+                # NEW: Enhanced metrics
+                'scientific_metrics': scientific_metrics,
+                'cwe_statistics': cwe_statistics,
+                'loc_metrics': loc_metrics,
+                'quantitative_metrics': quantitative_metrics,
+                'generation_metadata': generation_metadata,
             })
         
         # Analyze findings overlap (findings found by multiple models)
@@ -278,6 +954,32 @@ class AppReportGenerator(BaseReportGenerator):
         # All models in models_data are from successful analyses now
         successful_analyses = len(models_data)
         
+        # === NEW: Calculate aggregate statistics across all models ===
+        # Aggregate scientific metrics from all findings
+        all_severity_values = []
+        severity_map = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1, 'info': 0}
+        for f in all_findings:
+            sev = str(f.get('severity', 'info')).lower()
+            all_severity_values.append(severity_map.get(sev, 0))
+        aggregate_scientific_metrics = self._calculate_scientific_metrics(all_severity_values) if all_severity_values else {}
+        
+        # Aggregate CWE statistics from all findings
+        aggregate_cwe_statistics = self._extract_cwe_statistics(all_findings)
+        
+        # Aggregate LOC metrics (sum across all models)
+        total_loc = sum(m.get('loc_metrics', {}).get('total_loc', 0) for m in models_data)
+        total_defects = sum(m.get('findings_count', 0) for m in models_data)
+        aggregate_loc_metrics = {
+            'total_loc': total_loc,
+            'total_defects': total_defects,
+            'avg_defect_density': round(total_defects / total_loc * 1000, 4) if total_loc > 0 else 0,
+            'models_analyzed': len(models_data),
+        }
+        
+        # Cross-model findings statistics (for scientific rigor)
+        findings_counts = [m['findings_count'] for m in models_data]
+        cross_model_findings_stats = self._calculate_scientific_metrics(findings_counts) if findings_counts else {}
+        
         # Compile final data structure
         data = {
             'report_type': 'template_comparison',
@@ -298,7 +1000,15 @@ class AppReportGenerator(BaseReportGenerator):
                 'unique_findings_count': len(unique_findings),
                 'tool_usage': tool_usage
             },
-            'generation_comparison': generation_comparison
+            'generation_comparison': generation_comparison,
+            # NEW: Aggregate statistics for scientific analysis
+            'aggregate_statistics': {
+                'scientific_metrics': aggregate_scientific_metrics,
+                'cwe_statistics': aggregate_cwe_statistics,
+                'loc_metrics': aggregate_loc_metrics,
+                'cross_model_findings_stats': cross_model_findings_stats,
+                'total_findings': len(all_findings),
+            }
         }
         
         # Add tool categories from registry for template rendering

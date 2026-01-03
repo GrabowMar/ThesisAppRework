@@ -259,6 +259,46 @@ def delete_report(report_id: str):
         return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
+@reports_bp.route('/<report_id>/regenerate', methods=['POST'])
+def regenerate_report(report_id: str):
+    """
+    Regenerate an existing report with fresh data.
+    
+    Useful when underlying analysis data has changed since the report
+    was originally generated.
+    """
+    try:
+        service = get_report_service()
+        report = service.get_report(report_id)
+        
+        if not report:
+            return jsonify({'success': False, 'error': 'Report not found'}), 404
+        
+        # Check ownership
+        if current_user.is_authenticated and report.created_by:
+            if report.created_by != current_user.id and not getattr(current_user, 'is_admin', False):
+                return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+        
+        # Regenerate the report
+        regenerated = service.regenerate_report(report_id)
+        
+        if not regenerated:
+            return jsonify({
+                'success': False, 
+                'error': 'Failed to regenerate report'
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'report': regenerated.to_dict(include_data=True),
+            'message': 'Report regenerated successfully'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error regenerating report: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+
+
 @reports_bp.route('/cleanup', methods=['POST'])
 def cleanup_expired():
     """Clean up expired reports (admin only)."""

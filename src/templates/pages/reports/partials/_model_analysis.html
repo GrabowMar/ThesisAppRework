@@ -54,6 +54,7 @@
     {# Section Navigation #}
     {% set sections = [
         {'id': 'overview', 'icon': 'ti ti-chart-pie', 'label': 'Overview', 'description': 'Statistical summary'},
+        {'id': 'quantitative', 'icon': 'ti ti-calculator', 'label': 'Quantitative', 'description': 'Numeric metrics'},
         {'id': 'generation', 'icon': 'ti ti-cpu', 'label': 'Generation', 'description': 'Cost and performance'},
         {'id': 'tools', 'icon': 'ti ti-tool', 'label': 'Tools', 'description': 'Tool performance'},
         {'id': 'apps', 'icon': 'ti ti-apps', 'label': 'Applications', 'description': 'Per-app results'}
@@ -248,6 +249,478 @@
                 {% endif %}
             </div>
         </div>
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Quantitative Metrics (Numbers Focus) ====== #}
+    <section id="section-quantitative" class="research-section" data-research-section="quantitative">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-calculator"></i><span>Quantitative Analysis Metrics</span></h2>
+        </div>
+        
+        {# Generation Success Metrics #}
+        {% if quantitative_metrics and quantitative_metrics.get('available') %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="ti ti-check-circle me-2 text-success"></i>Generation Success Metrics
+                </h3>
+            </div>
+            <div class="card-body">
+                {% set gen = quantitative_metrics.generation %}
+                <div class="row">
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Total Apps</div>
+                            <div class="h2 mb-0">{{ gen.total_apps }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Successful</div>
+                            <div class="h2 mb-0 text-success">{{ gen.successful_apps }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Failed</div>
+                            <div class="h2 mb-0 text-danger">{{ gen.failed_apps }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Success Rate</div>
+                            <div class="h2 mb-0 {% if gen.success_rate >= 80 %}text-success{% elif gen.success_rate >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ "%.1f"|format(gen.success_rate) }}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Total Attempts</div>
+                            <div class="h2 mb-0">{{ gen.total_generation_attempts }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Avg Attempts/App</div>
+                            <div class="h2 mb-0">{{ "%.2f"|format(gen.avg_attempts_per_app) }}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                {# Fix Counts #}
+                {% if gen.fix_counts and gen.fix_counts.total_fixes > 0 %}
+                <hr class="my-3">
+                <h5 class="mb-3">Fix Statistics</h5>
+                <div class="row">
+                    <div class="col-md-2">
+                        <div class="text-muted small mb-1">Retry Fixes</div>
+                        <div class="h4 mb-0">{{ gen.fix_counts.retry_fixes }}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-muted small mb-1">Auto Fixes</div>
+                        <div class="h4 mb-0">{{ gen.fix_counts.automatic_fixes }}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-muted small mb-1">LLM Fixes</div>
+                        <div class="h4 mb-0">{{ gen.fix_counts.llm_fixes }}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-muted small mb-1">Manual Fixes</div>
+                        <div class="h4 mb-0">{{ gen.fix_counts.manual_fixes }}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-muted small mb-1">Total Fixes</div>
+                        <div class="h4 mb-0 text-warning">{{ gen.fix_counts.total_fixes }}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-muted small mb-1">Avg Fixes/App</div>
+                        <div class="h4 mb-0">{{ "%.2f"|format(gen.avg_fixes_per_app) }}</div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        {# Lines of Code & Defect Density #}
+        {% if loc_metrics and loc_metrics.get('available') %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="ti ti-file-code me-2 text-info"></i>Code Volume & Defect Density
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Total Lines of Code</div>
+                            <div class="h2 mb-0">{{ "{:,}".format(loc_metrics.total_loc) }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Total Issues/1000 LOC</div>
+                            <div class="h2 mb-0 {% if loc_metrics.issues_per_1000_loc.total < 5 %}text-success{% elif loc_metrics.issues_per_1000_loc.total < 20 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ "%.2f"|format(loc_metrics.issues_per_1000_loc.total) }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Critical/1000 LOC</div>
+                            <div class="h2 mb-0 {% if loc_metrics.issues_per_1000_loc.critical == 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ "%.2f"|format(loc_metrics.issues_per_1000_loc.critical) }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">High/1000 LOC</div>
+                            <div class="h2 mb-0 {% if loc_metrics.issues_per_1000_loc.high == 0 %}text-success{% elif loc_metrics.issues_per_1000_loc.high < 2 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ "%.2f"|format(loc_metrics.issues_per_1000_loc.high) }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {# Severity Breakdown per 1000 LOC #}
+                <hr class="my-3">
+                <h5 class="mb-3">Issues per 1000 LOC by Severity</h5>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Severity</th>
+                                <th class="text-end">Issues/1000 LOC</th>
+                                <th class="text-end">Issues/LOC (raw)</th>
+                                <th>Distribution</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set severities = [('critical', 'danger'), ('high', 'warning'), ('medium', 'info'), ('low', 'secondary')] %}
+                            {% for sev, color in severities %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-{{ color }}">{{ sev|title }}</span>
+                                </td>
+                                <td class="text-end">
+                                    <strong>{{ "%.2f"|format(loc_metrics.issues_per_1000_loc.get(sev, 0)) }}</strong>
+                                </td>
+                                <td class="text-end text-muted small">
+                                    {{ "%.6f"|format(loc_metrics.issues_per_loc.get(sev, 0)) }}
+                                </td>
+                                <td>
+                                    {% set max_val = loc_metrics.issues_per_1000_loc.total if loc_metrics.issues_per_1000_loc.total > 0 else 1 %}
+                                    {% set pct = (loc_metrics.issues_per_1000_loc.get(sev, 0) / max_val * 100) if max_val > 0 else 0 %}
+                                    <div class="progress" style="height: 12px; width: 150px;">
+                                        <div class="progress-bar bg-{{ color }}" style="width: {{ pct }}%"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            <tr class="table-light">
+                                <td><strong>Total</strong></td>
+                                <td class="text-end"><strong>{{ "%.2f"|format(loc_metrics.issues_per_1000_loc.total) }}</strong></td>
+                                <td class="text-end text-muted small">{{ "%.6f"|format(loc_metrics.issues_per_loc.total) }}</td>
+                                <td></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                {# Per-App Defect Density Statistics #}
+                {% if loc_metrics.density_statistics %}
+                <hr class="my-3">
+                <h5 class="mb-3">Per-App Defect Density Statistics (Issues/1000 LOC)</h5>
+                <div class="row">
+                    <div class="col-md-2">
+                        <div class="text-muted small mb-1">Mean</div>
+                        <div class="h4 mb-0">{{ "%.2f"|format(loc_metrics.density_statistics.mean) }}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-muted small mb-1">Median</div>
+                        <div class="h4 mb-0">{{ "%.2f"|format(loc_metrics.density_statistics.median) }}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-muted small mb-1">Min</div>
+                        <div class="h4 mb-0 text-success">{{ "%.2f"|format(loc_metrics.density_statistics.min) }}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-muted small mb-1">Max</div>
+                        <div class="h4 mb-0 text-danger">{{ "%.2f"|format(loc_metrics.density_statistics.max) }}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-muted small mb-1">Std Dev</div>
+                        <div class="h4 mb-0">{{ "%.2f"|format(loc_metrics.density_statistics.std_dev) }}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-muted small mb-1">Range</div>
+                        <div class="h4 mb-0">{{ "%.2f"|format(loc_metrics.density_statistics.max - loc_metrics.density_statistics.min) }}</div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
+        {# Performance Metrics #}
+        {% if quantitative_metrics and quantitative_metrics.performance and quantitative_metrics.performance.tests_count > 0 %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="ti ti-gauge me-2 text-success"></i>Performance Metrics
+                    <span class="badge bg-secondary-lt ms-2">{{ quantitative_metrics.performance.tests_count }} tests</span>
+                </h3>
+            </div>
+            <div class="card-body">
+                {% set perf = quantitative_metrics.performance %}
+                <div class="row">
+                    {# Response Times #}
+                    <div class="col-md-4">
+                        <h5 class="mb-3">Response Time (P95)</h5>
+                        {% if perf.p95_response_time %}
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr><td class="text-muted">Mean</td><td class="text-end"><strong>{{ "%.3f"|format(perf.p95_response_time.mean) }}s</strong></td></tr>
+                                <tr><td class="text-muted">Median</td><td class="text-end">{{ "%.3f"|format(perf.p95_response_time.median) }}s</td></tr>
+                                <tr><td class="text-muted">Min</td><td class="text-end text-success">{{ "%.3f"|format(perf.p95_response_time.min) }}s</td></tr>
+                                <tr><td class="text-muted">Max</td><td class="text-end text-danger">{{ "%.3f"|format(perf.p95_response_time.max) }}s</td></tr>
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="text-muted">No P95 data available</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        <h5 class="mb-3">Response Time (P99)</h5>
+                        {% if perf.p99_response_time %}
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr><td class="text-muted">Mean</td><td class="text-end"><strong>{{ "%.3f"|format(perf.p99_response_time.mean) }}s</strong></td></tr>
+                                <tr><td class="text-muted">Median</td><td class="text-end">{{ "%.3f"|format(perf.p99_response_time.median) }}s</td></tr>
+                                <tr><td class="text-muted">Min</td><td class="text-end text-success">{{ "%.3f"|format(perf.p99_response_time.min) }}s</td></tr>
+                                <tr><td class="text-muted">Max</td><td class="text-end text-danger">{{ "%.3f"|format(perf.p99_response_time.max) }}s</td></tr>
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="text-muted">No P99 data available</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        <h5 class="mb-3">Throughput</h5>
+                        {% if perf.requests_per_second %}
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr><td class="text-muted">Mean RPS</td><td class="text-end"><strong>{{ "%.2f"|format(perf.requests_per_second.mean) }}</strong></td></tr>
+                                <tr><td class="text-muted">Min RPS</td><td class="text-end text-danger">{{ "%.2f"|format(perf.requests_per_second.min) }}</td></tr>
+                                <tr><td class="text-muted">Max RPS</td><td class="text-end text-success">{{ "%.2f"|format(perf.requests_per_second.max) }}</td></tr>
+                                <tr><td class="text-muted">Total Requests</td><td class="text-end">{{ "{:,}".format(perf.total_requests) }}</td></tr>
+                                <tr><td class="text-muted">Failed Requests</td><td class="text-end {% if perf.failed_requests > 0 %}text-danger{% endif %}">{{ "{:,}".format(perf.failed_requests) }}</td></tr>
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="text-muted">No throughput data available</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {# Error Rate #}
+                {% if perf.error_rate %}
+                <hr class="my-3">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5 class="mb-3">Error Rate</h5>
+                        <div class="d-flex align-items-center gap-3">
+                            <div>
+                                <div class="text-muted small">Mean Error Rate</div>
+                                <div class="h3 mb-0 {% if perf.error_rate.mean == 0 %}text-success{% elif perf.error_rate.mean < 0.01 %}text-warning{% else %}text-danger{% endif %}">
+                                    {{ "%.4f"|format(perf.error_rate.mean * 100) }}%
+                                </div>
+                            </div>
+                            <div>
+                                <div class="text-muted small">Max Error Rate</div>
+                                <div class="h3 mb-0 {% if perf.error_rate.max == 0 %}text-success{% elif perf.error_rate.max < 0.05 %}text-warning{% else %}text-danger{% endif %}">
+                                    {{ "%.4f"|format(perf.error_rate.max * 100) }}%
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
+        {# Security Analysis Metrics #}
+        {% if quantitative_metrics and quantitative_metrics.security and quantitative_metrics.security.analyses_count > 0 %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="ti ti-shield me-2 text-danger"></i>Security Analysis Metrics
+                    <span class="badge bg-secondary-lt ms-2">{{ quantitative_metrics.security.analyses_count }} analyses</span>
+                </h3>
+            </div>
+            <div class="card-body">
+                {% set sec = quantitative_metrics.security %}
+                <div class="row">
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Total Issues</div>
+                            <div class="h2 mb-0">{{ sec.total_issues }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Avg/Analysis</div>
+                            <div class="h2 mb-0">{{ "%.1f"|format(sec.avg_issues_per_analysis) }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Tools Run</div>
+                            <div class="h2 mb-0">{{ sec.tools_run_count }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Tools Failed</div>
+                            <div class="h2 mb-0 {% if sec.tools_failed_count > 0 %}text-warning{% endif %}">{{ sec.tools_failed_count }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Tool Success</div>
+                            <div class="h2 mb-0 {% if sec.tool_success_rate >= 95 %}text-success{% elif sec.tool_success_rate >= 80 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ "%.1f"|format(sec.tool_success_rate) }}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Total Duration</div>
+                            <div class="h2 mb-0">{{ "%.1f"|format(sec.total_analysis_duration_seconds) }}s</div>
+                        </div>
+                    </div>
+                </div>
+                
+                {# Severity Breakdown #}
+                <hr class="my-3">
+                <h5 class="mb-3">Severity Breakdown</h5>
+                <div class="row">
+                    {% set sev_data = [('Critical', sec.severity_breakdown.critical, 'danger'), ('High', sec.severity_breakdown.high, 'warning'), ('Medium', sec.severity_breakdown.medium, 'info'), ('Low', sec.severity_breakdown.low, 'secondary')] %}
+                    {% for name, count, color in sev_data %}
+                    <div class="col-md-3">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-{{ color }}">{{ name }}</span>
+                            <span class="h3 mb-0">{{ count }}</span>
+                        </div>
+                        {% set total = sec.total_issues if sec.total_issues > 0 else 1 %}
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar bg-{{ color }}" style="width: {{ (count / total * 100)|round(1) }}%"></div>
+                        </div>
+                        <div class="text-muted small mt-1">{{ "%.1f"|format(count / total * 100) }}% of total</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        {# AI Analysis Metrics #}
+        {% if quantitative_metrics and quantitative_metrics.ai_analysis and quantitative_metrics.ai_analysis.analyses_count > 0 %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="ti ti-brain me-2 text-purple"></i>AI Analysis Metrics
+                    <span class="badge bg-secondary-lt ms-2">{{ quantitative_metrics.ai_analysis.analyses_count }} analyses</span>
+                </h3>
+            </div>
+            <div class="card-body">
+                {% set ai = quantitative_metrics.ai_analysis %}
+                <div class="row">
+                    {# Scores #}
+                    <div class="col-md-6">
+                        <h5 class="mb-3">Quality Scores</h5>
+                        <table class="table table-sm">
+                            <tbody>
+                                {% if ai.overall_score %}
+                                <tr>
+                                    <td class="text-muted">Overall Score</td>
+                                    <td class="text-end">
+                                        <span class="h4 mb-0 {% if ai.overall_score.mean >= 80 %}text-success{% elif ai.overall_score.mean >= 60 %}text-warning{% else %}text-danger{% endif %}">
+                                            {{ "%.1f"|format(ai.overall_score.mean) }}
+                                        </span>
+                                        <span class="text-muted small">/100</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted ps-3">Range</td>
+                                    <td class="text-end text-muted small">{{ "%.1f"|format(ai.overall_score.min) }} - {{ "%.1f"|format(ai.overall_score.max) }}</td>
+                                </tr>
+                                {% if ai.overall_score.std_dev > 0 %}
+                                <tr>
+                                    <td class="text-muted ps-3">Std Dev</td>
+                                    <td class="text-end text-muted small">± {{ "%.2f"|format(ai.overall_score.std_dev) }}</td>
+                                </tr>
+                                {% endif %}
+                                {% endif %}
+                                {% if ai.code_quality_score %}
+                                <tr>
+                                    <td class="text-muted">Code Quality Score</td>
+                                    <td class="text-end"><strong>{{ "%.1f"|format(ai.code_quality_score.mean) }}</strong>/100</td>
+                                </tr>
+                                {% endif %}
+                                {% if ai.security_score %}
+                                <tr>
+                                    <td class="text-muted">Security Score</td>
+                                    <td class="text-end"><strong>{{ "%.1f"|format(ai.security_score.mean) }}</strong>/100</td>
+                                </tr>
+                                {% endif %}
+                                {% if ai.maintainability_score %}
+                                <tr>
+                                    <td class="text-muted">Maintainability Score</td>
+                                    <td class="text-end"><strong>{{ "%.1f"|format(ai.maintainability_score.mean) }}</strong>/100</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {# Token & Cost #}
+                    <div class="col-md-6">
+                        <h5 class="mb-3">Token Usage & Cost</h5>
+                        <table class="table table-sm">
+                            <tbody>
+                                {% if ai.token_usage %}
+                                <tr>
+                                    <td class="text-muted">Total Input Tokens</td>
+                                    <td class="text-end">{{ "{:,}".format(ai.token_usage.total_input_tokens) }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Total Output Tokens</td>
+                                    <td class="text-end">{{ "{:,}".format(ai.token_usage.total_output_tokens) }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Total Tokens</td>
+                                    <td class="text-end"><strong>{{ "{:,}".format(ai.token_usage.total_tokens) }}</strong></td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <td class="text-muted">Total AI Analysis Cost</td>
+                                    <td class="text-end"><strong>${{ "%.6f"|format(ai.total_ai_analysis_cost_usd) }}</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        {# Empty state if no quantitative metrics #}
+        {% if not quantitative_metrics or not quantitative_metrics.get('available') %}
+        {{ research_empty_state('ti ti-calculator-off', 'No Quantitative Data', 'Run the backfill script to populate metrics from existing analysis results.') }}
         {% endif %}
     </section>
 

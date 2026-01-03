@@ -4,6 +4,15 @@ Model Report Generator
 Generates comprehensive reports showing all analyses for a specific model across all apps.
 Shows model performance, consistency, and patterns.
 Includes generation metadata (cost, tokens, time) for full context.
+
+Focuses on QUANTITATIVE metrics:
+- Generation success rates
+- Lines of code (LOC) statistics  
+- Issues per LOC ratios
+- Performance percentiles (P95/P99)
+- AI quality scores
+- CWE/vulnerability categorization
+- Fix counts (retry, automatic, LLM, manual)
 """
 import logging
 from typing import Dict, Any, List, Optional
@@ -11,7 +20,13 @@ from pathlib import Path
 
 from .base_generator import BaseReportGenerator
 from ...extensions import db
-from ...models import AnalysisTask, GeneratedApplication
+from ...models import (
+    AnalysisTask, 
+    GeneratedApplication,
+    PerformanceTest,
+    OpenRouterAnalysis,
+    SecurityAnalysis
+)
 from ...constants import AnalysisStatus
 from ...services.service_locator import ServiceLocator
 from ...services.service_base import ValidationError, NotFoundError
@@ -19,6 +34,117 @@ from ...utils.time import utc_now
 from ..generation_statistics import load_generation_records, GenerationRecord
 
 logger = logging.getLogger(__name__)
+
+
+def _count_loc_from_files(model_slug: str, app_numbers: List[int]) -> Dict[str, Any]:
+    """
+    Count lines of code directly from generated app files.
+    
+    Fallback when generation metadata is unavailable.
+    Counts LOC in Python (.py) and JavaScript/JSX (.js, .jsx) files,
+    excluding scaffolding files.
+    
+    Args:
+        model_slug: Model identifier
+        app_numbers: List of app numbers to count
+        
+    Returns:
+        Dict with total_loc, backend_loc, frontend_loc, per_app breakdown
+    """
+    import os
+    
+    # Known scaffolding files to exclude (only count AI-generated code)
+    SCAFFOLDING_FILES = {
+        # Backend scaffolding (not AI-generated)
+        'app.py',  # Main Flask app setup
+        # Frontend scaffolding
+        'vite.config.js',
+        'tailwind.config.js', 
+        'postcss.config.js',
+    }
+    
+    SCAFFOLDING_DIRS = {
+        'node_modules',
+        '__pycache__',
+        '.git',
+        'dist',
+        'build',
+    }
+    
+    base_path = Path(__file__).resolve().parent.parent.parent.parent.parent / "generated" / "apps"
+    safe_slug = model_slug.replace('/', '_').replace('\\', '_')
+    model_path = base_path / safe_slug
+    
+    result = {
+        'total_loc': 0,
+        'backend_loc': 0,
+        'frontend_loc': 0,
+        'per_app': {},
+        'counted': False,
+    }
+    
+    if not model_path.exists():
+        return result
+    
+    for app_num in app_numbers:
+        app_path = model_path / f"app{app_num}"
+        if not app_path.exists():
+            continue
+        
+        app_backend_loc = 0
+        app_frontend_loc = 0
+        
+        # Count backend Python files
+        backend_path = app_path / "backend"
+        if backend_path.exists():
+            for root, dirs, files in os.walk(backend_path):
+                # Skip scaffolding directories
+                dirs[:] = [d for d in dirs if d not in SCAFFOLDING_DIRS]
+                
+                for filename in files:
+                    if filename.endswith('.py') and filename not in SCAFFOLDING_FILES:
+                        filepath = Path(root) / filename
+                        try:
+                            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                                # Count non-empty, non-comment lines
+                                lines = [l for l in f.readlines() 
+                                        if l.strip() and not l.strip().startswith('#')]
+                                app_backend_loc += len(lines)
+                        except Exception:
+                            pass
+        
+        # Count frontend JS/JSX files
+        frontend_path = app_path / "frontend" / "src"
+        if frontend_path.exists():
+            for root, dirs, files in os.walk(frontend_path):
+                dirs[:] = [d for d in dirs if d not in SCAFFOLDING_DIRS]
+                
+                for filename in files:
+                    if filename.endswith(('.js', '.jsx')) and filename not in SCAFFOLDING_FILES:
+                        filepath = Path(root) / filename
+                        try:
+                            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                                lines = [l for l in f.readlines() 
+                                        if l.strip() and not l.strip().startswith('//')]
+                                app_frontend_loc += len(lines)
+                        except Exception:
+                            pass
+        
+        app_total = app_backend_loc + app_frontend_loc
+        
+        result['per_app'][app_num] = {
+            'app_number': app_num,
+            'total_loc': app_total,
+            'backend_loc': app_backend_loc,
+            'frontend_loc': app_frontend_loc,
+        }
+        
+        result['backend_loc'] += app_backend_loc
+        result['frontend_loc'] += app_frontend_loc
+        result['total_loc'] += app_total
+    
+    result['counted'] = result['total_loc'] > 0
+    return result
 
 
 class ModelReportGenerator(BaseReportGenerator):
@@ -260,6 +386,15 @@ class ModelReportGenerator(BaseReportGenerator):
         # Load generation metadata (cost, tokens, time)
         generation_metadata = self._get_generation_metadata_for_model(model_slug)
         
+        # Load quantitative metrics from DB (PerformanceTest, OpenRouterAnalysis, SecurityAnalysis)
+        quantitative_metrics = self._get_quantitative_metrics_for_model(model_slug, filter_apps)
+        
+        # Calculate issues per LOC ratios
+        loc_metrics = self._calculate_loc_metrics(apps_data, generation_metadata, model_slug)
+        
+        # Extract CWE statistics from findings
+        cwe_stats = self._extract_cwe_statistics(apps_data)
+        
         # Compile final data structure
         data = {
             'report_type': 'model_analysis',
@@ -281,7 +416,13 @@ class ModelReportGenerator(BaseReportGenerator):
             },
             'scientific_metrics': scientific_stats,
             'tools_statistics': tools_stats,
-            'generation_metadata': generation_metadata
+            'generation_metadata': generation_metadata,
+            # NEW: Quantitative metrics from DB models
+            'quantitative_metrics': quantitative_metrics,
+            # NEW: Lines of code and issues per LOC
+            'loc_metrics': loc_metrics,
+            # NEW: CWE/vulnerability categorization
+            'cwe_statistics': cwe_stats
         }
         
         # Add tool categories from registry for template rendering
@@ -697,3 +838,506 @@ class ModelReportGenerator(BaseReportGenerator):
         except Exception as e:
             logger.warning(f"Failed to load generation metadata for {model_slug}: {e}")
             return {'available': False, 'error': str(e)}
+
+    def _get_quantitative_metrics_for_model(
+        self, 
+        model_slug: str, 
+        filter_apps: Optional[List[int]] = None
+    ) -> Dict[str, Any]:
+        """
+        Collect quantitative metrics from database models for all apps of this model.
+        
+        Queries PerformanceTest, OpenRouterAnalysis, SecurityAnalysis, and GeneratedApplication
+        to extract numeric metrics for scientific analysis.
+        
+        Args:
+            model_slug: Model identifier
+            filter_apps: Optional list of app numbers to filter
+            
+        Returns:
+            Dict with performance, AI analysis, security, and generation success metrics
+        """
+        import statistics
+        
+        metrics = {
+            'available': False,
+            'performance': {},
+            'ai_analysis': {},
+            'security': {},
+            'generation': {},
+            'docker': {},
+        }
+        
+        try:
+            # Query GeneratedApplication for generation success metrics
+            app_query = db.session.query(GeneratedApplication).filter(
+                GeneratedApplication.model_slug == model_slug
+            )
+            if filter_apps:
+                app_query = app_query.filter(GeneratedApplication.app_number.in_(filter_apps))
+            
+            apps = app_query.all()
+            
+            if not apps:
+                return metrics
+            
+            # Generation success metrics
+            total_apps = len(apps)
+            successful_apps = sum(1 for a in apps if not a.is_generation_failed)
+            failed_apps = sum(1 for a in apps if a.is_generation_failed)
+            
+            # Fix counts aggregation
+            retry_fixes = sum(a.retry_fixes or 0 for a in apps)
+            automatic_fixes = sum(a.automatic_fixes or 0 for a in apps)
+            llm_fixes = sum(a.llm_fixes or 0 for a in apps)
+            manual_fixes = sum(a.manual_fixes or 0 for a in apps)
+            total_fixes = retry_fixes + automatic_fixes + llm_fixes + manual_fixes
+            
+            # Generation attempts
+            total_attempts = sum(a.generation_attempts or 1 for a in apps)
+            
+            metrics['generation'] = {
+                'total_apps': total_apps,
+                'successful_apps': successful_apps,
+                'failed_apps': failed_apps,
+                'success_rate': round(successful_apps / total_apps * 100, 2) if total_apps > 0 else 0,
+                'total_generation_attempts': total_attempts,
+                'avg_attempts_per_app': round(total_attempts / total_apps, 2) if total_apps > 0 else 0,
+                'fix_counts': {
+                    'retry_fixes': retry_fixes,
+                    'automatic_fixes': automatic_fixes,
+                    'llm_fixes': llm_fixes,
+                    'manual_fixes': manual_fixes,
+                    'total_fixes': total_fixes,
+                },
+                'avg_fixes_per_app': round(total_fixes / total_apps, 2) if total_apps > 0 else 0,
+            }
+            
+            # Docker/Container status aggregation
+            container_status_counts = {}
+            for app in apps:
+                status = app.container_status or 'unknown'
+                # Normalize similar statuses
+                if status in ('never_built', 'not_built'):
+                    status = 'never_built'
+                elif status in ('failed', 'build_failed', 'error'):
+                    status = 'error'
+                container_status_counts[status] = container_status_counts.get(status, 0) + 1
+            
+            # Calculate Docker health metrics
+            running_count = container_status_counts.get('running', 0)
+            stopped_count = container_status_counts.get('stopped', 0)
+            error_count = container_status_counts.get('error', 0)
+            never_built = container_status_counts.get('never_built', 0) + container_status_counts.get('unknown', 0)
+            
+            # Apps that have been successfully built (running or stopped)
+            build_success_count = running_count + stopped_count
+            build_success_rate = round(build_success_count / total_apps * 100, 2) if total_apps > 0 else 0
+            
+            metrics['docker'] = {
+                'status_breakdown': container_status_counts,
+                'running': running_count,
+                'stopped': stopped_count,
+                'error': error_count,
+                'never_built': never_built,
+                'build_success_count': build_success_count,
+                'build_success_rate': build_success_rate,
+                'total_apps': total_apps,
+            }
+            
+            # Query PerformanceTest for performance metrics
+            # Join through GeneratedApplication since PerformanceTest has application_id, not model_slug
+            app_ids = [a.id for a in apps]
+            perf_tests = db.session.query(PerformanceTest).filter(
+                PerformanceTest.application_id.in_(app_ids)
+            ).all()
+            
+            if perf_tests:
+                p95_times = [p.p95_response_time for p in perf_tests if p.p95_response_time is not None]
+                p99_times = [p.p99_response_time for p in perf_tests if p.p99_response_time is not None]
+                rps_values = [p.requests_per_second for p in perf_tests if p.requests_per_second is not None]
+                error_rates = [p.error_rate for p in perf_tests if p.error_rate is not None]
+                total_requests = sum(p.total_requests or 0 for p in perf_tests)
+                failed_requests = sum(p.failed_requests or 0 for p in perf_tests)
+                
+                metrics['performance'] = {
+                    'tests_count': len(perf_tests),
+                    'p95_response_time': {
+                        'mean': round(statistics.mean(p95_times), 3) if p95_times else 0,
+                        'min': round(min(p95_times), 3) if p95_times else 0,
+                        'max': round(max(p95_times), 3) if p95_times else 0,
+                        'median': round(statistics.median(p95_times), 3) if p95_times else 0,
+                    } if p95_times else {},
+                    'p99_response_time': {
+                        'mean': round(statistics.mean(p99_times), 3) if p99_times else 0,
+                        'min': round(min(p99_times), 3) if p99_times else 0,
+                        'max': round(max(p99_times), 3) if p99_times else 0,
+                        'median': round(statistics.median(p99_times), 3) if p99_times else 0,
+                    } if p99_times else {},
+                    'requests_per_second': {
+                        'mean': round(statistics.mean(rps_values), 2) if rps_values else 0,
+                        'min': round(min(rps_values), 2) if rps_values else 0,
+                        'max': round(max(rps_values), 2) if rps_values else 0,
+                    } if rps_values else {},
+                    'error_rate': {
+                        'mean': round(statistics.mean(error_rates), 4) if error_rates else 0,
+                        'max': round(max(error_rates), 4) if error_rates else 0,
+                    } if error_rates else {},
+                    'total_requests': total_requests,
+                    'failed_requests': failed_requests,
+                }
+            
+            # Query OpenRouterAnalysis for AI analysis scores
+            # Join through GeneratedApplication since OpenRouterAnalysis has application_id, not model_slug
+            ai_analyses = db.session.query(OpenRouterAnalysis).filter(
+                OpenRouterAnalysis.application_id.in_(app_ids)
+            ).all()
+            
+            if ai_analyses:
+                overall_scores = [a.overall_score for a in ai_analyses if a.overall_score is not None]
+                quality_scores = [a.code_quality_score for a in ai_analyses if a.code_quality_score is not None]
+                security_scores = [a.security_score for a in ai_analyses if a.security_score is not None]
+                maint_scores = [a.maintainability_score for a in ai_analyses if a.maintainability_score is not None]
+                total_input_tokens = sum(a.input_tokens or 0 for a in ai_analyses)
+                total_output_tokens = sum(a.output_tokens or 0 for a in ai_analyses)
+                total_cost = sum(a.cost_usd or 0 for a in ai_analyses)
+                
+                metrics['ai_analysis'] = {
+                    'analyses_count': len(ai_analyses),
+                    'overall_score': {
+                        'mean': round(statistics.mean(overall_scores), 2) if overall_scores else 0,
+                        'min': round(min(overall_scores), 2) if overall_scores else 0,
+                        'max': round(max(overall_scores), 2) if overall_scores else 0,
+                        'std_dev': round(statistics.stdev(overall_scores), 2) if len(overall_scores) > 1 else 0,
+                    } if overall_scores else {},
+                    'code_quality_score': {
+                        'mean': round(statistics.mean(quality_scores), 2) if quality_scores else 0,
+                    } if quality_scores else {},
+                    'security_score': {
+                        'mean': round(statistics.mean(security_scores), 2) if security_scores else 0,
+                    } if security_scores else {},
+                    'maintainability_score': {
+                        'mean': round(statistics.mean(maint_scores), 2) if maint_scores else 0,
+                    } if maint_scores else {},
+                    'token_usage': {
+                        'total_input_tokens': total_input_tokens,
+                        'total_output_tokens': total_output_tokens,
+                        'total_tokens': total_input_tokens + total_output_tokens,
+                    },
+                    'total_ai_analysis_cost_usd': round(total_cost, 6),
+                }
+            
+            # Query SecurityAnalysis for security metrics
+            # Join through GeneratedApplication since SecurityAnalysis has application_id, not model_slug
+            security_analyses = db.session.query(SecurityAnalysis).filter(
+                SecurityAnalysis.application_id.in_(app_ids)
+            ).all()
+            
+            if security_analyses:
+                total_issues = sum(s.total_issues or 0 for s in security_analyses)
+                critical_count = sum(s.critical_severity_count or 0 for s in security_analyses)
+                high_count = sum(s.high_severity_count or 0 for s in security_analyses)
+                medium_count = sum(s.medium_severity_count or 0 for s in security_analyses)
+                low_count = sum(s.low_severity_count or 0 for s in security_analyses)
+                tools_run = sum(s.tools_run_count or 0 for s in security_analyses)
+                tools_failed = sum(s.tools_failed_count or 0 for s in security_analyses)
+                total_duration = sum(s.analysis_duration or 0 for s in security_analyses)
+                
+                metrics['security'] = {
+                    'analyses_count': len(security_analyses),
+                    'total_issues': total_issues,
+                    'severity_breakdown': {
+                        'critical': critical_count,
+                        'high': high_count,
+                        'medium': medium_count,
+                        'low': low_count,
+                    },
+                    'tools_run_count': tools_run,
+                    'tools_failed_count': tools_failed,
+                    'tool_success_rate': round((tools_run - tools_failed) / tools_run * 100, 2) if tools_run > 0 else 0,
+                    'total_analysis_duration_seconds': round(total_duration, 2),
+                    'avg_duration_per_analysis': round(total_duration / len(security_analyses), 2) if security_analyses else 0,
+                    'avg_issues_per_analysis': round(total_issues / len(security_analyses), 2) if security_analyses else 0,
+                }
+            
+            metrics['available'] = True
+            
+        except Exception as e:
+            logger.warning(f"Failed to collect quantitative metrics for {model_slug}: {e}")
+            metrics['error'] = str(e)
+        
+        return metrics
+
+    def _calculate_loc_metrics(
+        self,
+        apps_data: List[Dict[str, Any]],
+        generation_metadata: Dict[str, Any],
+        model_slug: str = None
+    ) -> Dict[str, Any]:
+        """
+        Calculate lines of code (LOC) metrics and issues per LOC ratios.
+        
+        Combines generation metadata (total lines) with analysis findings
+        to calculate defect density metrics. Falls back to counting files
+        directly when generation metadata is unavailable.
+        
+        Args:
+            apps_data: List of app analysis data with findings_count
+            generation_metadata: Generation stats including total_lines_generated
+            model_slug: Model identifier for file-based fallback
+            
+        Returns:
+            Dict with LOC totals and issues per LOC ratios
+        """
+        import statistics
+        
+        metrics = {
+            'available': False,
+            'total_loc': 0,
+            'backend_loc': 0,
+            'frontend_loc': 0,
+            'per_app_loc': {},
+            'per_app': [],  # For frontend compatibility
+            'avg_loc_per_app': 0,
+            'issues_per_loc': {},
+            'issues_per_100_loc': 0,  # For frontend compatibility
+            'issues_per_1000_loc': {},
+        }
+        
+        try:
+            total_loc = 0
+            backend_loc = 0
+            frontend_loc = 0
+            per_app_loc = {}  # Dict mapping app_num -> loc
+            per_app_breakdown = []  # List with detailed per-app data
+            
+            # Primary source: generation metadata
+            if generation_metadata.get('available'):
+                total_loc = generation_metadata.get('total_lines_generated', 0)
+                apps_breakdown = generation_metadata.get('apps_breakdown', [])
+                for app_gen in apps_breakdown:
+                    app_num = app_gen.get('app_number')
+                    app_loc = app_gen.get('total_lines', 0)
+                    if app_num and app_loc > 0:
+                        per_app_loc[app_num] = app_loc
+            
+            # Fallback: count from files if metadata unavailable or has zero LOC
+            if total_loc <= 0 and model_slug:
+                app_numbers = [app.get('app_number') for app in apps_data if app.get('app_number')]
+                file_counts = _count_loc_from_files(model_slug, app_numbers)
+                
+                if file_counts.get('counted'):
+                    total_loc = file_counts['total_loc']
+                    backend_loc = file_counts['backend_loc']
+                    frontend_loc = file_counts['frontend_loc']
+                    
+                    # Build per_app_loc from file counts
+                    for app_num, app_data in file_counts.get('per_app', {}).items():
+                        per_app_loc[app_num] = app_data['total_loc']
+                        per_app_breakdown.append({
+                            'app_number': app_num,
+                            'total_loc': app_data['total_loc'],
+                            'backend_loc': app_data['backend_loc'],
+                            'frontend_loc': app_data['frontend_loc'],
+                        })
+                    
+                    logger.info(f"LOC counted from files for {model_slug}: {total_loc} total "
+                               f"({backend_loc} backend, {frontend_loc} frontend)")
+            
+            if total_loc <= 0:
+                return metrics
+            
+            metrics['total_loc'] = total_loc
+            metrics['backend_loc'] = backend_loc
+            metrics['frontend_loc'] = frontend_loc
+            metrics['per_app_loc'] = per_app_loc
+            metrics['per_app'] = per_app_breakdown
+            metrics['avg_loc_per_app'] = round(total_loc / len(per_app_loc), 0) if per_app_loc else 0
+            
+            # Calculate total findings
+            total_findings = sum(app.get('findings_count', 0) for app in apps_data)
+            severity_totals = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
+            
+            for app in apps_data:
+                sev = app.get('severity_counts', {})
+                for s in severity_totals:
+                    severity_totals[s] += sev.get(s, 0)
+            
+            # Calculate issues per LOC
+            metrics['issues_per_loc'] = {
+                'total': round(total_findings / total_loc, 6) if total_loc > 0 else 0,
+                'critical': round(severity_totals['critical'] / total_loc, 6) if total_loc > 0 else 0,
+                'high': round(severity_totals['high'] / total_loc, 6) if total_loc > 0 else 0,
+                'medium': round(severity_totals['medium'] / total_loc, 6) if total_loc > 0 else 0,
+                'low': round(severity_totals['low'] / total_loc, 6) if total_loc > 0 else 0,
+            }
+            
+            # Issues per 100 LOC (for frontend display)
+            metrics['issues_per_100_loc'] = round(total_findings / total_loc * 100, 2) if total_loc > 0 else 0
+            
+            # Calculate issues per 1000 LOC (more readable metric)
+            metrics['issues_per_1000_loc'] = {
+                'total': round(total_findings / total_loc * 1000, 2) if total_loc > 0 else 0,
+                'critical': round(severity_totals['critical'] / total_loc * 1000, 2) if total_loc > 0 else 0,
+                'high': round(severity_totals['high'] / total_loc * 1000, 2) if total_loc > 0 else 0,
+                'medium': round(severity_totals['medium'] / total_loc * 1000, 2) if total_loc > 0 else 0,
+                'low': round(severity_totals['low'] / total_loc * 1000, 2) if total_loc > 0 else 0,
+            }
+            
+            # Calculate per-app issues per LOC if we have matching data
+            per_app_density = []
+            for app in apps_data:
+                app_num = app.get('app_number')
+                app_findings = app.get('findings_count', 0)
+                app_loc = per_app_loc.get(app_num, 0)
+                
+                if app_loc > 0:
+                    density = app_findings / app_loc * 1000
+                    per_app_density.append({
+                        'app_number': app_num,
+                        'loc': app_loc,
+                        'findings': app_findings,
+                        'issues_per_1000_loc': round(density, 2),
+                    })
+            
+            if per_app_density:
+                densities = [d['issues_per_1000_loc'] for d in per_app_density]
+                metrics['per_app_density'] = per_app_density
+                metrics['density_statistics'] = {
+                    'mean': round(statistics.mean(densities), 2),
+                    'median': round(statistics.median(densities), 2),
+                    'min': round(min(densities), 2),
+                    'max': round(max(densities), 2),
+                    'std_dev': round(statistics.stdev(densities), 2) if len(densities) > 1 else 0,
+                }
+            
+            metrics['available'] = True
+            
+        except Exception as e:
+            logger.warning(f"Failed to calculate LOC metrics: {e}")
+            metrics['error'] = str(e)
+        
+        return metrics
+
+    def _extract_cwe_statistics(self, apps_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Extract CWE (Common Weakness Enumeration) statistics from findings.
+        
+        Parses findings for CWE IDs and categorizes vulnerabilities
+        for scientific analysis of security patterns.
+        
+        Args:
+            apps_data: List of app analysis data with findings
+            
+        Returns:
+            Dict with CWE counts, categories, and distribution
+        """
+        import re
+        from collections import Counter
+        
+        metrics = {
+            'available': False,
+            'total_cwe_tagged': 0,
+            'unique_cwes': 0,
+            'cwe_counts': {},
+            'cwe_categories': {},
+            'top_cwes': [],
+        }
+        
+        # CWE category mapping (common categories)
+        CWE_CATEGORIES = {
+            '79': 'XSS',
+            '89': 'SQL Injection',
+            '94': 'Code Injection',
+            '78': 'OS Command Injection',
+            '22': 'Path Traversal',
+            '200': 'Information Exposure',
+            '259': 'Hardcoded Password',
+            '285': 'Improper Authorization',
+            '287': 'Improper Authentication',
+            '311': 'Missing Encryption',
+            '312': 'Cleartext Storage',
+            '319': 'Cleartext Transmission',
+            '327': 'Broken Crypto',
+            '330': 'Insufficient Randomness',
+            '352': 'CSRF',
+            '400': 'Resource Exhaustion',
+            '502': 'Deserialization',
+            '601': 'Open Redirect',
+            '614': 'Sensitive Cookie without Secure',
+            '798': 'Hardcoded Credentials',
+            '918': 'SSRF',
+        }
+        
+        try:
+            cwe_counter = Counter()
+            category_counter = Counter()
+            
+            # CWE pattern: CWE-XXX or CWE_XXX or cwe:XXX
+            cwe_pattern = re.compile(r'CWE[-_:]?(\d+)', re.IGNORECASE)
+            
+            for app in apps_data:
+                findings = app.get('findings', [])
+                if not isinstance(findings, list):
+                    continue
+                
+                for finding in findings:
+                    if not isinstance(finding, dict):
+                        continue
+                    
+                    # Look for CWE in various fields
+                    cwe_id = None
+                    
+                    # Check explicit cwe field
+                    if finding.get('cwe'):
+                        match = cwe_pattern.search(str(finding['cwe']))
+                        if match:
+                            cwe_id = match.group(1)
+                    
+                    # Check code/rule_id field
+                    if not cwe_id:
+                        code = finding.get('code', '') or finding.get('rule_id', '')
+                        if code:
+                            match = cwe_pattern.search(str(code))
+                            if match:
+                                cwe_id = match.group(1)
+                    
+                    # Check message/description
+                    if not cwe_id:
+                        message = finding.get('message', '') or finding.get('description', '')
+                        if message:
+                            match = cwe_pattern.search(str(message))
+                            if match:
+                                cwe_id = match.group(1)
+                    
+                    # Check category field
+                    if not cwe_id:
+                        category = finding.get('category', '')
+                        if category:
+                            match = cwe_pattern.search(str(category))
+                            if match:
+                                cwe_id = match.group(1)
+                    
+                    if cwe_id:
+                        cwe_counter[cwe_id] += 1
+                        
+                        # Map to category
+                        category_name = CWE_CATEGORIES.get(cwe_id, 'Other')
+                        category_counter[category_name] += 1
+            
+            if cwe_counter:
+                metrics['total_cwe_tagged'] = sum(cwe_counter.values())
+                metrics['unique_cwes'] = len(cwe_counter)
+                metrics['cwe_counts'] = dict(cwe_counter)
+                metrics['cwe_categories'] = dict(category_counter)
+                metrics['top_cwes'] = [
+                    {'cwe': f'CWE-{cwe}', 'count': count, 'category': CWE_CATEGORIES.get(cwe, 'Other')}
+                    for cwe, count in cwe_counter.most_common(10)
+                ]
+                metrics['available'] = True
+            
+        except Exception as e:
+            logger.warning(f"Failed to extract CWE statistics: {e}")
+            metrics['error'] = str(e)
+        
+        return metrics

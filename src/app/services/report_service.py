@@ -19,16 +19,118 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional, Literal
 
 from ..extensions import db
-from ..models import Report, AnalysisTask, GeneratedApplication, ModelCapability
+from ..models import (
+    Report, AnalysisTask, GeneratedApplication, ModelCapability,
+    PerformanceTest, SecurityAnalysis, OpenRouterAnalysis
+)
 from ..constants import AnalysisStatus
 from ..utils.time import utc_now
 from ..utils.slug_utils import normalize_model_slug, generate_slug_variants
 from .unified_result_service import UnifiedResultService
 from .service_locator import ServiceLocator
+from .reports import _count_loc_from_files
 
 logger = logging.getLogger(__name__)
 
 ReportType = Literal['model_analysis', 'template_comparison', 'tool_analysis']
+
+
+# =============================================================================
+# ANALYZER CATEGORIES - Tool-to-Analyzer mapping for customized reports
+# =============================================================================
+# Maps tools to their analyzer type (static/dynamic/performance/ai)
+# Includes type-specific metadata for enhanced reporting
+ANALYZER_CATEGORIES = {
+    # Static Analyzer Tools (Port 2001)
+    'static': {
+        'display_name': 'Static Analysis',
+        'service': 'static-analyzer',
+        'port': 2001,
+        'description': 'Code quality and security analysis without execution',
+        'metrics_focus': ['security_findings', 'code_quality', 'type_coverage', 'dependency_vulnerabilities'],
+        'tools': {
+            # Security tools
+            'bandit': {'category': 'security', 'language': 'python', 'focus': 'security vulnerabilities'},
+            'semgrep': {'category': 'security', 'language': 'multi', 'focus': 'pattern-based security'},
+            'detect-secrets': {'category': 'security', 'language': 'multi', 'focus': 'credential detection'},
+            # Quality tools
+            'pylint': {'category': 'quality', 'language': 'python', 'focus': 'code quality'},
+            'flake8': {'category': 'quality', 'language': 'python', 'focus': 'style checking'},
+            'ruff': {'category': 'quality', 'language': 'python', 'focus': 'fast linting'},
+            'vulture': {'category': 'quality', 'language': 'python', 'focus': 'dead code'},
+            'eslint': {'category': 'quality', 'language': 'javascript', 'focus': 'JS/TS linting'},
+            'jshint': {'category': 'quality', 'language': 'javascript', 'focus': 'JS quality'},
+            'stylelint': {'category': 'quality', 'language': 'css', 'focus': 'CSS linting'},
+            # Type checking
+            'mypy': {'category': 'types', 'language': 'python', 'focus': 'static type checking'},
+            # Dependency analysis
+            'safety': {'category': 'dependencies', 'language': 'python', 'focus': 'CVE scanning'},
+            'pip-audit': {'category': 'dependencies', 'language': 'python', 'focus': 'package audit'},
+            'npm-audit': {'category': 'dependencies', 'language': 'javascript', 'focus': 'npm vulnerabilities'},
+            # Complexity
+            'radon': {'category': 'complexity', 'language': 'python', 'focus': 'cyclomatic complexity'},
+        }
+    },
+    # Dynamic Analyzer Tools (Port 2002)
+    'dynamic': {
+        'display_name': 'Dynamic Analysis',
+        'service': 'dynamic-analyzer',
+        'port': 2002,
+        'description': 'Runtime security scanning against running applications',
+        'metrics_focus': ['runtime_vulnerabilities', 'zap_alerts', 'owasp_coverage', 'attack_surface'],
+        'tools': {
+            'zap': {'category': 'security', 'language': 'runtime', 'focus': 'web vulnerability scanning'},
+            'owasp-zap': {'category': 'security', 'language': 'runtime', 'focus': 'OWASP ZAP scanner'},
+            'nmap': {'category': 'security', 'language': 'runtime', 'focus': 'port scanning'},
+            'curl': {'category': 'security', 'language': 'runtime', 'focus': 'endpoint probing'},
+            'connectivity': {'category': 'health', 'language': 'runtime', 'focus': 'service availability'},
+        }
+    },
+    # Performance Tester Tools (Port 2003)
+    'performance': {
+        'display_name': 'Performance Testing',
+        'service': 'performance-tester',
+        'port': 2003,
+        'description': 'Load testing and performance benchmarking',
+        'metrics_focus': ['requests_per_second', 'latency_percentiles', 'error_rate', 'throughput'],
+        'tools': {
+            'locust': {'category': 'performance', 'language': 'runtime', 'focus': 'distributed load testing'},
+            'artillery': {'category': 'performance', 'language': 'runtime', 'focus': 'modern load testing'},
+            'ab': {'category': 'performance', 'language': 'runtime', 'focus': 'Apache bench'},
+            'aiohttp': {'category': 'performance', 'language': 'runtime', 'focus': 'async benchmarks'},
+        }
+    },
+    # AI Analyzer Tools (Port 2004)
+    'ai': {
+        'display_name': 'AI Analysis',
+        'service': 'ai-analyzer',
+        'port': 2004,
+        'description': 'LLM-based code analysis and requirements compliance',
+        'metrics_focus': ['requirements_compliance', 'code_quality_score', 'api_conformance', 'best_practices'],
+        'tools': {
+            'ai-analyzer': {'category': 'ai', 'language': 'multi', 'focus': 'LLM code review'},
+            'ai-review': {'category': 'ai', 'language': 'multi', 'focus': 'AI quality assessment'},
+            'requirements-check': {'category': 'ai', 'language': 'multi', 'focus': 'requirements compliance'},
+        }
+    },
+}
+
+# Build reverse lookup: tool_name -> analyzer_type
+TOOL_TO_ANALYZER = {}
+for analyzer_type, analyzer_info in ANALYZER_CATEGORIES.items():
+    for tool_name in analyzer_info['tools'].keys():
+        TOOL_TO_ANALYZER[tool_name] = analyzer_type
+
+# Tool category classification (for finer-grained grouping within analyzers)
+TOOL_CATEGORIES = {
+    'security': ['bandit', 'semgrep', 'detect-secrets', 'zap', 'owasp-zap', 'nmap', 'safety', 'pip-audit', 'npm-audit'],
+    'quality': ['pylint', 'flake8', 'ruff', 'vulture', 'eslint', 'jshint', 'stylelint'],
+    'types': ['mypy'],
+    'complexity': ['radon'],
+    'performance': ['locust', 'artillery', 'ab', 'aiohttp'],
+    'ai': ['ai-analyzer', 'ai-review', 'requirements-check'],
+    'health': ['connectivity', 'curl'],
+}
 
 
 class ReportService:
@@ -179,6 +281,61 @@ class ReportService:
         db.session.commit()
         logger.info(f"Deleted report {report_id}")
         return True
+    
+    def regenerate_report(self, report_id: str) -> Optional[Report]:
+        """
+        Regenerate an existing report with fresh data.
+        
+        This re-runs the report generation logic using the original config,
+        then updates the stored report_data. Useful when underlying analysis
+        data has changed.
+        
+        Args:
+            report_id: The report ID to regenerate
+            
+        Returns:
+            Updated Report object or None if not found
+        """
+        report = self.get_report(report_id)
+        if not report:
+            return None
+        
+        # Parse config if stored as string
+        config = report.config
+        if isinstance(config, str):
+            import json
+            config = json.loads(config)
+        
+        logger.info(f"Regenerating report {report_id} (type={report.report_type})")
+        
+        try:
+            # Generate fresh report data using appropriate generator
+            if report.report_type == 'model_analysis':
+                new_data = self._generate_model_report(config, report)
+            elif report.report_type == 'template_comparison':
+                new_data = self._generate_template_report(config, report)
+            elif report.report_type == 'tool_analysis':
+                new_data = self._generate_tool_report(config, report)
+            else:
+                logger.error(f"Unknown report type: {report.report_type}")
+                return None
+            
+            # Update report with new data
+            import json
+            report.report_data = json.dumps(new_data) if not isinstance(new_data, str) else new_data
+            report.generated_at = utc_now()
+            report.status = 'completed'
+            db.session.commit()
+            
+            logger.info(f"Successfully regenerated report {report_id}")
+            return report
+            
+        except Exception as e:
+            logger.error(f"Error regenerating report {report_id}: {e}", exc_info=True)
+            report.status = 'failed'
+            report.error_message = str(e)
+            db.session.commit()
+            return None
     
     def cleanup_expired_reports(self) -> int:
         """Delete expired reports. Returns count deleted."""
@@ -367,6 +524,38 @@ class ReportService:
             if ff:
                 frontend_frameworks[ff] = frontend_frameworks.get(ff, 0) + 1
         
+        # Calculate LOC metrics using the shared helper
+        app_numbers = sorted(apps_map.keys())
+        loc_metrics = _count_loc_from_files(model_slug, app_numbers)
+        
+        # Calculate issues_per_100_loc if we have LOC data
+        total_loc = loc_metrics.get('total_loc', 0)
+        if total_loc > 0:
+            loc_metrics['issues_per_100_loc'] = round((len(all_findings) / total_loc) * 100, 4)
+        else:
+            loc_metrics['issues_per_100_loc'] = None
+        
+        # Add issues_count and issues_per_100_loc to each per_app entry
+        # Build a map of app_number -> findings count from apps_data
+        findings_per_app = {}
+        for app_entry in apps_data:
+            app_num = app_entry.get('app_number')
+            if app_num is not None:
+                findings_per_app[app_num] = len(app_entry.get('findings', []))
+        
+        # Enrich per_app entries with issues data
+        for app_num, per_app_data in loc_metrics.get('per_app', {}).items():
+            issues_count = findings_per_app.get(app_num, 0)
+            per_app_data['issues_count'] = issues_count
+            app_loc = per_app_data.get('total_loc', 0)
+            if app_loc > 0:
+                per_app_data['issues_per_100_loc'] = round((issues_count / app_loc) * 100, 2)
+            else:
+                per_app_data['issues_per_100_loc'] = 0.0
+        
+        # Collect quantitative metrics from database models
+        quantitative_metrics = self._get_quantitative_metrics(model_slug, app_numbers)
+        
         return {
             'report_type': 'model_analysis',
             'model_slug': model_slug,
@@ -408,16 +597,355 @@ class ReportService:
                 'backend': backend_frameworks,
                 'frontend': frontend_frameworks,
             },
+            'loc_metrics': loc_metrics,
+            # NEW: Quantitative metrics from DB models (docker, generation, performance, ai, security)
+            'quantitative_metrics': quantitative_metrics,
         }
+    
+    def _get_quantitative_metrics(
+        self,
+        model_slug: str,
+        filter_apps: Optional[List[int]] = None
+    ) -> Dict[str, Any]:
+        """
+        Collect quantitative metrics from database models for all apps of this model.
+        
+        Queries PerformanceTest, OpenRouterAnalysis, SecurityAnalysis, and GeneratedApplication
+        to extract numeric metrics for scientific analysis.
+        
+        Args:
+            model_slug: Model identifier
+            filter_apps: Optional list of app numbers to filter
+            
+        Returns:
+            Dict with performance, AI analysis, security, docker, and generation success metrics
+        """
+        import statistics
+        
+        metrics = {
+            'available': False,
+            'performance': {},
+            'ai_analysis': {},
+            'security': {},
+            'generation': {},
+            'docker': {},
+        }
+        
+        try:
+            # Query GeneratedApplication for generation success metrics
+            app_query = db.session.query(GeneratedApplication).filter(
+                GeneratedApplication.model_slug == model_slug
+            )
+            if filter_apps:
+                app_query = app_query.filter(GeneratedApplication.app_number.in_(filter_apps))
+            
+            apps = app_query.all()
+            
+            if not apps:
+                return metrics
+            
+            # Generation success metrics
+            total_apps = len(apps)
+            successful_apps = sum(1 for a in apps if not a.is_generation_failed)
+            failed_apps = sum(1 for a in apps if a.is_generation_failed)
+            
+            # Fix counts aggregation (handle missing attributes gracefully)
+            retry_fixes = sum(getattr(a, 'retry_fixes', 0) or 0 for a in apps)
+            automatic_fixes = sum(getattr(a, 'automatic_fixes', 0) or 0 for a in apps)
+            llm_fixes = sum(getattr(a, 'llm_fixes', 0) or 0 for a in apps)
+            manual_fixes = sum(getattr(a, 'manual_fixes', 0) or 0 for a in apps)
+            total_fixes = retry_fixes + automatic_fixes + llm_fixes + manual_fixes
+            
+            # Generation attempts
+            total_attempts = sum(getattr(a, 'generation_attempts', 1) or 1 for a in apps)
+            
+            metrics['generation'] = {
+                'total_apps': total_apps,
+                'successful_apps': successful_apps,
+                'failed_apps': failed_apps,
+                'success_rate': round(successful_apps / total_apps * 100, 2) if total_apps > 0 else 0,
+                'total_generation_attempts': total_attempts,
+                'avg_attempts_per_app': round(total_attempts / total_apps, 2) if total_apps > 0 else 0,
+                'fix_counts': {
+                    'retry_fixes': retry_fixes,
+                    'automatic_fixes': automatic_fixes,
+                    'llm_fixes': llm_fixes,
+                    'manual_fixes': manual_fixes,
+                    'total_fixes': total_fixes,
+                },
+                'avg_fixes_per_app': round(total_fixes / total_apps, 2) if total_apps > 0 else 0,
+            }
+            
+            # Docker/Container status aggregation
+            container_status_counts = {}
+            for app in apps:
+                status = app.container_status or 'unknown'
+                # Normalize similar statuses
+                if status in ('never_built', 'not_built'):
+                    status = 'never_built'
+                elif status in ('failed', 'build_failed', 'error'):
+                    status = 'error'
+                container_status_counts[status] = container_status_counts.get(status, 0) + 1
+            
+            # Calculate Docker health metrics
+            running_count = container_status_counts.get('running', 0)
+            stopped_count = container_status_counts.get('stopped', 0)
+            error_count = container_status_counts.get('error', 0)
+            never_built = container_status_counts.get('never_built', 0) + container_status_counts.get('unknown', 0)
+            
+            # Apps that have been successfully built (running or stopped)
+            build_success_count = running_count + stopped_count
+            build_success_rate = round(build_success_count / total_apps * 100, 2) if total_apps > 0 else 0
+            
+            metrics['docker'] = {
+                'status_breakdown': container_status_counts,
+                'running': running_count,
+                'stopped': stopped_count,
+                'error': error_count,
+                'never_built': never_built,
+                'build_success_count': build_success_count,
+                'build_success_rate': build_success_rate,
+                'total_apps': total_apps,
+            }
+            
+            # Query PerformanceTest for performance metrics
+            app_ids = [a.id for a in apps]
+            perf_tests = db.session.query(PerformanceTest).filter(
+                PerformanceTest.application_id.in_(app_ids)
+            ).all()
+            
+            if perf_tests:
+                p95_times = [p.p95_response_time for p in perf_tests if p.p95_response_time is not None]
+                p99_times = [p.p99_response_time for p in perf_tests if p.p99_response_time is not None]
+                rps_values = [p.requests_per_second for p in perf_tests if p.requests_per_second is not None]
+                error_rates = [p.error_rate for p in perf_tests if p.error_rate is not None]
+                total_requests = sum(p.total_requests or 0 for p in perf_tests)
+                failed_requests = sum(p.failed_requests or 0 for p in perf_tests)
+                
+                metrics['performance'] = {
+                    'tests_count': len(perf_tests),
+                    'p95_response_time': {
+                        'mean': round(statistics.mean(p95_times), 3) if p95_times else 0,
+                        'min': round(min(p95_times), 3) if p95_times else 0,
+                        'max': round(max(p95_times), 3) if p95_times else 0,
+                        'median': round(statistics.median(p95_times), 3) if p95_times else 0,
+                    } if p95_times else {},
+                    'p99_response_time': {
+                        'mean': round(statistics.mean(p99_times), 3) if p99_times else 0,
+                        'min': round(min(p99_times), 3) if p99_times else 0,
+                        'max': round(max(p99_times), 3) if p99_times else 0,
+                        'median': round(statistics.median(p99_times), 3) if p99_times else 0,
+                    } if p99_times else {},
+                    'requests_per_second': {
+                        'mean': round(statistics.mean(rps_values), 2) if rps_values else 0,
+                        'min': round(min(rps_values), 2) if rps_values else 0,
+                        'max': round(max(rps_values), 2) if rps_values else 0,
+                    } if rps_values else {},
+                    'error_rate': {
+                        'mean': round(statistics.mean(error_rates), 4) if error_rates else 0,
+                        'max': round(max(error_rates), 4) if error_rates else 0,
+                    } if error_rates else {},
+                    'total_requests': total_requests,
+                    'failed_requests': failed_requests,
+                }
+            
+            # Query OpenRouterAnalysis for AI analysis scores
+            ai_analyses = db.session.query(OpenRouterAnalysis).filter(
+                OpenRouterAnalysis.application_id.in_(app_ids)
+            ).all()
+            
+            if ai_analyses:
+                overall_scores = [a.overall_score for a in ai_analyses if a.overall_score is not None]
+                quality_scores = [a.code_quality_score for a in ai_analyses if a.code_quality_score is not None]
+                security_scores = [a.security_score for a in ai_analyses if a.security_score is not None]
+                maint_scores = [a.maintainability_score for a in ai_analyses if a.maintainability_score is not None]
+                total_input_tokens = sum(a.input_tokens or 0 for a in ai_analyses)
+                total_output_tokens = sum(a.output_tokens or 0 for a in ai_analyses)
+                total_cost = sum(a.cost_usd or 0 for a in ai_analyses)
+                
+                metrics['ai_analysis'] = {
+                    'analyses_count': len(ai_analyses),
+                    'overall_score': {
+                        'mean': round(statistics.mean(overall_scores), 2) if overall_scores else 0,
+                        'min': round(min(overall_scores), 2) if overall_scores else 0,
+                        'max': round(max(overall_scores), 2) if overall_scores else 0,
+                        'std_dev': round(statistics.stdev(overall_scores), 2) if len(overall_scores) > 1 else 0,
+                    } if overall_scores else {},
+                    'code_quality_score': {
+                        'mean': round(statistics.mean(quality_scores), 2) if quality_scores else 0,
+                    } if quality_scores else {},
+                    'security_score': {
+                        'mean': round(statistics.mean(security_scores), 2) if security_scores else 0,
+                    } if security_scores else {},
+                    'maintainability_score': {
+                        'mean': round(statistics.mean(maint_scores), 2) if maint_scores else 0,
+                    } if maint_scores else {},
+                    'token_usage': {
+                        'total_input_tokens': total_input_tokens,
+                        'total_output_tokens': total_output_tokens,
+                        'total_tokens': total_input_tokens + total_output_tokens,
+                    },
+                    'total_ai_analysis_cost_usd': round(total_cost, 6),
+                }
+            
+            # Query SecurityAnalysis for security metrics
+            security_analyses = db.session.query(SecurityAnalysis).filter(
+                SecurityAnalysis.application_id.in_(app_ids)
+            ).all()
+            
+            if security_analyses:
+                total_issues = sum(s.total_issues or 0 for s in security_analyses)
+                critical_count = sum(s.critical_severity_count or 0 for s in security_analyses)
+                high_count = sum(s.high_severity_count or 0 for s in security_analyses)
+                medium_count = sum(s.medium_severity_count or 0 for s in security_analyses)
+                low_count = sum(s.low_severity_count or 0 for s in security_analyses)
+                tools_run = sum(s.tools_run_count or 0 for s in security_analyses)
+                tools_failed = sum(s.tools_failed_count or 0 for s in security_analyses)
+                total_duration = sum(s.analysis_duration or 0 for s in security_analyses)
+                
+                metrics['security'] = {
+                    'analyses_count': len(security_analyses),
+                    'total_issues': total_issues,
+                    'severity_breakdown': {
+                        'critical': critical_count,
+                        'high': high_count,
+                        'medium': medium_count,
+                        'low': low_count,
+                    },
+                    'tools_run_count': tools_run,
+                    'tools_failed_count': tools_failed,
+                    'tool_success_rate': round((tools_run - tools_failed) / tools_run * 100, 2) if tools_run > 0 else 0,
+                    'total_analysis_duration_seconds': round(total_duration, 2),
+                    'avg_duration_per_analysis': round(total_duration / len(security_analyses), 2) if security_analyses else 0,
+                    'avg_issues_per_analysis': round(total_issues / len(security_analyses), 2) if security_analyses else 0,
+                }
+            
+            metrics['available'] = True
+            
+        except Exception as e:
+            logger.warning(f"Failed to collect quantitative metrics for {model_slug}: {e}")
+            metrics['error'] = str(e)
+        
+        return metrics
+    
+    def _get_template_metadata(self, template_slug: str) -> Dict[str, Any]:
+        """
+        Load template metadata from the requirements JSON file.
+        
+        Returns comprehensive template info including requirements counts,
+        API endpoints, complexity metrics, etc.
+        """
+        import os
+        
+        # Construct path to template file
+        base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        template_path = os.path.join(base_path, 'misc', 'requirements', f'{template_slug}.json')
+        
+        metadata = {
+            'slug': template_slug,
+            'name': template_slug.replace('_', ' ').title(),
+            'category': 'Unknown',
+            'description': 'No description available',
+            'available': False,
+            'backend_requirements_count': 0,
+            'frontend_requirements_count': 0,
+            'admin_requirements_count': 0,
+            'total_requirements_count': 0,
+            'api_endpoints_count': 0,
+            'admin_api_endpoints_count': 0,
+            'total_endpoints_count': 0,
+            'has_data_model': False,
+            'data_model_fields_count': 0,
+            'complexity_score': 0,
+            'complexity_tier': 'unknown',
+            'backend_requirements': [],
+            'frontend_requirements': [],
+            'admin_requirements': [],
+            'api_endpoints': [],
+            'admin_api_endpoints': [],
+            'data_model': None,
+        }
+        
+        try:
+            if os.path.exists(template_path):
+                with open(template_path, 'r', encoding='utf-8') as f:
+                    template_data = json.load(f)
+                
+                metadata['available'] = True
+                metadata['name'] = template_data.get('name', metadata['name'])
+                metadata['category'] = template_data.get('category', 'Unknown')
+                metadata['description'] = template_data.get('description', metadata['description'])
+                
+                # Requirements counts
+                backend_reqs = template_data.get('backend_requirements', [])
+                frontend_reqs = template_data.get('frontend_requirements', [])
+                admin_reqs = template_data.get('admin_requirements', [])
+                
+                metadata['backend_requirements'] = backend_reqs
+                metadata['frontend_requirements'] = frontend_reqs
+                metadata['admin_requirements'] = admin_reqs
+                metadata['backend_requirements_count'] = len(backend_reqs)
+                metadata['frontend_requirements_count'] = len(frontend_reqs)
+                metadata['admin_requirements_count'] = len(admin_reqs)
+                metadata['total_requirements_count'] = len(backend_reqs) + len(frontend_reqs) + len(admin_reqs)
+                
+                # API endpoints
+                api_endpoints = template_data.get('api_endpoints', [])
+                admin_api_endpoints = template_data.get('admin_api_endpoints', [])
+                
+                metadata['api_endpoints'] = api_endpoints
+                metadata['admin_api_endpoints'] = admin_api_endpoints
+                metadata['api_endpoints_count'] = len(api_endpoints)
+                metadata['admin_api_endpoints_count'] = len(admin_api_endpoints)
+                metadata['total_endpoints_count'] = len(api_endpoints) + len(admin_api_endpoints)
+                
+                # Data model info
+                data_model = template_data.get('data_model')
+                if data_model:
+                    metadata['has_data_model'] = True
+                    metadata['data_model'] = data_model
+                    metadata['data_model_name'] = data_model.get('name', 'Unknown')
+                    fields = data_model.get('fields', {})
+                    metadata['data_model_fields_count'] = len(fields) if isinstance(fields, dict) else 0
+                
+                # Calculate complexity score (weighted combination)
+                # Higher score = more complex template
+                complexity = (
+                    metadata['total_requirements_count'] * 3 +  # Requirements weighted 3x
+                    metadata['total_endpoints_count'] * 2 +     # Endpoints weighted 2x
+                    metadata['data_model_fields_count'] * 1     # Fields weighted 1x
+                )
+                metadata['complexity_score'] = complexity
+                
+                # Assign complexity tier
+                if complexity <= 15:
+                    metadata['complexity_tier'] = 'simple'
+                elif complexity <= 30:
+                    metadata['complexity_tier'] = 'moderate'
+                elif complexity <= 50:
+                    metadata['complexity_tier'] = 'complex'
+                else:
+                    metadata['complexity_tier'] = 'very_complex'
+                
+        except Exception as e:
+            logger.warning(f"Failed to load template metadata for {template_slug}: {e}")
+            metadata['error'] = str(e)
+        
+        return metadata
     
     def _generate_template_comparison(self, config: Dict[str, Any], report: Report) -> Dict[str, Any]:
         """
         Generate template comparison report.
         
-        Compares how different models implemented the same template.
+        Compares how different models implemented the same template with
+        comprehensive metrics including LOC, Docker status, generation stats,
+        performance data, AI scores, and security analysis.
         """
         template_slug = config['template_slug']
         filter_models = config.get('filter_models', [])
+        
+        # Load template metadata first
+        template_metadata = self._get_template_metadata(template_slug)
         
         # Find all apps with this template
         apps_query = GeneratedApplication.query.filter(
@@ -431,13 +959,16 @@ class ReportService:
         
         apps = apps_query.all()
         
-        report.update_progress(20)
+        report.update_progress(15)
         db.session.commit()
         
         # Get latest completed analysis for each app
         models_data = []
         all_findings = []
         total_analyses = 0
+        
+        # Collect per-model comprehensive metrics
+        per_model_metrics = {}
         
         for app in apps:
             # Get latest completed task for this app
@@ -469,8 +1000,13 @@ class ReportService:
                     AnalysisTask.target_app_number == app.app_number,
                     AnalysisTask.status.in_([AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS])
                 ).count()
+            
+            # Collect comprehensive metrics for this model
+            model_slug = app.model_slug
+            if model_slug not in per_model_metrics:
+                per_model_metrics[model_slug] = self._get_per_model_metrics(app)
         
-        report.update_progress(60)
+        report.update_progress(50)
         db.session.commit()
         
         # Calculate comparison metrics
@@ -497,17 +1033,49 @@ class ReportService:
             if ff:
                 frontend_frameworks[ff] = frontend_frameworks.get(ff, 0) + 1
         
-        report.update_progress(80)
+        report.update_progress(70)
+        db.session.commit()
+        
+        # Merge per_model_metrics into models_data for unified view
+        for m in models_data:
+            model_slug = m.get('model_slug')
+            if model_slug and model_slug in per_model_metrics:
+                m['quantitative_metrics'] = per_model_metrics[model_slug]
+        
+        # Calculate LOC-based code density metrics
+        code_density = self._calculate_code_density(models_data)
+        
+        # Calculate generation success metrics
+        generation_stats = self._calculate_generation_stats(apps)
+        
+        # Calculate aggregate performance metrics
+        performance_comparison = self._calculate_performance_comparison(apps)
+        
+        # Calculate aggregate AI scores
+        ai_comparison = self._calculate_ai_comparison(apps)
+        
+        report.update_progress(85)
         db.session.commit()
         
         return {
             'report_type': 'template_comparison',
             'template_slug': template_slug,
             'generated_at': utc_now().isoformat(),
+            
+            # Template metadata
+            'template_metadata': template_metadata,
+            
+            # Models data with embedded quantitative metrics
             'models': models_data,
             'models_count': len(models_data),
+            
+            # Summary statistics
             'summary': {
                 'template_slug': template_slug,
+                'template_name': template_metadata.get('name', template_slug),
+                'template_category': template_metadata.get('category', 'Unknown'),
+                'template_complexity': template_metadata.get('complexity_tier', 'unknown'),
+                'template_complexity_score': template_metadata.get('complexity_score', 0),
                 'models_compared': len(models_data),
                 'total_analyses': total_analyses,
                 'total_findings': len(all_findings),
@@ -515,19 +1083,367 @@ class ReportService:
                 'common_issues_count': len(common_issues),
                 'unique_issues_count': sum(len(v) for v in unique_issues.values()) if isinstance(unique_issues, dict) else len(unique_issues),
                 'avg_duration_seconds': avg_duration,
+                'total_requirements': template_metadata.get('total_requirements_count', 0),
+                'total_endpoints': template_metadata.get('total_endpoints_count', 0),
             },
+            
+            # Severity breakdown
             'findings_breakdown': severity_counts,
+            
+            # Rankings
             'rankings': rankings,
+            
+            # Issue comparison
             'comparison': {
                 'common_issues': common_issues[:50],
                 'unique_by_model': unique_issues
             },
+            
+            # Framework distribution
             'framework_distribution': {
                 'backend': backend_frameworks,
                 'frontend': frontend_frameworks,
             },
+            
+            # Code density analysis (issues per LOC)
+            'code_density': code_density,
+            
+            # Generation success metrics
+            'generation_stats': generation_stats,
+            
+            # Performance comparison
+            'performance_comparison': performance_comparison,
+            
+            # AI analysis comparison
+            'ai_comparison': ai_comparison,
+            
+            # Sample findings
             'findings': all_findings[:500]
         }
+    
+    def _get_per_model_metrics(self, app: GeneratedApplication) -> Dict[str, Any]:
+        """Get comprehensive metrics for a single model/app."""
+        metrics = {
+            'available': True,
+            'docker': {'available': False},
+            'generation': {'available': False},
+            'performance': {'available': False},
+            'ai_analysis': {'available': False},
+            'security': {'available': False},
+        }
+        
+        try:
+            # Docker/Container metrics
+            metrics['docker'] = {
+                'available': True,
+                'container_status': app.container_status or 'unknown',
+                'is_running': app.container_status == 'running' if app.container_status else False,
+            }
+            
+            # Generation metrics
+            metrics['generation'] = {
+                'available': True,
+                'is_failed': app.is_generation_failed or False,
+                'failure_stage': app.failure_stage if app.is_generation_failed else None,
+                'automatic_fixes': app.automatic_fixes or 0,
+                'llm_fixes': app.llm_fixes or 0,
+                'manual_fixes': app.manual_fixes or 0,
+                'total_fixes': (app.automatic_fixes or 0) + (app.llm_fixes or 0) + (app.manual_fixes or 0),
+                'generation_mode': app.generation_mode or 'unknown',
+            }
+            
+            # LOC metrics
+            loc_data = _count_loc_from_files(app.model_slug, [app.app_number])
+            if loc_data.get('total_loc', 0) > 0:
+                metrics['loc'] = {
+                    'available': True,
+                    'total_loc': loc_data.get('total_loc', 0),
+                    'python_loc': loc_data.get('python_loc', 0),
+                    'javascript_loc': loc_data.get('javascript_loc', 0),
+                    'jsx_loc': loc_data.get('jsx_loc', 0),
+                    'css_loc': loc_data.get('css_loc', 0),
+                    'other_loc': loc_data.get('other_loc', 0),
+                }
+            else:
+                metrics['loc'] = {'available': False}
+            
+            # Performance test metrics
+            perf_test = PerformanceTest.query.filter_by(application_id=app.id).order_by(
+                PerformanceTest.created_at.desc()
+            ).first()
+            
+            if perf_test:
+                metrics['performance'] = {
+                    'available': True,
+                    'avg_response_time_ms': perf_test.average_response_time,
+                    'requests_per_second': perf_test.requests_per_second,
+                    'error_rate_percent': perf_test.error_rate,
+                    'p95_response_time_ms': perf_test.p95_response_time,
+                    'test_date': perf_test.created_at.isoformat() if perf_test.created_at else None,
+                }
+            
+            # AI analysis metrics
+            ai_analysis = OpenRouterAnalysis.query.filter_by(application_id=app.id).order_by(
+                OpenRouterAnalysis.created_at.desc()
+            ).first()
+            
+            if ai_analysis:
+                metrics['ai_analysis'] = {
+                    'available': True,
+                    'overall_score': ai_analysis.overall_score,
+                    'code_quality_score': ai_analysis.code_quality_score,
+                    'security_score': ai_analysis.security_score,
+                    'maintainability_score': ai_analysis.maintainability_score,
+                    'analysis_date': ai_analysis.created_at.isoformat() if ai_analysis.created_at else None,
+                }
+            
+            # Security analysis metrics
+            sec_analysis = SecurityAnalysis.query.filter_by(application_id=app.id).order_by(
+                SecurityAnalysis.created_at.desc()
+            ).first()
+            
+            if sec_analysis:
+                metrics['security'] = {
+                    'available': True,
+                    'total_issues': sec_analysis.total_issues,
+                    'critical_count': sec_analysis.critical_severity_count,
+                    'high_count': sec_analysis.high_severity_count,
+                    'medium_count': sec_analysis.medium_severity_count,
+                    'low_count': sec_analysis.low_severity_count,
+                    'analysis_date': sec_analysis.created_at.isoformat() if sec_analysis.created_at else None,
+                }
+                
+        except Exception as e:
+            logger.warning(f"Failed to get metrics for {app.model_slug} app {app.app_number}: {e}")
+            metrics['error'] = str(e)
+        
+        return metrics
+    
+    def _calculate_code_density(self, models_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Calculate issues per LOC metrics for each model."""
+        density_data = {
+            'by_model': [],
+            'overall': {
+                'total_loc': 0,
+                'total_findings': 0,
+                'avg_issues_per_100_loc': 0,
+            },
+            'best_density': None,
+            'worst_density': None,
+        }
+        
+        total_loc = 0
+        total_findings = 0
+        
+        for m in models_data:
+            model_slug = m.get('model_slug')
+            qm = m.get('quantitative_metrics', {})
+            loc_data = qm.get('loc', {})
+            loc = loc_data.get('total_loc', 0) if loc_data.get('available') else 0
+            findings = m.get('findings_count', 0) or m.get('total_findings', 0)
+            
+            issues_per_100_loc = (findings / loc * 100) if loc > 0 else 0
+            
+            density_entry = {
+                'model_slug': model_slug,
+                'model_name': m.get('model_name', model_slug),
+                'total_loc': loc,
+                'total_findings': findings,
+                'issues_per_100_loc': round(issues_per_100_loc, 2),
+            }
+            density_data['by_model'].append(density_entry)
+            
+            total_loc += loc
+            total_findings += findings
+        
+        density_data['overall']['total_loc'] = total_loc
+        density_data['overall']['total_findings'] = total_findings
+        density_data['overall']['avg_issues_per_100_loc'] = round(
+            (total_findings / total_loc * 100) if total_loc > 0 else 0, 2
+        )
+        
+        # Find best and worst code density
+        valid_densities = [d for d in density_data['by_model'] if d['total_loc'] > 0]
+        if valid_densities:
+            sorted_density = sorted(valid_densities, key=lambda x: x['issues_per_100_loc'])
+            density_data['best_density'] = sorted_density[0]
+            density_data['worst_density'] = sorted_density[-1]
+        
+        return density_data
+    
+    def _calculate_generation_stats(self, apps: List[GeneratedApplication]) -> Dict[str, Any]:
+        """Calculate aggregate generation statistics across all models."""
+        stats = {
+            'total_apps': len(apps),
+            'successful_generations': 0,
+            'failed_generations': 0,
+            'success_rate': 0,
+            'total_automatic_fixes': 0,
+            'total_llm_fixes': 0,
+            'total_manual_fixes': 0,
+            'avg_fixes_per_app': 0,
+            'by_generation_mode': {},
+            'by_failure_stage': {},
+        }
+        
+        for app in apps:
+            if app.is_generation_failed:
+                stats['failed_generations'] += 1
+                stage = app.failure_stage or 'unknown'
+                stats['by_failure_stage'][stage] = stats['by_failure_stage'].get(stage, 0) + 1
+            else:
+                stats['successful_generations'] += 1
+            
+            stats['total_automatic_fixes'] += app.automatic_fixes or 0
+            stats['total_llm_fixes'] += app.llm_fixes or 0
+            stats['total_manual_fixes'] += app.manual_fixes or 0
+            
+            mode = app.generation_mode or 'unknown'
+            stats['by_generation_mode'][mode] = stats['by_generation_mode'].get(mode, 0) + 1
+        
+        if stats['total_apps'] > 0:
+            stats['success_rate'] = round(
+                stats['successful_generations'] / stats['total_apps'] * 100, 1
+            )
+            total_fixes = stats['total_automatic_fixes'] + stats['total_llm_fixes'] + stats['total_manual_fixes']
+            stats['avg_fixes_per_app'] = round(total_fixes / stats['total_apps'], 2)
+        
+        return stats
+    
+    def _calculate_performance_comparison(self, apps: List[GeneratedApplication]) -> Dict[str, Any]:
+        """Calculate performance comparison across models."""
+        comparison = {
+            'available': False,
+            'models_with_data': 0,
+            'by_model': [],
+            'best_response_time': None,
+            'best_throughput': None,
+            'worst_response_time': None,
+            'avg_response_time_ms': 0,
+            'avg_rps': 0,
+        }
+        
+        response_times = []
+        rps_values = []
+        
+        for app in apps:
+            perf = PerformanceTest.query.filter_by(application_id=app.id).order_by(
+                PerformanceTest.created_at.desc()
+            ).first()
+            
+            if perf:
+                entry = {
+                    'model_slug': app.model_slug,
+                    'model_name': app.model_slug.replace('_', ' / ').replace('-', ' ').title(),
+                    'avg_response_time_ms': perf.average_response_time,
+                    'requests_per_second': perf.requests_per_second,
+                    'error_rate_percent': perf.error_rate,
+                    'p95_response_time_ms': perf.p95_response_time,
+                }
+                comparison['by_model'].append(entry)
+                
+                if perf.average_response_time:
+                    response_times.append((entry, perf.average_response_time))
+                if perf.requests_per_second:
+                    rps_values.append((entry, perf.requests_per_second))
+        
+        comparison['models_with_data'] = len(comparison['by_model'])
+        
+        if comparison['models_with_data'] > 0:
+            comparison['available'] = True
+            
+            # Calculate averages
+            if response_times:
+                comparison['avg_response_time_ms'] = round(
+                    sum(rt for _, rt in response_times) / len(response_times), 2
+                )
+                # Best = lowest response time
+                sorted_rt = sorted(response_times, key=lambda x: x[1])
+                comparison['best_response_time'] = sorted_rt[0][0]
+                comparison['worst_response_time'] = sorted_rt[-1][0]
+            
+            if rps_values:
+                comparison['avg_rps'] = round(
+                    sum(rps for _, rps in rps_values) / len(rps_values), 2
+                )
+                # Best = highest RPS
+                sorted_rps = sorted(rps_values, key=lambda x: x[1], reverse=True)
+                comparison['best_throughput'] = sorted_rps[0][0]
+        
+        return comparison
+    
+    def _calculate_ai_comparison(self, apps: List[GeneratedApplication]) -> Dict[str, Any]:
+        """Calculate AI analysis score comparison across models."""
+        comparison = {
+            'available': False,
+            'models_with_data': 0,
+            'by_model': [],
+            'best_overall': None,
+            'best_security': None,
+            'best_code_quality': None,
+            'avg_scores': {
+                'overall': 0,
+                'code_quality': 0,
+                'security': 0,
+                'requirements_compliance': 0,
+            },
+        }
+        
+        overall_scores = []
+        security_scores = []
+        quality_scores = []
+        
+        for app in apps:
+            ai = OpenRouterAnalysis.query.filter_by(application_id=app.id).order_by(
+                OpenRouterAnalysis.created_at.desc()
+            ).first()
+            
+            if ai:
+                entry = {
+                    'model_slug': app.model_slug,
+                    'model_name': app.model_slug.replace('_', ' / ').replace('-', ' ').title(),
+                    'overall_score': ai.overall_score,
+                    'code_quality_score': ai.code_quality_score,
+                    'security_score': ai.security_score,
+                    'maintainability_score': ai.maintainability_score,
+                }
+                comparison['by_model'].append(entry)
+                
+                if ai.overall_score:
+                    overall_scores.append((entry, ai.overall_score))
+                if ai.security_score:
+                    security_scores.append((entry, ai.security_score))
+                if ai.code_quality_score:
+                    quality_scores.append((entry, ai.code_quality_score))
+        
+        comparison['models_with_data'] = len(comparison['by_model'])
+        
+        if comparison['models_with_data'] > 0:
+            comparison['available'] = True
+            
+            # Calculate averages
+            if overall_scores:
+                comparison['avg_scores']['overall'] = round(
+                    sum(s for _, s in overall_scores) / len(overall_scores), 2
+                )
+                sorted_overall = sorted(overall_scores, key=lambda x: x[1], reverse=True)
+                comparison['best_overall'] = sorted_overall[0][0]
+            
+            if security_scores:
+                comparison['avg_scores']['security'] = round(
+                    sum(s for _, s in security_scores) / len(security_scores), 2
+                )
+                sorted_security = sorted(security_scores, key=lambda x: x[1], reverse=True)
+                comparison['best_security'] = sorted_security[0][0]
+            
+            if quality_scores:
+                comparison['avg_scores']['code_quality'] = round(
+                    sum(s for _, s in quality_scores) / len(quality_scores), 2
+                )
+                sorted_quality = sorted(quality_scores, key=lambda x: x[1], reverse=True)
+                comparison['best_code_quality'] = sorted_quality[0][0]
+        
+        return comparison
     
     def _calculate_rankings(self, models_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Calculate rankings for template comparison."""
@@ -597,9 +1513,14 @@ class ReportService:
     
     def _generate_tool_report(self, config: Dict[str, Any], report: Report) -> Dict[str, Any]:
         """
-        Generate tool analysis report.
+        Generate tool analysis report with comprehensive metrics.
         
-        Shows tool effectiveness across all analyses.
+        Shows tool effectiveness across all analyses, including:
+        - Execution statistics (runs, success rate, duration)
+        - Findings distribution (severity, by model, by template)
+        - LOC metrics (code analyzed per tool)
+        - Effectiveness scores (severity-weighted findings)
+        - Template and model coverage
         """
         tool_name = config.get('tool_name')  # Optional - None means all tools
         filter_model = config.get('filter_model')
@@ -618,29 +1539,74 @@ class ReportService:
         if filter_app:
             query = query.filter(AnalysisTask.target_app_number == filter_app)
         
-        tasks = query.order_by(AnalysisTask.completed_at.desc()).limit(200).all()
+        tasks = query.order_by(AnalysisTask.completed_at.desc()).limit(300).all()
         
-        report.update_progress(20)
+        report.update_progress(15)
         db.session.commit()
         
         # Collect tool data across all tasks
         tools_aggregate: Dict[str, Dict[str, Any]] = {}
         tools_by_model: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        tools_by_template: Dict[str, Dict[str, Dict[str, Any]]] = {}
         all_findings = []
+        
+        # Track unique models and templates seen
+        models_seen = set()
+        templates_seen = set()
+        
+        # Track LOC per tool (approximate by app)
+        tool_loc_tracking: Dict[str, Dict[str, int]] = {}  # tool -> app_key -> loc
         
         for task in tasks:
             result = self.unified_service.load_analysis_results(task.task_id)
             if not result:
                 continue
             
-            # Extract tool data from services
+            # Get app info for template tracking
+            app = GeneratedApplication.query.filter_by(
+                model_slug=task.target_model,
+                app_number=task.target_app_number
+            ).first()
+            
+            template_slug = app.template_slug if app else 'unknown'
+            model_slug = task.target_model
+            app_key = f"{model_slug}_{task.target_app_number}"
+            
+            models_seen.add(model_slug)
+            if template_slug:
+                templates_seen.add(template_slug)
+            
+            # Get LOC for this app (cached by app_key)
+            app_loc = 0
+            if app:
+                loc_data = _count_loc_from_files(model_slug, [task.target_app_number])
+                app_loc = loc_data.get('total_loc', 0)
+            
+            # Extract tool data from services OR direct tools
+            # result.tools can be:
+            # 1. Services dict: {'static-analyzer': {analysis: {...}}, ...}
+            # 2. Direct tools dict (AI analyzer): {'code-quality-analyzer': {status: 'success', ...}}
             services = result.tools or {}
-            for service_name, service_data in services.items():
-                if not isinstance(service_data, dict):
+            for item_name, item_data in services.items():
+                if not isinstance(item_data, dict):
                     continue
                 
-                # Parse tool results from service
-                tool_results = self._extract_tools_from_service(service_data)
+                # Detect if this is a direct tool entry (AI analyzer) or a service entry
+                # Direct tools have 'status' and optionally 'tool_name' at top level, no 'analysis' key
+                is_direct_tool = (
+                    'status' in item_data and 
+                    'analysis' not in item_data and
+                    ('tool_name' in item_data or 'results' in item_data or 'metadata' in item_data)
+                )
+                
+                if is_direct_tool:
+                    # item_data IS the tool data itself (AI analyzer format)
+                    tool_results = {item_name: self._normalize_tool_data(item_data)}
+                    service_name = 'ai-analyzer'  # Infer service from direct tool structure
+                else:
+                    # item_data is a service containing tools
+                    tool_results = self._extract_tools_from_service(item_data)
+                    service_name = item_name
                 
                 for t_name, t_data in tool_results.items():
                     # Skip if filtering to specific tool
@@ -655,10 +1621,17 @@ class ReportService:
                             'executions': 0,
                             'successful': 0,
                             'failed': 0,
+                            'skipped': 0,
                             'total_findings': 0,
                             'total_duration': 0.0,
-                            'findings_by_severity': {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
+                            'min_duration': float('inf'),
+                            'max_duration': 0.0,
+                            'findings_by_severity': {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0},
+                            'models_analyzed': set(),
+                            'templates_analyzed': set(),
+                            'durations': [],
                         }
+                        tool_loc_tracking[t_name] = {}
                     
                     agg = tools_aggregate[t_name]
                     agg['executions'] += 1
@@ -668,10 +1641,27 @@ class ReportService:
                         agg['successful'] += 1
                     elif status == 'failed':
                         agg['failed'] += 1
+                    elif status == 'skipped':
+                        agg['skipped'] += 1
                     
                     findings_count = t_data.get('total_issues', 0)
                     agg['total_findings'] += findings_count
-                    agg['total_duration'] += t_data.get('duration_seconds', 0)
+                    
+                    duration = t_data.get('duration_seconds', 0) or 0
+                    if duration > 0:
+                        agg['total_duration'] += duration
+                        agg['min_duration'] = min(agg['min_duration'], duration)
+                        agg['max_duration'] = max(agg['max_duration'], duration)
+                        agg['durations'].append(duration)
+                    
+                    # Track models and templates per tool
+                    agg['models_analyzed'].add(model_slug)
+                    if template_slug:
+                        agg['templates_analyzed'].add(template_slug)
+                    
+                    # Track LOC analyzed by this tool (unique per app)
+                    if app_key not in tool_loc_tracking[t_name] and app_loc > 0:
+                        tool_loc_tracking[t_name][app_key] = app_loc
                     
                     # Count findings by severity
                     for finding in t_data.get('issues', []):
@@ -681,12 +1671,11 @@ class ReportService:
                         all_findings.append({**finding, 'tool': t_name})
                     
                     # Track by model
-                    model_slug = task.target_model
                     if model_slug not in tools_by_model:
                         tools_by_model[model_slug] = {}
                     if t_name not in tools_by_model[model_slug]:
                         tools_by_model[model_slug][t_name] = {
-                            'executions': 0, 'successful': 0, 'findings': 0
+                            'executions': 0, 'successful': 0, 'findings': 0, 'duration': 0.0
                         }
                     
                     tbm = tools_by_model[model_slug][t_name]
@@ -694,23 +1683,91 @@ class ReportService:
                     if status in ('success', 'completed', 'no_issues'):
                         tbm['successful'] += 1
                     tbm['findings'] += findings_count
+                    tbm['duration'] += duration
+                    
+                    # Track by template
+                    if template_slug:
+                        if template_slug not in tools_by_template:
+                            tools_by_template[template_slug] = {}
+                        if t_name not in tools_by_template[template_slug]:
+                            tools_by_template[template_slug][t_name] = {
+                                'executions': 0, 'successful': 0, 'findings': 0
+                            }
+                        
+                        tbt = tools_by_template[template_slug][t_name]
+                        tbt['executions'] += 1
+                        if status in ('success', 'completed', 'no_issues'):
+                            tbt['successful'] += 1
+                        tbt['findings'] += findings_count
         
-        report.update_progress(80)
+        report.update_progress(60)
         db.session.commit()
         
         # Finalize aggregates
         tools_list = []
         for t_name, agg in tools_aggregate.items():
             total = agg['executions']
-            agg['success_rate'] = (agg['successful'] / total * 100) if total > 0 else 0
-            agg['avg_duration'] = (agg['total_duration'] / agg['successful']) if agg['successful'] > 0 else 0
-            agg['findings_per_run'] = (agg['total_findings'] / agg['successful']) if agg['successful'] > 0 else 0
+            successful = agg['successful']
+            
+            # Basic rates
+            agg['success_rate'] = round((successful / total * 100), 1) if total > 0 else 0
+            agg['failure_rate'] = round((agg['failed'] / total * 100), 1) if total > 0 else 0
+            agg['skip_rate'] = round((agg['skipped'] / total * 100), 1) if total > 0 else 0
+            
+            # Duration metrics
+            agg['avg_duration'] = round((agg['total_duration'] / successful), 2) if successful > 0 else 0
+            if agg['min_duration'] == float('inf'):
+                agg['min_duration'] = 0
+            agg['min_duration'] = round(agg['min_duration'], 2)
+            agg['max_duration'] = round(agg['max_duration'], 2)
+            
+            # Calculate median duration
+            durations = sorted(agg['durations'])
+            if durations:
+                mid = len(durations) // 2
+                if len(durations) % 2 == 0:
+                    agg['median_duration'] = round((durations[mid - 1] + durations[mid]) / 2, 2)
+                else:
+                    agg['median_duration'] = round(durations[mid], 2)
+            else:
+                agg['median_duration'] = 0
+            del agg['durations']  # Remove raw durations from output
+            
+            # Findings metrics
+            agg['findings_per_run'] = round((agg['total_findings'] / successful), 2) if successful > 0 else 0
+            
+            # LOC metrics
+            tool_loc = sum(tool_loc_tracking.get(t_name, {}).values())
+            agg['total_loc_analyzed'] = tool_loc
+            agg['findings_per_1000_loc'] = round((agg['total_findings'] / tool_loc * 1000), 2) if tool_loc > 0 else 0
+            agg['unique_apps_analyzed'] = len(tool_loc_tracking.get(t_name, {}))
+            
+            # Convert sets to counts and lists
+            agg['models_count'] = len(agg['models_analyzed'])
+            agg['templates_count'] = len(agg['templates_analyzed'])
+            agg['models_list'] = sorted(list(agg['models_analyzed']))
+            agg['templates_list'] = sorted(list(agg['templates_analyzed']))
+            del agg['models_analyzed']
+            del agg['templates_analyzed']
+            
+            # Calculate effectiveness score (severity-weighted findings per run)
+            sev = agg['findings_by_severity']
+            weighted_findings = (
+                sev['critical'] * 10 +
+                sev['high'] * 5 +
+                sev['medium'] * 2 +
+                sev['low'] * 1 +
+                sev['info'] * 0.1
+            )
+            agg['effectiveness_score'] = round(weighted_findings / successful, 2) if successful > 0 else 0
+            
             # Add display-friendly fields
             agg['display_name'] = t_name.replace('_', ' ').title()
             agg['name'] = t_name
             agg['total_runs'] = agg['executions']
             agg['avg_findings'] = agg['findings_per_run']
             agg['container'] = agg['service']
+            
             tools_list.append(agg)
         
         # Sort by execution count
@@ -718,9 +1775,14 @@ class ReportService:
         
         severity_counts = self._count_severities(all_findings)
         
+        report.update_progress(80)
+        db.session.commit()
+        
         # Calculate aggregate stats
         total_runs = sum(t['executions'] for t in tools_list)
-        avg_success = sum(t['success_rate'] for t in tools_list) / len(tools_list) if tools_list else 0
+        total_successful = sum(t['successful'] for t in tools_list)
+        total_findings_all = sum(t['total_findings'] for t in tools_list)
+        avg_success = round(sum(t['success_rate'] for t in tools_list) / len(tools_list), 1) if tools_list else 0
         
         # Group by service/container
         categories = {}
@@ -731,17 +1793,227 @@ class ReportService:
                     'tools_count': 0,
                     'total_findings': 0,
                     'total_runs': 0,
-                    'tools': []
+                    'avg_success_rate': 0,
+                    'tools': [],
+                    'success_rates': []
                 }
             categories[svc]['tools_count'] += 1
             categories[svc]['total_findings'] += t['total_findings']
             categories[svc]['total_runs'] += t['executions']
             categories[svc]['tools'].append(t['tool_name'])
+            categories[svc]['success_rates'].append(t['success_rate'])
+        
+        # Calculate avg success rate per category
+        for cat_data in categories.values():
+            rates = cat_data.pop('success_rates')
+            cat_data['avg_success_rate'] = round(sum(rates) / len(rates), 1) if rates else 0
         
         # Find top performers
         top_by_findings = sorted(tools_list, key=lambda x: x['total_findings'], reverse=True)[:5]
         top_by_success = sorted(tools_list, key=lambda x: x['success_rate'], reverse=True)[:5]
+        top_by_effectiveness = sorted(tools_list, key=lambda x: x['effectiveness_score'], reverse=True)[:5]
+        fastest_tools = sorted([t for t in tools_list if t['avg_duration'] > 0], key=lambda x: x['avg_duration'])[:5]
+        slowest_tools = sorted([t for t in tools_list if t['avg_duration'] > 0], key=lambda x: x['avg_duration'], reverse=True)[:5]
         
+        # Model coverage statistics
+        model_coverage = {
+            'total_models': len(models_seen),
+            'models_list': sorted(list(models_seen)),
+            'tools_per_model': {
+                model: {
+                    'tools_count': len(tools_by_model.get(model, {})),
+                    'total_findings': sum(td.get('findings', 0) for td in tools_by_model.get(model, {}).values())
+                }
+                for model in models_seen
+            }
+        }
+        
+        # Template coverage statistics
+        template_coverage = {
+            'total_templates': len(templates_seen),
+            'templates_list': sorted(list(templates_seen)),
+            'tools_per_template': {
+                tmpl: {
+                    'tools_count': len(tools_by_template.get(tmpl, {})),
+                    'total_findings': sum(td.get('findings', 0) for td in tools_by_template.get(tmpl, {}).values())
+                }
+                for tmpl in templates_seen
+            }
+        }
+        
+        # Calculate overall LOC metrics
+        total_unique_loc = sum(
+            sum(app_locs.values())
+            for app_locs in tool_loc_tracking.values()
+        )
+        
+        # Execution timeline metrics
+        execution_timeline = {
+            'total_duration_seconds': sum(t['total_duration'] for t in tools_list),
+            'avg_duration_per_tool': round(
+                sum(t['avg_duration'] for t in tools_list) / len(tools_list), 2
+            ) if tools_list else 0,
+            'fastest_tool': {
+                'name': fastest_tools[0]['tool_name'],
+                'avg_duration': fastest_tools[0]['avg_duration']
+            } if fastest_tools else None,
+            'slowest_tool': {
+                'name': slowest_tools[0]['tool_name'],
+                'avg_duration': slowest_tools[0]['avg_duration']
+            } if slowest_tools else None,
+        }
+        
+        # =====================================================================
+        # ANALYZER CATEGORIES - Group tools by analyzer type with type-specific metrics
+        # =====================================================================
+        analyzer_categories = {}
+        for analyzer_type, analyzer_info in ANALYZER_CATEGORIES.items():
+            # Get tools belonging to this analyzer
+            analyzer_tool_names = set(analyzer_info['tools'].keys())
+            analyzer_tools = [t for t in tools_list if t['tool_name'] in analyzer_tool_names]
+            
+            if not analyzer_tools:
+                continue
+            
+            # Aggregate statistics for this analyzer type
+            cat_executions = sum(t['executions'] for t in analyzer_tools)
+            cat_successful = sum(t['successful'] for t in analyzer_tools)
+            cat_findings = sum(t['total_findings'] for t in analyzer_tools)
+            cat_failed = sum(t['failed'] for t in analyzer_tools)
+            cat_duration = sum(t['total_duration'] for t in analyzer_tools)
+            
+            # Severity breakdown for this analyzer
+            cat_severity = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
+            for t in analyzer_tools:
+                for sev, count in t['findings_by_severity'].items():
+                    if sev in cat_severity:
+                        cat_severity[sev] += count
+            
+            # Calculate severity score (weighted)
+            severity_score = (
+                cat_severity['critical'] * 10 +
+                cat_severity['high'] * 5 +
+                cat_severity['medium'] * 2 +
+                cat_severity['low'] * 1 +
+                cat_severity['info'] * 0.1
+            )
+            
+            # Build tool details for this analyzer
+            tool_details = []
+            for t in sorted(analyzer_tools, key=lambda x: x['total_findings'], reverse=True):
+                tool_meta = analyzer_info['tools'].get(t['tool_name'], {})
+                tool_details.append({
+                    'name': t['tool_name'],
+                    'display_name': t.get('display_name', t['tool_name']),
+                    'category': tool_meta.get('category', 'other'),
+                    'language': tool_meta.get('language', 'unknown'),
+                    'focus': tool_meta.get('focus', ''),
+                    'executions': t['executions'],
+                    'successful': t['successful'],
+                    'success_rate': t['success_rate'],
+                    'total_findings': t['total_findings'],
+                    'findings_per_run': t['findings_per_run'],
+                    'avg_duration': t['avg_duration'],
+                    'effectiveness_score': t['effectiveness_score'],
+                    'findings_by_severity': t['findings_by_severity'],
+                })
+            
+            # Build analyzer category data
+            analyzer_categories[analyzer_type] = {
+                'display_name': analyzer_info['display_name'],
+                'service': analyzer_info['service'],
+                'port': analyzer_info['port'],
+                'description': analyzer_info['description'],
+                'metrics_focus': analyzer_info['metrics_focus'],
+                
+                # Summary statistics
+                'summary': {
+                    'tools_count': len(analyzer_tools),
+                    'total_executions': cat_executions,
+                    'total_successful': cat_successful,
+                    'total_failed': cat_failed,
+                    'total_findings': cat_findings,
+                    'total_duration': round(cat_duration, 2),
+                    'success_rate': round(cat_successful / cat_executions * 100, 1) if cat_executions > 0 else 0,
+                    'avg_findings_per_run': round(cat_findings / cat_successful, 2) if cat_successful > 0 else 0,
+                    'avg_duration': round(cat_duration / cat_successful, 2) if cat_successful > 0 else 0,
+                },
+                
+                # Severity breakdown
+                'severity_breakdown': cat_severity,
+                'severity_score': round(severity_score, 1),
+                
+                # Tool details
+                'tools': tool_details,
+                'tool_names': [t['name'] for t in tool_details],
+                
+                # Top tools in this analyzer
+                'top_by_findings': tool_details[:3] if len(tool_details) >= 3 else tool_details,
+                'top_by_effectiveness': sorted(tool_details, key=lambda x: x['effectiveness_score'], reverse=True)[:3],
+            }
+        
+        # Add analyzer-type-specific metrics where applicable
+        # Static analyzer: severity distribution insights
+        if 'static' in analyzer_categories:
+            static_cat = analyzer_categories['static']
+            static_sev = static_cat['severity_breakdown']
+            total_static_findings = static_cat['summary']['total_findings']
+            static_cat['type_specific'] = {
+                'security_findings_ratio': round(
+                    (static_sev['critical'] + static_sev['high'] + static_sev['medium']) / total_static_findings * 100, 1
+                ) if total_static_findings > 0 else 0,
+                'critical_high_count': static_sev['critical'] + static_sev['high'],
+                'quality_coverage': [t['name'] for t in static_cat['tools'] if ANALYZER_CATEGORIES['static']['tools'].get(t['name'], {}).get('category') == 'quality'],
+                'security_coverage': [t['name'] for t in static_cat['tools'] if ANALYZER_CATEGORIES['static']['tools'].get(t['name'], {}).get('category') == 'security'],
+            }
+        
+        # Dynamic analyzer: runtime security insights
+        if 'dynamic' in analyzer_categories:
+            dynamic_cat = analyzer_categories['dynamic']
+            dynamic_cat['type_specific'] = {
+                'runtime_vulnerabilities': dynamic_cat['summary']['total_findings'],
+                'owasp_tool_present': any(t['name'] in ('zap', 'owasp-zap') for t in dynamic_cat['tools']),
+                'port_scan_present': any(t['name'] == 'nmap' for t in dynamic_cat['tools']),
+                'requires_running_app': True,
+            }
+        
+        # Performance tester: performance-specific insights
+        if 'performance' in analyzer_categories:
+            perf_cat = analyzer_categories['performance']
+            perf_cat['type_specific'] = {
+                'tools_with_load_testing': [t['name'] for t in perf_cat['tools'] if t['name'] in ('locust', 'artillery', 'ab')],
+                'tools_with_async_testing': [t['name'] for t in perf_cat['tools'] if t['name'] == 'aiohttp'],
+                'requires_running_app': True,
+                'measures': ['requests_per_second', 'latency_percentiles', 'error_rate', 'throughput'],
+            }
+        
+        # AI analyzer: AI-specific insights  
+        if 'ai' in analyzer_categories:
+            ai_cat = analyzer_categories['ai']
+            ai_cat['type_specific'] = {
+                'llm_based_analysis': True,
+                'analyzes': ['requirements_compliance', 'code_quality', 'best_practices', 'security_patterns'],
+                'requires_api_key': True,
+            }
+        
+        # Calculate analyzer summary stats
+        analyzer_summary = {
+            'total_analyzer_types': len(analyzer_categories),
+            'analyzer_types_present': list(analyzer_categories.keys()),
+            'findings_by_analyzer': {
+                atype: analyzer_categories[atype]['summary']['total_findings']
+                for atype in analyzer_categories
+            },
+            'executions_by_analyzer': {
+                atype: analyzer_categories[atype]['summary']['total_executions']
+                for atype in analyzer_categories
+            },
+            'success_rates_by_analyzer': {
+                atype: analyzer_categories[atype]['summary']['success_rate']
+                for atype in analyzer_categories
+            },
+        }
+
         return {
             'report_type': 'tool_analysis',
             'generated_at': utc_now().isoformat(),
@@ -750,19 +2022,57 @@ class ReportService:
                 'model': filter_model,
                 'app': filter_app
             },
+            
+            # Tool data
             'tools': tools_list,
             'tools_count': len(tools_list),
             'total_executions': total_runs,
+            
+            # Summary statistics
             'summary': {
                 'tools_analyzed': len(tools_list),
                 'total_runs': total_runs,
-                'total_findings': len(all_findings),
+                'total_successful': total_successful,
+                'total_failed': sum(t['failed'] for t in tools_list),
+                'total_findings': total_findings_all,
                 'avg_success_rate': avg_success,
-                'severity_breakdown': severity_counts
+                'severity_breakdown': severity_counts,
+                'models_covered': len(models_seen),
+                'templates_covered': len(templates_seen),
+                'total_loc_analyzed': total_unique_loc,
+                'findings_per_1000_loc': round(
+                    (total_findings_all / total_unique_loc * 1000), 2
+                ) if total_unique_loc > 0 else 0
             },
+            
+            # Severity breakdown
             'findings_breakdown': severity_counts,
+            
+            # =====================================================================
+            # NEW: ANALYZER CATEGORIES - Customized by analyzer type
+            # =====================================================================
+            'analyzer_categories': analyzer_categories,
+            'analyzer_summary': analyzer_summary,
+            
+            # Categories (by service/container) - legacy grouping
             'categories': categories,
+            
+            # Cross-reference by model
             'by_model': tools_by_model,
+            
+            # Cross-reference by template
+            'by_template': tools_by_template,
+            
+            # Model coverage
+            'model_coverage': model_coverage,
+            
+            # Template coverage
+            'template_coverage': template_coverage,
+            
+            # Execution timing
+            'execution_timeline': execution_timeline,
+            
+            # Top performers
             'top_performers': {
                 'by_findings': [
                     {'name': t['tool_name'], 'findings': t['total_findings'], 'runs': t['executions']}
@@ -771,8 +2081,22 @@ class ReportService:
                 'by_success_rate': [
                     {'name': t['tool_name'], 'success_rate': t['success_rate'], 'runs': t['executions']}
                     for t in top_by_success
+                ],
+                'by_effectiveness': [
+                    {'name': t['tool_name'], 'effectiveness_score': t['effectiveness_score'], 'runs': t['executions']}
+                    for t in top_by_effectiveness
+                ],
+                'fastest': [
+                    {'name': t['tool_name'], 'avg_duration': t['avg_duration'], 'runs': t['executions']}
+                    for t in fastest_tools
+                ],
+                'slowest': [
+                    {'name': t['tool_name'], 'avg_duration': t['avg_duration'], 'runs': t['executions']}
+                    for t in slowest_tools
                 ]
             },
+            
+            # Sample findings
             'findings': all_findings[:500]
         }
     
@@ -1010,33 +2334,53 @@ class ReportService:
         return tools
     
     def _extract_tools_from_service(self, service_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract tool results from a single service."""
+        """Extract tool results from a single service.
+        
+        Handles multiple result structures:
+        1. Static analyzer: analysis.results.{language}.{tool}
+        2. AI analyzer: analysis.tools.{tool}
+        3. Dynamic/Perf: analysis.results.{tool} or tool_results.{tool}
+        """
         tools = {}
         
         analysis = service_data.get('analysis', {})
-        results = analysis.get('results', {})
-        
-        if not isinstance(results, dict):
+        if not isinstance(analysis, dict):
             return tools
         
-        # Handle language-grouped structure (static analyzer)
-        for key, value in results.items():
-            if isinstance(value, dict):
-                # Check if it's a language wrapper
-                has_tool_children = any(
-                    isinstance(v, dict) and ('status' in v or 'executed' in v)
-                    for v in value.values()
-                    if not str(v).startswith('_')
-                )
-                
-                if has_tool_children:
-                    # Language wrapper - extract tools
-                    for tool_name, tool_data in value.items():
-                        if isinstance(tool_data, dict) and ('status' in tool_data or 'executed' in tool_data):
-                            tools[tool_name] = self._normalize_tool_data(tool_data)
-                elif 'status' in value or 'executed' in value:
-                    # Direct tool entry
-                    tools[key] = self._normalize_tool_data(value)
+        # 1. AI Analyzer structure: analysis.tools.{tool_name}
+        ai_tools = analysis.get('tools', {})
+        if isinstance(ai_tools, dict):
+            for tool_name, tool_data in ai_tools.items():
+                if isinstance(tool_data, dict) and 'status' in tool_data:
+                    tools[tool_name] = self._normalize_tool_data(tool_data)
+        
+        # 2. Static analyzer structure: analysis.results.{language}.{tool}
+        results = analysis.get('results', {})
+        if isinstance(results, dict):
+            for key, value in results.items():
+                if isinstance(value, dict):
+                    # Check if it's a language wrapper (has tool children)
+                    has_tool_children = any(
+                        isinstance(v, dict) and ('status' in v or 'executed' in v)
+                        for v in value.values()
+                        if isinstance(v, dict) and not str(v).startswith('_')
+                    )
+                    
+                    if has_tool_children:
+                        # Language wrapper - extract tools
+                        for tool_name, tool_data in value.items():
+                            if isinstance(tool_data, dict) and ('status' in tool_data or 'executed' in tool_data):
+                                tools[tool_name] = self._normalize_tool_data(tool_data)
+                    elif 'status' in value or 'executed' in value:
+                        # Direct tool entry
+                        tools[key] = self._normalize_tool_data(value)
+        
+        # 3. Direct tool_results structure (dynamic/perf analyzers)
+        tool_results = analysis.get('tool_results', {}) or service_data.get('tool_results', {})
+        if isinstance(tool_results, dict):
+            for tool_name, tool_data in tool_results.items():
+                if isinstance(tool_data, dict) and tool_name not in tools:
+                    tools[tool_name] = self._normalize_tool_data(tool_data)
         
         return tools
     
