@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pyright: reportOptionalMemberAccess=false
 """
 Dynamic Analyzer Service - Web Application Security Scanner
 ==========================================================

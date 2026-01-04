@@ -8,7 +8,7 @@ Replaces pattern-matching with authoritative source validation.
 
 import logging
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
@@ -155,6 +155,7 @@ class ModelValidator:
         
         # Normalize provider namespace and convert to lowercase
         normalized_id = self.normalize_provider_namespace(model_id)
+        assert self._catalog_cache is not None  # guarded by refresh_catalog()
         return normalized_id in self._catalog_cache
     
     def find_closest_match(self, invalid_id: str, provider: Optional[str] = None) -> Optional[Tuple[str, float, str]]:
@@ -172,6 +173,8 @@ class ModelValidator:
         
         # Normalize input for comparison
         invalid_lower = invalid_id.lower()
+        
+        assert self._catalog_cache is not None  # guarded by refresh_catalog()
         
         # Filter by provider if specified
         candidates = list(self._catalog_cache.keys())
@@ -256,10 +259,11 @@ class ModelValidator:
         if not self.refresh_catalog():
             return None
         
+        assert self._catalog_cache is not None  # guarded by refresh_catalog()
         # Normalize to lowercase for lookup
         return self._catalog_cache.get(model_id.lower())
     
-    def validate_all_database_models(self, app_context=None) -> Dict[str, List]:
+    def validate_all_database_models(self, app_context=None) -> Dict[str, Any]:
         """Validate all models in database against OpenRouter catalog.
         
         Args:
@@ -270,6 +274,12 @@ class ModelValidator:
         """
         if not self.refresh_catalog():
             return {'error': 'Failed to fetch OpenRouter catalog'}
+        
+        if app_context is None:
+            return {'error': 'app_context is required for database access'}
+        
+        assert self._catalog_cache is not None  # guarded by refresh_catalog()
+        assert app_context is not None  # type narrowing for with statement
         
         with app_context:
             from app.models import ModelCapability

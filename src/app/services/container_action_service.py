@@ -20,7 +20,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, cast, Dict, List, Optional, Tuple
 
 from ..extensions import db
 from ..models.container_action import ContainerAction, ContainerActionType, ContainerActionStatus
@@ -60,8 +60,8 @@ class ContainerActionService:
                 stuck_threshold = utc_now() - timedelta(minutes=30)
                 
                 stuck_actions = ContainerAction.query.filter(
-                    ContainerAction.status.in_([ContainerActionStatus.RUNNING, ContainerActionStatus.PENDING]),
-                    ContainerAction.created_at < stuck_threshold
+                    ContainerAction.status.in_([ContainerActionStatus.RUNNING, ContainerActionStatus.PENDING]),  # type: ignore[union-attr]
+                    ContainerAction.created_at < stuck_threshold  # type: ignore[arg-type]
                 ).all()
                 
                 for action in stuck_actions:
@@ -125,22 +125,23 @@ class ContainerActionService:
         # Check for active action
         if self.has_active_action(model_slug, app_number):
             active = self.get_active_action(model_slug, app_number)
+            assert active is not None  # has_active_action already verified this
             return None, f"Action already in progress: {active.action_type.value} ({active.action_id})"
         
         # Generate unique action ID
         action_id = f"action_{uuid.uuid4().hex[:12]}"
         
         # Create action record
-        action = ContainerAction(
-            action_id=action_id,
-            action_type=action_type,
-            target_model=model_slug,
-            target_app_number=app_number,
-            status=ContainerActionStatus.PENDING,
-            triggered_by=triggered_by,
-            progress_percentage=0.0,
-            current_step="Queued",
-        )
+        # Use empty constructor + attribute assignment to avoid Pylance typing issues
+        action = ContainerAction()
+        action.action_id = action_id
+        action.action_type = action_type
+        action.target_model = model_slug
+        action.target_app_number = app_number
+        action.status = ContainerActionStatus.PENDING
+        action.triggered_by = triggered_by
+        action.progress_percentage = 0.0
+        action.current_step = "Queued"
         
         db.session.add(action)
         db.session.commit()
@@ -186,7 +187,7 @@ class ContainerActionService:
         # Need Flask app context for database operations
         from flask import current_app
         try:
-            app = current_app._get_current_object()
+            app = current_app._get_current_object()  # type: ignore[attr-defined]
         except RuntimeError:
             # No app context, try to get from self.app or create new
             if self.app:
@@ -698,7 +699,7 @@ class ContainerActionService:
         if app_number is not None:
             query = query.filter_by(target_app_number=app_number)
         if not include_active:
-            query = query.filter(ContainerAction.status.notin_([
+            query = query.filter(ContainerAction.status.notin_([  # type: ignore[union-attr]
                 ContainerActionStatus.PENDING,
                 ContainerActionStatus.RUNNING
             ]))
@@ -744,8 +745,8 @@ class ContainerActionService:
         cutoff = utc_now() - timedelta(days=self.RETENTION_DAYS)
         
         old_actions = ContainerAction.query.filter(
-            ContainerAction.created_at < cutoff,
-            ContainerAction.status.notin_([
+            ContainerAction.created_at < cutoff,  # type: ignore[arg-type]
+            ContainerAction.status.notin_([  # type: ignore[union-attr]
                 ContainerActionStatus.PENDING,
                 ContainerActionStatus.RUNNING
             ])

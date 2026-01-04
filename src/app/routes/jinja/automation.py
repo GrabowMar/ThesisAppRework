@@ -92,7 +92,7 @@ def _build_status() -> Dict[str, Any]:
         pending_tasks = AnalysisTask.query.filter_by(status=AnalysisStatus.PENDING).count()
         running_tasks = AnalysisTask.query.filter_by(status=AnalysisStatus.RUNNING).count()
         completed_tasks = AnalysisTask.query.filter(
-            AnalysisTask.status.in_([AnalysisStatus.COMPLETED.value, AnalysisStatus.PARTIAL_SUCCESS.value])
+            AnalysisTask.status.in_([AnalysisStatus.COMPLETED.value, AnalysisStatus.PARTIAL_SUCCESS.value])  # type: ignore[union-attr]
         ).count()
         
         return {

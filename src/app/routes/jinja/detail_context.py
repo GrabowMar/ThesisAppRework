@@ -433,7 +433,7 @@ def _format_response_content(data: Dict[str, Any]) -> str:
     return '\n'.join(parts)
 
 
-def _collect_app_prompts(app_number: int, model_slug: str = None) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str], str]:
+def _collect_app_prompts(app_number: int, model_slug: Optional[str] = None) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str], str]:
     """
     Collect FULL prompts and responses from generated/raw/{payloads,responses}/{model_slug}/app{number}/*.json files
     Supports the 4-query system: backend_user, backend_admin, frontend_user, frontend_admin
@@ -843,9 +843,10 @@ def _collect_app_logs(model_slug: str, app_number: int, tail: int = 100) -> Tupl
         Tuple of (log_content, log_stats)
     """
     from app.services.service_locator import ServiceLocator
+    from app.services.docker_manager import DockerManager
     
     try:
-        docker_mgr = ServiceLocator.get('docker_manager')
+        docker_mgr: DockerManager | None = ServiceLocator.get('docker_manager')  # type: ignore[assignment]
         if not docker_mgr:
             current_app.logger.warning(f"Docker manager not available for logs collection")
             return '', {'error_count': 0, 'warning_count': 0, 'info_count': 0, 'total_lines': 0}

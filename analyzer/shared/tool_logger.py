@@ -37,7 +37,7 @@ class ToolExecutionLogger:
     STORAGE_STDOUT_LIMIT = 8192  # 8KB for storage
     STORAGE_STDERR_LIMIT = 4096  # 4KB for storage
     
-    def __init__(self, logger: logging.Logger, verbose: bool = None):
+    def __init__(self, logger: logging.Logger, verbose: Optional[bool] = None):
         """
         Initialize tool execution logger.
         

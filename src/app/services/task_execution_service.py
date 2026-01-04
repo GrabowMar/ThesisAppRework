@@ -141,7 +141,7 @@ class TaskExecutionService:
             import redis
             redis_url = os.environ.get('CELERY_BROKER_URL') or os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
             client = redis.from_url(redis_url, socket_timeout=2.0, socket_connect_timeout=2.0)
-            client.ping()
+            client.ping()  # type: ignore[union-attr]
             self._redis_available = True
             self._log("[REDIS] Redis is available at %s", redis_url, level='debug')
         except ImportError:
@@ -388,8 +388,8 @@ class TaskExecutionService:
         # FIRST: Recover main tasks with completed subtasks (highest priority)
         # This handles the case where server restarted mid-analysis
         main_tasks_stuck = AnalysisTask.query.filter(
-            AnalysisTask.status == AnalysisStatus.RUNNING,
-            AnalysisTask.is_main_task == True  # noqa: E712
+            AnalysisTask.status == AnalysisStatus.RUNNING,  # type: ignore[arg-type]
+            AnalysisTask.is_main_task == True  # noqa: E712  # type: ignore[arg-type]
         ).all()
         
         for main_task in main_tasks_stuck:
@@ -434,9 +434,9 @@ class TaskExecutionService:
         
         # Find tasks stuck in RUNNING state past the threshold
         stuck_tasks = AnalysisTask.query.filter(
-            AnalysisTask.status == AnalysisStatus.RUNNING,
-            AnalysisTask.started_at != None,  # noqa: E711
-            AnalysisTask.started_at < cutoff_time
+            AnalysisTask.status == AnalysisStatus.RUNNING,  # type: ignore[arg-type]
+            AnalysisTask.started_at != None,  # noqa: E711  # type: ignore[arg-type]
+            AnalysisTask.started_at < cutoff_time  # type: ignore[operator,arg-type]
         ).all()
         
         if not stuck_tasks:
@@ -550,10 +550,10 @@ class TaskExecutionService:
         cutoff_time = datetime.now(timezone.utc) - recent_threshold
         
         failed_tasks = AnalysisTask.query.filter(
-            AnalysisTask.status == AnalysisStatus.FAILED,
-            AnalysisTask.is_main_task == True,  # noqa: E712
-            AnalysisTask.completed_at != None,  # noqa: E711
-            AnalysisTask.completed_at > cutoff_time
+            AnalysisTask.status == AnalysisStatus.FAILED,  # type: ignore[arg-type]
+            AnalysisTask.is_main_task == True,  # noqa: E712  # type: ignore[arg-type]
+            AnalysisTask.completed_at != None,  # noqa: E711  # type: ignore[arg-type]
+            AnalysisTask.completed_at > cutoff_time  # type: ignore[operator,arg-type]
         ).all()
         
         if not failed_tasks:
@@ -779,7 +779,7 @@ class TaskExecutionService:
                             if result.get('payload'):
                                 try:
                                     unified_service = ServiceLocator.get_unified_result_service()
-                                    unified_service.store_analysis_results(
+                                    unified_service.store_analysis_results(  # type: ignore[union-attr]
                                         task_id=task_db.task_id,
                                         payload=result['payload'],
                                         model_slug=task_db.target_model,
@@ -912,7 +912,7 @@ class TaskExecutionService:
                     docker_mgr = ServiceLocator.get_docker_manager()
                     
                     # Check current container status
-                    status_summary = docker_mgr.container_status_summary(
+                    status_summary = docker_mgr.container_status_summary(  # type: ignore[union-attr]
                         task.target_model, 
                         task.target_app_number
                     )
@@ -938,7 +938,7 @@ class TaskExecutionService:
                                 "[CONTAINER] Task %s: Building containers (no existing containers found)",
                                 task.task_id
                             )
-                            build_result = docker_mgr.build_containers(
+                            build_result = docker_mgr.build_containers(  # type: ignore[union-attr]
                                 task.target_model,
                                 task.target_app_number,
                                 no_cache=False,  # Use cache for faster builds
@@ -964,7 +964,7 @@ class TaskExecutionService:
                                 "[CONTAINER] Task %s: Starting existing containers",
                                 task.task_id
                             )
-                            start_result = docker_mgr.start_containers(
+                            start_result = docker_mgr.start_containers(  # type: ignore[union-attr]
                                 task.target_model,
                                 task.target_app_number
                             )
@@ -1255,7 +1255,7 @@ class TaskExecutionService:
                         "[CONTAINER] Task %s: Stopping containers after analysis completion",
                         task.task_id
                     )
-                    stop_result = docker_mgr.stop_containers(
+                    stop_result = docker_mgr.stop_containers(  # type: ignore[union-attr]
                         task.target_model,
                         task.target_app_number
                     )
@@ -1636,7 +1636,7 @@ class TaskExecutionService:
             last_status = None
             
             while (_time.time() - start_time) < timeout_seconds:
-                status_summary = docker_mgr.container_status_summary(model_slug, app_number)
+                status_summary = docker_mgr.container_status_summary(model_slug, app_number)  # type: ignore[union-attr]
                 last_status = status_summary
                 
                 containers_found = status_summary.get('containers_found', 0)
@@ -1751,7 +1751,7 @@ class TaskExecutionService:
                 }
             
             # Step 1: Check current container status
-            status_summary = docker_mgr.container_status_summary(model_slug, app_number)
+            status_summary = docker_mgr.container_status_summary(model_slug, app_number)  # type: ignore[union-attr]
             containers_found = status_summary.get('containers_found', 0)
             states = set(status_summary.get('states', []))
             
@@ -1776,7 +1776,7 @@ class TaskExecutionService:
                     }
                 
                 self._log(f"[CONTAINER-MGMT] Starting stopped containers...")
-                start_result = docker_mgr.start_containers(model_slug, app_number)
+                start_result = docker_mgr.start_containers(model_slug, app_number)  # type: ignore[union-attr]
                 
                 if not start_result.get('success'):
                     error_msg = start_result.get('error', 'Unknown start error')
@@ -1804,7 +1804,7 @@ class TaskExecutionService:
                     }
                 
                 self._log(f"[CONTAINER-MGMT] No containers found, building...")
-                build_result = docker_mgr.build_containers(
+                build_result = docker_mgr.build_containers(  # type: ignore[union-attr]
                     model_slug, app_number,
                     no_cache=False,  # Use cache for faster builds
                     start_after=True  # Start after building
@@ -1870,7 +1870,7 @@ class TaskExecutionService:
             'error': None
         }
         """
-        with self._app.app_context():
+        with self._app.app_context():  # type: ignore[union-attr]
             try:
                 # Get fresh subtask from DB
                 subtask = AnalysisTask.query.get(subtask_id)
@@ -2097,7 +2097,7 @@ class TaskExecutionService:
         }
         """
         # Push Flask app context for this thread
-        with self._app.app_context():
+        with self._app.app_context():  # type: ignore[union-attr]
             try:
                 self._log(f"[AGGREGATE] Waiting for {len(futures)} subtasks to complete for main task {main_task_id}")
                 
@@ -2264,7 +2264,7 @@ class TaskExecutionService:
                 # Store results via UnifiedResultService (handles DB and Filesystem)
                 try:
                     unified_service = ServiceLocator.get_unified_result_service()
-                    unified_service.store_analysis_results(
+                    unified_service.store_analysis_results(  # type: ignore[union-attr]
                         task_id=main_task_id,
                         payload=unified_payload,
                         model_slug=main_task.target_model,
@@ -3388,12 +3388,14 @@ class TaskExecutionService:
                     if result and result.get('payload'):
                         try:
                             unified_service = ServiceLocator.get_unified_result_service()
-                            unified_service.store_analysis_results(
-                                task_id=task_db.task_id,
-                                payload=result['payload'],
-                                model_slug=task_db.target_model,
-                                app_number=task_db.target_app_number
-                            )
+                            payload_data = result['payload']
+                            if isinstance(payload_data, dict):
+                                unified_service.store_analysis_results(  # type: ignore[union-attr]
+                                    task_id=task_db.task_id,
+                                    payload=payload_data,
+                                    model_slug=task_db.target_model,
+                                    app_number=task_db.target_app_number
+                                )
                         except Exception as e:
                             self._log("Failed to store analysis results for task %s: %s", task_db.task_id, e, level='warning')
                             # Fallback

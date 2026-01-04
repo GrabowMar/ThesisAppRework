@@ -169,7 +169,7 @@ class PipelineExecutionService:
     def _process_pipeline(self, pipeline: PipelineExecution):
         """Process a single pipeline - execute its next job or check completion."""
         # Debug: Log current state before getting next job
-        status_val = pipeline.status.value if hasattr(pipeline.status, 'value') else str(pipeline.status)
+        status_val = pipeline.status.value if hasattr(pipeline.status, 'value') else str(pipeline.status)  # type: ignore[union-attr]
         self._log(
             "[DEBUG] Pipeline %s: stage=%s, job_index=%d, status=%s",
             pipeline.pipeline_id, pipeline.current_stage, 
@@ -920,6 +920,8 @@ class PipelineExecutionService:
         template_slug = job['template_slug']
         # Include job_index in key to allow multiple apps with same model:template
         job_key = f"{job_index}:{model_slug}:{template_slug}"
+        # Legacy format (for backwards compatibility with old pipeline data)
+        legacy_job_key = f"{model_slug}:{template_slug}"
         
         # ROBUST DUPLICATE DETECTION:
         # 1. Check submitted_jobs set first (prevents race condition duplicates)
@@ -929,13 +931,34 @@ class PipelineExecutionService:
         existing_results = progress.get('generation', {}).get('results', [])
         submitted_jobs = progress.get('generation', {}).get('submitted_jobs', [])
         
-        # Check 0: submitted_jobs set using job_index-aware key (prevents race condition duplicates)
+        # Check 0a: submitted_jobs set using job_index-aware key (prevents race condition duplicates)
         if job_key in submitted_jobs:
             self._log(
                 "Skipping duplicate generation for job %d: %s with template %s (already in submitted_jobs)",
                 job_index, model_slug, template_slug
             )
             return False  # No stage transition (job was skipped)
+        
+        # Check 0b: Also check legacy format without job_index prefix (backwards compatibility)
+        # This handles pipelines created with older code format
+        if legacy_job_key in submitted_jobs:
+            self._log(
+                "Skipping duplicate generation for job %d: %s with template %s (found legacy key in submitted_jobs)",
+                job_index, model_slug, template_slug
+            )
+            return False  # No stage transition (job was skipped)
+        
+        # RACE CONDITION PREVENTION: Mark job as started BEFORE doing work
+        # Add to submitted_jobs immediately and commit to prevent concurrent poll cycles from starting same job
+        if 'submitted_jobs' not in progress['generation']:
+            progress['generation']['submitted_jobs'] = []
+        progress['generation']['submitted_jobs'].append(job_key)
+        pipeline.progress = progress
+        db.session.commit()
+        self._log(
+            "Marked job %d as started (pre-emptive race prevention): %s",
+            job_index, job_key, level='debug'
+        )
         
         # Check 1: Job-index-based detection (most reliable)
         for existing in existing_results:

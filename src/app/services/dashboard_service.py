@@ -313,7 +313,7 @@ def _redis_status() -> ComponentStatus:
 
 def _celery_status() -> ComponentStatus:
     try:
-        from app.extensions import get_celery
+        from app.extensions import get_celery  # type: ignore[attr-defined]
 
         celery_app = get_celery()
         if not celery_app:

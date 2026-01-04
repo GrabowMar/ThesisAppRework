@@ -12,7 +12,7 @@ from typing import Dict, Any
 from .container_tool_registry import get_container_tool_registry, AnalyzerContainer
 
 try:
-    from app.services.analysis_engines import PerformanceAnalysisEngine as _PerformanceAnalysisEngine
+    from app.services.analysis_engines import PerformanceAnalysisEngine as _PerformanceAnalysisEngine  # type: ignore[attr-defined]
 except Exception:  # pragma: no cover - fallback when services unavailable
     _PerformanceAnalysisEngine = None  # type: ignore
 

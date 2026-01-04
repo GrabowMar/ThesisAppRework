@@ -348,5 +348,32 @@
 {% block scripts %}
 {{ super() }}
 <script src="{{ url_for('static', filename='js/automation_wizard.js') }}"></script>
+<script>
+// Handle URL parameters after pipeline start redirect
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const pipelineId = urlParams.get('pipeline');
+    const showProgress = urlParams.get('show_progress');
+    
+    if (pipelineId && showProgress) {
+        // Expand Past Pipeline Executions section if collapsed
+        const pastExecutionsCollapse = document.getElementById('pastExecutionsCollapse');
+        if (pastExecutionsCollapse && !pastExecutionsCollapse.classList.contains('show')) {
+            const bsCollapse = new bootstrap.Collapse(pastExecutionsCollapse, { toggle: true });
+        }
+        
+        // Open progress modal for the pipeline
+        setTimeout(function() {
+            if (typeof openPipelineProgressModal === 'function') {
+                openPipelineProgressModal(pipelineId);
+            }
+        }, 300);
+        
+        // Clean up URL (remove query params)
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+    }
+});
+</script>
 {% endblock %}
 

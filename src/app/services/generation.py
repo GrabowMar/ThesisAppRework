@@ -2504,6 +2504,9 @@ class GenerationService:
             app_num = (max_app or 0) + 1
             logger.info(f"Auto-allocated app number {app_num} for {model_slug}")
         
+        # Ensure app_num is not None for type checking (narrowing assertion)
+        assert app_num is not None, "app_num should be allocated by this point"
+        
         # Get provider from model capability if available
         model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
         provider = model.provider if model else 'unknown'
@@ -2610,6 +2613,7 @@ class GenerationService:
         
         # Use the allocated app_num from DB record (may differ if input was None)
         app_num = app_record.app_number
+        assert app_num is not None, "app_number should be set after DB commit"
         
         # Acquire app-specific lock to prevent concurrent writes to same app
         app_lock = self._get_app_lock(model_slug, app_num)
@@ -3028,7 +3032,7 @@ class GenerationService:
         app_num: int,
         failure_stage: str,
         error_message: str,
-        errors: List[str] = None
+        errors: Optional[List[str]] = None
     ) -> Optional[Path]:
         """Write a generation_error.txt file documenting the failure.
         
@@ -3107,7 +3111,7 @@ class GenerationService:
         model_slug: Optional[str] = None,
         app_num: Optional[int] = None,
         template_slug: Optional[str] = None,
-        errors: List[str] = None,
+        errors: Optional[List[str]] = None,
         write_error_log: bool = True
     ) -> None:
         """Mark a generation as failed and optionally cleanup partial files.

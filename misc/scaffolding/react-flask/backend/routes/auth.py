@@ -2,7 +2,7 @@
 from functools import wraps
 from datetime import datetime, timedelta
 from flask import jsonify, request, current_app
-import jwt
+import jwt  # type: ignore[import-not-found]
 import os
 
 from routes import auth_bp
@@ -115,7 +115,7 @@ def register():
     if User.query.filter_by(username=username).first():
         return jsonify({'error': 'Username already exists'}), 400
     
-    user = User(username=username, email=email)
+    user = User(username=username, email=email)  # type: ignore[call-arg]
     user.set_password(password)
     db.session.add(user)
     db.session.commit()

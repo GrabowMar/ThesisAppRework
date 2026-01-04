@@ -786,7 +786,7 @@ def start_app_container_async(model_slug, app_number):
         body = request.get_json(silent=True) or {}
         triggered_by = body.get('triggered_by')
         
-        service = get_container_action_service(current_app._get_current_object())
+        service = get_container_action_service(current_app._get_current_object())  # type: ignore[attr-defined]
         action, error = service.create_action(
             action_type=ContainerActionType.START,
             model_slug=model_slug,
@@ -796,6 +796,8 @@ def start_app_container_async(model_slug, app_number):
         
         if error:
             return api_error(error, status=409)  # Conflict - action in progress
+        
+        assert action is not None  # Type narrowing: error=None implies action is set
         
         # Submit for async execution
         service.execute_action_async(action.action_id)
@@ -821,7 +823,7 @@ def stop_app_container_async(model_slug, app_number):
         body = request.get_json(silent=True) or {}
         triggered_by = body.get('triggered_by')
         
-        service = get_container_action_service(current_app._get_current_object())
+        service = get_container_action_service(current_app._get_current_object())  # type: ignore[attr-defined]
         action, error = service.create_action(
             action_type=ContainerActionType.STOP,
             model_slug=model_slug,
@@ -832,6 +834,7 @@ def stop_app_container_async(model_slug, app_number):
         if error:
             return api_error(error, status=409)
         
+        assert action is not None  # Type narrowing: error=None implies action is set
         service.execute_action_async(action.action_id)
         
         return api_success({
@@ -855,7 +858,7 @@ def restart_app_container_async(model_slug, app_number):
         body = request.get_json(silent=True) or {}
         triggered_by = body.get('triggered_by')
         
-        service = get_container_action_service(current_app._get_current_object())
+        service = get_container_action_service(current_app._get_current_object())  # type: ignore[attr-defined]
         action, error = service.create_action(
             action_type=ContainerActionType.RESTART,
             model_slug=model_slug,
@@ -866,6 +869,7 @@ def restart_app_container_async(model_slug, app_number):
         if error:
             return api_error(error, status=409)
         
+        assert action is not None  # Type narrowing: error=None implies action is set
         service.execute_action_async(action.action_id)
         
         return api_success({
@@ -893,7 +897,7 @@ def build_app_container_async(model_slug, app_number):
         body = request.get_json(silent=True) or {}
         triggered_by = body.get('triggered_by')
         
-        service = get_container_action_service(current_app._get_current_object())
+        service = get_container_action_service(current_app._get_current_object())  # type: ignore[attr-defined]
         action, error = service.create_action(
             action_type=ContainerActionType.BUILD,
             model_slug=model_slug,
@@ -904,6 +908,7 @@ def build_app_container_async(model_slug, app_number):
         if error:
             return api_error(error, status=409)
         
+        assert action is not None  # Type narrowing: error=None implies action is set
         service.execute_action_async(action.action_id)
         
         return api_success({

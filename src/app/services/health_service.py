@@ -9,9 +9,10 @@ from urllib.parse import urlparse
 
 import redis
 from flask import current_app
+from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
-from app.extensions import celery, db
+from app.extensions import db
 
 class HealthService:
     """A service for checking the health of various system components."""
@@ -41,7 +42,7 @@ class HealthService:
             A dictionary with the status and a message.
         """
         try:
-            db.session.execute("SELECT 1")
+            db.session.execute(text("SELECT 1"))
             return {"status": "healthy", "message": "Connected"}
         except OperationalError as e:
             return {"status": "unhealthy", "message": f"Connection failed: {e}"}
@@ -57,14 +58,16 @@ class HealthService:
             redis_url = current_app.config.get("CELERY_BROKER_URL") or os.environ.get("REDIS_URL", "redis://localhost:6379/0")
             
             # Use redis.from_url to handle parsing and connection
-            r = redis.from_url(redis_url, socket_connect_timeout=2)
+            r = redis.from_url(redis_url, socket_connect_timeout=2)  # type: ignore[call-overload]
             
+            if r is None:
+                return {"status": "unhealthy", "message": "Redis client creation failed"}
             if r.ping():
                 return {"status": "healthy", "message": "Connected"}
             else:
                 # Fail hard - Redis must be available
                 return {"status": "unhealthy", "message": "Ping failed - Redis unreachable"}
-        except redis.exceptions.ConnectionError as e:
+        except redis.ConnectionError as e:
             # Fail hard on connection errors
             try:
                 parsed_url = urlparse(redis_url)
@@ -91,6 +94,10 @@ class HealthService:
             A dictionary with the status and a message.
         """
         try:
+            # Dynamically import celery from extensions
+            from app.extensions import celery  # type: ignore[attr-defined]
+            if celery is None:
+                return {"status": "unavailable", "message": "Celery not configured"}
             # Set timeout to avoid hanging
             inspect = celery.control.inspect(timeout=2.0)
             stats = inspect.stats()

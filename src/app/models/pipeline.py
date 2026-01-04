@@ -221,7 +221,7 @@ class PipelineExecution(db.Model):
         return stage_transitioned
     
     def add_analysis_task_id(self, task_id: str, success: bool = True, created_only: bool = True,
-                             model_slug: str = None, app_number: int = None) -> None:
+                             model_slug: Optional[str] = None, app_number: Optional[int] = None) -> None:
         """Record an analysis task.
         
         Args:
@@ -453,7 +453,7 @@ class PipelineExecution(db.Model):
                     'stage': 'analysis',
                     'job_index': job_index,
                     'model_slug': model_slug,
-                    'app_number': int(app_number),
+                    'app_number': int(app_number) if app_number is not None else 0,  # type: ignore[arg-type]
                     'success': True,  # Existing apps are already generated
                 }
             else:

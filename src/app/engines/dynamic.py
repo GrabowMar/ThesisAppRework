@@ -12,7 +12,7 @@ from typing import Dict, Any
 from .container_tool_registry import get_container_tool_registry, AnalyzerContainer
 
 try:
-    from app.services.analysis_engines import DynamicAnalysisEngine as _DynamicAnalysisEngine
+    from app.services.analysis_engines import DynamicAnalysisEngine as _DynamicAnalysisEngine  # type: ignore[attr-defined]
 except Exception:  # pragma: no cover
     _DynamicAnalysisEngine = None  # type: ignore
 

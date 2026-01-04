@@ -28,7 +28,7 @@ try:
     TOML_AVAILABLE = True
 except ImportError:
     try:
-        import tomli as tomllib
+        import tomli as tomllib  # type: ignore[import-not-found]
         TOML_AVAILABLE = True
     except ImportError:
         TOML_AVAILABLE = False

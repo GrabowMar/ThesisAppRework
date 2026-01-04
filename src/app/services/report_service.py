@@ -150,9 +150,14 @@ class ReportService:
         """Lazy-load unified result service."""
         if self._unified_service is None:
             try:
-                self._unified_service = ServiceLocator().get_unified_result_service()
+                service = ServiceLocator().get_unified_result_service()
+                if service is not None:
+                    self._unified_service = service  # type: ignore[assignment]
+                else:
+                    self._unified_service = UnifiedResultService()
             except Exception:
                 self._unified_service = UnifiedResultService()
+        assert self._unified_service is not None
         return self._unified_service
     
     # ==========================================================================
@@ -265,7 +270,7 @@ class ReportService:
         if report_type:
             query = query.filter(Report.report_type == report_type)
         if status:
-            query = query.filter(Report.status == status)
+            query = query.filter(Report.status == status)  # type: ignore[arg-type]
         if user_id:
             query = query.filter(Report.created_by == user_id)
         
@@ -313,7 +318,7 @@ class ReportService:
             if report.report_type == 'model_analysis':
                 new_data = self._generate_model_report(config, report)
             elif report.report_type == 'template_comparison':
-                new_data = self._generate_template_report(config, report)
+                new_data = self._generate_template_comparison(config, report)
             elif report.report_type == 'tool_analysis':
                 new_data = self._generate_tool_report(config, report)
             else:
@@ -323,7 +328,7 @@ class ReportService:
             # Update report with new data
             import json
             report.report_data = json.dumps(new_data) if not isinstance(new_data, str) else new_data
-            report.generated_at = utc_now()
+            report.completed_at = utc_now()
             report.status = 'completed'
             db.session.commit()
             
@@ -379,7 +384,7 @@ class ReportService:
         # Query completed tasks for this model using slug variants
         query = AnalysisTask.query.filter(
             AnalysisTask.target_model.in_(slug_variants),
-            AnalysisTask.status.in_([
+            AnalysisTask.status.in_([  # type: ignore[union-attr]
                 AnalysisStatus.COMPLETED,
                 AnalysisStatus.PARTIAL_SUCCESS,
                 AnalysisStatus.FAILED,
@@ -388,13 +393,13 @@ class ReportService:
         )
         
         if date_range.get('start'):
-            query = query.filter(AnalysisTask.completed_at >= date_range['start'])
+            query = query.filter(AnalysisTask.completed_at >= date_range['start'])  # type: ignore[operator]
         if date_range.get('end'):
-            query = query.filter(AnalysisTask.completed_at <= date_range['end'])
+            query = query.filter(AnalysisTask.completed_at <= date_range['end'])  # type: ignore[operator]
         
         tasks = query.order_by(
             AnalysisTask.target_app_number,
-            AnalysisTask.completed_at.desc()
+            AnalysisTask.completed_at.desc()  # type: ignore[union-attr]
         ).all()
         
         report.update_progress(20)
@@ -975,12 +980,12 @@ class ReportService:
             task = AnalysisTask.query.filter(
                 AnalysisTask.target_model == app.model_slug,
                 AnalysisTask.target_app_number == app.app_number,
-                AnalysisTask.status.in_([
+                AnalysisTask.status.in_([  # type: ignore[union-attr]
                     AnalysisStatus.COMPLETED,
                     AnalysisStatus.PARTIAL_SUCCESS,
                     AnalysisStatus.FAILED
                 ])
-            ).order_by(AnalysisTask.completed_at.desc()).first()
+            ).order_by(AnalysisTask.completed_at.desc()).first()  # type: ignore[union-attr]
             
             if task:
                 entry = self._process_task_for_report(task, app.model_slug, app.app_number)
@@ -998,7 +1003,7 @@ class ReportService:
                 total_analyses += AnalysisTask.query.filter(
                     AnalysisTask.target_model == app.model_slug,
                     AnalysisTask.target_app_number == app.app_number,
-                    AnalysisTask.status.in_([AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS])
+                    AnalysisTask.status.in_([AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS])  # type: ignore[union-attr]
                 ).count()
             
             # Collect comprehensive metrics for this model
@@ -1528,7 +1533,7 @@ class ReportService:
         
         # Query completed tasks
         query = AnalysisTask.query.filter(
-            AnalysisTask.status.in_([
+            AnalysisTask.status.in_([  # type: ignore[union-attr]
                 AnalysisStatus.COMPLETED,
                 AnalysisStatus.PARTIAL_SUCCESS
             ])
@@ -1539,7 +1544,7 @@ class ReportService:
         if filter_app:
             query = query.filter(AnalysisTask.target_app_number == filter_app)
         
-        tasks = query.order_by(AnalysisTask.completed_at.desc()).limit(300).all()
+        tasks = query.order_by(AnalysisTask.completed_at.desc()).limit(300).all()  # type: ignore[union-attr]
         
         report.update_progress(15)
         db.session.commit()
@@ -2456,7 +2461,7 @@ class ReportService:
         # Categorize as common (>50% of models) or unique
         threshold = len(models_data) / 2
         common = []
-        unique: Dict[str, List[str]] = {}
+        unique: Dict[str, List[Dict[str, Any]]] = {}
         
         for key, models in issue_occurrences.items():
             parts = key.split(':', 1)

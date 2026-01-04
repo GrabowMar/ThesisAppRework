@@ -2,6 +2,7 @@
 Analysis-related database models.
 """
 import json
+from datetime import datetime
 from typing import Dict, Any, List, Optional
 from ..extensions import db
 from ..utils.time import utc_now
@@ -34,6 +35,46 @@ class AnalyzerConfiguration(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     last_used = db.Column(db.DateTime(timezone=True))
+    
+    def __init__(
+        self,
+        *,
+        name: str = "",
+        description: Optional[str] = None,
+        config_data: str = "{}",
+        template_config: Optional[str] = None,
+        is_active: bool = True,
+        is_default: bool = False,
+        tags: Optional[str] = None,
+        category: Optional[str] = None,
+        usage_count: int = 0,
+        success_rate: float = 0.0,
+        avg_execution_time: float = 0.0,
+        created_at: Optional[datetime] = None,
+        updated_at: Optional[datetime] = None,
+        last_used: Optional[datetime] = None,
+        **kwargs: Any
+    ) -> None:
+        """Initialize AnalyzerConfiguration with typed parameters."""
+        # Pack all params into kwargs for SQLAlchemy
+        init_kwargs = {
+            'name': name,
+            'description': description,
+            'config_data': config_data,
+            'template_config': template_config,
+            'is_active': is_active,
+            'is_default': is_default,
+            'tags': tags,
+            'category': category,
+            'usage_count': usage_count,
+            'success_rate': success_rate,
+            'avg_execution_time': avg_execution_time,
+            'created_at': created_at,
+            'updated_at': updated_at,
+            'last_used': last_used,
+            **kwargs
+        }
+        super().__init__(**init_kwargs)
     
     def get_config_data(self) -> Dict[str, Any]:
         """Get configuration data as dictionary."""
@@ -219,7 +260,7 @@ class AnalysisTask(db.Model):
         """Get all subtasks recursively."""
         if not self.is_main_task:
             return []
-        return list(self.subtasks)
+        return list(self.subtasks)  # type: ignore[arg-type]
     
     def get_metadata(self) -> Dict[str, Any]:
         """Get metadata as dictionary."""
@@ -432,6 +473,81 @@ class AnalysisResult(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     reviewed_at = db.Column(db.DateTime(timezone=True))
+    
+    def __init__(
+        self,
+        *,
+        result_id: str = "",
+        task_id: str = "",
+        tool_name: str = "",
+        tool_version: Optional[str] = None,
+        result_type: str = "finding",
+        title: str = "",
+        description: Optional[str] = None,
+        severity: SeverityLevel = SeverityLevel.LOW,
+        confidence: Optional[str] = None,
+        file_path: Optional[str] = None,
+        line_number: Optional[int] = None,
+        column_number: Optional[int] = None,
+        code_snippet: Optional[str] = None,
+        category: Optional[str] = None,
+        rule_id: Optional[str] = None,
+        tags: Optional[str] = None,
+        sarif_level: Optional[str] = None,
+        sarif_rule_id: Optional[str] = None,
+        sarif_metadata: Optional[str] = None,
+        raw_output: Optional[str] = None,
+        structured_data: Optional[str] = None,
+        recommendations: Optional[str] = None,
+        impact_score: Optional[float] = None,
+        business_impact: Optional[str] = None,
+        remediation_effort: Optional[str] = None,
+        status: str = 'new',
+        reviewed_by: Optional[str] = None,
+        review_notes: Optional[str] = None,
+        created_at: Optional[datetime] = None,
+        updated_at: Optional[datetime] = None,
+        reviewed_at: Optional[datetime] = None,
+        **kwargs: Any
+    ) -> None:
+        """Initialize AnalysisResult with typed parameters."""
+        init_kwargs = {
+            'result_id': result_id,
+            'task_id': task_id,
+            'tool_name': tool_name,
+            'tool_version': tool_version,
+            'result_type': result_type,
+            'title': title,
+            'description': description,
+            'severity': severity,
+            'confidence': confidence,
+            'file_path': file_path,
+            'line_number': line_number,
+            'column_number': column_number,
+            'code_snippet': code_snippet,
+            'category': category,
+            'rule_id': rule_id,
+            'tags': tags,
+            'sarif_level': sarif_level,
+            'sarif_rule_id': sarif_rule_id,
+            'sarif_metadata': sarif_metadata,
+            'raw_output': raw_output,
+            'structured_data': structured_data,
+            'recommendations': recommendations,
+            'impact_score': impact_score,
+            'business_impact': business_impact,
+            'remediation_effort': remediation_effort,
+            'status': status,
+            'reviewed_by': reviewed_by,
+            'review_notes': review_notes,
+            'created_at': created_at,
+            'updated_at': updated_at,
+            'reviewed_at': reviewed_at,
+            **kwargs
+        }
+        # Filter out None values that aren't explicitly set
+        filtered_kwargs = {k: v for k, v in init_kwargs.items() if v is not None or k in ('description', 'file_path')}
+        super().__init__(**filtered_kwargs)
     
     def get_structured_data(self) -> Dict[str, Any]:
         """Get structured data as dictionary."""

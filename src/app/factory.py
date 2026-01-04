@@ -249,16 +249,16 @@ def create_app(config_name: str = 'default') -> Flask:
                     
                     # Find stuck RUNNING tasks (started >2 hours ago, excluding very recent)
                     stuck_running = AnalysisTask.query.filter(
-                        AnalysisTask.status == AnalysisStatus.RUNNING,
-                        AnalysisTask.started_at < running_cutoff,
-                        AnalysisTask.started_at < grace_cutoff  # Extra safety: exclude recent tasks
+                        AnalysisTask.status == AnalysisStatus.RUNNING,  # type: ignore[arg-type]
+                        AnalysisTask.started_at < running_cutoff,  # type: ignore[operator,arg-type]
+                        AnalysisTask.started_at < grace_cutoff  # type: ignore[operator,arg-type]  # Extra safety: exclude recent tasks
                     ).all()
                     
                     # Find old PENDING tasks (created >4 hours ago, excluding very recent)
                     old_pending = AnalysisTask.query.filter(
-                        AnalysisTask.status == AnalysisStatus.PENDING,
-                        AnalysisTask.created_at < pending_cutoff,
-                        AnalysisTask.created_at < grace_cutoff  # Extra safety: exclude recent tasks
+                        AnalysisTask.status == AnalysisStatus.PENDING,  # type: ignore[arg-type]
+                        AnalysisTask.created_at < pending_cutoff,  # type: ignore[arg-type]
+                        AnalysisTask.created_at < grace_cutoff  # type: ignore[arg-type]  # Extra safety: exclude recent tasks
                     ).all()
                     
                     cleanup_count = 0

@@ -296,7 +296,7 @@ class MaintenanceService:
         try:
             # Get all pending/running tasks
             active_tasks = AnalysisTask.query.filter(
-                AnalysisTask.status.in_([
+                AnalysisTask.status.in_([  # type: ignore[union-attr]
                     AnalysisStatus.PENDING,
                     AnalysisStatus.RUNNING
                 ])
@@ -386,16 +386,16 @@ class MaintenanceService:
             
             # Find stuck RUNNING tasks (started >2 hours ago, excluding very recent)
             stuck_running = AnalysisTask.query.filter(
-                AnalysisTask.status == AnalysisStatus.RUNNING,
-                AnalysisTask.started_at < running_cutoff,
-                AnalysisTask.started_at < grace_cutoff  # Extra safety
+                AnalysisTask.status == AnalysisStatus.RUNNING,  # type: ignore[arg-type]
+                AnalysisTask.started_at < running_cutoff,  # type: ignore[operator]
+                AnalysisTask.started_at < grace_cutoff  # type: ignore[operator]  # Extra safety
             ).all()
             
             # Find old PENDING tasks (created >4 hours ago, excluding very recent)
             stuck_pending = AnalysisTask.query.filter(
-                AnalysisTask.status == AnalysisStatus.PENDING,
-                AnalysisTask.created_at < pending_cutoff,
-                AnalysisTask.created_at < grace_cutoff  # Extra safety
+                AnalysisTask.status == AnalysisStatus.PENDING,  # type: ignore[arg-type]
+                AnalysisTask.created_at < pending_cutoff,  # type: ignore[operator]
+                AnalysisTask.created_at < grace_cutoff  # type: ignore[operator]  # Extra safety
             ).all()
             
             stuck_tasks = stuck_running + stuck_pending
@@ -459,12 +459,12 @@ class MaintenanceService:
             
             # Find old terminal tasks
             old_tasks = AnalysisTask.query.filter(
-                AnalysisTask.status.in_([
+                AnalysisTask.status.in_([  # type: ignore[union-attr]
                     AnalysisStatus.COMPLETED,
                     AnalysisStatus.FAILED,
                     AnalysisStatus.CANCELLED
                 ]),
-                AnalysisTask.completed_at < cutoff
+                AnalysisTask.completed_at < cutoff  # type: ignore[operator]
             ).all()
             
             if old_tasks:
@@ -591,7 +591,7 @@ def init_maintenance_service(
         return _maintenance_service
     
     from flask import current_app
-    app_obj = app or (current_app._get_current_object() if current_app else None)
+    app_obj = app or (current_app._get_current_object() if current_app else None)  # type: ignore[union-attr]
     
     # Use shorter interval in test mode
     if app_obj and app_obj.config.get('TESTING'):

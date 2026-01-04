@@ -11,9 +11,20 @@ All new services should reuse standardized exceptions from
 outside of the Flask request path when possible.
 """
 
-from typing import Dict, Optional, TypeVar
+from typing import Dict, Optional, TypeVar, TYPE_CHECKING
 import logging
 from flask import Flask
+
+if TYPE_CHECKING:
+    from .docker_manager import DockerManager
+    from .docker_status_cache import DockerStatusCache
+    from .model_service import ModelService
+    from .generation import GenerationService
+    from .analysis_inspection_service import AnalysisInspectionService
+    from .unified_result_service import UnifiedResultService
+    from .report_service import ReportService
+    from .health_service import HealthService
+    from .task_execution_service import TaskExecutionService
 
 T = TypeVar('T')
 
@@ -141,44 +152,49 @@ class ServiceLocator:
         return cls._services.get(name, default)
     
     @classmethod
-    def get_model_service(cls):
+    def get_model_service(cls) -> Optional["ModelService"]:
         """Get the model service."""
-        return cls.get('model_service')
+        return cls.get('model_service')  # type: ignore[return-value]
     
     @classmethod
-    def get_docker_manager(cls):
+    def get_docker_manager(cls) -> Optional["DockerManager"]:
         """Get the Docker manager service."""
-        return cls.get('docker_manager')
+        return cls.get('docker_manager')  # type: ignore[return-value]
     
     @classmethod
-    def get_docker_status_cache(cls):
+    def get_docker_status_cache(cls) -> Optional["DockerStatusCache"]:
         """Get the Docker status cache service."""
-        return cls.get('docker_status_cache')
+        return cls.get('docker_status_cache')  # type: ignore[return-value]
     
     @classmethod
-    def get_generation_service(cls):
+    def get_generation_service(cls) -> Optional["GenerationService"]:
         """Get the generation service."""
-        return cls.get('generation_service')
+        return cls.get('generation_service')  # type: ignore[return-value]
     
     @classmethod
-    def get_analysis_inspection_service(cls):
+    def get_analysis_inspection_service(cls) -> Optional["AnalysisInspectionService"]:
         """Get the analysis inspection service."""
-        return cls.get('analysis_inspection_service')
+        return cls.get('analysis_inspection_service')  # type: ignore[return-value]
 
     @classmethod
-    def get_unified_result_service(cls):
+    def get_unified_result_service(cls) -> Optional["UnifiedResultService"]:
         """Get the unified result service."""
-        return cls.get('unified_result_service')
+        return cls.get('unified_result_service')  # type: ignore[return-value]
 
     @classmethod
-    def get_health_service(cls):
+    def get_health_service(cls) -> Optional["HealthService"]:
         """Get the health service."""
-        return cls.get('health_service')
+        return cls.get('health_service')  # type: ignore[return-value]
     
     @classmethod
-    def get_report_service(cls):
+    def get_report_service(cls) -> Optional["ReportService"]:
         """Get the report generation service."""
-        return cls.get('report_service')
+        return cls.get('report_service')  # type: ignore[return-value]
+    
+    @classmethod
+    def get_task_execution_service(cls) -> Optional["TaskExecutionService"]:
+        """Get the task execution service."""
+        return cls.get('task_execution_service')  # type: ignore[return-value]
     
     @classmethod
     def clear(cls):

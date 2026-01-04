@@ -97,7 +97,7 @@ def export_applications():
             query = query.where(GeneratedApplication.model_slug == model_slug)
         
         if status := request.args.get('status'):
-            query = query.where(GeneratedApplication.container_status == status)
+            query = query.where(GeneratedApplication.container_status == status)  # type: ignore[arg-type]
         
         if app_type := request.args.get('type'):
             query = query.where(GeneratedApplication.app_type == app_type)
@@ -164,7 +164,7 @@ def export_analysis():
                 'task_id': task.task_id,
                 'status': task.status.value if hasattr(task.status, 'value') else str(task.status),
                 'created_at': task.created_at.isoformat() if task.created_at else None,
-                'completed_at': safe_get_field(task, 'completed_at') and task.completed_at.isoformat()
+                'completed_at': task.completed_at.isoformat() if task.completed_at else None
             })
         
         # Return in requested format

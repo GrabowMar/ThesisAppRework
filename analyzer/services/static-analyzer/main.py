@@ -100,7 +100,7 @@ class StaticAnalyzer(BaseWSService):
             
             # Log command completion with outputs
             exec_record = self.tool_logger.log_command_complete(
-                tool_name, cmd, result, duration, is_success=is_success
+                tool_name, cmd, result, duration, is_success=is_success  # type: ignore[arg-type]
             )
             
             if result.returncode not in success_exit_codes:

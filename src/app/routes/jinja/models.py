@@ -419,12 +419,13 @@ def refresh_model_data(model_slug):
     """Force refresh OpenRouter data for a specific model."""
     try:
         from app.services.service_locator import ServiceLocator
+        from app.services.openrouter_service import OpenRouterService
         
         # Verify model exists
         model = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
         
         # Get OpenRouter service
-        openrouter_service = ServiceLocator.get('openrouter_service')
+        openrouter_service: OpenRouterService | None = ServiceLocator.get('openrouter_service')  # type: ignore[assignment]
         if not openrouter_service:
             return {'error': 'OpenRouter service not available'}, 503
         
@@ -501,7 +502,7 @@ def model_section(model_slug, section):
             error_message=f"Could not load {section} section: {str(http_ex)}",
             error_icon='fas fa-exclamation-triangle',
             retry_url=f"/models/detail/{model_slug}/section/{section}"
-        ), http_ex.code if hasattr(http_ex, 'code') else 500
+        ), http_ex.code or 500
     except Exception as exc:
         current_app.logger.error("Error rendering model section %s for %s: %s", section, model_slug, exc, exc_info=True)
         return render_template(

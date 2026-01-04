@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pyright: reportOptionalMemberAccess=false
 """
 OWASP ZAP Integration Module
 ============================
@@ -11,7 +12,7 @@ import time
 import logging
 import subprocess
 from typing import Dict, List, Any, Optional
-from zapv2 import ZAPv2
+from zapv2 import ZAPv2  # type: ignore[import-not-found]
 import urllib3
 
 # Suppress SSL warnings when testing local apps without valid certificates

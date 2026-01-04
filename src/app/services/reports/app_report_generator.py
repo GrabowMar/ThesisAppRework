@@ -642,9 +642,9 @@ class AppReportGenerator(BaseReportGenerator):
             
             matching_records = []
             for record in records:
-                if record.get('model_slug') == model_slug:
-                    app_num = record.get('app_number')
-                    template = record.get('template_slug')
+                if record.get('model_slug') == model_slug:  # type: ignore[union-attr]
+                    app_num = record.get('app_number')  # type: ignore[union-attr]
+                    template = record.get('template_slug')  # type: ignore[union-attr]
                     if app_num in app_numbers:
                         # If template filter specified, check it
                         if template_slug and template != template_slug:
@@ -720,7 +720,7 @@ class AppReportGenerator(BaseReportGenerator):
         
         if not apps:
             logger.warning(f"No apps found using template '{template_slug}'")
-            return self._empty_report_data(template_slug, date_range)
+            return self._empty_report_data(template_slug or 'unknown', date_range)
         
         # Build a map of (model_slug, app_number) for the apps using this template
         app_identifiers = [(app.model_slug, app.app_number) for app in apps]
@@ -729,7 +729,7 @@ class AppReportGenerator(BaseReportGenerator):
         # We need to find tasks where (target_model, target_app_number) matches our apps
         # Only include COMPLETED or PARTIAL_SUCCESS - don't pollute report with failed analyses
         query = db.session.query(AnalysisTask).filter(
-            AnalysisTask.status.in_([
+            AnalysisTask.status.in_([  # type: ignore[union-attr]
                 AnalysisStatus.COMPLETED,
                 AnalysisStatus.PARTIAL_SUCCESS
             ])
@@ -757,13 +757,13 @@ class AppReportGenerator(BaseReportGenerator):
         
         tasks = query.order_by(
             AnalysisTask.target_model,
-            AnalysisTask.completed_at.desc()
+            AnalysisTask.completed_at.desc()  # type: ignore[union-attr]
         ).all()
         
         # Return empty report if no successful analyses exist
         if not tasks:
             logger.warning(f"No successful analyses found for template '{template_slug}' - cannot generate comparison report")
-            return self._empty_report_data(template_slug, date_range)
+            return self._empty_report_data(template_slug or 'unknown', date_range)
         
         # Step 3: Load detailed results from filesystem (complete data)
         unified_service = ServiceLocator().get_unified_result_service()
@@ -791,7 +791,7 @@ class AppReportGenerator(BaseReportGenerator):
             app_info = apps_lookup.get((latest_task.target_model, latest_task.target_app_number))
             
             # Load consolidated results for completed/partial success tasks
-            result = unified_service.load_analysis_results(latest_task.task_id)
+            result = unified_service.load_analysis_results(latest_task.task_id)  # type: ignore[union-attr]
             
             if not result or not result.raw_data:
                 logger.warning(f"No results found for task {latest_task.task_id}, skipping model")
@@ -946,7 +946,7 @@ class AppReportGenerator(BaseReportGenerator):
         # Collect all app numbers used by this template for generation stats
         app_numbers_by_model = {m['model_slug']: m.get('app_number') for m in models_data}
         generation_comparison = self._get_generation_comparison_for_template(
-            template_slug, 
+            template_slug or 'unknown', 
             [m['model_slug'] for m in models_data],
             app_numbers_by_model
         )

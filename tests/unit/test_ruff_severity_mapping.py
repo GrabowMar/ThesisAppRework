@@ -12,7 +12,7 @@ from pathlib import Path
 # Add analyzer services to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'analyzer' / 'services' / 'static-analyzer'))
 
-from sarif_parsers import RuffSARIFParser, remap_ruff_sarif_severity
+from sarif_parsers import RuffSARIFParser, remap_ruff_sarif_severity  # type: ignore[import-not-found]
 
 
 def test_ruff_whitespace_rules_are_low_severity():

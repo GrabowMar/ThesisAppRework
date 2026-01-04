@@ -7,7 +7,7 @@ Replaces one-time scripts with maintainable service layer.
 """
 
 import logging
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class ModelMigrationService:
     """Service for migrating and fixing model database records."""
     
-    def __init__(self, db_session: Session = None):
+    def __init__(self, db_session: Optional[Session] = None):
         """Initialize migration service.
         
         Args:
@@ -24,7 +24,7 @@ class ModelMigrationService:
         """
         self.db = db_session
         
-    def normalize_provider_namespaces(self, dry_run: bool = True) -> Dict[str, any]:
+    def normalize_provider_namespaces(self, dry_run: bool = True) -> Dict[str, Any]:
         """Normalize provider namespaces for all models in database.
         
         Uses ModelValidator.PROVIDER_NAMESPACE_MAP to correct organization names
@@ -277,7 +277,7 @@ class ModelMigrationService:
 _migration_service = None
 
 
-def get_migration_service(db_session: Session = None) -> ModelMigrationService:
+def get_migration_service(db_session: Optional[Session] = None) -> ModelMigrationService:
     """Get singleton migration service instance."""
     global _migration_service
     if _migration_service is None:

@@ -83,7 +83,7 @@ class ModelService:
                 apps_list = [(app.model_slug, app.app_number) for app in apps]
                 
                 # Use bulk status lookup (single Docker API call, cached)
-                bulk_status = status_cache.get_bulk_status(apps_list)
+                bulk_status = status_cache.get_bulk_status(apps_list)  # type: ignore[union-attr]
                 
                 # Update each app's container status based on cache results
                 for app in apps:

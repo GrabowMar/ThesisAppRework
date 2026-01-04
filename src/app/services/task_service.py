@@ -594,8 +594,8 @@ class TaskQueueService:
         # ONLY get main tasks (subtasks are handled by their parent task's executor)
         # Include tasks where is_main_task is None for backward compatibility
         pending_tasks = AnalysisTask.query.filter(
-            AnalysisTask.status == AnalysisStatus.PENDING,
-            (AnalysisTask.is_main_task == True) | (AnalysisTask.is_main_task == None)  # noqa: E711,E712
+            AnalysisTask.status == AnalysisStatus.PENDING,  # type: ignore[arg-type]
+            (AnalysisTask.is_main_task == True) | (AnalysisTask.is_main_task == None)  # type: ignore[arg-type]  # noqa: E711,E712
         ).order_by(
             self._get_priority_order(),
             AnalysisTask.created_at.asc()

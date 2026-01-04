@@ -171,7 +171,7 @@ class DockerStatusCache:
 
         try:
             # Use the existing list_all_containers method
-            containers = docker_mgr.list_all_containers()
+            containers = docker_mgr.list_all_containers()  # type: ignore[union-attr]
             result: Dict[str, str] = {}
             for c in containers:
                 name = c.get('name', '')
@@ -253,7 +253,7 @@ class DockerStatusCache:
             return False
         
         try:
-            compose_path = docker_mgr._get_compose_path(model_slug, app_number)
+            compose_path = docker_mgr._get_compose_path(model_slug, app_number)  # type: ignore[union-attr]
             return compose_path.exists()
         except Exception as e:
             logger.debug("Error checking compose path for %s/app%s: %s", model_slug, app_number, e)
@@ -294,13 +294,17 @@ class DockerStatusCache:
                 (now - self._all_statuses_updated_at) < timedelta(seconds=self._stale_threshold)
             )
             
-            if use_cached_batch:
+            if use_cached_batch and self._all_statuses_cache is not None:
                 all_containers = self._all_statuses_cache
             else:
                 # Perform new batch lookup
                 all_containers = self.get_all_container_statuses_batch()
                 self._all_statuses_cache = all_containers
                 self._all_statuses_updated_at = now
+            
+            # Ensure all_containers is not None (should never happen but type checker needs this)
+            if all_containers is None:
+                all_containers = {}
             
             # Match containers to this app
             container_names, states = self._match_containers_to_app(

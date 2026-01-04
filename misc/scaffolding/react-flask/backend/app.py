@@ -50,12 +50,7 @@ def init_app():
         admin_password = os.environ.get('ADMIN_PASSWORD', 'admin2025')
         
         if not User.query.filter_by(username=admin_username).first():
-            admin = User(
-                username=admin_username,
-                email='admin@example.com',
-                is_admin=True,
-                is_active=True
-            )
+            admin = User(username=admin_username, email='admin@example.com', is_admin=True, is_active=True)  # type: ignore[call-arg]
             admin.set_password(admin_password)
             db.session.add(admin)
             db.session.commit()

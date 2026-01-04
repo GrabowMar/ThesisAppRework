@@ -152,12 +152,8 @@ class ReportGenerationService:
             # Generate output file
             file_path = self._render_report(report, data, generator)
             
-            # Get file size
-            abs_path = self.reports_dir / file_path
-            file_size = abs_path.stat().st_size
-            
-            # Update report
-            report.mark_completed(str(file_path), file_size)
+            # Mark as complete (legacy file_path/file_size removed - reports now use DB storage)
+            report.mark_completed()
             
             # Store summary
             summary = generator.generate_summary(data)
@@ -274,7 +270,7 @@ class ReportGenerationService:
             query = query.filter(Report.report_type == report_type)
         
         if status:
-            query = query.filter(Report.status == status)
+            query = query.filter(Report.status == status)  # type: ignore[arg-type]
         
         if user_id:
             query = query.filter(Report.created_by == user_id)

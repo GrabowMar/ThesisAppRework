@@ -45,7 +45,7 @@ except Exception:  # pragma: no cover - optional path
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import websockets
 from websockets.exceptions import ConnectionClosed
@@ -56,16 +56,16 @@ try:
     from app.utils.slug_utils import normalize_model_slug, generate_slug_variants
 except ImportError:
     # Fallback if running standalone
-    def normalize_model_slug(raw: str) -> str:
+    def normalize_model_slug(raw_slug: str) -> str:
         """Fallback slug normalization."""
-        return raw.strip().lower().replace('/', '_').replace(' ', '-')
-    def generate_slug_variants(slug: str) -> List[str]:
+        return raw_slug.strip().lower().replace('/', '_').replace(' ', '-')
+    def generate_slug_variants(model_slug: str) -> List[str]:
         """Fallback variant generation."""
         variants = [
-            slug,
-            slug.replace('_', '-'),
-            slug.replace('-', '_'),
-            slug.replace('_', '/'),
+            model_slug,
+            model_slug.replace('_', '-'),
+            model_slug.replace('-', '_'),
+            model_slug.replace('_', '/'),
         ]
         return list(dict.fromkeys(variants))  # dedupe
 
@@ -385,9 +385,10 @@ class AnalyzerManager:
         if self._port_config_cache is not None:
             return self._port_config_cache
         
+        root = Path(__file__).parent.parent  # project root - defined outside try for fallback access
+        
         try:
             # Try to load from database first
-            root = Path(__file__).parent.parent  # project root
             sys.path.insert(0, str(root / 'src'))
             
             from app import create_app
@@ -548,7 +549,7 @@ class AnalyzerManager:
             # Create minimal app context if needed
             try:
                 from flask import current_app
-                app = current_app._get_current_object()
+                app = current_app._get_current_object()  # type: ignore[attr-defined]
             except RuntimeError:
                 # No app context - create one
                 app = create_app()

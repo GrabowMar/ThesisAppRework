@@ -606,17 +606,13 @@ async function launchPipeline() {
         wizard.state.startTime = Date.now();
         wizard.state.jobs = data.jobs || [];
         
-        // Navigate to execution panel
-        goToStep(4);
-        
-        // Start polling for status
-        startStatusPolling();
-        
-        // Start elapsed time counter
-        startElapsedTimer();
-        
         addActivityLog('Pipeline started', 'info');
         showNotification('Pipeline started successfully', 'success');
+        
+        // Redirect to automation page with pipeline ID to open progress modal
+        // This ensures the past executions list is refreshed with the new pipeline
+        const baseUrl = window.location.pathname;
+        window.location.href = `${baseUrl}?pipeline=${data.pipeline_id}&show_progress=1`;
         
     } catch (error) {
         console.error('Failed to start pipeline:', error);

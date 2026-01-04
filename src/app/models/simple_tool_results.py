@@ -8,7 +8,8 @@ Simple database models for storing tool results efficiently.
 from sqlalchemy import Column, Integer, String, Text, Boolean, Float, DateTime
 from sqlalchemy.orm import relationship
 import json
-from typing import Dict, Any
+from datetime import datetime
+from typing import Dict, Any, Optional
 
 from ..extensions import db
 from ..utils.time import utc_now
@@ -38,6 +39,53 @@ class ToolResult(db.Model):
     raw_data = Column(Text)  # JSON storage for all data
     
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    
+    def __init__(
+        self,
+        *,
+        task_id: str = "",
+        tool_name: str = "",
+        display_name: Optional[str] = None,
+        description: Optional[str] = None,
+        category: Optional[str] = None,
+        icon: Optional[str] = None,
+        status: Optional[str] = None,
+        executed: bool = False,
+        duration_seconds: Optional[float] = None,
+        exit_code: Optional[int] = None,
+        total_issues: int = 0,
+        error_message: Optional[str] = None,
+        has_output: bool = False,
+        in_summary_used: bool = False,
+        in_summary_failed: bool = False,
+        raw_data: Optional[str] = None,
+        created_at: Optional[datetime] = None,
+        **kwargs: Any
+    ) -> None:
+        """Initialize ToolResult with typed parameters."""
+        init_kwargs = {
+            'task_id': task_id,
+            'tool_name': tool_name,
+            'display_name': display_name,
+            'description': description,
+            'category': category,
+            'icon': icon,
+            'status': status,
+            'executed': executed,
+            'duration_seconds': duration_seconds,
+            'exit_code': exit_code,
+            'total_issues': total_issues,
+            'error_message': error_message,
+            'has_output': has_output,
+            'in_summary_used': in_summary_used,
+            'in_summary_failed': in_summary_failed,
+            'raw_data': raw_data,
+            'created_at': created_at,
+            **kwargs
+        }
+        # Filter out None values for optional fields
+        filtered_kwargs = {k: v for k, v in init_kwargs.items() if v is not None}
+        super().__init__(**filtered_kwargs)
     
     def get_raw_data(self) -> Dict[str, Any]:
         """Get raw data as dictionary."""
@@ -69,6 +117,37 @@ class ToolSummary(db.Model):
     tools_data = Column(Text)  # JSON for tool lists and categories
     
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    
+    def __init__(
+        self,
+        *,
+        task_id: str = "",
+        total_tools: int = 0,
+        executed_tools: int = 0,
+        successful_tools: int = 0,
+        failed_tools: int = 0,
+        not_available_tools: int = 0,
+        total_issues_found: int = 0,
+        tools_data: Optional[str] = None,
+        created_at: Optional[datetime] = None,
+        **kwargs: Any
+    ) -> None:
+        """Initialize ToolSummary with typed parameters."""
+        init_kwargs = {
+            'task_id': task_id,
+            'total_tools': total_tools,
+            'executed_tools': executed_tools,
+            'successful_tools': successful_tools,
+            'failed_tools': failed_tools,
+            'not_available_tools': not_available_tools,
+            'total_issues_found': total_issues_found,
+            'tools_data': tools_data,
+            'created_at': created_at,
+            **kwargs
+        }
+        # Filter out None values for optional fields
+        filtered_kwargs = {k: v for k, v in init_kwargs.items() if v is not None}
+        super().__init__(**filtered_kwargs)
     
     def get_tools_data(self) -> Dict[str, Any]:
         """Get tools data as dictionary."""

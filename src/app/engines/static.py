@@ -12,7 +12,7 @@ from typing import Dict, Any
 from .container_tool_registry import get_container_tool_registry, AnalyzerContainer
 
 try:  # Lazy import to avoid heavy dependencies during static analysis
-    from app.services.analysis_engines import StaticAnalysisEngine as _StaticAnalysisEngine
+    from app.services.analysis_engines import StaticAnalysisEngine as _StaticAnalysisEngine  # type: ignore[attr-defined]
 except Exception:  # pragma: no cover - fallback when services package unavailable
     _StaticAnalysisEngine = None  # type: ignore
 

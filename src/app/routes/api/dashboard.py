@@ -486,6 +486,7 @@ def dashboard_analyzer_services():
         if in_docker:
             try:
                 import docker
+                import docker.errors
                 client = docker.from_env()
                 # Test if we can actually use the Docker API
                 client.ping()

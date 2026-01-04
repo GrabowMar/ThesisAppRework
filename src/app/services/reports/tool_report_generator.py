@@ -378,7 +378,7 @@ class ToolReportGenerator(BaseReportGenerator):
         Queries: PerformanceTest, OpenRouterAnalysis, SecurityAnalysis tables.
         These tables use application_id FK, so we query through GeneratedApplication.
         """
-        result = {
+        result: Dict[str, Any] = {
             'performance': None,
             'ai_analysis': None,
             'security_scan': None,
@@ -499,7 +499,7 @@ class ToolReportGenerator(BaseReportGenerator):
         
         # Step 1: Query database for terminal tasks (fast filtering)
         query = db.session.query(AnalysisTask).filter(
-            AnalysisTask.status.in_([
+            AnalysisTask.status.in_([  # type: ignore[union-attr]
                 AnalysisStatus.COMPLETED,
                 AnalysisStatus.PARTIAL_SUCCESS
             ])
@@ -520,7 +520,7 @@ class ToolReportGenerator(BaseReportGenerator):
         if date_range.get('end'):
             query = query.filter(AnalysisTask.completed_at <= date_range['end'])
         
-        tasks = query.order_by(AnalysisTask.completed_at.desc()).all()
+        tasks = query.order_by(AnalysisTask.completed_at.desc()).all()  # type: ignore[union-attr]
         
         if not tasks:
             logger.warning("No completed analyses found with the specified filters")
@@ -554,7 +554,7 @@ class ToolReportGenerator(BaseReportGenerator):
         
         for task in tasks:
             # Load consolidated results
-            result = unified_service.load_analysis_results(task.task_id)
+            result = unified_service.load_analysis_results(task.task_id)  # type: ignore[union-attr]
             
             if not result or not result.raw_data:
                 logger.warning(f"No results found for task {task.task_id}")
@@ -572,7 +572,7 @@ class ToolReportGenerator(BaseReportGenerator):
                 if tool_name and tool != tool_name:
                     continue
                 
-                stats = tools_data[tool]
+                stats: Dict[str, Any] = tools_data[tool]
                 stats['tool_name'] = tool
                 
                 # Execution statistics
@@ -609,7 +609,7 @@ class ToolReportGenerator(BaseReportGenerator):
                     continue
                 
                 if finding_tool:
-                    stats = tools_data[finding_tool]
+                    stats: Dict[str, Any] = tools_data[finding_tool]  # type: ignore[no-redef]
                     stats['total_findings'] += 1
                     stats['findings_by_model'][task.target_model] += 1
                     
@@ -650,7 +650,7 @@ class ToolReportGenerator(BaseReportGenerator):
                 # Add CWE category mapping
                 stats['cwe_categories'] = {}
                 for cwe_id, count in cwe_stats.items():
-                    category = CWE_CATEGORIES.get(cwe_id, 'other')
+                    category = self.CWE_CATEGORIES.get(cwe_id, 'other')
                     if category not in stats['cwe_categories']:
                         stats['cwe_categories'][category] = 0
                     stats['cwe_categories'][category] += count
@@ -691,9 +691,9 @@ class ToolReportGenerator(BaseReportGenerator):
             
             # Classify tool by category from KNOWN_TOOLS
             stats['tool_category'] = 'other'
-            for category, tool_list in KNOWN_TOOLS.items():
-                if tool_name_key in tool_list:
-                    stats['tool_category'] = category
+            for category, tool_info in self.KNOWN_TOOLS.items():
+                if tool_name_key == category:  # category is actually tool name
+                    stats['tool_category'] = tool_info.get('category', 'other')
                     break
             
             # Sort timeline by date
@@ -792,7 +792,7 @@ class ToolReportGenerator(BaseReportGenerator):
         # Aggregate CWE by category
         cwe_by_category = defaultdict(int)
         for cwe_id, count in aggregate_cwe.items():
-            category = CWE_CATEGORIES.get(cwe_id, 'other')
+            category = self.CWE_CATEGORIES.get(cwe_id, 'other')
             cwe_by_category[category] += count
         data['aggregate_statistics']['cwe_by_category'] = dict(cwe_by_category)
         

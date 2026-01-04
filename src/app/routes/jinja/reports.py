@@ -36,7 +36,7 @@ def reports_index():
     """
     # Get reports for initial render (can also be fetched via API)
     reports = db.session.query(Report).filter(
-        Report.status.in_(['completed', 'failed', 'generating'])
+        Report.status.in_(['completed', 'failed', 'generating'])  # type: ignore[union-attr]
     ).order_by(Report.created_at.desc()).limit(50).all()
     
     return render_template(

@@ -506,13 +506,16 @@ class AnalysisExecutor:
             # Store via UnifiedResultService
             try:
                 unified_service = ServiceLocator.get_unified_result_service()
-                unified_service.store_analysis_results(
-                    task_id=task.task_id,
-                    payload=payload,
-                    model_slug=task.target_model,
-                    app_number=task.target_app_number
-                )
-                logger.info(f"Stored results via UnifiedResultService for task {task.task_id}")
+                if unified_service is not None:
+                    unified_service.store_analysis_results(  # type: ignore[union-attr]
+                        task_id=task.task_id,
+                        payload=payload,
+                        model_slug=task.target_model,
+                        app_number=task.target_app_number
+                    )
+                    logger.info(f"Stored results via UnifiedResultService for task {task.task_id}")
+                else:
+                    logger.warning(f"UnifiedResultService not available for task {task.task_id}")
             except Exception as e:
                 logger.error(f"Failed to store results via UnifiedResultService: {e}")
                 raise

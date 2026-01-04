@@ -55,7 +55,7 @@ class AnalysisInspectionService:
         if status:
             query = query.filter(AnalysisTask.status == status)  # type: ignore[arg-type]
         if analysis_type:
-            query = query.filter(AnalysisTask.analysis_type == analysis_type)
+            query = query.filter(AnalysisTask.analysis_type == analysis_type)  # type: ignore[arg-type]
         if model:
             query = query.filter(AnalysisTask.target_model == model)
         if priority:
@@ -110,14 +110,22 @@ class AnalysisInspectionService:
 
     # ------------- Results JSON -------------------------------------------
     def get_task_results_payload(self, task_id: str) -> Dict[str, Any]:
-        """Return a consolidated payload for the given task using the SQL store."""
+        """Return a consolidated payload for the given task using the UnifiedResultService."""
 
-        from .analysis_result_store import load_task_payload, load_task_findings
+        from .service_locator import ServiceLocator
 
         task = self.get_task(task_id)
-        payload = load_task_payload(task_id, include_findings=True, preview_limit=100) or {}
-
-        # If the DB payload came back empty, fall back to reserialising findings only.
+        
+        # Try to load results from UnifiedResultService
+        unified_service = ServiceLocator.get_unified_result_service()
+        payload: Dict[str, Any] = {}
+        
+        if unified_service is not None:
+            results = unified_service.load_analysis_results(task_id)  # type: ignore[union-attr]
+            if results is not None:
+                payload = dict(results.raw_data)
+        
+        # If the payload came back empty, fall back to basic task info
         if not payload:
             payload = {
                 'task_id': task.task_id,
@@ -126,7 +134,7 @@ class AnalysisInspectionService:
                 'analysis_type': getattr(task.analysis_type, 'value', task.analysis_type),
             }
 
-        # Ensure we always mutate a copy (load_task_payload returns shared dict from SQLAlchemy state).
+        # Ensure we always mutate a copy
         payload = dict(payload)
 
         metadata = payload.setdefault('metadata', {})
@@ -144,7 +152,7 @@ class AnalysisInspectionService:
 
         findings = payload.get('findings')
         if not isinstance(findings, list):
-            findings = load_task_findings(task_id)
+            findings = []
             payload['findings'] = findings
 
         preview = payload.get('findings_preview')

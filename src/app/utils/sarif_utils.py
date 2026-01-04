@@ -687,7 +687,7 @@ class SARIFExtractionResult:
         self.file_details: List[Dict[str, Any]] = []
         self.errors: List[str] = []
     
-    def add_file(self, filename: str, size_kb: float, tool_name: str = None):
+    def add_file(self, filename: str, size_kb: float, tool_name: Optional[str] = None):
         """Record an extracted file."""
         self.files_extracted += 1
         self.total_size_kb += size_kb

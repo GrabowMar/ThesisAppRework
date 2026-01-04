@@ -66,6 +66,10 @@ class Report(db.Model):
         db.Index('idx_report_created_at', 'created_at'),
     )
     
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize Report with keyword arguments for Pylance compatibility."""
+        super().__init__(**kwargs)
+    
     def get_config(self) -> Dict[str, Any]:
         """Get configuration as dictionary."""
         if self.config:

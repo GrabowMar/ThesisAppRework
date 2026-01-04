@@ -39,7 +39,7 @@ def update_profile():
         
         # Check if email is already taken by another user
         existing_user = User.query.filter(
-            User.email == email,
+            User.email == email,  # type: ignore[arg-type]
             User.id != current_user.id
         ).first()
         

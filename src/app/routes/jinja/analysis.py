@@ -105,11 +105,11 @@ def analysis_tasks_table():
         # 1. Eager load subtasks to prevent N+1 queries
         # 2. Defer large text fields to reduce memory/bandwidth
         query = AnalysisTask.query.options(
-            joinedload(AnalysisTask.subtasks),
-            defer(AnalysisTask.result_summary),
-            defer(AnalysisTask.execution_context),
-            defer(AnalysisTask.task_metadata),
-            defer(AnalysisTask.error_message)
+            joinedload(AnalysisTask.subtasks),  # type: ignore[arg-type]
+            defer(AnalysisTask.result_summary),  # type: ignore[arg-type]
+            defer(AnalysisTask.execution_context),  # type: ignore[arg-type]
+            defer(AnalysisTask.task_metadata),  # type: ignore[arg-type]
+            defer(AnalysisTask.error_message)  # type: ignore[arg-type]
         ).filter(
             or_(
                 AnalysisTask.is_main_task == True,
@@ -130,7 +130,7 @@ def analysis_tasks_table():
                 'failed': AnalysisStatus.FAILED
             }
             if status_filter in status_map:
-                query = query.filter(AnalysisTask.status == status_map[status_filter])
+                query = query.filter(AnalysisTask.status == status_map[status_filter])  # type: ignore[arg-type]
         
         # Order by creation date
         query = query.order_by(AnalysisTask.created_at.desc())
@@ -214,7 +214,7 @@ def analysis_tasks_table():
     # Efficient counts - apply same filters to counts for consistency
     # Base query for counts (apply model and app filters to show filtered counts)
     def _build_count_query(statuses):
-        q = AnalysisTask.query.filter(AnalysisTask.status.in_(statuses))
+        q = AnalysisTask.query.filter(AnalysisTask.status.in_(statuses))  # type: ignore[union-attr]
         if model_filter:
             q = q.filter(AnalysisTask.target_model.ilike(f'%{model_filter}%'))
         if app_filter is not None:
@@ -230,10 +230,10 @@ def analysis_tasks_table():
     global_completed = None
     if has_filters:
         global_active = AnalysisTask.query.filter(
-            AnalysisTask.status.in_([AnalysisStatus.PENDING, AnalysisStatus.RUNNING])
+            AnalysisTask.status.in_([AnalysisStatus.PENDING, AnalysisStatus.RUNNING])  # type: ignore[union-attr]
         ).count()
         global_completed = AnalysisTask.query.filter(
-            AnalysisTask.status.in_([AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS])
+            AnalysisTask.status.in_([AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS])  # type: ignore[union-attr]
         ).count()
 
     pagination = {
@@ -875,7 +875,7 @@ def stop_all_tasks():
     try:
         # Get all active tasks (pending or running)
         active_tasks = AnalysisTask.query.filter(
-            AnalysisTask.status.in_([AnalysisStatus.PENDING, AnalysisStatus.RUNNING])
+            AnalysisTask.status.in_([AnalysisStatus.PENDING, AnalysisStatus.RUNNING])  # type: ignore[union-attr]
         ).all()
         
         cancelled_count = 0

@@ -424,6 +424,15 @@ window.batchOperation = async function(action) {
     document.getElementById('batchCancelBtn').style.display = 'inline-block';
     document.getElementById('batchCloseBtn').disabled = true;
     
+    // Show persistent progress indicator above table
+    const persistentProgress = document.getElementById('persistent-batch-progress');
+    if (persistentProgress) {
+        persistentProgress.style.display = 'block';
+        persistentProgress.classList.remove('alert-success', 'alert-warning');
+        persistentProgress.classList.add('alert-info');
+        document.getElementById('persistent-batch-dismiss').style.display = 'none';
+    }
+    
     const log = document.getElementById('batchProgressLog');
     log.innerHTML = '';
     
@@ -432,10 +441,21 @@ window.batchOperation = async function(action) {
     for (let i = 0; i < apps.length; i++) {
         const app = apps[i];
         const label = `${app.model.split('_').pop()} #${app.app}`;
+        const progress = ((i + 1) / apps.length) * 100;
         
+        // Update modal progress
         document.getElementById('batchProgressLabel').textContent = `${action}: ${label}`;
         document.getElementById('batchProgressCount').textContent = `${i + 1}/${apps.length}`;
-        document.getElementById('batchProgressBar').style.width = `${((i + 1) / apps.length) * 100}%`;
+        document.getElementById('batchProgressBar').style.width = `${progress}%`;
+        
+        // Update persistent progress indicator
+        if (persistentProgress) {
+            document.getElementById('persistent-batch-label').textContent = `Batch ${action}`;
+            document.getElementById('persistent-batch-count').textContent = `${i + 1}/${apps.length}`;
+            document.getElementById('persistent-batch-bar').style.width = `${progress}%`;
+            document.getElementById('persistent-batch-current-text').textContent = `Processing: ${label}`;
+            document.getElementById('persistent-batch-status').textContent = 'In progress...';
+        }
         
         const entry = document.createElement('div');
         entry.className = 'text-muted';
@@ -472,7 +492,7 @@ window.batchOperation = async function(action) {
         await new Promise(r => setTimeout(r, 100));
     }
     
-    // Done
+    // Done - update modal
     document.getElementById('batchCancelBtn').style.display = 'none';
     document.getElementById('batchCloseBtn').disabled = false;
     document.getElementById('batchOperationResult').innerHTML = `
@@ -481,6 +501,18 @@ window.batchOperation = async function(action) {
             ${completed} completed${failed ? `, ${failed} failed` : ''}
         </div>
     `;
+    
+    // Done - update persistent progress indicator
+    if (persistentProgress) {
+        persistentProgress.classList.remove('alert-info');
+        persistentProgress.classList.add(failed ? 'alert-warning' : 'alert-success');
+        document.getElementById('persistent-batch-bar').style.width = '100%';
+        document.getElementById('persistent-batch-bar').classList.remove('progress-bar-indeterminate');
+        document.getElementById('persistent-batch-current-text').textContent = '';
+        document.getElementById('persistent-batch-status').textContent = 
+            `${completed} completed${failed ? `, ${failed} failed` : ''}`;
+        document.getElementById('persistent-batch-dismiss').style.display = 'inline-block';
+    }
     
     // Refresh table
     setTimeout(() => htmx.trigger('body', 'refresh-applications-table'), 500);
@@ -492,6 +524,15 @@ window.resetBatchUI = function() {
     document.getElementById('batchOperationResult').innerHTML = '';
     document.getElementById('batchCancelBtn').style.display = 'none';
     document.getElementById('batchCloseBtn').disabled = false;
+};
+
+window.dismissPersistentBatchProgress = function() {
+    const el = document.getElementById('persistent-batch-progress');
+    if (el) {
+        el.style.display = 'none';
+        el.classList.remove('alert-success', 'alert-warning');
+        el.classList.add('alert-info');
+    }
 };
 
 window.confirmBatchDelete = function() {

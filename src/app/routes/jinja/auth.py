@@ -92,6 +92,9 @@ def register():
             flash('Passwords do not match.', 'error')
             return render_template('pages/auth/register.html', page_title='Register')
         
+        # Type narrowing: validation above ensures these are not None
+        assert username is not None and email is not None and password is not None
+        
         if len(password) < 8:
             flash('Password must be at least 8 characters long.', 'error')
             return render_template('pages/auth/register.html', page_title='Register')

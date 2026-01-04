@@ -323,12 +323,17 @@ class AnalyzerExecutionService:
                 with open(service_file_path, 'r') as f:
                     service_data = json.load(f)
                 
-                # Create AnalysisResult record
-                result = AnalysisResult()
-                result.task_id = task.id
-                result.result_type = service_name
-                result.result_data = service_data
-                result.created_at = datetime.now(timezone.utc)
+                # Create AnalysisResult record with required fields
+                import uuid
+                result = AnalysisResult(
+                    result_id=f"result_{uuid.uuid4().hex[:12]}",
+                    task_id=task.task_id,  # String foreign key to analysis_tasks.task_id
+                    tool_name=service_name,
+                    result_type="summary",
+                    title=f"{service_name} analysis results",
+                    structured_data=json.dumps(service_data),
+                    created_at=datetime.now(timezone.utc),
+                )
                 
                 db.session.add(result)
             

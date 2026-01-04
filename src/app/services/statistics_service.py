@@ -63,22 +63,22 @@ def get_system_overview() -> Dict[str, Any]:
         
         # Completed tasks
         completed_count = db.session.query(func.count(AnalysisTask.id)).filter(
-            AnalysisTask.status == AnalysisStatus.COMPLETED
+            AnalysisTask.status == AnalysisStatus.COMPLETED  # type: ignore[arg-type]
         ).scalar() or 0
         
         # Failed tasks
         failed_count = db.session.query(func.count(AnalysisTask.id)).filter(
-            AnalysisTask.status == AnalysisStatus.FAILED
+            AnalysisTask.status == AnalysisStatus.FAILED  # type: ignore[arg-type]
         ).scalar() or 0
         
         # Running tasks
         running_count = db.session.query(func.count(AnalysisTask.id)).filter(
-            AnalysisTask.status == AnalysisStatus.RUNNING
+            AnalysisTask.status == AnalysisStatus.RUNNING  # type: ignore[arg-type]
         ).scalar() or 0
         
         # Pending tasks
         pending_count = db.session.query(func.count(AnalysisTask.id)).filter(
-            AnalysisTask.status == AnalysisStatus.PENDING
+            AnalysisTask.status == AnalysisStatus.PENDING  # type: ignore[arg-type]
         ).scalar() or 0
         
         # Average duration (completed tasks last 7 days)
@@ -86,8 +86,8 @@ def get_system_overview() -> Dict[str, Any]:
         avg_duration = db.session.query(
             func.avg(AnalysisTask.actual_duration)
         ).filter(
-            AnalysisTask.status == AnalysisStatus.COMPLETED,
-            AnalysisTask.completed_at >= week_ago
+            AnalysisTask.status == AnalysisStatus.COMPLETED,  # type: ignore[arg-type]
+            AnalysisTask.completed_at >= week_ago  # type: ignore[arg-type]
         ).scalar()
         
         # Success rate calculation
@@ -141,8 +141,8 @@ def get_severity_distribution() -> Dict[str, int]:
         
         # Get all completed tasks with severity data
         tasks = db.session.query(AnalysisTask).filter(
-            AnalysisTask.status == AnalysisStatus.COMPLETED,
-            AnalysisTask.severity_breakdown.isnot(None)
+            AnalysisTask.status == AnalysisStatus.COMPLETED,  # type: ignore[arg-type]
+            AnalysisTask.severity_breakdown.isnot(None)  # type: ignore[union-attr]
         ).all()
         
         for task in tasks:
@@ -192,16 +192,16 @@ def get_analysis_trends(days: int = 30) -> Dict[str, Any]:
             
             # Completed count
             completed_count = db.session.query(func.count(AnalysisTask.id)).filter(
-                AnalysisTask.completed_at >= day_start,
-                AnalysisTask.completed_at <= day_end,
-                AnalysisTask.status == AnalysisStatus.COMPLETED
+                AnalysisTask.completed_at >= day_start,  # type: ignore[arg-type]
+                AnalysisTask.completed_at <= day_end,  # type: ignore[arg-type]
+                AnalysisTask.status == AnalysisStatus.COMPLETED  # type: ignore[arg-type]
             ).scalar() or 0
             
             # Failed count
             failed_count = db.session.query(func.count(AnalysisTask.id)).filter(
-                AnalysisTask.completed_at >= day_start,
-                AnalysisTask.completed_at <= day_end,
-                AnalysisTask.status == AnalysisStatus.FAILED
+                AnalysisTask.completed_at >= day_start,  # type: ignore[arg-type]
+                AnalysisTask.completed_at <= day_end,  # type: ignore[arg-type]
+                AnalysisTask.status == AnalysisStatus.FAILED  # type: ignore[arg-type]
             ).scalar() or 0
             
             dates.append(current.strftime("%m/%d"))
@@ -255,7 +255,7 @@ def get_model_comparison() -> List[Dict[str, Any]]:
             # Get analysis stats for this model
             model_tasks = db.session.query(AnalysisTask).filter(
                 AnalysisTask.target_model == model_slug,
-                AnalysisTask.status == AnalysisStatus.COMPLETED
+                AnalysisTask.status == AnalysisStatus.COMPLETED  # type: ignore[arg-type]
             ).all()
             
             analysis_count = len(model_tasks)
@@ -359,24 +359,24 @@ def get_analyzer_health() -> Dict[str, Any]:
         
         # Recent task performance
         recent_completed = db.session.query(func.count(AnalysisTask.id)).filter(
-            AnalysisTask.completed_at >= one_hour_ago,
-            AnalysisTask.status == AnalysisStatus.COMPLETED
+            AnalysisTask.completed_at >= one_hour_ago,  # type: ignore[arg-type]
+            AnalysisTask.status == AnalysisStatus.COMPLETED  # type: ignore[arg-type]
         ).scalar() or 0
         
         recent_failed = db.session.query(func.count(AnalysisTask.id)).filter(
-            AnalysisTask.completed_at >= one_hour_ago,
-            AnalysisTask.status == AnalysisStatus.FAILED
+            AnalysisTask.completed_at >= one_hour_ago,  # type: ignore[arg-type]
+            AnalysisTask.status == AnalysisStatus.FAILED  # type: ignore[arg-type]
         ).scalar() or 0
         
         # Stuck tasks (running for more than 1 hour)
         stuck_tasks = db.session.query(func.count(AnalysisTask.id)).filter(
-            AnalysisTask.status == AnalysisStatus.RUNNING,
-            AnalysisTask.started_at < one_hour_ago
+            AnalysisTask.status == AnalysisStatus.RUNNING,  # type: ignore[arg-type]
+            AnalysisTask.started_at < one_hour_ago  # type: ignore[arg-type]
         ).scalar() or 0
         
         # Queue depth (pending tasks)
         queue_depth = db.session.query(func.count(AnalysisTask.id)).filter(
-            AnalysisTask.status == AnalysisStatus.PENDING
+            AnalysisTask.status == AnalysisStatus.PENDING  # type: ignore[arg-type]
         ).scalar() or 0
         
         # Determine health status
@@ -547,13 +547,13 @@ def get_quick_stats() -> Dict[str, Any]:
         
         # Pending tasks
         pending_count = db.session.query(func.count(AnalysisTask.id)).filter(
-            AnalysisTask.status == AnalysisStatus.PENDING
+            AnalysisTask.status == AnalysisStatus.PENDING  # type: ignore[arg-type]
         ).scalar() or 0
         
         # Failed in last 24h
         failed_24h = db.session.query(func.count(AnalysisTask.id)).filter(
-            AnalysisTask.completed_at >= day_ago,
-            AnalysisTask.status == AnalysisStatus.FAILED
+            AnalysisTask.completed_at >= day_ago,  # type: ignore[arg-type]
+            AnalysisTask.status == AnalysisStatus.FAILED  # type: ignore[arg-type]
         ).scalar() or 0
         
         # Most active model (by task count)
@@ -567,7 +567,7 @@ def get_quick_stats() -> Dict[str, Any]:
         
         # Last analysis time
         last_task = db.session.query(AnalysisTask).order_by(
-            desc(AnalysisTask.completed_at)
+            desc(AnalysisTask.completed_at)  # type: ignore[arg-type]
         ).first()
         
         if last_task and last_task.completed_at:

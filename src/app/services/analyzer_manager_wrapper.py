@@ -18,7 +18,7 @@ logger = get_logger('analyzer_wrapper')
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / 'analyzer'))
 
 try:
-    from analyzer_manager import AnalyzerManager
+    from analyzer_manager import AnalyzerManager  # type: ignore[import-not-found]
 except ImportError as e:
     logger.error(f"Failed to import analyzer_manager: {e}")
     AnalyzerManager = None  # type: ignore

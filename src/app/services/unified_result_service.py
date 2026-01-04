@@ -18,7 +18,7 @@ import json
 import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 from dataclasses import dataclass
 
 from app.constants import SeverityLevel, AnalysisStatus
@@ -403,10 +403,12 @@ class UnifiedResultService:
             result.remediation_effort = finding.get('remediation_effort')
             
             # JSON helpers
-            if finding.get('tags'):
-                result.set_tags(finding.get('tags'))
-            if finding.get('recommendations'):
-                result.set_recommendations(finding.get('recommendations'))
+            tags_val = finding.get('tags')
+            if tags_val and isinstance(tags_val, list):
+                result.set_tags(tags_val)
+            recommendations_val = finding.get('recommendations')
+            if recommendations_val and isinstance(recommendations_val, list):
+                result.set_recommendations(recommendations_val)
             
             result.set_structured_data(finding)
             db.session.add(result)
@@ -421,7 +423,7 @@ class UnifiedResultService:
                 task_id=task_id,
                 tool_name=tool_name,
                 status=tool_data.get('status', 'unknown'),
-                total_issues=self._parse_int(tool_data.get('issues_found', 0)),
+                total_issues=self._parse_int(tool_data.get('issues_found', 0)) or 0,
                 duration_seconds=self._parse_float(tool_data.get('execution_time')),
             )
             tool_result.set_raw_data(tool_data)
@@ -680,12 +682,12 @@ class UnifiedResultService:
             
             # Check expiration
             now = datetime.now(timezone.utc)
-            created_at = cache_entry.created_at
+            created_at_dt = cache_entry.created_at
             # Ensure both datetimes are timezone-aware for comparison
-            if created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=timezone.utc)
-            age = now - created_at
-            if age > self.cache_ttl:
+            if created_at_dt.tzinfo is None:  # type: ignore[union-attr]
+                created_at_dt = created_at_dt.replace(tzinfo=timezone.utc)  # type: ignore[union-attr]
+            age = now - created_at_dt  # type: ignore[operator]
+            if age > self.cache_ttl:  # type: ignore[operator]
                 logger.debug(f"Cache expired for {task_id} ({age.total_seconds()}s old)")
                 return None
             
@@ -876,14 +878,19 @@ class UnifiedResultService:
     # ==========================================================================
     
     @staticmethod
-    def _parse_severity(value: Any) -> str:
-        """Parse severity value to standard string."""
+    def _parse_severity(value: Any) -> SeverityLevel:
+        """Parse severity value to SeverityLevel enum."""
         if not value:
-            return 'info'
+            return SeverityLevel.LOW
         val_str = str(value).lower()
-        if val_str in ('critical', 'high', 'medium', 'low', 'info'):
-            return val_str
-        return 'info'
+        severity_map = {
+            'critical': SeverityLevel.CRITICAL,
+            'high': SeverityLevel.HIGH,
+            'medium': SeverityLevel.MEDIUM,
+            'low': SeverityLevel.LOW,
+            'info': SeverityLevel.LOW,  # Map info to low
+        }
+        return severity_map.get(val_str, SeverityLevel.LOW)
     
     @staticmethod
     def _parse_int(value: Any) -> Optional[int]:

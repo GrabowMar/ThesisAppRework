@@ -1,10 +1,15 @@
 from __future__ import annotations
 import json
-from typing import Dict, Any
+from datetime import datetime
+from typing import Dict, Any, Optional, TYPE_CHECKING
 from sqlalchemy import Enum
 from ..extensions import db
 from ..constants import AnalysisStatus, GenerationMode
 from ..utils.time import utc_now
+
+if TYPE_CHECKING:
+    # Type-only imports for Pylance
+    pass
 
 class ModelCapability(db.Model):
     """Model for storing AI model capabilities and metadata."""
@@ -143,6 +148,82 @@ class GeneratedApplication(db.Model):
     performance_tests = db.relationship('PerformanceTest', backref='application', lazy=True, cascade='all, delete-orphan')
     zap_analyses = db.relationship('ZAPAnalysis', backref='application', lazy=True, cascade='all, delete-orphan')
     openrouter_analyses = db.relationship('OpenRouterAnalysis', backref='application', lazy=True, cascade='all, delete-orphan')
+    
+    def __init__(
+        self,
+        *,
+        model_slug: str = "",
+        app_number: int = 0,
+        version: int = 1,
+        parent_app_id: Optional[int] = None,
+        batch_id: Optional[str] = None,
+        app_type: str = "",
+        provider: str = "",
+        template_slug: Optional[str] = None,
+        generation_mode: GenerationMode = GenerationMode.GUARDED,
+        generation_status: AnalysisStatus = AnalysisStatus.PENDING,
+        has_backend: bool = False,
+        has_frontend: bool = False,
+        has_docker_compose: bool = False,
+        backend_framework: Optional[str] = None,
+        frontend_framework: Optional[str] = None,
+        container_status: str = "stopped",
+        last_status_check: Optional[datetime] = None,
+        missing_since: Optional[datetime] = None,
+        is_generation_failed: bool = False,
+        failure_stage: Optional[str] = None,
+        error_message: Optional[str] = None,
+        generation_attempts: int = 1,
+        last_error_at: Optional[datetime] = None,
+        retry_fixes: int = 0,
+        automatic_fixes: int = 0,
+        llm_fixes: int = 0,
+        manual_fixes: int = 0,
+        metadata_json: Optional[str] = None,
+        created_at: Optional[datetime] = None,
+        updated_at: Optional[datetime] = None,
+        **kwargs: Any
+    ) -> None:
+        """Initialize GeneratedApplication with typed parameters.
+        
+        This __init__ provides type hints for Pylance while SQLAlchemy
+        handles the actual initialization via db.Model.__init__.
+        """
+        # Pack all params into kwargs for SQLAlchemy
+        init_kwargs = {
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'version': version,
+            'parent_app_id': parent_app_id,
+            'batch_id': batch_id,
+            'app_type': app_type,
+            'provider': provider,
+            'template_slug': template_slug,
+            'generation_mode': generation_mode,
+            'generation_status': generation_status,
+            'has_backend': has_backend,
+            'has_frontend': has_frontend,
+            'has_docker_compose': has_docker_compose,
+            'backend_framework': backend_framework,
+            'frontend_framework': frontend_framework,
+            'container_status': container_status,
+            'last_status_check': last_status_check,
+            'missing_since': missing_since,
+            'is_generation_failed': is_generation_failed,
+            'failure_stage': failure_stage,
+            'error_message': error_message,
+            'generation_attempts': generation_attempts,
+            'last_error_at': last_error_at,
+            'retry_fixes': retry_fixes,
+            'automatic_fixes': automatic_fixes,
+            'llm_fixes': llm_fixes,
+            'manual_fixes': manual_fixes,
+            'metadata_json': metadata_json,
+            'created_at': created_at,
+            'updated_at': updated_at,
+            **kwargs
+        }
+        super().__init__(**init_kwargs)
     
     def get_metadata(self) -> Dict[str, Any]:
         if self.metadata_json:

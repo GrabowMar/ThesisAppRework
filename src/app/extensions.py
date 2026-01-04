@@ -77,11 +77,9 @@ def get_websocket_service():
 
         # If no service initialized, create mock service
         if svc is None:
-            from .extensions import SOCKETIO_AVAILABLE, socketio as _sio  # self-import safe inside function
             from app.services.mock_websocket_service import MockWebSocketService
-            sio = _sio if (SOCKETIO_AVAILABLE and _sio) else None
             try:
-                new_svc = MockWebSocketService(sio)
+                new_svc = MockWebSocketService()
                 components.set_websocket_service(new_svc)
                 return new_svc
             except Exception:
@@ -103,7 +101,7 @@ def init_extensions(app):
     
     # Initialize Flask-Login
     login_manager.init_app(app)
-    login_manager.login_view = 'auth.login'
+    login_manager.login_view = 'auth.login'  # type: ignore[assignment]
     login_manager.login_message = 'Please log in to access this page.'
     login_manager.login_message_category = 'info'
     

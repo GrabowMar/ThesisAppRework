@@ -184,7 +184,7 @@ class ModelReportGenerator(BaseReportGenerator):
         # Include completed, partial success, and failed to support Option B placeholders
         query = db.session.query(AnalysisTask).filter(
             AnalysisTask.target_model == model_slug,
-            AnalysisTask.status.in_([
+            AnalysisTask.status.in_([  # type: ignore[union-attr]
                 AnalysisStatus.COMPLETED,
                 AnalysisStatus.PARTIAL_SUCCESS,
                 AnalysisStatus.FAILED,
@@ -204,7 +204,7 @@ class ModelReportGenerator(BaseReportGenerator):
         
         tasks = query.order_by(
             AnalysisTask.target_app_number,
-            AnalysisTask.completed_at.desc()
+            AnalysisTask.completed_at.desc()  # type: ignore[union-attr]
         ).all()
         
         # Allow empty results with warning - report will show no data
@@ -263,7 +263,7 @@ class ModelReportGenerator(BaseReportGenerator):
                 continue
             
             # Load consolidated results
-            result = unified_service.load_analysis_results(latest_task.task_id)
+            result = unified_service.load_analysis_results(latest_task.task_id)  # type: ignore[union-attr]
             
             if not result or not result.raw_data:
                 logger.warning(f"No results found for task {latest_task.task_id}, creating placeholder")
@@ -384,13 +384,13 @@ class ModelReportGenerator(BaseReportGenerator):
         scientific_stats = self._calculate_scientific_metrics(findings_per_app, durations, apps_data)
         
         # Load generation metadata (cost, tokens, time)
-        generation_metadata = self._get_generation_metadata_for_model(model_slug)
+        generation_metadata = self._get_generation_metadata_for_model(model_slug or '')
         
         # Load quantitative metrics from DB (PerformanceTest, OpenRouterAnalysis, SecurityAnalysis)
-        quantitative_metrics = self._get_quantitative_metrics_for_model(model_slug, filter_apps)
+        quantitative_metrics = self._get_quantitative_metrics_for_model(model_slug or '', filter_apps)
         
         # Calculate issues per LOC ratios
-        loc_metrics = self._calculate_loc_metrics(apps_data, generation_metadata, model_slug)
+        loc_metrics = self._calculate_loc_metrics(apps_data, generation_metadata, model_slug or '')
         
         # Extract CWE statistics from findings
         cwe_stats = self._extract_cwe_statistics(apps_data)
@@ -1072,7 +1072,7 @@ class ModelReportGenerator(BaseReportGenerator):
         self,
         apps_data: List[Dict[str, Any]],
         generation_metadata: Dict[str, Any],
-        model_slug: str = None
+        model_slug: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Calculate lines of code (LOC) metrics and issues per LOC ratios.
@@ -1123,7 +1123,7 @@ class ModelReportGenerator(BaseReportGenerator):
             
             # Fallback: count from files if metadata unavailable or has zero LOC
             if total_loc <= 0 and model_slug:
-                app_numbers = [app.get('app_number') for app in apps_data if app.get('app_number')]
+                app_numbers: List[int] = [app.get('app_number') for app in apps_data if app.get('app_number')]  # type: ignore[misc]
                 file_counts = _count_loc_from_files(model_slug, app_numbers)
                 
                 if file_counts.get('counted'):
