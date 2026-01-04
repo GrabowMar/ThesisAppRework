@@ -48,7 +48,7 @@ class PortAllocationService:
     # Port configuration
     BASE_BACKEND_PORT = 5001
     BASE_FRONTEND_PORT = 8001
-    PORT_STEP = 2  # Increment for each app (backend and frontend are PORT_STEP apart)
+    PORT_STEP = 1  # Increment for each app
     MAX_PORT = 65535
     
     def __init__(self, config_file: Optional[Path] = None):
