@@ -239,36 +239,40 @@ class PipelineExecutionService:
                 self._in_flight_tasks[pipeline_id] = set()
         
         # STEP 1: Start containers if this is the first analysis job
+        # NOTE: Analyzer container startup is a "soft requirement" - we warn but continue
+        # Individual tasks will naturally succeed (static analysis) or skip (dynamic/perf)
+        # based on container availability. This prevents pipeline abort on transient failures.
         with _pipeline_state_lock:
             containers_already_started = pipeline_id in self._containers_started_for
         
         if pipeline.current_job_index == 0 and not containers_already_started:
             auto_start = analysis_opts.get('autoStartContainers', True)  # Default to True for pipelines
             if auto_start:
-                if not self._ensure_analyzers_healthy(pipeline):
-                    # Failed to start containers - fail pipeline
-                    error_msg = (
-                        "Failed to start analyzer containers. "
-                        "Please check Docker is running and try again."
+                if self._ensure_analyzers_healthy(pipeline):
+                    with _pipeline_state_lock:
+                        self._containers_started_for.add(pipeline_id)
+                else:
+                    # Log warning but continue - static analysis and individual tasks
+                    # will handle their own dependencies
+                    self._log(
+                        "[PIPELINE %s] WARNING: Analyzer containers could not be started. "
+                        "Static analysis will continue. Dynamic/performance analysis "
+                        "will skip or fail for apps without running containers.",
+                        pipeline_id, level='warning'
                     )
-                    self._log("Failing pipeline %s - container startup failed", pipeline_id, level='error')
-                    pipeline.fail(error_msg)
-                    db.session.commit()
-                    return
-                with _pipeline_state_lock:
-                    self._containers_started_for.add(pipeline_id)
+                    # Still mark as "attempted" to avoid retry on every poll
+                    with _pipeline_state_lock:
+                        self._containers_started_for.add(pipeline_id)
             else:
                 # Auto-start disabled - check if containers are healthy anyway
                 if not self._check_analyzers_running():
-                    error_msg = (
-                        "Analyzer services are not running. Either:\n"
-                        "1. Start containers manually: ./start.ps1 -Mode Start\n"
-                        "2. Or enable 'Auto-start containers' in pipeline settings"
+                    # Log warning but continue - let tasks handle their own dependencies
+                    self._log(
+                        "[PIPELINE %s] WARNING: Analyzer services not running and auto-start disabled. "
+                        "Analysis tasks may partially succeed or skip dynamic/performance tests. "
+                        "To enable all analysis types, start containers via: ./start.ps1 -Mode Start",
+                        pipeline_id, level='warning'
                     )
-                    self._log("Failing pipeline %s - analyzers not running", pipeline_id, level='error')
-                    pipeline.fail(error_msg)
-                    db.session.commit()
-                    return
         
         # STEP 2: Check completed in-flight tasks
         self._check_completed_analysis_tasks(pipeline)

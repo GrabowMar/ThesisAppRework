@@ -272,6 +272,26 @@ stateDiagram-v2
     FAILED --> [*]
 ```
 
+### Graceful Degradation (January 2026)
+
+Pipeline execution is designed to be resilient to partial failures:
+
+| Failure Type | Behavior |
+|-------------|----------|
+| Analyzer containers unavailable | Warning logged, analysis continues (static-only may succeed) |
+| App container build failure | Mark task as PARTIAL_SUCCESS, other services continue |
+| Individual tool failure | Task continues with remaining tools |
+| Single app analysis failure | Pipeline continues with other apps |
+
+**Key principle**: Pipelines complete with `PARTIAL_SUCCESS` status when some tasks fail but others succeed. Only catastrophic failures (exceptions, all services down) result in `FAILED` status.
+
+**Status values**:
+| Status | Meaning |
+|--------|---------|
+| `COMPLETED` | All analysis tasks succeeded |
+| `PARTIAL_SUCCESS` | Some tasks failed, but at least one succeeded |
+| `FAILED` | All tasks failed OR critical exception |
+
 ### Integration with TaskExecutionService
 
 Pipelines create child tasks that are executed by TaskExecutionService:

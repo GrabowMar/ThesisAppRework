@@ -28,6 +28,7 @@ class PipelineExecutionStatus:
     RUNNING = 'running'
     PAUSED = 'paused'
     COMPLETED = 'completed'
+    PARTIAL_SUCCESS = 'partial_success'  # Some tasks succeeded, some failed
     FAILED = 'failed'
     CANCELLED = 'cancelled'
 
@@ -285,12 +286,29 @@ class PipelineExecution(db.Model):
             if tid.startswith('skipped') or tid.startswith('error:')
         )
         
-        done = completed + failed + skipped_count
+        # Also count partial_success as completed (they produced results)
+        partial_count = progress['analysis'].get('partial_success', 0)
+        
+        done = completed + failed + skipped_count + partial_count
         
         if done >= actual_total and actual_total > 0:
             progress['analysis']['status'] = 'completed'
             self.current_stage = 'done'
-            self.status = PipelineExecutionStatus.COMPLETED
+            
+            # Determine final status:
+            # - COMPLETED if all tasks succeeded (no failures)
+            # - PARTIAL_SUCCESS if some tasks failed but at least one succeeded
+            # - FAILED if all tasks failed (no successes)
+            total_failures = failed + skipped_count
+            total_successes = completed + partial_count
+            
+            if total_failures == 0:
+                self.status = PipelineExecutionStatus.COMPLETED
+            elif total_successes > 0:
+                self.status = PipelineExecutionStatus.PARTIAL_SUCCESS
+            else:
+                self.status = PipelineExecutionStatus.FAILED
+            
             self.completed_at = datetime.now(timezone.utc)
             self.progress = progress
             return True
