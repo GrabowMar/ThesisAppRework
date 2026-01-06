@@ -11,7 +11,7 @@ import time
 import docker
 from docker.errors import NotFound as DockerNotFound
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable
 from datetime import datetime
 
 """NOTE: Use 'svc.docker_manager' logger name to align with existing log format.
@@ -300,11 +300,157 @@ class DockerManager:
         # Then start
         return self.start_containers(model, app_num)
     
+    def _wait_for_container_health(self, model: str, app_num: int, 
+                                    timeout_seconds: int = 60) -> Dict[str, Any]:
+        """Wait for containers to become healthy after startup.
+        
+        Polls container health status with retries to handle slow startup times.
+        Addresses intermittent health check failures that skip analysis subtasks.
+        
+        Args:
+            model: Model slug
+            app_num: Application number
+            timeout_seconds: Maximum time to wait for health (default: 60s)
+        
+        Returns:
+            Dictionary with health check results
+        """
+        import time
+        
+        project_name = self._get_project_name(model, app_num)
+        start_time = time.time()
+        poll_interval = 2  # seconds
+        
+        self.logger.info(
+            "[HEALTH] Waiting up to %ds for containers to become healthy: %s/app%s",
+            timeout_seconds, model, app_num
+        )
+        
+        while (time.time() - start_time) < timeout_seconds:
+            try:
+                containers = self.client.containers.list(
+                    filters={'label': f'com.docker.compose.project={project_name}'}
+                )
+                
+                if not containers:
+                    self.logger.debug("[HEALTH] No containers found yet for %s", project_name)
+                    time.sleep(poll_interval)
+                    continue
+                
+                all_healthy = True
+                unhealthy = []
+                
+                for container in containers:
+                    health_status = container.attrs.get('State', {}).get('Health', {}).get('Status')
+                    container_name = container.name
+                    
+                    if health_status == 'healthy':
+                        continue
+                    elif health_status == 'unhealthy':
+                        all_healthy = False
+                        unhealthy.append(container_name)
+                    elif health_status in (None, 'none'):
+                        # Container has no health check defined - consider it healthy
+                        continue
+                    else:
+                        # Starting state - keep waiting
+                        all_healthy = False
+                
+                if all_healthy:
+                    elapsed = time.time() - start_time
+                    self.logger.info(
+                        "[HEALTH] All containers healthy for %s/app%s (took %.1fs)",
+                        model, app_num, elapsed
+                    )
+                    return {
+                        'all_healthy': True,
+                        'elapsed_seconds': elapsed,
+                        'container_count': len(containers)
+                    }
+                
+                if unhealthy:
+                    self.logger.debug(
+                        "[HEALTH] Waiting for containers to become healthy: %s",
+                        ', '.join(unhealthy)
+                    )
+                
+                time.sleep(poll_interval)
+                
+            except Exception as e:
+                self.logger.warning(
+                    "[HEALTH] Error checking container health for %s/app%s: %s",
+                    model, app_num, e
+                )
+                time.sleep(poll_interval)
+        
+        # Timeout reached
+        elapsed = time.time() - start_time
+        self.logger.warning(
+            "[HEALTH] Health check timeout after %.1fs for %s/app%s",
+            elapsed, model, app_num
+        )
+        
+        # Get final container states for diagnostics
+        try:
+            containers = self.client.containers.list(
+                filters={'label': f'com.docker.compose.project={project_name}'}
+            )
+            states = {}
+            for container in containers:
+                health_status = container.attrs.get('State', {}).get('Health', {}).get('Status')
+                states[container.name] = health_status or 'no_healthcheck'
+            
+            return {
+                'all_healthy': False,
+                'elapsed_seconds': elapsed,
+                'timeout': True,
+                'container_states': states
+            }
+        except Exception:
+            return {
+                'all_healthy': False,
+                'elapsed_seconds': elapsed,
+                'timeout': True,
+                'error': 'Could not retrieve container states'
+            }
+    
+    def _cleanup_images_before_build(self, model: str, app_num: int) -> Dict[str, Any]:
+        """Clean up existing images for model/app to prevent conflicts.
+        
+        Addresses 'image already exists' errors that can block builds.
+        Uses 'docker compose down --remove-orphans --rmi local' to clean state.
+        """
+        compose_path = self._get_compose_path(model, app_num)
+        if not compose_path.exists():
+            return {'success': True, 'message': 'No compose file, skipping cleanup'}
+        
+        self.logger.info("Pre-build cleanup for %s/app%s: removing existing images", model, app_num)
+        cleanup_result = self._execute_compose_command(
+            compose_path,
+            ['down', '--remove-orphans', '--rmi', 'local'],
+            model,
+            app_num,
+            timeout=120
+        )
+        
+        if cleanup_result.get('success'):
+            self.logger.info("Pre-build cleanup succeeded for %s/app%s", model, app_num)
+        else:
+            # Log warning but don't fail - cleanup failure shouldn't block build attempt
+            self.logger.warning(
+                "Pre-build cleanup had issues for %s/app%s (continuing anyway): %s",
+                model, app_num, cleanup_result.get('error', 'unknown')
+            )
+        
+        return cleanup_result
+    
     def build_containers(self, model: str, app_num: int, no_cache: bool = True, start_after: bool = True) -> Dict[str, Any]:
         """Build containers for a model/app using docker-compose.
 
         If start_after=True (default) and build succeeds, will run 'up -d' to
         bring containers online so UI reflects a running state immediately.
+        
+        Includes automatic image cleanup before build to prevent conflicts.
         """
         compose_path = self._get_compose_path(model, app_num)
         if not compose_path.exists():
@@ -313,12 +459,19 @@ class DockerManager:
                 'error': f'Docker compose file not found: {compose_path}'
             }
         
+        # Clean up existing images to prevent conflicts
+        cleanup_result = self._cleanup_images_before_build(model, app_num)
+        
         cmd = ['build']
         if no_cache:
             cmd.append('--no-cache')
         
-        build_result = self._execute_compose_command(
-            compose_path, cmd, model, app_num, timeout=600  # 10 minutes for build
+        # Use retry wrapper for build command (most failure-prone operation)
+        build_result = self._execute_compose_with_retry(
+            compose_path, cmd, model, app_num,
+            timeout=600,  # 10 minutes for build
+            max_retries=3,
+            operation_name='build'
         )
         if not build_result.get('success') or not start_after:
             return build_result
@@ -327,6 +480,17 @@ class DockerManager:
         up_result = self._execute_compose_command(
             compose_path, ['up', '-d'], model, app_num, timeout=300
         )
+        
+        # Wait for containers to become healthy (addresses intermittent health check failures)
+        if up_result.get('success'):
+            health_result = self._wait_for_container_health(model, app_num, timeout_seconds=60)
+            up_result['health_check'] = health_result
+            if not health_result.get('all_healthy'):
+                self.logger.warning(
+                    "Containers started but not all became healthy for %s/app%s: %s",
+                    model, app_num, health_result.get('unhealthy_containers', [])
+                )
+        
         # Merge summaries
         merged = {
             'success': build_result.get('success') and up_result.get('success'),
@@ -456,6 +620,90 @@ class DockerManager:
         # Replace underscores and dots with hyphens for Docker compatibility
         safe_model = model.replace('_', '-').replace('.', '-')
         return f"{safe_model}-app{app_num}"
+    
+    def _execute_compose_with_retry(self, compose_path: Path, command: List[str],
+                                   model: str, app_num: int, timeout: int = 300,
+                                   max_retries: int = 3, operation_name: str = 'compose') -> Dict[str, Any]:
+        """Execute docker compose command with exponential backoff retry logic.
+        
+        Handles transient BuildKit failures that occur at Dockerfile:59 (React build step).
+        Retries with delays: 2s, 4s, 8s (exponential backoff).
+        
+        Args:
+            compose_path: Path to docker-compose.yml
+            command: Compose command to execute (e.g., ['build'])
+            model: Model slug
+            app_num: Application number
+            timeout: Command timeout in seconds
+            max_retries: Maximum retry attempts (default: 3)
+            operation_name: Human-readable operation name for logging
+        
+        Returns:
+            Result dictionary with success/error information
+        """
+        last_error = None
+        
+        for attempt in range(1, max_retries + 1):
+            self.logger.info(
+                "[RETRY] Attempt %d/%d for %s operation: %s/app%s",
+                attempt, max_retries, operation_name, model, app_num
+            )
+            
+            result = self._execute_compose_command(
+                compose_path, command, model, app_num, timeout
+            )
+            
+            if result.get('success'):
+                if attempt > 1:
+                    self.logger.info(
+                        "[RETRY] %s operation succeeded on attempt %d for %s/app%s",
+                        operation_name, attempt, model, app_num
+                    )
+                return result
+            
+            last_error = result.get('error', 'Unknown error')
+            stderr = result.get('stderr', '')
+            
+            # Check if this is a retryable error (BuildKit, network issues)
+            is_retryable = any([
+                'buildkit' in str(last_error).lower(),
+                'buildkit' in stderr.lower(),
+                'solver' in stderr.lower(),
+                'network' in str(last_error).lower(),
+                'timeout' in str(last_error).lower(),
+                'temporary failure' in str(last_error).lower(),
+            ])
+            
+            if not is_retryable:
+                self.logger.warning(
+                    "[RETRY] Non-retryable error for %s operation %s/app%s: %s",
+                    operation_name, model, app_num, last_error
+                )
+                return result
+            
+            if attempt < max_retries:
+                # Exponential backoff: 2s, 4s, 8s
+                delay = 2 ** attempt
+                self.logger.warning(
+                    "[RETRY] %s operation failed (attempt %d/%d) for %s/app%s: %s. "
+                    "Retrying in %ds...",
+                    operation_name, attempt, max_retries, model, app_num,
+                    last_error, delay
+                )
+                time.sleep(delay)
+            else:
+                self.logger.error(
+                    "[RETRY] %s operation failed after %d attempts for %s/app%s: %s",
+                    operation_name, max_retries, model, app_num, last_error
+                )
+        
+        # All retries exhausted
+        return {
+            'success': False,
+            'error': f'{operation_name} failed after {max_retries} attempts: {last_error}',
+            'last_error': last_error,
+            'attempts': max_retries
+        }
     
     def _execute_compose_command(self, compose_path: Path, command: List[str], 
                                 model: str, app_num: int, timeout: int = 300) -> Dict[str, Any]:
