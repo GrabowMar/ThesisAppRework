@@ -20,6 +20,7 @@ Architecture:
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 import logging
@@ -248,21 +249,44 @@ class PipelineExecutionService:
         if pipeline.current_job_index == 0 and not containers_already_started:
             auto_start = analysis_opts.get('autoStartContainers', True)  # Default to True for pipelines
             if auto_start:
-                if self._ensure_analyzers_healthy(pipeline):
+                # Try to start analyzers with longer timeout (180s default)
+                analyzers_ready = self._ensure_analyzers_healthy(pipeline)
+                
+                if analyzers_ready:
                     with _pipeline_state_lock:
                         self._containers_started_for.add(pipeline_id)
+                    # Additional stabilization delay after startup to ensure ports are fully bound
+                    time.sleep(5)
+                    self._log("[PIPELINE %s] Analyzer containers ready, added 5s stabilization delay", pipeline_id)
                 else:
-                    # Log warning but continue - static analysis and individual tasks
-                    # will handle their own dependencies
+                    # Retry once more after a longer delay (containers may still be starting)
                     self._log(
-                        "[PIPELINE %s] WARNING: Analyzer containers could not be started. "
-                        "Static analysis will continue. Dynamic/performance analysis "
-                        "will skip or fail for apps without running containers.",
+                        "[PIPELINE %s] First analyzer startup attempt failed, retrying after 30s delay...",
                         pipeline_id, level='warning'
                     )
-                    # Still mark as "attempted" to avoid retry on every poll
-                    with _pipeline_state_lock:
-                        self._containers_started_for.add(pipeline_id)
+                    time.sleep(30)
+                    
+                    # Second attempt - reset cache to force fresh check
+                    self._analyzer_healthy = None
+                    analyzers_ready = self._ensure_analyzers_healthy(pipeline)
+                    
+                    if analyzers_ready:
+                        with _pipeline_state_lock:
+                            self._containers_started_for.add(pipeline_id)
+                        time.sleep(5)  # Stabilization delay
+                        self._log("[PIPELINE %s] Analyzer containers ready on retry", pipeline_id)
+                    else:
+                        # Log warning but continue - static analysis and individual tasks
+                        # will handle their own dependencies
+                        self._log(
+                            "[PIPELINE %s] WARNING: Analyzer containers could not be started after retry. "
+                            "Static analysis will continue. Dynamic/performance analysis "
+                            "will skip or fail for apps without running containers.",
+                            pipeline_id, level='warning'
+                        )
+                        # Still mark as "attempted" to avoid retry on every poll
+                        with _pipeline_state_lock:
+                            self._containers_started_for.add(pipeline_id)
             else:
                 # Auto-start disabled - check if containers are healthy anyway
                 if not self._check_analyzers_running():
@@ -1146,7 +1170,9 @@ class PipelineExecutionService:
                     return False
                 
                 # Wait for containers to become healthy
-                max_wait = 60  # Reduced from 90
+                # Use 180s to match CONTAINER_READY_TIMEOUT - analyzer containers may need
+                # time to start, especially if Docker is under load
+                max_wait = int(os.environ.get('ANALYZER_STARTUP_TIMEOUT', 180))
                 start_time = time.time()
                 
                 while time.time() - start_time < max_wait:

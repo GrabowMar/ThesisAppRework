@@ -175,6 +175,9 @@ PREFLIGHT_MAX_RETRIES=3
 
 # Maximum transient failure recovery attempts (default: 3)  
 TRANSIENT_FAILURE_MAX_RETRIES=3
+
+# Analyzer container startup timeout for pipelines (default: 180s)
+ANALYZER_STARTUP_TIMEOUT=180
 ```
 
 ### Analysis Timeout

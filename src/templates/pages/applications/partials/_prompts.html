@@ -146,7 +146,9 @@
                 {% endif %}
               {% endif %}
               {% if not has_any_content %}
-              <div class="list-group-item py-2 text-muted small text-center">No prompts available</div>
+              <div class="list-group-item py-2 text-muted small text-center">
+                <i class="fas fa-file-circle-question me-1"></i>No prompts recorded
+              </div>
               {% endif %}
             </div>
           </div>
@@ -159,6 +161,20 @@
               {% elif has_backend_prompt %}
               <div class="prompt-preview-header"><span>Backend Prompt</span></div>
               <div class="prompt-initial-content" data-content="{{ prompts.backend|e }}"></div>
+              {% elif not has_any_content %}
+              {# Empty state with explanation #}
+              <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted py-4 px-3">
+                <i class="fas fa-file-circle-xmark fa-3x mb-3 text-warning"></i>
+                <h6 class="mb-2">Prompt Exchange Not Recorded</h6>
+                <p class="small text-center mb-3" style="max-width: 350px;">
+                  The prompts and responses for this application were not saved during generation.
+                  This typically happens for apps generated before the prompt logging feature was enabled.
+                </p>
+                <div class="small text-center">
+                  <p class="mb-1"><strong>To capture prompts:</strong></p>
+                  <p class="mb-0 text-muted">Regenerate this app, and the new prompts will be saved automatically.</p>
+                </div>
+              </div>
               {% else %}
               <div class="text-center text-muted py-5"><i class="fas fa-mouse-pointer fa-2x mb-2"></i><p class="mb-0 small">Select a prompt to preview</p></div>
               {% endif %}

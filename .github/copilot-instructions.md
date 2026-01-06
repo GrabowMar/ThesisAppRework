@@ -440,7 +440,7 @@ Dynamic and performance analyzers require the target application containers to b
 - **Auto-detection**: Before executing `dynamic-analyzer` or `performance-tester` subtasks, the system checks target app container status
 - **Auto-start stopped containers**: If containers exist but are stopped, they are automatically started
 - **Auto-rebuild missing containers**: If no containers exist (Option A), the system will build and start them
-- **Wait for readiness**: Polls container status with 60-second timeout (2-second intervals) until containers are healthy
+- **Wait for readiness**: Polls container status with 180-second timeout (2-second intervals) until containers are healthy
 - **Graceful failure**: If containers can't be started/built, the subtask is marked as `skipped` (not `failed`) with a clear error message
 - **Port resolution**: After containers are ready, backend/frontend ports are resolved from the app's `.env` file
 
@@ -455,6 +455,22 @@ Dynamic and performance analyzers require the target application containers to b
 **Log markers**: Watch for `[CONTAINER-MGMT]` and `[CONTAINER-CHECK]` in logs to trace container management actions.
 
 **Implementation**: See `_ensure_target_app_running()` and `_check_target_app_containers_ready()` in [task_execution_service.py](../src/app/services/task_execution_service.py).
+
+**Environment Variable**: `CONTAINER_READY_TIMEOUT` - Max seconds to wait for containers (default: 180s). Must exceed docker-compose healthcheck `start_period` (60s) plus some buffer for healthcheck to pass.
+
+### Analyzer Service Startup (Pipeline)
+
+When pipelines run, `_ensure_analyzers_healthy()` in [pipeline_execution_service.py](../src/app/services/pipeline_execution_service.py) ensures analyzer containers are started and healthy before analysis begins:
+
+- **Pre-flight checks**: TCP port checks on 2001-2004 verify services are accessible
+- **Auto-start**: If containers aren't running, `analyzer_manager.py start` is invoked
+- **Retry logic**: First attempt → if fails, 30s delay → reset health cache → second attempt
+- **Stabilization delay**: 5s wait after successful startup to ensure services are fully ready
+- **Graceful shutdown handling**: WebSocket calls detect interpreter shutdown and return graceful errors instead of crashing
+
+**Environment Variable**: `ANALYZER_STARTUP_TIMEOUT` - Max seconds to wait for analyzer containers to become healthy (default: 180s). Accounts for Docker startup time plus healthcheck periods.
+
+**Log markers**: Watch for `[PIPELINE]` and `[ANALYZER]` in logs to trace analyzer startup actions.
 
 ### Container Rebuild Strategies
 - **Fast incremental** (`./start.ps1 -Mode Rebuild`): 
@@ -881,6 +897,8 @@ pytest --cov=src --cov-report=html
 | `TASK_TIMEOUT` | Overall task timeout | `1800` |
 | `PREFLIGHT_MAX_RETRIES` | Service availability retries | `3` |
 | `TRANSIENT_FAILURE_MAX_RETRIES` | Auto-recovery attempts | `3` |
+| `CONTAINER_READY_TIMEOUT` | Target app container timeout | `180` |
+| `ANALYZER_STARTUP_TIMEOUT` | Analyzer container startup timeout | `180` |
 
 ### Maintenance
 | Variable | Purpose | Default |

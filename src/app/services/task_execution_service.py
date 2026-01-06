@@ -1716,7 +1716,7 @@ class TaskExecutionService:
         app_number: int,
         auto_start: bool = True,
         auto_rebuild: bool = True,
-        wait_timeout: int = 60
+        wait_timeout: int = 180
     ) -> Dict[str, Any]:
         """Ensure target application containers are running for dynamic/performance analysis.
         
@@ -1731,7 +1731,8 @@ class TaskExecutionService:
             app_number: Target app number
             auto_start: If True, auto-start stopped containers (default: True)
             auto_rebuild: If True, rebuild missing containers (default: True) 
-            wait_timeout: Max seconds to wait for containers to be ready (default: 60)
+            wait_timeout: Max seconds to wait for containers to be ready (default: 180, 
+                         should exceed docker-compose healthcheck start_period + interval)
             
         Returns:
             Dict with:
@@ -1916,12 +1917,15 @@ class TaskExecutionService:
                     )
                     
                     # Ensure target app containers are running (auto-start/rebuild as needed)
+                    # Note: wait_timeout must exceed docker-compose healthcheck start_period (60s) + interval (120s)
+                    # to allow the healthcheck to pass at least once
+                    container_wait = int(os.environ.get('CONTAINER_READY_TIMEOUT', '180'))
                     container_result = self._ensure_target_app_running(
                         model_slug=model_slug,
                         app_number=app_number,
                         auto_start=True,   # Auto-start stopped containers
                         auto_rebuild=True,  # Auto-rebuild if no containers exist (Option A)
-                        wait_timeout=60     # 60-second timeout with 2s polling
+                        wait_timeout=container_wait  # 180s default (exceeds 60s start_period + healthcheck time)
                     )
                     
                     if not container_result.get('ready'):
@@ -2362,6 +2366,14 @@ class TaskExecutionService:
         last_error = None
         for attempt in range(1, max_retries + 1):
             try:
+                # Check if we're being shut down before creating new event loop
+                if not self._running:
+                    return {
+                        'status': 'error',
+                        'error': 'Service is shutting down',
+                        'payload': {}
+                    }
+                
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
@@ -2394,6 +2406,22 @@ class TaskExecutionService:
                     return result
                 finally:
                     loop.close()
+            
+            except RuntimeError as e:
+                # Handle interpreter shutdown gracefully
+                error_str = str(e)
+                if 'cannot schedule new futures' in error_str or 'interpreter shutdown' in error_str.lower():
+                    self._log(
+                        f"[WebSocket] Interpreter shutdown detected while connecting to {service_name}",
+                        level='warning'
+                    )
+                    return {
+                        'status': 'error',
+                        'error': f'Service unavailable (interpreter shutting down)',
+                        'payload': {}
+                    }
+                # Re-raise other RuntimeErrors
+                raise
                     
             except Exception as e:
                 last_error = str(e)
