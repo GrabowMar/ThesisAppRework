@@ -262,56 +262,69 @@ class PipelineExecutionService:
             containers_already_started = pipeline_id in self._containers_started_for
         
         if pipeline.current_job_index == 0 and not containers_already_started:
-            auto_start = analysis_opts.get('autoStartContainers', True)  # Default to True for pipelines
-            if auto_start:
-                # Try to start analyzers with longer timeout (180s default)
-                analyzers_ready = self._ensure_analyzers_healthy(pipeline)
-                
-                if analyzers_ready:
-                    with _pipeline_state_lock:
-                        self._containers_started_for.add(pipeline_id)
-                    # Additional stabilization delay after startup to ensure ports are fully bound
-                    time.sleep(5)
-                    self._log("[PIPELINE %s] Analyzer containers ready, added 5s stabilization delay", pipeline_id)
-                else:
-                    # Retry once more after a longer delay (containers may still be starting)
-                    self._log(
-                        "[PIPELINE %s] First analyzer startup attempt failed, retrying after 30s delay...",
-                        pipeline_id, level='warning'
-                    )
-                    time.sleep(30)
-                    
-                    # Second attempt - reset cache to force fresh check
-                    self._analyzer_healthy = None
+            # Check if selected tools actually require analyzer containers
+            tools = config.get('analysis', {}).get('tools', [])
+            needs_containers = self._requires_analyzer_containers(tools)
+
+            if not needs_containers:
+                # Static analysis only - skip container startup entirely
+                self._log(
+                    "[PIPELINE %s] Skipping analyzer container startup - static analysis tools only (%s)",
+                    pipeline_id, ', '.join(tools)
+                )
+                with _pipeline_state_lock:
+                    self._containers_started_for.add(pipeline_id)
+            else:
+                auto_start = analysis_opts.get('autoStartContainers', True)  # Default to True for pipelines
+                if auto_start:
+                    # Try to start analyzers with longer timeout (180s default)
                     analyzers_ready = self._ensure_analyzers_healthy(pipeline)
-                    
+
                     if analyzers_ready:
                         with _pipeline_state_lock:
                             self._containers_started_for.add(pipeline_id)
-                        time.sleep(5)  # Stabilization delay
-                        self._log("[PIPELINE %s] Analyzer containers ready on retry", pipeline_id)
+                        # Additional stabilization delay after startup to ensure ports are fully bound
+                        time.sleep(5)
+                        self._log("[PIPELINE %s] Analyzer containers ready, added 5s stabilization delay", pipeline_id)
                     else:
-                        # Log warning but continue - static analysis and individual tasks
-                        # will handle their own dependencies
+                        # Retry once more after a longer delay (containers may still be starting)
                         self._log(
-                            "[PIPELINE %s] WARNING: Analyzer containers could not be started after retry. "
-                            "Static analysis will continue. Dynamic/performance analysis "
-                            "will skip or fail for apps without running containers.",
+                            "[PIPELINE %s] First analyzer startup attempt failed, retrying after 30s delay...",
                             pipeline_id, level='warning'
                         )
-                        # Still mark as "attempted" to avoid retry on every poll
-                        with _pipeline_state_lock:
-                            self._containers_started_for.add(pipeline_id)
-            else:
-                # Auto-start disabled - check if containers are healthy anyway
-                if not self._check_analyzers_running():
-                    # Log warning but continue - let tasks handle their own dependencies
-                    self._log(
-                        "[PIPELINE %s] WARNING: Analyzer services not running and auto-start disabled. "
-                        "Analysis tasks may partially succeed or skip dynamic/performance tests. "
-                        "To enable all analysis types, start containers via: ./start.ps1 -Mode Start",
-                        pipeline_id, level='warning'
-                    )
+                        time.sleep(30)
+
+                        # Second attempt - reset cache to force fresh check
+                        self._analyzer_healthy = None
+                        analyzers_ready = self._ensure_analyzers_healthy(pipeline)
+
+                        if analyzers_ready:
+                            with _pipeline_state_lock:
+                                self._containers_started_for.add(pipeline_id)
+                            time.sleep(5)  # Stabilization delay
+                            self._log("[PIPELINE %s] Analyzer containers ready on retry", pipeline_id)
+                        else:
+                            # Log warning but continue - static analysis and individual tasks
+                            # will handle their own dependencies
+                            self._log(
+                                "[PIPELINE %s] WARNING: Analyzer containers could not be started after retry. "
+                                "Static analysis will continue. Dynamic/performance analysis "
+                                "will skip or fail for apps without running containers.",
+                                pipeline_id, level='warning'
+                            )
+                            # Still mark as "attempted" to avoid retry on every poll
+                            with _pipeline_state_lock:
+                                self._containers_started_for.add(pipeline_id)
+                else:
+                    # Auto-start disabled - check if containers are healthy anyway
+                    if not self._check_analyzers_running():
+                        # Log warning but continue - let tasks handle their own dependencies
+                        self._log(
+                            "[PIPELINE %s] WARNING: Analyzer services not running and auto-start disabled. "
+                            "Analysis tasks may partially succeed or skip dynamic/performance tests. "
+                            "To enable all analysis types, start containers via: ./start.ps1 -Mode Start",
+                            pipeline_id, level='warning'
+                        )
         
         # STEP 2: Check completed in-flight tasks
         self._check_completed_analysis_tasks(pipeline)
@@ -582,6 +595,42 @@ class PipelineExecutionService:
                     task_id, task.status.value if task.status else 'unknown'
                 )
     
+    def _requires_analyzer_containers(self, tools: list[str]) -> bool:
+        """Check if selected tools require analyzer microservice containers.
+
+        Static analysis tools (semgrep, bandit, eslint, etc.) run directly in
+        the Flask app process and don't need analyzer microservices.
+
+        Dynamic analysis and performance testing tools require analyzer containers.
+
+        Args:
+            tools: List of tool names selected for analysis
+
+        Returns:
+            True if any tool requires analyzer containers, False if all are static
+        """
+        # Tools that run without analyzer containers (static analysis)
+        STATIC_TOOLS = {
+            'semgrep',
+            'bandit',
+            'eslint',
+            'flake8',
+            'mypy',
+            'pylint',
+            'safety',
+            'pip-audit',
+        }
+
+        # If no tools specified, assume containers needed (conservative)
+        if not tools:
+            return True
+
+        # Convert to set for efficient lookup
+        selected_tool_set = set(tools)
+
+        # If all selected tools are static, no containers needed
+        return not selected_tool_set.issubset(STATIC_TOOLS)
+
     def _check_analyzers_running(self) -> bool:
         """Quick check if analyzer containers are running (no auto-start)."""
         try:
