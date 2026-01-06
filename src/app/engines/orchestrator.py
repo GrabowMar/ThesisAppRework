@@ -290,7 +290,7 @@ class AnalysisOrchestrator:
                     all_findings.extend(result.findings)
                     successful_tools += 1
                 except Exception as e:
-                    logger.error(f"Legacy tool error {tool_name}: {e}")
+                    logger.exception(f"Legacy tool error {tool_name}: {e}")
                     tool_results[tool_name] = {'status': ToolStatus.ERROR.value, 'error': str(e)}
                     failed_tools += 1
             
@@ -361,7 +361,7 @@ class AnalysisOrchestrator:
             return results
             
         except Exception as e:
-            logger.error(f"Analysis orchestration failed: {e}")
+            logger.exception(f"Analysis orchestration failed: {e}")
             return {
                 'success': False,
                 'error': str(e),

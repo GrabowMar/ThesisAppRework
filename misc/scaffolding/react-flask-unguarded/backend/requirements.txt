@@ -1,6 +1,21 @@
-# Minimal base requirements for unguarded mode
-# AI model adds dependencies based on their architectural choices
+# Base requirements for unguarded mode
+# Includes commonly-needed packages to prevent build failures
 Flask>=3.0.0
-flask-cors>=4.0.0
+Flask-CORS>=4.0.0
 Flask-SQLAlchemy>=3.1.0
 gunicorn>=21.0.0
+
+# Auth & security (commonly used)
+Flask-JWT-Extended>=4.6.0
+bcrypt>=4.1.0
+PyJWT>=2.8.0
+Werkzeug>=3.0.0
+
+# Utilities (frequently needed)
+python-dateutil>=2.8.0
+python-dotenv>=1.0.0
+email-validator>=2.0.0
+requests>=2.31.0
+
+# Data handling
+marshmallow>=3.20.0

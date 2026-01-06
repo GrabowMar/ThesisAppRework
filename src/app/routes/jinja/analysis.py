@@ -44,7 +44,7 @@ class DescriptorDict(dict):
             if isinstance(dt, str):
                 try:
                     dt = datetime.fromisoformat(dt.replace('Z', '+00:00'))
-                except:
+                except (ValueError, TypeError):
                     pass
             if isinstance(dt, datetime):
                 return dt.strftime('%Y-%m-%d %H:%M:%S')

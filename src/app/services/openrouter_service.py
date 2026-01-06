@@ -195,10 +195,10 @@ class OpenRouterService:
             self.logger.error(f"Error reading from database cache: {e}")
             return []
     
-    def fetch_all_models(self) -> List[Dict[str, Any]]:
+    def fetch_all_models(self) -> list[dict[str, Any]]:
         """
         Fetch all available models from cache or OpenRouter API.
-        
+
         Returns:
             List of model dictionaries with comprehensive information
         """
@@ -257,13 +257,13 @@ class OpenRouterService:
                 return model
         return None
     
-    def enrich_model_data(self, db_model) -> Dict[str, Any]:
+    def enrich_model_data(self, db_model: Any) -> dict[str, Any]:
         """
         Enrich database model data with OpenRouter API information.
-        
+
         Args:
             db_model: ModelCapability database instance
-            
+
         Returns:
             Enhanced model data dictionary
         """
@@ -313,8 +313,15 @@ class OpenRouterService:
         
         return base_data
     
-    def _extract_openrouter_details(self, api_model: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract and format OpenRouter model details."""
+    def _extract_openrouter_details(self, api_model: dict[str, Any]) -> dict[str, Any]:
+        """Extract and format OpenRouter model details from API response.
+
+        Args:
+            api_model: Raw model data from OpenRouter API
+
+        Returns:
+            Formatted model details dictionary
+        """
         details = {}
         
         # Basic identifiers

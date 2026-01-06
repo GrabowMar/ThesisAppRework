@@ -530,7 +530,7 @@ class ToolRegistry:
                 tool = tool_class()
                 tools_info[name] = tool.get_info()
             except Exception as e:
-                logger.error(f"Error getting info for tool {name}: {e}")
+                logger.exception(f"Error getting info for tool {name}: {e}")
                 tools_info[name] = {
                     'name': name,
                     'error': str(e),

@@ -568,7 +568,8 @@ class TaskExecutionService:
                 result = sock.connect_ex(('127.0.0.1', port))
                 sock.close()
                 services_available[service_name] = (result == 0)
-            except:
+            except Exception as e:
+                logger.debug(f"Service {service_name} not available: {e}")
                 services_available[service_name] = False
         
         # If no services are available, skip recovery
@@ -847,6 +848,11 @@ class TaskExecutionService:
                         self._log("Task %s completed", task_db.task_id)
                 except Exception as e:  # pragma: no cover - defensive
                     self._log("TaskExecutionService loop error: %s", e, level='error')
+                    # Clean up session on loop errors
+                    try:
+                        db.session.remove()
+                    except Exception:
+                        pass
                     time.sleep(self.poll_interval)
 
     def _is_test_mode(self) -> bool:

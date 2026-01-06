@@ -1761,33 +1761,148 @@ function Invoke-Wipeout {
     Write-Status "Removing PID files..." "Info"
     Get-ChildItem -Path $Script:RUN_DIR -Filter "*.pid" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
     
-    # 10. Recreate database and admin user
+    # 10. Recreate database and admin user with random password
     Write-Status "Initializing fresh database..." "Info"
-    $createAdminScript = Join-Path $Script:ROOT_DIR "scripts\create_admin.py"
     
-    if (Test-Path $createAdminScript) {
+    # First, run init_db.py to create tables and load data
+    $initDbScript = Join-Path $Script:ROOT_DIR "src\init_db.py"
+    if (Test-Path $initDbScript) {
         try {
-            & $Script:PYTHON_CMD $createAdminScript
+            & $Script:PYTHON_CMD $initDbScript 2>&1 | Out-Null
             if ($LASTEXITCODE -eq 0) {
-                Write-Status "  Database and admin user created" "Success"
+                Write-Status "  Database tables and data initialized" "Success"
             } else {
-                Write-Status "  Failed to create admin user" "Error"
+                Write-Status "  Warning: Database init returned non-zero exit code" "Warning"
             }
         } catch {
-            Write-Status "  Error running create_admin.py: $_" "Error"
+            Write-Status "  Error running init_db.py: $_" "Warning"
         }
     } else {
-        Write-Status "  create_admin.py not found at $createAdminScript" "Warning"
+        Write-Status "  init_db.py not found - database may not be fully initialized" "Warning"
+    }
+    
+    # Generate random password (16 characters, mixed case + numbers + symbols)
+    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
+    $newPassword = -join ((1..16) | ForEach-Object { $chars[(Get-Random -Maximum $chars.Length)] })
+    
+    # Create admin user with the random password
+    Write-Status "Creating admin user with secure password..." "Info"
+    
+    $adminScript = @"
+import sys
+from pathlib import Path
+
+# Add src directory to path
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR
+SRC_DIR = PROJECT_ROOT / 'src'
+sys.path.insert(0, str(SRC_DIR))
+
+from app.factory import create_app
+from app.models import User
+from app.extensions import db
+
+def main():
+    app = create_app()
+    
+    with app.app_context():
+        # Check if admin user exists
+        admin = User.query.filter_by(username='admin').first()
+        
+        if not admin:
+            # Create admin user
+            admin = User(
+                username='admin',
+                email='admin@thesis.local',
+                full_name='System Administrator'
+            )
+            admin.set_password('$newPassword')
+            admin.is_admin = True
+            admin.is_active = True
+            db.session.add(admin)
+            db.session.commit()
+            print('CREATED')
+        else:
+            # Update existing admin password
+            admin.set_password('$newPassword')
+            db.session.commit()
+            print('SUCCESS')
+
+if __name__ == '__main__':
+    main()
+"@
+    
+    # Write temporary script
+    $tempScript = Join-Path $Script:ROOT_DIR "temp_create_admin.py"
+    $adminScript | Out-File -FilePath $tempScript -Encoding UTF8
+    
+    $adminCreated = $false
+    try {
+        $output = & $Script:PYTHON_CMD $tempScript 2>&1
+        
+        if ($LASTEXITCODE -eq 0 -and ($output -match 'SUCCESS' -or $output -match 'CREATED')) {
+            Write-Status "  Admin user created successfully" "Success"
+            $adminCreated = $true
+        } else {
+            Write-Status "  Warning: Could not create admin user" "Warning"
+            Write-Host "  Output: $output" -ForegroundColor DarkGray
+        }
+    } catch {
+        Write-Status "  Error creating admin user: $($_.Exception.Message)" "Warning"
+    } finally {
+        # Clean up temporary script
+        if (Test-Path $tempScript) {
+            Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
+        }
     }
     
     Write-Host ""
     Write-Banner "✅ Wipeout Complete - System Reset" "Green"
-    Write-Host "Default credentials:" -ForegroundColor Cyan
-    Write-Host "  Username: admin" -ForegroundColor White
-    Write-Host "  Password: ia5aeQE2wR87J8w" -ForegroundColor White
-    Write-Host "  Email: admin@thesis.local" -ForegroundColor White
+    
+    # 11. Auto-restart the application
     Write-Host ""
-    Write-Status "You can now start the application with [S] Start" "Info"
+    Write-Status "Restarting application..." "Info"
+    Write-Host ""
+    
+    # Set background mode for restart
+    $Script:Background = $true
+    
+    # Brief pause before restart
+    Start-Sleep -Seconds 1
+    
+    if (Start-FullStack) {
+        Write-Host ""
+        Write-Banner "🚀 Application Restarted" "Green"
+        Write-Host "🌐 Application URL: " -NoNewline -ForegroundColor Cyan
+        Write-Host "http://127.0.0.1:$Port" -ForegroundColor White
+        Write-Host ""
+    } else {
+        Write-Host ""
+        Write-Status "Application restart failed - try [S] Start manually" "Warning"
+    }
+    
+    # Display credentials at the very end
+    if ($adminCreated) {
+        Write-Host ""
+        Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+        Write-Host "  NEW ADMIN CREDENTIALS" -ForegroundColor Cyan
+        Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+        Write-Host "  Username: " -NoNewline -ForegroundColor White
+        Write-Host "admin" -ForegroundColor Green
+        Write-Host "  Password: " -NoNewline -ForegroundColor White
+        Write-Host "$newPassword" -ForegroundColor Green
+        Write-Host "  Email:    " -NoNewline -ForegroundColor White
+        Write-Host "admin@thesis.local" -ForegroundColor Green
+        Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "⚠️  IMPORTANT: Save this password now! It will not be shown again." -ForegroundColor Yellow
+        Write-Host ""
+    } else {
+        Write-Host ""
+        Write-Host "⚠️  Admin user could not be created automatically." -ForegroundColor Yellow
+        Write-Host "   Run [P] Password reset after starting the app." -ForegroundColor Yellow
+        Write-Host ""
+    }
     
     return $true
 }

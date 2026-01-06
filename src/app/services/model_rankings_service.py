@@ -996,8 +996,8 @@ class ModelRankingsService:
             try:
                 from ..models import db
                 db.session.rollback()
-            except:
-                pass
+            except Exception as rollback_err:
+                self.logger.warning(f"Failed to rollback session: {rollback_err}")
     
     # =========================================================================
     # Filtering and Selection

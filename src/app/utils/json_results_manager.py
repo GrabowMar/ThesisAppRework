@@ -780,6 +780,10 @@ class JsonResultsManager:
                 return False
         return False
 
+    # Allowed table names for security (prevent SQL injection)
+    ALLOWED_TOOL_TABLES = {'analysis_tool_bandit', 'analysis_tool_semgrep', 'analysis_tool_eslint',
+                           'analysis_tool_zap', 'analysis_tool_locust', 'analysis_tool_custom'}
+
     def _get_tool_tables(self) -> Set[str]:
         if not self._tool_tables:
             with self._lock:
@@ -792,9 +796,17 @@ class JsonResultsManager:
                     self._tool_tables.add(table_name)
         return self._tool_tables
 
+    def _validate_table_name(self, table_name: str) -> None:
+        """Validate table name to prevent SQL injection."""
+        # Allow dynamic tool tables that match the pattern, but validate format
+        if not re.match(r'^analysis_tool_[a-zA-Z0-9_]+$', table_name):
+            raise ValueError(f"Invalid table name format: {table_name}")
+
     def _load_tool_entries(self, record_key: str) -> Dict[str, Dict[str, Any]]:
         entries: Dict[str, Dict[str, Any]] = {}
         for table_name in self._get_tool_tables():
+            # Validate table name before using in query
+            self._validate_table_name(table_name)
             query = f"SELECT tool_name, payload FROM {table_name} WHERE record_key=?"
             with self._lock:
                 row = self._conn.execute(query, (record_key,)).fetchone()

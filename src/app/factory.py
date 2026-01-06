@@ -108,9 +108,21 @@ def create_app(config_name: str = 'default') -> Flask:
     
     # Database path in data folder (consistent with settings.py)
     default_db_path = f'sqlite:///{data_dir / "thesis_app.db"}'
-    
+
+    # Secure SECRET_KEY handling
+    secret_key = os.environ.get('SECRET_KEY')
+    flask_env = os.environ.get('FLASK_ENV', 'development')
+    if not secret_key:
+        if flask_env == 'production':
+            raise RuntimeError(
+                "SECRET_KEY environment variable must be set in production. "
+                "Generate a secure key with: python -c 'import secrets; print(secrets.token_hex(32))'"
+            )
+        secret_key = 'dev-secret-key-change-in-production'
+        logger.warning("Using default SECRET_KEY - only suitable for development!")
+
     app.config.update(
-        SECRET_KEY=os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production'),
+        SECRET_KEY=secret_key,
         SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', default_db_path),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         # Ensure templates are always reloaded to avoid stale caches in tests/dev
@@ -377,7 +389,7 @@ def create_app(config_name: str = 'default') -> Flask:
                     pass
                     
         except Exception as e:
-            logger.error(f"Failed to initialize database: {e}")
+            logger.exception(f"Failed to initialize database: {e}")
     
     # Register blueprints
     from app.routes import register_blueprints
@@ -438,7 +450,7 @@ def create_app(config_name: str = 'default') -> Flask:
                     _init_celery_ws()
                 except Exception as ce:
                     if strict_mode or service_pref == 'celery':
-                        logger.error(
+                        logger.exception(
                             "Celery-backed WebSocket service init failed and strict/celery mode is enabled; "
                             "mock fallback disabled. Error: %s", ce
                         )
@@ -455,7 +467,7 @@ def create_app(config_name: str = 'default') -> Flask:
                     raise RuntimeError(f"Strict mode requires celery_websocket, got: {active_service}")
 
         except Exception as e:
-            logger.error(f"Failed to initialize WebSocket service: {e}")
+            logger.exception(f"Failed to initialize WebSocket service: {e}")
             # In strict mode, do not swallow the error
             if app.config.get('WEBSOCKET_STRICT_CELERY', False):
                 raise
@@ -523,7 +535,7 @@ def create_app(config_name: str = 'default') -> Flask:
             logger.warning(f"Model ID validation skipped: {_model_fix_err}")
         
     except Exception as e:
-        logger.error(f"Failed to initialize services: {e}")
+        logger.exception(f"Failed to initialize services: {e}")
         # In strict mode, abort app creation when WS service selection fails
         if app.config.get('WEBSOCKET_STRICT_CELERY', False):
             raise
@@ -655,7 +667,7 @@ def create_cli_app() -> Flask:
             db.create_all()
             logger.info("Database initialized for CLI")
         except Exception as e:
-            logger.error(f"Failed to initialize database for CLI: {e}")
+            logger.exception(f"Failed to initialize database for CLI: {e}")
     
     return app
 

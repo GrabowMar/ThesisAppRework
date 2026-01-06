@@ -1,112 +1,94 @@
-````jinja
-# {{ name }} - Backend Application (Unguarded Mode)
+# {{ name }} - Backend Application
 
 {{ description }}
 
-## YOUR MISSION
-Design and implement a **complete backend API** with full creative control over architecture, patterns, and implementation details.
+## Requirements to Implement
 
-## Functional Requirements
 {% for req in backend_requirements %}
 - {{ req }}
 {% endfor %}
 
 {% if admin_requirements %}
-## Admin Requirements
+## Admin Features
 {% for req in admin_requirements %}
 - {{ req }}
 {% endfor %}
 {% endif %}
 
 {% if api_endpoints %}
-## Suggested API Endpoints (you may modify/extend)
+## API Endpoints to Create
 {{ api_endpoints }}
 {% endif %}
 
-## Technical Constraints
-- **Language**: Python
-- **Framework**: Flask (required)
-- **Database**: SQLite at `/app/data/app.db`
-- **Must run in Docker container**
-- **Must expose port from FLASK_RUN_PORT env (default 5000)**
+## MANDATORY: Single-File Architecture
 
-## What You Decide
+**You MUST put ALL code in `app.py`** - no other Python files allowed.
 
-### Architecture
-- File/folder structure (flat vs modular vs layered)
-- Design patterns (MVC, Clean Architecture, etc.)
-- Layer separation (routes, services, repositories)
+### Required Structure in app.py:
 
-### Implementation
-- SQLAlchemy patterns (Active Record, Repository, Unit of Work)
-- Authentication design (JWT, sessions, API keys - if needed)
-- Validation approach (marshmallow, pydantic, manual)
-- Error handling and response format
-- Logging and debugging strategy
-- Flask extensions selection
+```python
+from flask import Flask, jsonify, request
+from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
+from datetime import datetime
 
-### Dependencies
-- All packages and versions
-- Development dependencies
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////app/data/app.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+CORS(app, origins=['*'])
+db = SQLAlchemy(app)
+
+# ============== MODELS (define ALL models here) ==============
+class YourModel(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    # ... fields ...
+
+# ============== ROUTES (define ALL routes here) ==============
+@app.route('/health')
+def health():
+    return jsonify({'status': 'healthy'})
+
+@app.route('/api/health')
+def api_health():
+    return jsonify({'status': 'healthy', 'database': 'connected'})
+
+# Add ALL your API routes here...
+
+# ============== APP STARTUP ==============
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(host='0.0.0.0', port=5000, debug=True)
+```
 
 ## Output Format
 
-Generate complete files using this format:
+Generate EXACTLY these files:
 
 ```python:app.py
-# Main entry point
-```
-
-```python:path/to/module.py
-# Additional modules
+# Your COMPLETE application - models, routes, everything
 ```
 
 ```text:requirements.txt
-package==version
+Flask>=3.0.0
+flask-cors>=4.0.0
+Flask-SQLAlchemy>=3.1.0
+gunicorn>=21.0.0
 ```
 
-### Required Files (minimum)
-1. `app.py` - Main application entry with routes or route registration
-2. `requirements.txt` - All Python dependencies
+## ❌ DO NOT CREATE THESE FILES
+- models.py
+- routes.py
+- services.py
+- config.py
+- Any subdirectories
+- Any additional .py files
 
-### Recommended Structure (your choice)
-Option A - Flat:
-```
-app.py (everything in one file)
-requirements.txt
-```
+## ✅ REQUIRED
+- All code in ONE app.py file
+- Both /health AND /api/health endpoints
+- SQLite database at /app/data/app.db
+- CORS with origins=['*']
+- All requirements in requirements.txt
 
-Option B - Modular:
-```
-app.py (entry point)
-models.py
-routes.py or routes/
-services.py
-config.py
-requirements.txt
-```
-
-Option C - Domain-Driven:
-```
-app.py
-domain/
-  models.py
-  services.py
-infrastructure/
-  database.py
-  repositories.py
-api/
-  routes.py
-requirements.txt
-```
-
-## Quality Expectations
-- Complete, runnable code
-- Proper HTTP status codes
-- Input validation
-- Error responses
-- Health check endpoint at `/health`
-- CORS support for frontend integration
-
-Generate the COMPLETE backend now.
-````
+Generate the COMPLETE app.py now with all functionality in a single file.

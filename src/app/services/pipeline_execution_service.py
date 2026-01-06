@@ -132,13 +132,13 @@ class PipelineExecutionService:
                 try:
                     # Get running pipelines
                     pipelines = PipelineExecution.get_running_pipelines()
-                    
+
                     if not pipelines:
                         time.sleep(self.poll_interval)
                         continue
-                    
+
                     self._log("Found %d running pipeline(s)", len(pipelines), level='debug')
-                    
+
                     # Process each running pipeline
                     for pipeline in pipelines:
                         try:
@@ -157,14 +157,29 @@ class PipelineExecutionService:
                                 # Clean up containers on failure
                                 self._stop_all_app_containers_for_pipeline(pipeline)
                                 self._cleanup_pipeline_containers(pipeline.pipeline_id)
-                            except Exception:
-                                db.session.rollback()
+                            except Exception as cleanup_error:
+                                self._log("Failed to cleanup after pipeline error: %s", cleanup_error, level='error')
+                                try:
+                                    db.session.rollback()
+                                except Exception as rollback_error:
+                                    self._log("Critical: Failed to rollback session: %s", rollback_error, level='critical')
+                            finally:
+                                # Ensure session is cleaned up
+                                try:
+                                    db.session.remove()
+                                except Exception:
+                                    pass
                         finally:
                             self._current_pipeline_id = None
-                    
+
                 except Exception as e:
                     self._log("Pipeline execution loop error: %s", e, level='error')
-                
+                    # Clean up session on loop errors
+                    try:
+                        db.session.remove()
+                    except Exception:
+                        pass
+
                 time.sleep(self.poll_interval)
     
     def _process_pipeline(self, pipeline: PipelineExecution):

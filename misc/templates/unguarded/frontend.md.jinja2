@@ -1,12 +1,9 @@
-````jinja
-# {{ name }} - Frontend Application (Unguarded Mode)
+# {{ name }} - Frontend Application
 
 {{ description }}
 
-## YOUR MISSION
-Design and implement a **complete React frontend** with full creative control over architecture, patterns, and implementation details.
+## Requirements to Implement
 
-## Functional Requirements
 {% for req in frontend_requirements %}
 - {{ req }}
 {% endfor %}
@@ -23,106 +20,119 @@ Design and implement a **complete React frontend** with full creative control ov
 {{ api_endpoints }}
 {% endif %}
 
-## Technical Constraints
-- **Framework**: React 18+ (required)
-- **Build Tool**: Vite (pre-configured)
-- **Must work in Docker container**
-- **API calls to**: `/api` proxy (recommended) or direct backend URL
+## MANDATORY: Minimal File Structure
 
-## What You Decide
+**You MUST use a flat file structure with minimal files.**
 
-### Architecture
-- Component organization (feature-based, type-based, atomic design)
-- State management (Context, Redux, Zustand, Jotai, React Query)
-- Routing approach (React Router, TanStack Router)
+### Required Files (ONLY these):
 
-### UI/UX
-- Component library (Material UI, Chakra, Ant Design, shadcn/ui, plain CSS)
-- Styling solution (CSS modules, Tailwind, styled-components, emotion)
-- Responsive design approach
-- Loading/error states
-- Form handling (React Hook Form, Formik, native)
+1. `src/main.jsx` - React entry point (use exact template below)
+2. `src/App.jsx` - ALL components and logic in this ONE file
+3. `src/App.css` - ALL styles in this ONE file
 
-### Code Organization
-- Custom hooks strategy
-- API client design
-- Error boundary placement
-- Type checking (TypeScript optional)
+### src/main.jsx - Use EXACTLY This:
 
-### Dependencies
-- All npm packages
-- Dev dependencies
+```jsx
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App'
+import './App.css'
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+)
+```
+
+### src/App.jsx - Follow This Pattern:
+
+```jsx
+import React, { useState, useEffect } from 'react'
+
+const API_BASE = '/api'
+
+// ALL helper components defined in same file
+function Loading() {
+  return <div className="loading">Loading...</div>
+}
+
+function Error({ message }) {
+  return <div className="error">{message}</div>
+}
+
+// Main App component
+function App() {
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    fetchItems()
+  }, [])
+
+  async function fetchItems() {
+    try {
+      setLoading(true)
+      const res = await fetch(`${API_BASE}/items`)
+      const data = await res.json()
+      setItems(data.items || [])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) return <Loading />
+  if (error) return <Error message={error} />
+
+  return (
+    <div className="app">
+      {/* Your UI here */}
+    </div>
+  )
+}
+
+export default App
+```
 
 ## Output Format
 
-Generate complete files using this format:
+Generate EXACTLY these files:
+
+```jsx:src/main.jsx
+// Use the exact template above
+```
 
 ```jsx:src/App.jsx
-// Main application
-```
-
-```jsx:src/path/to/Component.jsx
-// Component code
-```
-
-```javascript:src/services/api.js
-// API client
+// Your COMPLETE application with all components
 ```
 
 ```css:src/App.css
-/* Styles */
+/* All your styles */
 ```
 
-```json:package.json
-{
-  "dependencies": { ... }
-}
-```
+## ❌ DO NOT CREATE THESE
+- src/components/ directory
+- src/hooks/ directory
+- src/services/ directory
+- src/pages/ directory
+- src/context/ directory
+- Any subdirectories
+- Any additional .jsx files
 
-### Required Files (minimum)
-1. `src/main.jsx` - React entry point
-2. `src/App.jsx` - Main application component
-3. `package.json` - Updated with your chosen dependencies
+## ❌ DO NOT USE
+- React Router (this is a single-page app)
+- Redux/Zustand/Jotai (use useState)
+- Material UI/Chakra/Ant Design (use plain CSS)
+- Axios (use native fetch)
 
-### Recommended Structure (your choice)
-Option A - Flat:
-```
-src/
-  main.jsx
-  App.jsx
-  App.css
-```
+## ✅ REQUIRED
+- All components in ONE App.jsx file
+- Plain CSS in App.css
+- Native fetch() for API calls
+- API_BASE = '/api' (Vite proxy handles forwarding)
+- useState and useEffect for state
 
-Option B - Feature-Based:
-```
-src/
-  main.jsx
-  App.jsx
-  features/
-    todos/
-      TodoList.jsx
-      TodoItem.jsx
-      useTodos.js
-```
-
-Option C - Type-Based:
-```
-src/
-  main.jsx
-  App.jsx
-  components/
-  hooks/
-  services/
-  pages/
-```
-
-## Quality Expectations
-- Complete, runnable code
-- Responsive design
-- Loading states
-- Error handling
-- Clean component composition
-- Accessible markup
-
-Generate the COMPLETE frontend now.
-````
+Generate the COMPLETE App.jsx and App.css now with all functionality in minimal files.

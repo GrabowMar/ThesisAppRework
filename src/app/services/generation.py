@@ -615,6 +615,14 @@ class CodeGenerator:
     def _save_payload(self, run_id: str, model_slug: str, app_num: int, 
                      payload: Dict, headers: Dict) -> None:
         """Save request payload to raw directory."""
+        # Guard against None values
+        if app_num is None:
+            logger.error(f"[PROMPT-SAVE] Cannot save payload: app_num is None (run_id={run_id}, model={model_slug})")
+            return
+        if not model_slug:
+            logger.error(f"[PROMPT-SAVE] Cannot save payload: model_slug is empty (run_id={run_id}, app_num={app_num})")
+            return
+        
         try:
             payload_dir = GENERATED_RAW_API_PAYLOADS_DIR / model_slug / f"app{app_num}"
             payload_dir.mkdir(parents=True, exist_ok=True)
@@ -627,13 +635,21 @@ class CodeGenerator:
                 'payload': payload
             }
             payload_file.write_text(json.dumps(payload_data, indent=2), encoding='utf-8')
-            logger.debug(f"Saved payload: {payload_file}")
+            logger.info(f"[PROMPT-SAVE] Saved payload: {payload_file}")
         except Exception as e:
-            logger.warning(f"Failed to save payload: {e}")
+            logger.error(f"[PROMPT-SAVE] Failed to save payload for {model_slug}/app{app_num}: {e}", exc_info=True)
     
     def _save_response(self, run_id: str, model_slug: str, app_num: int,
                       response: Dict, headers: Dict) -> None:
         """Save API response to raw directory."""
+        # Guard against None values
+        if app_num is None:
+            logger.error(f"[PROMPT-SAVE] Cannot save response: app_num is None (run_id={run_id}, model={model_slug})")
+            return
+        if not model_slug:
+            logger.error(f"[PROMPT-SAVE] Cannot save response: model_slug is empty (run_id={run_id}, app_num={app_num})")
+            return
+        
         try:
             response_dir = GENERATED_RAW_API_RESPONSES_DIR / model_slug / f"app{app_num}"
             response_dir.mkdir(parents=True, exist_ok=True)
@@ -646,9 +662,9 @@ class CodeGenerator:
                 'response': response
             }
             response_file.write_text(json.dumps(response_data, indent=2), encoding='utf-8')
-            logger.debug(f"Saved response: {response_file}")
+            logger.info(f"[PROMPT-SAVE] Saved response: {response_file}")
         except Exception as e:
-            logger.warning(f"Failed to save response: {e}")
+            logger.error(f"[PROMPT-SAVE] Failed to save response for {model_slug}/app{app_num}: {e}", exc_info=True)
     
     async def _save_metadata(self, run_id: str, model_slug: str, app_num: int, component: str,
                             payload: Dict, response: Dict, status: int, headers: Dict) -> None:
@@ -1274,7 +1290,7 @@ class CodeMerger:
         'api.js',  # Legacy fallback
     }
 
-    def merge_backend(self, app_dir: Path, generated_content: str, query_type: str = 'user') -> bool:
+    def merge_backend(self, app_dir: Path, generated_content: str, query_type: str = 'user', generation_mode: str = 'guarded') -> bool:
         """
         Replace backend files with LLM-generated code.
         
@@ -1284,13 +1300,19 @@ class CodeMerger:
             query_type: 'user' or 'admin' - controls which files can be written
                        'user' queries can write any file
                        'admin' queries are restricted to admin-specific files
+            generation_mode: 'guarded' or 'unguarded' - affects merge strategy
+                       'unguarded' mode writes directly to app.py (single-file architecture)
         """
-        logger.info(f"Starting backend merge (query_type={query_type})...")
+        logger.info(f"Starting backend merge (query_type={query_type}, generation_mode={generation_mode})...")
         
         backend_dir = app_dir / 'backend'
         
         # Extract all code blocks from the response
         all_blocks = self._extract_all_code_blocks(generated_content)
+        
+        # UNGUARDED MODE: Single-file architecture - write directly to app.py
+        if generation_mode == 'unguarded':
+            return self._merge_backend_unguarded(app_dir, all_blocks, generated_content)
         
         if query_type == 'user':
             # User query: standard behavior - write main app.py and all additional files
@@ -1684,7 +1706,131 @@ class CodeMerger:
         except Exception as e:
             logger.error(f"Failed to append to {file_path}: {e}")
 
-    def merge_frontend(self, app_dir: Path, generated_content: str, query_type: str = 'user') -> bool:
+    def _merge_backend_unguarded(self, app_dir: Path, all_blocks: List[Dict], generated_content: str) -> bool:
+        """Handle backend merge for UNGUARDED mode - single-file architecture.
+        
+        In unguarded mode, the LLM generates everything in a single app.py file.
+        This method writes directly to app.py, bypassing the guarded mode's
+        multi-file routing (models.py, services.py, routes/).
+        
+        Args:
+            app_dir: Path to the app directory
+            all_blocks: Extracted code blocks from LLM response
+            generated_content: Raw LLM response (fallback for code extraction)
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        backend_dir = app_dir / 'backend'
+        app_py_path = backend_dir / 'app.py'
+        files_written = 0
+        
+        logger.info("[UNGUARDED] Starting single-file backend merge...")
+        
+        # Strategy 1: Look for explicit app.py block
+        app_py_code = None
+        for block in all_blocks:
+            filename = block.get('filename', '').lower().replace('\\', '/')
+            code = block.get('code', '')
+            lang = block.get('language', '').lower()
+            
+            # Handle requirements additions
+            if lang == 'requirements' or filename == 'requirements.txt':
+                self._append_requirements(app_dir, code)
+                continue
+            
+            # Check for app.py
+            if filename == 'app.py' or filename.endswith('/app.py'):
+                app_py_code = code
+                logger.info(f"[UNGUARDED] Found explicit app.py block ({len(code)} chars)")
+                break
+        
+        # Strategy 2: If no explicit app.py, look for the largest Python block with Flask patterns
+        if not app_py_code:
+            flask_patterns = ['from flask', 'Flask(', '@app.route', 'app = Flask']
+            best_candidate = None
+            best_score = 0
+            
+            for block in all_blocks:
+                lang = block.get('language', '').lower()
+                code = block.get('code', '')
+                
+                if lang not in {'python', 'py'} or not code:
+                    continue
+                
+                # Score based on Flask patterns present
+                score = sum(1 for pattern in flask_patterns if pattern in code)
+                # Bonus for length (prefer more complete code)
+                score += len(code) / 10000
+                
+                if score > best_score:
+                    best_score = score
+                    best_candidate = code
+                    logger.debug(f"[UNGUARDED] Candidate block score: {score}")
+            
+            if best_candidate and best_score >= 2:  # At least 2 Flask patterns
+                app_py_code = best_candidate
+                logger.info(f"[UNGUARDED] Using best Flask candidate ({len(app_py_code)} chars, score={best_score:.1f})")
+        
+        # Strategy 3: If still nothing, try extracting Python code from raw response
+        if not app_py_code:
+            logger.warning("[UNGUARDED] No suitable app.py block found, attempting raw extraction...")
+            # Look for any substantial Python code block
+            for block in all_blocks:
+                lang = block.get('language', '').lower()
+                code = block.get('code', '')
+                if lang in {'python', 'py'} and len(code) > 500:
+                    app_py_code = code
+                    logger.info(f"[UNGUARDED] Using fallback Python block ({len(code)} chars)")
+                    break
+        
+        if not app_py_code:
+            logger.error("[UNGUARDED] Failed to extract app.py code from LLM response")
+            return False
+        
+        # Validate Python syntax
+        is_valid, errors = self.validate_generated_code(app_py_code, 'backend')
+        if not is_valid:
+            logger.warning("[UNGUARDED] Backend code validation warnings:")
+            for err in errors:
+                logger.warning(f"  - {err}")
+        
+        # Ensure backend directory exists
+        backend_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Write app.py
+        app_py_path.write_text(app_py_code, encoding='utf-8')
+        logger.info(f"✓ [UNGUARDED] Wrote app.py ({len(app_py_code)} chars)")
+        files_written += 1
+        
+        # Also write any additional utility files if present (but NOT models.py, services.py, routes/)
+        allowed_extras = {'utils.py', 'helpers.py', 'config.py', 'database.py'}
+        for block in all_blocks:
+            filename = block.get('filename', '').lower().replace('\\', '/')
+            code = block.get('code', '')
+            lang = block.get('language', '').lower()
+            
+            if lang not in {'python', 'py'} or not code:
+                continue
+            
+            # Skip app.py (already written) and guarded-mode files
+            base_name = Path(filename).name if filename else ''
+            if base_name == 'app.py' or base_name in {'models.py', 'services.py'}:
+                continue
+            if '/routes/' in filename or filename.startswith('routes/'):
+                continue
+            
+            # Allow specific utility files
+            if base_name in allowed_extras:
+                target_path = backend_dir / base_name
+                target_path.write_text(code, encoding='utf-8')
+                logger.info(f"✓ [UNGUARDED] Wrote utility file {base_name} ({len(code)} chars)")
+                files_written += 1
+        
+        logger.info(f"[UNGUARDED] Backend merge complete: {files_written} files written")
+        return files_written > 0
+
+    def merge_frontend(self, app_dir: Path, generated_content: str, query_type: str = 'user', generation_mode: str = 'guarded') -> bool:
         """
         Replace frontend files with LLM-generated code.
         
@@ -1694,11 +1840,18 @@ class CodeMerger:
             query_type: 'user' or 'admin' - controls which files can be written
                        'user' queries can write any file
                        'admin' queries are restricted to admin-specific files
+            generation_mode: 'guarded' or 'unguarded' - controls file routing strategy
+                            'guarded': multi-file structure (UserPage.jsx, AdminPage.jsx)
+                            'unguarded': single-file App.jsx structure
         """
-        logger.info(f"Starting frontend merge (query_type={query_type})...")
+        logger.info(f"Starting frontend merge (query_type={query_type}, mode={generation_mode})...")
         
         # Extract all code blocks from the response
         all_blocks = self._extract_all_code_blocks(generated_content)
+        
+        # Unguarded mode: simplified single-file merge
+        if generation_mode == 'unguarded':
+            return self._merge_frontend_unguarded(app_dir, all_blocks, generated_content)
         
         if query_type == 'user':
             # User query: standard behavior - write main App.jsx and all additional files
@@ -1706,6 +1859,147 @@ class CodeMerger:
         else:
             # Admin query: restricted to admin-specific files only
             return self._merge_frontend_admin(app_dir, all_blocks)
+    
+    def _merge_frontend_unguarded(self, app_dir: Path, all_blocks: List[Dict], generated_content: str) -> bool:
+        """Handle frontend merge for UNGUARDED mode - single-file architecture.
+        
+        In unguarded mode, the LLM generates the complete app in App.jsx (not UserPage.jsx).
+        This method writes directly to App.jsx and App.css, bypassing the guarded mode's
+        multi-file routing (pages/UserPage.jsx, pages/AdminPage.jsx, etc).
+        
+        Args:
+            app_dir: Path to the app directory
+            all_blocks: Extracted code blocks from LLM response
+            generated_content: Raw LLM response (fallback for code extraction)
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        frontend_src_dir = app_dir / 'frontend' / 'src'
+        app_jsx_path = frontend_src_dir / 'App.jsx'
+        app_css_path = frontend_src_dir / 'App.css'
+        files_written = 0
+        
+        logger.info("[UNGUARDED] Starting single-file frontend merge...")
+        
+        # Ensure directories exist
+        frontend_src_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Strategy 1: Look for explicit App.jsx block
+        app_jsx_code = None
+        app_css_code = None
+        
+        for block in all_blocks:
+            filename = block.get('filename', '').lower().replace('\\', '/')
+            code = block.get('code', '')
+            lang = block.get('language', '').lower()
+            
+            # Handle CSS
+            if lang in {'css', 'scss', 'sass'} or filename.endswith('.css'):
+                if 'app.css' in filename or not filename:  # Accept unnamed CSS blocks too
+                    app_css_code = code
+                    logger.info(f"[UNGUARDED] Found CSS block ({len(code)} chars)")
+                continue
+            
+            # Check for App.jsx
+            if filename in {'app.jsx', 'src/app.jsx', 'app.js', 'src/app.js'}:
+                app_jsx_code = code
+                logger.info(f"[UNGUARDED] Found explicit App.jsx block ({len(code)} chars)")
+                break
+        
+        # Strategy 2: If no explicit App.jsx, look for the best JSX block with React patterns
+        if not app_jsx_code:
+            react_patterns = ['import React', 'from \'react\'', 'from "react"', 'useState', 'useEffect', 'function App', 'const App', 'export default']
+            best_candidate = None
+            best_score = 0
+            
+            for block in all_blocks:
+                lang = block.get('language', '').lower()
+                code = block.get('code', '')
+                
+                if lang not in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'} or not code:
+                    continue
+                
+                # Skip if this looks like a page component (for guarded mode)
+                if 'UserPage' in code or 'AdminPage' in code:
+                    continue
+                
+                # Score based on React patterns present
+                score = sum(1 for pattern in react_patterns if pattern in code)
+                # Bonus for length (prefer more complete code)
+                score += len(code) / 10000
+                # Penalty for routing components (we don't want routers in unguarded)
+                if 'BrowserRouter' in code or 'Routes' in code or 'Route' in code:
+                    score -= 2  # Small penalty, might still be valid if it's self-contained
+                
+                if score > best_score:
+                    best_score = score
+                    best_candidate = code
+                    logger.debug(f"[UNGUARDED] Candidate block score: {score}")
+            
+            if best_candidate and best_score >= 2:  # At least 2 React patterns
+                app_jsx_code = best_candidate
+                logger.info(f"[UNGUARDED] Using best React candidate ({len(app_jsx_code)} chars, score={best_score:.1f})")
+        
+        # Strategy 3: If still nothing, try extracting JSX code from any substantial block
+        if not app_jsx_code:
+            logger.warning("[UNGUARDED] No suitable App.jsx block found, attempting fallback...")
+            for block in all_blocks:
+                lang = block.get('language', '').lower()
+                code = block.get('code', '')
+                if lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'} and len(code) > 300:
+                    app_jsx_code = code
+                    logger.info(f"[UNGUARDED] Using fallback JSX block ({len(code)} chars)")
+                    break
+        
+        if not app_jsx_code:
+            logger.error("[UNGUARDED] Failed to extract App.jsx code from LLM response")
+            return False
+        
+        # Fix API URLs: Replace localhost:5000 with relative paths for Docker networking
+        # In Docker, frontend nginx proxies /api/* to backend service
+        app_jsx_code = app_jsx_code.replace('http://localhost:5000/api', '/api')
+        app_jsx_code = app_jsx_code.replace('http://localhost:5000', '/api')
+        app_jsx_code = app_jsx_code.replace("'http://127.0.0.1:5000/api", "'/api")
+        app_jsx_code = app_jsx_code.replace('"http://127.0.0.1:5000/api', '"/api')
+        
+        # Validate JSX syntax (basic check)
+        is_valid, errors = self.validate_generated_code(app_jsx_code, 'frontend')
+        if not is_valid:
+            logger.warning("[UNGUARDED] Frontend code validation warnings:")
+            for err in errors:
+                logger.warning(f"  - {err}")
+        
+        # Write App.jsx
+        app_jsx_path.write_text(app_jsx_code, encoding='utf-8')
+        logger.info(f"✓ [UNGUARDED] Wrote App.jsx ({len(app_jsx_code)} chars)")
+        files_written += 1
+        
+        # Write App.css if found
+        if app_css_code:
+            app_css_path.write_text(app_css_code, encoding='utf-8')
+            logger.info(f"✓ [UNGUARDED] Wrote App.css ({len(app_css_code)} chars)")
+            files_written += 1
+        
+        # Also write main.jsx if present (entry point)
+        main_jsx_path = frontend_src_dir / 'main.jsx'
+        for block in all_blocks:
+            filename = block.get('filename', '').lower().replace('\\', '/')
+            code = block.get('code', '')
+            lang = block.get('language', '').lower()
+            
+            if lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
+                if 'main.jsx' in filename or 'main.js' in filename or 'index.jsx' in filename:
+                    # Fix API URLs in main.jsx too
+                    code = code.replace('http://localhost:5000/api', '/api')
+                    code = code.replace('http://localhost:5000', '/api')
+                    main_jsx_path.write_text(code, encoding='utf-8')
+                    logger.info(f"✓ [UNGUARDED] Wrote main.jsx ({len(code)} chars)")
+                    files_written += 1
+                    break
+        
+        logger.info(f"[UNGUARDED] Frontend merge complete: {files_written} files written")
+        return files_written > 0
     
     def _merge_frontend_user(self, app_dir: Path, all_blocks: List[Dict], generated_content: str) -> bool:
         """Handle frontend merge for 'user' query - writes to pages/UserPage.jsx and services/api.js.
@@ -2682,7 +2976,7 @@ class GenerationService:
                         
                         if success:
                             # Unguarded mode: more permissive merge
-                            if merger.merge_backend(app_dir, content, query_type='user'):
+                            if merger.merge_backend(app_dir, content, query_type='user', generation_mode='unguarded'):
                                 result['backend_generated'] = True
                             else:
                                 result['errors'].append("Backend merge failed")
@@ -2723,7 +3017,7 @@ class GenerationService:
                         success, content, error = await self.generator.generate(config)
                         
                         if success:
-                            if merger.merge_frontend(app_dir, content, query_type='user'):
+                            if merger.merge_frontend(app_dir, content, query_type='user', generation_mode='unguarded'):
                                 result['frontend_generated'] = True
                             else:
                                 result['errors'].append("Frontend merge failed")
