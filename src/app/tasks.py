@@ -325,6 +325,20 @@ def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, too
     port = SERVICE_PORTS.get(service_name)
     if not port:
         return {'status': 'error', 'error': f'Unknown service: {service_name}'}
+    
+    # Resolve AI config for ai-analyzer (template_slug, ports)
+    ai_config = None
+    if service_name == 'ai-analyzer':
+        try:
+            from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
+            analyzer_mgr = get_analyzer_wrapper().manager
+            ai_config = analyzer_mgr._resolve_ai_config(model_slug, app_number, tools)
+            if ai_config:
+                logger.info(f"[CELERY] Resolved AI config for {service_name}: template={ai_config.get('template_slug')}")
+            else:
+                logger.warning(f"[CELERY] Could not resolve AI config for {model_slug}/app{app_number}")
+        except Exception as e:
+            logger.warning(f"[CELERY] Error resolving AI config: {e}")
 
     async def _ws_client():
         uri = f'ws://analyzer-gateway:8765' # Use gateway if possible, or direct service
@@ -350,11 +364,25 @@ def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, too
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
         
+        # Add AI analyzer config (template_slug, ports, etc.)
+        if service_name == 'ai-analyzer' and ai_config:
+            req['config'] = ai_config
+            logger.info(f"[CELERY] Added AI config to request: template_slug={ai_config.get('template_slug')}")
+        
         try:
-            async with websockets.connect(uri, open_timeout=10, close_timeout=10) as ws:
+            async with websockets.connect(
+                uri,
+                open_timeout=10,
+                close_timeout=10,
+                ping_interval=None,
+                ping_timeout=None,
+                max_size=100 * 1024 * 1024,  # 100MB to match server
+            ) as ws:
                 await ws.send(json.dumps(req))
                 
                 deadline = time.time() + timeout
+                terminal_result = None
+                
                 while time.time() < deadline:
                     try:
                         resp = await asyncio.wait_for(ws.recv(), timeout=5.0)
@@ -363,16 +391,47 @@ def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, too
                         # Check for terminal frame
                         ftype = str(frame.get('type', '')).lower()
                         has_analysis = isinstance(frame.get('analysis'), dict)
+                        fstatus = str(frame.get('status', '')).lower()
                         
-                        if ('analysis_result' in ftype) or (ftype.endswith('_analysis') and has_analysis):
-                            return {
-                                'status': frame.get('status', 'unknown'),
+                        # Terminal detection: result frames OR frames with analysis data
+                        is_terminal = (
+                            ('analysis_result' in ftype) or
+                            ('_result' in ftype and has_analysis) or
+                            (ftype.endswith('_analysis') and has_analysis) or
+                            (fstatus in ('success', 'completed') and has_analysis) or
+                            (ftype == 'result' and has_analysis)
+                        )
+                        
+                        if is_terminal:
+                            terminal_result = {
+                                'status': frame.get('status', 'success'),
                                 'payload': frame.get('analysis', frame),
                                 'error': frame.get('error')
                             }
+                            break
                     except asyncio.TimeoutError:
                         continue
-                return {'status': 'timeout', 'error': 'Analysis timed out'}
+                    except ConnectionClosed as cc:
+                        # Close code 1000 means normal closure - this is OK
+                        if cc.code == 1000 and terminal_result:
+                            break
+                        elif cc.code == 1000:
+                            # Normal close but no result yet - might be in the close reason
+                            logger.warning(f"Connection closed normally (1000) before receiving result")
+                            break
+                        else:
+                            return {'status': 'error', 'error': f'Connection closed with code {cc.code}: {cc.reason}'}
+                
+                if terminal_result:
+                    return terminal_result
+                return {'status': 'timeout', 'error': 'Analysis timed out waiting for result'}
+                
+        except ConnectionClosed as cc:
+            # Handle close during handshake or initial communication
+            if cc.code == 1000:
+                logger.warning(f"Connection closed normally during {service_name} analysis")
+                return {'status': 'error', 'error': 'Connection closed before result received'}
+            return {'status': 'error', 'error': f'WebSocket closed with code {cc.code}: {cc.reason}'}
         except Exception as e:
             return {'status': 'error', 'error': str(e)}
 
