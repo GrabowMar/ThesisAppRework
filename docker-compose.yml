@@ -77,6 +77,8 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - PYTHONUNBUFFERED=1
+      # Docker environment flag for inter-container communication
+      - IN_DOCKER=true
     volumes:
       - ./generated/apps:/app/generated/apps
       - ./results:/app/results
