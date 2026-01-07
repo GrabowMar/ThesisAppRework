@@ -19,13 +19,22 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # Production stage
 FROM python:3.12-slim
 
-# Install runtime dependencies
+# Install runtime dependencies including Docker CLI for managing generated app containers
 RUN apt-get update && apt-get install -y \
     curl \
+    ca-certificates \
+    gnupg \
+    && install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && chmod a+r /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y docker-ce-cli docker-compose-plugin \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN useradd -m -u 1000 appuser && \
+# Create non-root user with docker group access
+RUN groupadd -g 999 docker || true && \
+    useradd -m -u 1000 -G docker appuser && \
     mkdir -p /app /app/src /app/logs /app/generated /app/results /app/misc && \
     chown -R appuser:appuser /app
 

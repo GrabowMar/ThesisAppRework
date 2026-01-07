@@ -31,7 +31,8 @@ services:
       - ./results:/app/results
       - ./logs:/app/logs
       - ./src/data:/app/src/data
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Docker socket for managing generated app containers (rw required for container operations)
+      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
@@ -84,7 +85,8 @@ services:
       - ./results:/app/results
       - ./logs:/app/logs
       - ./src/data:/app/src/data
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Docker socket for celery worker (rw required for analysis tasks)
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - redis
       - web
