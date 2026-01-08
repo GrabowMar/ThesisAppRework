@@ -1085,6 +1085,13 @@ if __name__ == '__main__':
         
         $output = & $Script:PYTHON_CMD $tempScript 2>&1
         
+        # Debug output to diagnose issue
+        Write-Host ""
+        Write-Host "DEBUG - Exit Code: $LASTEXITCODE" -ForegroundColor Cyan
+        Write-Host "DEBUG - Output: $output" -ForegroundColor Cyan
+        Write-Host "DEBUG - Password Length: $($newPassword.Length)" -ForegroundColor Cyan
+        Write-Host ""
+        
         if ($LASTEXITCODE -eq 0 -and ($output -match 'SUCCESS' -or $output -match 'CREATED')) {
             $action = if ($output -match 'CREATED') { "Created and Set" } else { "Reset" }
             Write-Host ""

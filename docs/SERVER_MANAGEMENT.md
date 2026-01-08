@@ -203,19 +203,36 @@ docker logs thesisapprework-static-analyzer-1 --tail 100
 
 1. Check logs for errors:
    ```bash
-   docker logs thesisapprework-<service>-1 --tail 100
+   docker logs <container_name> --tail 50
    ```
 
 2. Check if port is in use:
    ```bash
-   netstat -tlnp | grep <port>
+   netstat -tuln | grep <port>
    ```
 
 3. Force rebuild:
    ```bash
-   docker compose build --no-cache <service>
+   docker compose build <service>
    docker compose up -d <service>
    ```
+
+### "Split-Brain" Deployment (Network Isolation)
+
+**Symptom:** Web container can't reach analyzers, but analyzers seem running. `python analyzer/analyzer_manager.py health` fails with `error` or `unreachable`.
+
+**Cause:** You may have accidentally started the analyzers from the `analyzer/` subdirectory instead of the root. This creates a separate Docker network (`analyzer_analyzer-network`) that the web app (`thesisapprework_thesis-network`) cannot reach.
+
+**Fix:**
+```bash
+# 1. Stop the isolated stack
+cd /home/ubuntu/ThesisAppRework/analyzer
+docker compose down
+
+# 2. Start the unified stack (root directory)
+cd /home/ubuntu/ThesisAppRework
+docker compose up -d
+```
 
 ### Analysis Failing
 
