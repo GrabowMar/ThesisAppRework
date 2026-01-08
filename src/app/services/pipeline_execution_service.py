@@ -92,6 +92,27 @@ class PipelineExecutionService:
         log_func = getattr(logger, level, logger.info)
         log_func(f"[PipelineExecutor] {formatted}")
     
+    def _get_analyzer_host(self, service_name: str) -> str:
+        """Get the hostname for an analyzer service.
+        
+        In Docker environment, uses container names for inter-container communication.
+        Falls back to localhost for local development.
+        
+        Args:
+            service_name: Name of the analyzer service
+            
+        Returns:
+            Hostname string (e.g., 'static-analyzer' in Docker, 'localhost' locally)
+        """
+        in_docker = os.environ.get('IN_DOCKER', '').lower() in ('true', '1', 'yes')
+        
+        if in_docker:
+            # Use container names for Docker inter-container communication
+            return service_name
+        
+        # Use environment variable if set, otherwise localhost
+        return os.environ.get('ANALYZER_HOST', 'localhost')
+    
     def start(self):
         """Start the background execution thread."""
         if self._running:
@@ -1186,8 +1207,10 @@ class PipelineExecutionService:
             # Check port accessibility with retries (ports can be temporarily unavailable)
             def check_all_ports():
                 return all(
-                    manager.check_port_accessibility('localhost', service_info.port)
-                    for service_info in manager.services.values()
+                    manager.check_port_accessibility(
+                        self._get_analyzer_host(service_name), service_info.port
+                    )
+                    for service_name, service_info in manager.services.items()
                 )
             
             all_ports_accessible = check_all_ports()

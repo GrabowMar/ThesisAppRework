@@ -9,6 +9,7 @@ Note: Reports stage was removed (Dec 2025) - use Reports module separately.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -16,6 +17,28 @@ from flask import Blueprint, current_app, jsonify, render_template, flash, redir
 from flask_login import current_user
 
 from app.services.generation import get_generation_service
+
+
+def _get_analyzer_host(service_name: str) -> str:
+    """Get the hostname for an analyzer service.
+    
+    In Docker environment, uses container names for inter-container communication.
+    Falls back to localhost for local development.
+    
+    Args:
+        service_name: Name of the analyzer service
+        
+    Returns:
+        Hostname string (e.g., 'static-analyzer' in Docker, 'localhost' locally)
+    """
+    in_docker = os.environ.get('IN_DOCKER', '').lower() in ('true', '1', 'yes')
+    
+    if in_docker:
+        # Use container names for Docker inter-container communication
+        return service_name
+    
+    # Use environment variable if set, otherwise localhost
+    return os.environ.get('ANALYZER_HOST', 'localhost')
 from app.services.service_locator import ServiceLocator
 from app.models import ModelCapability, GeneratedApplication, AnalysisTask, PipelineSettings, PipelineExecution, PipelineExecutionStatus
 from app.constants import AnalysisStatus
@@ -888,8 +911,8 @@ def _ensure_analyzer_containers_running() -> Dict[str, Any]:
         
         # Check port accessibility
         all_ports_accessible = all(
-            manager.check_port_accessibility('localhost', service_info.port)
-            for service_info in manager.services.values()
+            manager.check_port_accessibility(_get_analyzer_host(service_name), service_info.port)
+            for service_name, service_info in manager.services.items()
         )
         
         # If already healthy, return success
@@ -915,8 +938,8 @@ def _ensure_analyzer_containers_running() -> Dict[str, Any]:
         while time.time() - start_time < max_wait:
             # Check port accessibility
             all_accessible = all(
-                manager.check_port_accessibility('localhost', service_info.port)
-                for service_info in manager.services.values()
+                manager.check_port_accessibility(_get_analyzer_host(service_name), service_info.port)
+                for service_name, service_info in manager.services.items()
             )
             
             if all_accessible:
@@ -1297,7 +1320,7 @@ def api_analyzer_status():
         for service_name, service_info in manager.services.items():
             ports[service_name] = {
                 'port': service_info.port,
-                'accessible': manager.check_port_accessibility('localhost', service_info.port)
+                'accessible': manager.check_port_accessibility(_get_analyzer_host(service_name), service_info.port)
             }
         
         # Calculate overall status
@@ -1381,7 +1404,7 @@ def api_analyzer_start():
                 # Check if all ports are accessible
                 all_accessible = True
                 for service_name, service_info in manager.services.items():
-                    if not manager.check_port_accessibility('localhost', service_info.port):
+                    if not manager.check_port_accessibility(_get_analyzer_host(service_name), service_info.port):
                         all_accessible = False
                         break
                 
@@ -1399,7 +1422,7 @@ def api_analyzer_start():
         for service_name, service_info in manager.services.items():
             ports[service_name] = {
                 'port': service_info.port,
-                'accessible': manager.check_port_accessibility('localhost', service_info.port)
+                'accessible': manager.check_port_accessibility(_get_analyzer_host(service_name), service_info.port)
             }
         
         all_running = all(

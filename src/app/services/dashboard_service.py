@@ -312,23 +312,44 @@ def _redis_status() -> ComponentStatus:
 
 
 def _celery_status() -> ComponentStatus:
+    """Check Celery worker status by pinging the broker."""
+    import os
+    
+    # Check if Celery is enabled
+    use_celery = os.environ.get("USE_CELERY_ANALYSIS", "false").lower() == "true"
+    if not use_celery:
+        return ComponentStatus(
+            key="celery",
+            label="Celery",
+            status="not_configured",
+            message="Celery disabled (USE_CELERY_ANALYSIS=false)",
+        )
+    
+    # Get broker URL
+    broker_url = (
+        os.environ.get("CELERY_BROKER_URL")
+        or current_app.config.get("CELERY_BROKER_URL")
+    )
+    if not broker_url:
+        return ComponentStatus(
+            key="celery",
+            label="Celery",
+            status="not_configured",
+            message="CELERY_BROKER_URL not configured",
+        )
+    
     try:
-        from app.extensions import get_celery  # type: ignore[attr-defined]
-
-        celery_app = get_celery()
-        if not celery_app:
-            return ComponentStatus(
-                key="celery",
-                label="Celery",
-                status="not_configured",
-                message="Celery not initialised",
-            )
+        # Try to connect to broker and check for workers
+        from celery import Celery
+        celery_app = Celery(broker=broker_url)
+        
         try:
-            inspect = celery_app.control.inspect()
+            # Quick ping with short timeout
+            inspect = celery_app.control.inspect(timeout=2.0)
             stats = inspect.stats() if inspect else None
         except Exception:
             stats = None
-
+        
         if stats:
             return ComponentStatus(
                 key="celery",
@@ -342,46 +363,77 @@ def _celery_status() -> ComponentStatus:
             status="degraded",
             message="No workers responding",
         )
+    except ImportError:
+        return ComponentStatus(
+            key="celery",
+            label="Celery",
+            status="warning",
+            message="Celery package not installed",
+        )
     except Exception as exc:  # pragma: no cover - defensive
         return ComponentStatus(
             key="celery",
             label="Celery",
             status="warning",
-            message=f"Check skipped: {exc}",
+            message=f"Check failed: {exc}",
         )
 
 
 def _analyzer_statuses() -> List[ComponentStatus]:
+    """Check analyzer service connectivity.
+    
+    In Docker environments, each analyzer runs in its own container with its own hostname.
+    The service key (e.g., 'static-analyzer') matches the Docker service name.
+    """
     services = [
         {"key": "static-analyzer", "label": "Static Analyzer", "port": 2001},
         {"key": "dynamic-analyzer", "label": "Dynamic Analyzer", "port": 2002},
         {"key": "performance-tester", "label": "Performance Tester", "port": 2003},
         {"key": "ai-analyzer", "label": "AI Analyzer", "port": 2004},
     ]
-    timeout = float(current_app.config.get("DASHBOARD_ANALYZER_TIMEOUT", 0.75))
-    host = current_app.config.get("DASHBOARD_ANALYZER_HOST", "127.0.0.1")
+    timeout = float(current_app.config.get("DASHBOARD_ANALYZER_TIMEOUT", 2.0))
+    
+    import os
+    # Check if we're in Docker by looking for common Docker environment indicators
+    in_docker = (
+        os.path.exists("/.dockerenv") 
+        or os.environ.get("DOCKER_CONTAINER") == "true"
+        or os.environ.get("IN_DOCKER") == "true"
+    )
+    
+    # In Docker, use the service name as the host (Docker DNS resolution)
+    # For local dev, use ANALYZER_HOST env var or fallback to localhost
+    default_host = os.environ.get("ANALYZER_HOST") or current_app.config.get("DASHBOARD_ANALYZER_HOST", "127.0.0.1")
 
     results: List[ComponentStatus] = []
     for svc in services:
         port = svc["port"]
         label = svc["label"]
+        service_key = svc["key"]
+        
+        # In Docker, use the service name as host; otherwise use default_host
+        if in_docker:
+            host = service_key  # e.g., "static-analyzer"
+        else:
+            host = default_host
+        
         try:
             with socket.create_connection((host, port), timeout=timeout):
                 results.append(
                     ComponentStatus(
-                        key=svc["key"],
+                        key=service_key,
                         label=label,
                         status="healthy",
                         message=f"Port {port} reachable",
                     )
                 )
-        except OSError:
+        except OSError as e:
             results.append(
                 ComponentStatus(
-                    key=svc["key"],
+                    key=service_key,
                     label=label,
                     status="warning",
-                    message="No response",
+                    message=f"No response ({host}:{port})",
                 )
             )
     return results

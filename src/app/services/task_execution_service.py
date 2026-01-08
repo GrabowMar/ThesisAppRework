@@ -212,6 +212,27 @@ class TaskExecutionService:
             )
         self._service_failures[service_name] = 0
 
+    def _get_analyzer_host(self, service_name: str) -> str:
+        """Get the hostname for an analyzer service.
+        
+        In Docker environment, uses container names for inter-container communication.
+        Falls back to localhost for local development.
+        
+        Args:
+            service_name: Name of the analyzer service
+            
+        Returns:
+            Hostname string (e.g., 'static-analyzer' in Docker, '127.0.0.1' locally)
+        """
+        in_docker = os.environ.get('IN_DOCKER', '').lower() in ('true', '1', 'yes')
+        
+        if in_docker:
+            # Use container names for Docker inter-container communication
+            return service_name
+        
+        # Use environment variable if set, otherwise localhost
+        return os.environ.get('ANALYZER_HOST', '127.0.0.1')
+    
     def _preflight_check_services(
         self,
         required_services: set,
@@ -248,12 +269,15 @@ class TaskExecutionService:
                 self._log(f"[PREFLIGHT] Unknown service: {service_name}", level='warning')
                 continue
             
+            # Get the appropriate host (container name in Docker, localhost otherwise)
+            host = self._get_analyzer_host(service_name)
+            
             accessible = False
             for attempt in range(1, max_retries + 1):
                 try:
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     sock.settimeout(5.0)
-                    result = sock.connect_ex(('127.0.0.1', port))
+                    result = sock.connect_ex((host, port))
                     sock.close()
                     
                     if result == 0:
@@ -565,7 +589,8 @@ class TaskExecutionService:
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(2.0)
-                result = sock.connect_ex(('127.0.0.1', port))
+                host = self._get_analyzer_host(service_name)
+                result = sock.connect_ex((host, port))
                 sock.close()
                 services_available[service_name] = (result == 0)
             except Exception as e:
@@ -2461,11 +2486,14 @@ class TaskExecutionService:
         """
         import socket
         
+        # Get the appropriate host for this service
+        host = self._get_analyzer_host(service_name)
+        
         for attempt in range(1, max_retries + 1):
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(5.0)
-                result = sock.connect_ex(('127.0.0.1', port))
+                result = sock.connect_ex((host, port))
                 sock.close()
                 
                 if result == 0:
@@ -2531,7 +2559,9 @@ class TaskExecutionService:
         from websockets.exceptions import ConnectionClosed
         import time
         
-        websocket_url = f'ws://localhost:{port}'
+        # Get appropriate host for WebSocket connection
+        host = self._get_analyzer_host(service_name)
+        websocket_url = f'ws://{host}:{port}'
         
         # Service-specific message type mapping
         MESSAGE_TYPES = {

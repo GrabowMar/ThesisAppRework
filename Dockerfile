@@ -33,7 +33,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user with docker group access
-RUN groupadd -g 999 docker || true && \
+# NOTE: GID 988 matches the host docker group (verified on server)
+RUN groupadd -g 988 docker || true && \
     useradd -m -u 1000 -G docker appuser && \
     mkdir -p /app /app/src /app/logs /app/generated /app/results /app/misc && \
     chown -R appuser:appuser /app

@@ -1,0 +1,265 @@
+# Docker Compose for ThesisApp Complete Stack
+# Includes Flask app and analyzer services
+
+services:
+  # Flask web application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - HOST=0.0.0.0
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:////app/src/data/thesis_app.db}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_ALLOW_ALL_PROVIDERS=${OPENROUTER_ALLOW_ALL_PROVIDERS:-true}
+      - PYTHONUNBUFFERED=1
+      # Celery configuration for Docker environment
+      - USE_CELERY_ANALYSIS=true
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      # Authentication & Security
+      - REGISTRATION_ENABLED=${REGISTRATION_ENABLED:-false}
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}
+      - SESSION_LIFETIME=${SESSION_LIFETIME:-86400}
+    volumes:
+      - ./generated/apps:/app/generated/apps
+      - ./results:/app/results
+      - ./logs:/app/logs
+      - ./src/data:/app/src/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - thesis-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # Redis for Celery
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - thesis-network
+
+  # Celery Worker
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.celery_worker.celery worker --loglevel=info
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:////app/src/data/thesis_app.db}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./generated/apps:/app/generated/apps
+      - ./results:/app/results
+      - ./logs:/app/logs
+      - ./src/data:/app/src/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - redis
+      - web
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; exit(0 if any('celery' in open(f'/proc/{p}/cmdline').read() for p in os.listdir('/proc') if p.isdigit()) else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - thesis-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+
+  # Analyzer services (WebSocket Gateway)
+  analyzer-gateway:
+    build:
+      context: .
+      dockerfile: analyzer/Dockerfile
+    ports:
+      - "8765:8765"
+    environment:
+      - GATEWAY_HOST=0.0.0.0
+      - GATEWAY_PORT=8765
+      - STATIC_ANALYZER_URL=ws://static-analyzer:2001
+      - DYNAMIC_ANALYZER_URL=ws://dynamic-analyzer:2002
+      - PERF_TESTER_URL=ws://performance-tester:2003
+      - AI_ANALYZER_URL=ws://ai-analyzer:2004
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - static-analyzer
+      - dynamic-analyzer
+      - performance-tester
+      - ai-analyzer
+    healthcheck:
+      test: ["CMD", "python", "-c", "import asyncio, websockets; asyncio.run(websockets.connect('ws://localhost:8765').__aenter__())"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - thesis-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.2'
+
+  # Static Security & Quality Analyzer
+  static-analyzer:
+    build:
+      context: .
+      dockerfile: analyzer/services/static-analyzer/Dockerfile
+    ports:
+      - "2001:2001"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2001
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./generated/apps:/app/sources:ro
+      - ./results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - thesis-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Dynamic Security Analyzer
+  dynamic-analyzer:
+    build:
+      context: .
+      dockerfile: analyzer/services/dynamic-analyzer/Dockerfile
+    ports:
+      - "2002:2002"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2002
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - thesis-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Performance Tester
+  performance-tester:
+    build:
+      context: .
+      dockerfile: analyzer/services/performance-tester/Dockerfile
+    ports:
+      - "2003:2003"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2003
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./results:/app/reports
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - thesis-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  # AI-Powered Analyzer
+  ai-analyzer:
+    build:
+      context: .
+      dockerfile: analyzer/services/ai-analyzer/Dockerfile
+    ports:
+      - "2004:2004"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2004
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    volumes:
+      - ./generated/apps:/app/sources:ro
+      - ./results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - thesis-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+networks:
+  thesis-network:
+    driver: bridge

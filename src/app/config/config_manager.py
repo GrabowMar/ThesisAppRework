@@ -172,7 +172,9 @@ class ConfigManager:
         if base_service:
             return base_service.websocket_url
         
-        return "ws://localhost:2001"  # Ultimate fallback
+        # Ultimate fallback - respect ANALYZER_HOST env var for Docker networking
+        fallback_host = os.environ.get('ANALYZER_HOST', 'localhost')
+        return f"ws://{fallback_host}:2001"
     
     def get_default_tools(self, analysis_type: str) -> List[str]:
         """Get default tools for analysis type."""

@@ -261,18 +261,6 @@ class AIAnalyzer(BaseWSService):
             "code-quality-analyzer"      # True code quality metrics (error handling, types, anti-patterns, etc.)
         ]
         
-        # Check GPT4All availability
-        try:
-            import importlib.util
-            if importlib.util.find_spec("aiohttp"):
-                tools.append("gpt4all-requirements")
-        except ImportError:
-            pass
-        
-        # Check OpenRouter availability
-        if self.openrouter_api_key:
-            tools.append("openrouter-requirements")
-        
         self.log.info(f"Available tools: {tools}")
         return tools
     
@@ -2750,13 +2738,21 @@ Focus on whether the admin panel functionality described in the requirement is a
                 # Tool selection - support both old and new names, default to both tools
                 requested_tools = list(self.extract_selected_tools(message_data) or ["requirements-scanner", "code-quality-analyzer"])
                 
-                # Map old tool names to new ones for backwards compatibility
+                # Map old/legacy tool names to new ones for backwards compatibility
+                tool_mapping = {
+                    "requirements-checker": "requirements-scanner",
+                    "gpt4all-requirements": "requirements-scanner",  # Legacy
+                    "openrouter-requirements": "requirements-scanner",  # Legacy
+                    "ai_requirements_compliance": "requirements-scanner",  # Legacy API name
+                }
+                
                 tools = []
                 for tool in requested_tools:
-                    if tool == "requirements-checker":
-                        tools.append("requirements-scanner")
-                    else:
-                        tools.append(tool)
+                    mapped_tool = tool_mapping.get(tool, tool)
+                    if mapped_tool not in tools:  # Avoid duplicates
+                        tools.append(mapped_tool)
+                    if tool != mapped_tool:
+                        self.log.info(f"[TOOL-ROUTING] Mapped legacy tool '{tool}' → '{mapped_tool}'")
                 
                 # Validate template_slug is provided in config
                 if not config or not config.get('template_slug'):
