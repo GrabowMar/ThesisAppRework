@@ -53,8 +53,9 @@ ENV HOST=0.0.0.0
 WORKDIR /app
 COPY --chown=appuser:appuser src/ ./src/
 COPY --chown=appuser:appuser misc/ ./misc/
+COPY --chown=appuser:appuser docs/ ./docs/
 COPY --chown=appuser:appuser analyzer/ ./analyzer/
-# Note: docs/ is excluded via .dockerignore (not needed at runtime)
+# Note: docs/ is included for the in-app documentation viewer
 
 # Copy container control script
 COPY --chown=appuser:appuser container-start.sh ./start.sh

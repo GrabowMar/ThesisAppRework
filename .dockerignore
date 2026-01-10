@@ -64,9 +64,9 @@ reports/
 .gitignore
 .gitattributes
 
-# Documentation
-*.md
-docs/
+# Documentation - keep docs/ folder for in-app help
+# *.md - needed for documentation viewer
+# docs/ - needed for documentation viewer
 
 # CI/CD
 .github/

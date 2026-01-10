@@ -131,8 +131,21 @@ if (window.__MODELS_JS_LOADED__) {
       bulkSelectionManager = new TableUtils.BulkSelectionManager('models-table', 'select-all-models', {
         rowCheckboxClass: 'model-checkbox',
         selectionIndicatorId: 'models-selection-indicator',
-        onSelectionChange: (ids) => {
-          selectedModels = ids;
+        onSelectionChange: (visibleSelectedIds) => {
+          // CRITICAL FIX: Don't overwrite selectedModels with only visible selections
+          // Instead, merge visible selections with preserved hidden selections
+          const visibleCheckboxes = document.querySelectorAll('#models-table-body .model-checkbox');
+          const visibleSlugs = Array.from(visibleCheckboxes).map(cb => cb.value);
+          
+          // Keep selections that are NOT visible on current page
+          const hiddenSelections = selectedModels.filter(slug => !visibleSlugs.includes(slug));
+          
+          // Merge hidden selections with currently visible selections
+          selectedModels = [...new Set([...hiddenSelections, ...visibleSelectedIds])];
+          
+          // Persist to localStorage immediately
+          try { localStorage.setItem('models_selected', JSON.stringify(selectedModels)); } catch(e) {}
+          
           updateBatchSelectionCount();
           updateCompareButton();
         }
