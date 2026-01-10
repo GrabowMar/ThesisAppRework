@@ -222,8 +222,9 @@ class ReportService:
                 data = self._generate_template_comparison(config, report)
             elif report_type == 'tool_analysis':
                 data = self._generate_tool_report(config, report)
-        elif report_type == 'generation_analytics':
-            data = self._generate_generation_analytics(config, report)
+            elif report_type == 'generation_analytics':
+                data = self._generate_generation_analytics(config, report)
+            
             report.status = 'completed'
             report.completed_at = utc_now()
             report.progress_percent = 100

@@ -75,7 +75,7 @@
 
   {# Overall Summary Card #}
   {% if ns.tools_executed > 0 %}
-  <div class="card card-table-compact mb-3">
+  <div class="card card-table-compact mb-3 shadow-sm">
     <div class="card-header d-flex flex-wrap align-items-center gap-3">
       <h5 class="card-title d-flex align-items-center gap-2 mb-0">
         <i class="fa-solid fa-chart-pie"></i>
@@ -151,7 +151,7 @@
         {% endfor %}
         
         {% if tools_ns.has_tools %}
-        <div class="card card-table-compact mb-3">
+        <div class="card card-table-compact mb-3 shadow-sm">
           <div class="card-header d-flex flex-wrap align-items-center gap-3 bg-primary-lt">
             <h5 class="card-title d-flex align-items-center gap-2 mb-0">
               {% if lang|lower == 'python' %}

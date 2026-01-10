@@ -7,6 +7,7 @@ Routes for displaying markdown documentation files.
 
 import os
 import markdown
+import traceback
 from flask import Blueprint, flash, current_app, abort, redirect, url_for, request
 from flask_login import current_user
 

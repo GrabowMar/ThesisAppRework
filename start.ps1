@@ -1017,12 +1017,13 @@ function Show-InteractiveMenu {
 }
 
 function Invoke-RebuildContainers {
-    Write-Banner "Rebuilding Analyzer Containers"
+    Write-Banner "Rebuilding Docker Stack"
     
-    Push-Location $Script:ANALYZER_DIR
+    # Use ROOT directory (same as Start-DockerStack) to avoid duplicate stacks
+    Push-Location $Script:ROOT_DIR
     try {
         Write-Status "Stopping and removing existing containers..." "Info"
-        docker-compose down 2>&1 | Out-Null
+        docker compose down 2>&1 | Out-Null
         
         # Enable BuildKit for faster builds and cache mounts
         $env:DOCKER_BUILDKIT = 1
@@ -1035,12 +1036,13 @@ function Invoke-RebuildContainers {
         Write-Host ""
         
         # Build all services in parallel with BuildKit optimizations
-        Write-Status "Building analyzer services..." "Info"
+        Write-Status "Building all services (web, celery, analyzers)..." "Info"
         Write-Host "  • Services will share Python base image layers" -ForegroundColor Gray
         Write-Host "  • Node.js installation cached per service" -ForegroundColor Gray
         Write-Host ""
         
-        docker-compose build --parallel static-analyzer dynamic-analyzer performance-tester ai-analyzer gateway celery-worker
+        # Build all services from root docker-compose.yml
+        docker compose build --parallel
         
         if ($LASTEXITCODE -eq 0) {
             Write-Host ""
@@ -1061,24 +1063,24 @@ function Invoke-RebuildContainers {
             Write-Host ""
             
             # Ask if user wants to start the services
-            Write-Host "Would you like to start the analyzer services now? (Y/N): " -NoNewline -ForegroundColor Yellow
+            Write-Host "Would you like to start all services now? (Y/N): " -NoNewline -ForegroundColor Yellow
             $response = Read-Host
             
             if ($response -eq 'Y' -or $response -eq 'y') {
-                Write-Status "Starting analyzer services..." "Info"
-                docker-compose up -d 2>&1 | Out-Null
+                Write-Status "Starting all services..." "Info"
+                docker compose up -d 2>&1 | Out-Null
                 
                 if ($LASTEXITCODE -eq 0) {
                     Start-Sleep -Seconds 3
                     
                     # Show running services
-                    $runningServices = docker-compose ps --services --filter status=running 2>$null
-                    if ($runningServices) {
-                        Write-Status "Services started successfully:" "Success"
-                        $runningServices | ForEach-Object {
-                            Write-Host "  • $_" -ForegroundColor Green
-                        }
+                    Write-Status "Services started:" "Success"
+                    docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>$null | ForEach-Object {
+                        Write-Host "  $_" -ForegroundColor Gray
                     }
+                    
+                    # Mark Docker mode
+                    "docker-compose" | Out-File -FilePath (Join-Path $Script:RUN_DIR "docker.mode") -Encoding ASCII
                 } else {
                     Write-Status "Failed to start services" "Error"
                 }
@@ -1115,12 +1117,13 @@ function Invoke-CleanRebuild {
         return $false
     }
     
-    Push-Location $Script:ANALYZER_DIR
+    # Use ROOT directory (same as Start-DockerStack) to avoid duplicate stacks
+    Push-Location $Script:ROOT_DIR
     try {
         Write-Status "Performing deep clean..." "Info"
         
         # Full cleanup
-        docker-compose down --rmi all --volumes 2>&1 | Out-Null
+        docker compose down --rmi all --volumes 2>&1 | Out-Null
         
         # Clear BuildKit cache
         Write-Status "Clearing BuildKit cache..." "Info"
@@ -1131,7 +1134,7 @@ function Invoke-CleanRebuild {
         $env:COMPOSE_DOCKER_CLI_BUILD = 1
         
         Write-Status "Building from scratch (this will take 12-18 minutes)..." "Warning"
-        docker-compose build --no-cache --parallel
+        docker compose build --no-cache --parallel
         
         if ($LASTEXITCODE -eq 0) {
             Write-Host ""

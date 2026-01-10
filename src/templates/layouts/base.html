@@ -90,6 +90,9 @@
   {# Footer #}
   {% include 'shared/ui/_footer.html' %}
 
+  {# Cookie Banner & Management #}
+  {% include 'shared/ui/_cookie_banner.html' %}
+
   {# Search Modal #}
   <div class="modal modal-blur fade" id="search-modal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-sm modal-dialog-centered">
@@ -219,6 +222,7 @@
   </script>
 
   {# Application Scripts #}
+  <script src="{{ url_for('static', filename='js/cookie-manager.js') }}"></script>
   <script src="{{ url_for('static', filename='js/table-utils.js') }}"></script>
   <script src="{{ url_for('static', filename='js/sidebar.js') }}"></script>
   <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
@@ -315,7 +319,25 @@
     }
     
     window.showToast = showToast;
-    
+
+  })();
+  </script>
+
+  {# Cookie Settings Footer Link Handler #}
+  <script>
+  (function() {
+    'use strict';
+
+    // Handle footer cookie settings link
+    document.addEventListener('click', function(e) {
+      if (e.target && (e.target.id === 'footer-cookie-settings' || e.target.closest('#footer-cookie-settings'))) {
+        e.preventDefault();
+        if (window.cookieManager) {
+          window.cookieManager.openSettings();
+        }
+      }
+    });
+
   })();
   </script>
 

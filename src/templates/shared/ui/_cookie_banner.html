@@ -1,0 +1,190 @@
+{#
+  Cookie Banner Component - Tabler styled
+  Shows cookie consent banner and manages user preferences
+#}
+<style>
+  .cookie-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    transform: translateY(100%);
+    transition: transform 0.3s ease-in-out;
+  }
+
+  .cookie-banner.show {
+    transform: translateY(0);
+  }
+
+  .cookie-settings-modal .form-check {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background: var(--tblr-bg-surface);
+    margin-bottom: 0.75rem;
+  }
+
+  .cookie-settings-modal .form-check-label {
+    width: 100%;
+  }
+</style>
+
+<div id="cookie-banner" class="cookie-banner">
+  <div class="container-xl">
+    <div class="alert alert-primary shadow-lg border-0 mb-0 rounded-top" role="alert">
+      <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
+        <div class="flex-fill">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <i class="fa-solid fa-cookie-bite fs-3 text-primary"></i>
+            <h4 class="alert-heading mb-0">Cookie Consent</h4>
+          </div>
+          <p class="mb-0 text-muted">
+            We use cookies and local storage to enhance your experience, analyze usage, and improve application performance.
+            <a href="{{ url_for('main.privacy_policy') }}" class="alert-link" hx-boost="true" hx-target="#main-content">Learn more about our data usage</a>
+          </p>
+        </div>
+        <div class="d-flex gap-2 flex-shrink-0">
+          <button type="button" class="btn btn-outline-primary" id="cookie-settings-btn">
+            <i class="fa-solid fa-gear me-1"></i>
+            Settings
+          </button>
+          <button type="button" class="btn btn-primary" id="cookie-accept-all">
+            <i class="fa-solid fa-check me-1"></i>
+            Accept All
+          </button>
+          <button type="button" class="btn btn-outline-secondary" id="cookie-reject-optional">
+            <i class="fa-solid fa-xmark me-1"></i>
+            Reject Optional
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Cookie Settings Modal #}
+<div class="modal modal-blur fade" id="cookie-settings-modal" tabindex="-1" aria-labelledby="cookie-settings-label" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content cookie-settings-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="cookie-settings-label">
+          <i class="fa-solid fa-cookie-bite me-2 text-primary"></i>
+          Cookie & Data Settings
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info mb-4">
+          <i class="fa-solid fa-info-circle me-2"></i>
+          Customize which types of data storage and cookies you want to allow. Some features may not work if you disable certain categories.
+        </div>
+
+        {# Essential Cookies - Always Required #}
+        <div class="form-check form-check-single mb-3">
+          <input class="form-check-input" type="checkbox" id="cookie-essential" checked disabled>
+          <label class="form-check-label" for="cookie-essential">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+              <div>
+                <strong class="text-body">Essential</strong>
+                <span class="badge bg-success-lt ms-2">Required</span>
+              </div>
+            </div>
+            <div class="text-muted small">
+              Required for basic functionality including authentication, session management, and security. These cannot be disabled.
+              <div class="mt-2">
+                <strong>Data stored:</strong> Session tokens, CSRF tokens, authentication state, theme preferences
+              </div>
+            </div>
+          </label>
+        </div>
+
+        {# Analytics Cookies #}
+        <div class="form-check form-check-single mb-3">
+          <input class="form-check-input" type="checkbox" id="cookie-analytics" value="analytics">
+          <label class="form-check-label" for="cookie-analytics">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+              <div>
+                <strong class="text-body">Analytics & Performance</strong>
+                <span class="badge bg-blue-lt ms-2">Optional</span>
+              </div>
+            </div>
+            <div class="text-muted small">
+              Help us understand how you use the application to improve performance and user experience.
+              <div class="mt-2">
+                <strong>Data stored:</strong> Page views, feature usage, performance metrics, error logs, navigation patterns
+              </div>
+            </div>
+          </label>
+        </div>
+
+        {# Functional Cookies #}
+        <div class="form-check form-check-single mb-3">
+          <input class="form-check-input" type="checkbox" id="cookie-functional" value="functional">
+          <label class="form-check-label" for="cookie-functional">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+              <div>
+                <strong class="text-body">Functional & Preferences</strong>
+                <span class="badge bg-purple-lt ms-2">Optional</span>
+              </div>
+            </div>
+            <div class="text-muted small">
+              Remember your preferences and settings to provide a personalized experience.
+              <div class="mt-2">
+                <strong>Data stored:</strong> UI preferences, sidebar state, table column preferences, filter settings, last used models
+              </div>
+            </div>
+          </label>
+        </div>
+
+        {# AI Processing #}
+        <div class="form-check form-check-single mb-3">
+          <input class="form-check-input" type="checkbox" id="cookie-ai" value="ai">
+          <label class="form-check-label" for="cookie-ai">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+              <div>
+                <strong class="text-body">AI Processing & History</strong>
+                <span class="badge bg-indigo-lt ms-2">Optional</span>
+              </div>
+            </div>
+            <div class="text-muted small">
+              Store AI analysis results, model configurations, and processing history for faster access and improved recommendations.
+              <div class="mt-2">
+                <strong>Data stored:</strong> Analysis cache, model preferences, prompt history, result previews
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <hr class="my-4">
+
+        <div class="small text-muted">
+          <p class="mb-2">
+            <i class="fa-solid fa-shield-halved me-1"></i>
+            <strong>Your Privacy:</strong> We do not sell your data to third parties. All data is stored locally in your browser or on our secure servers.
+          </p>
+          <p class="mb-0">
+            <i class="fa-solid fa-book me-1"></i>
+            For more details, read our <a href="{{ url_for('main.privacy_policy') }}" class="link-primary">Privacy Policy</a>.
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="cookie-save-settings">
+          <i class="fa-solid fa-save me-1"></i>
+          Save Preferences
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Floating Cookie Settings Button (shows after consent) #}
+<div id="cookie-float-btn" class="position-fixed bottom-0 start-0 m-3" style="z-index: 1040; display: none;">
+  <button type="button" class="btn btn-outline-primary rounded-circle shadow-lg"
+          id="cookie-float-settings"
+          title="Cookie Settings"
+          aria-label="Cookie Settings">
+    <i class="fa-solid fa-cookie-bite"></i>
+  </button>
+</div>

@@ -112,7 +112,7 @@
   {% endif %}
 
   {# Analysis Sections #}
-  <div class="accordion accordion-flush border rounded" id="analysisAccordion">
+  <div class="accordion accordion-flush border rounded-2" id="analysisAccordion">
     {# Static Analysis Section #}
     {% set static_service = payload.results.services.static if payload.results.services and payload.results.services.static else none %}
     <div class="accordion-item">

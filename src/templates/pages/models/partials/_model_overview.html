@@ -2,7 +2,7 @@
 <div class="row g-2">
   {# Combined Identity & Status #}
   <div class="col-lg-7">
-    <div class="card card-sm h-100">
+    <div class="card card-sm h-100 shadow-sm">
       <div class="card-body py-2">
         <div class="row g-3">
           {# Identity Column #}
@@ -69,7 +69,7 @@
 
   {# Capacity Card - Compact #}
   <div class="col-lg-5">
-    <div class="card card-sm h-100">
+    <div class="card card-sm h-100 shadow-sm">
       <div class="card-body py-2">
         <div class="d-flex align-items-center mb-2">
           <i class="fas fa-database text-info me-2" aria-hidden="true"></i>
@@ -103,7 +103,7 @@
   {% set hf_id = enriched_data.get('capabilities', {}).get('hugging_face_id') or enriched_data.get('hugging_face_id') %}
   {% if perf_score or hf_id %}
   <div class="col-12">
-    <div class="card card-sm">
+    <div class="card card-sm shadow-sm">
       <div class="card-body py-2">
         <div class="d-flex align-items-center flex-wrap gap-3">
           {% if perf_score %}
@@ -134,7 +134,7 @@
   {# Description - Only if exists, inline #}
   {% if enriched_data.get('openrouter_description') %}
   <div class="col-12">
-    <div class="card card-sm">
+    <div class="card card-sm shadow-sm">
       <div class="card-body py-2">
         <div class="d-flex align-items-start">
           <i class="fas fa-file-alt text-warning me-2 mt-1" aria-hidden="true"></i>
@@ -149,7 +149,7 @@
   {% set variants = enriched_data.get('openrouter_variants') %}
   {% if variants %}
   <div class="col-12">
-    <div class="card card-sm">
+    <div class="card card-sm shadow-sm">
       <div class="card-body py-2">
         <div class="d-flex align-items-center flex-wrap gap-2">
           <span class="text-muted small"><i class="fas fa-layer-group text-purple me-1"></i>Variants:</span>

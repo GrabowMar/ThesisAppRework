@@ -20,7 +20,7 @@ Your API keys were committed to the Git repository and are now compromised. Foll
 
 ### 1. OpenRouter API Key
 
-**Old Key (COMPROMISED):** `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`
+**Old Key (COMPROMISED):** `[REDACTED - key has been rotated]`
 
 **Steps:**
 1. Go to [OpenRouter Keys Page](https://openrouter.ai/keys)
@@ -35,7 +35,7 @@ Your API keys were committed to the Git repository and are now compromised. Foll
 
 ### 2. HuggingFace Token
 
-**Old Token (COMPROMISED):** `[REDACTED]`
+**Old Token (COMPROMISED):** `[REDACTED - token has been rotated]`
 
 **Steps:**
 1. Go to [HuggingFace Tokens Page](https://huggingface.co/settings/tokens)
@@ -50,7 +50,7 @@ Your API keys were committed to the Git repository and are now compromised. Foll
 
 ### 3. Internal Application API Key
 
-**Old Key (COMPROMISED):** `DZHnCEy0b2rkWu6RI8wDMgSZ2NTSPNOLMVr7AU-HqcqgghDmLoZfN2XMYEz4FVsT`
+**Old Key (COMPROMISED):** `[REDACTED - key has been regenerated]`
 
 **Steps:**
 1. Generate a new secure random key:

@@ -263,3 +263,12 @@ def advanced_models_overview():
 def tasks_overview_redirect():
     """Deprecated tasks route - redirect to main dashboard live tasks section."""
     return redirect(url_for('main.dashboard') + '#live-tasks')
+
+@main_bp.route('/privacy-policy')
+def privacy_policy():
+    """Privacy policy and data usage information page."""
+    return render_template(
+        'pages/privacy/privacy_main.html',
+        page_title='Privacy Policy & Data Usage',
+        active_page='privacy'
+    )

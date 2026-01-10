@@ -32,7 +32,7 @@
     
     {# Overall Summary Card #}
     {% if aggregate_summary %}
-      <div class="card card-table-compact mb-3">
+      <div class="card card-table-compact mb-3 shadow-sm">
         <div class="card-header d-flex flex-wrap align-items-center gap-3">
           <h5 class="card-title d-flex align-items-center gap-2 mb-0">
             <i class="fa-solid fa-chart-pie"></i>
@@ -117,7 +117,7 @@
       {% set admin_reqs = req_results.admin_requirements if req_results.admin_requirements else [] %}
       {% set control_tests = req_results.control_endpoint_tests if req_results.control_endpoint_tests else [] %}
       
-      <div class="card card-table-compact mb-3">
+      <div class="card card-table-compact mb-3 shadow-sm">
         <div class="card-header d-flex flex-wrap align-items-center gap-3 bg-primary-lt">
           <h5 class="card-title d-flex align-items-center gap-2 mb-0">
             <i class="fa-solid fa-clipboard-check text-primary"></i>
@@ -357,7 +357,7 @@
       {% set stylistic_reqs = quality_results.stylistic_requirements if quality_results.stylistic_requirements else [] %}
       {% set recommendations = quality_analyzer.recommendations if quality_analyzer.recommendations else [] %}
       
-      <div class="card card-table-compact mb-3">
+      <div class="card card-table-compact mb-3 shadow-sm">
         <div class="card-header d-flex flex-wrap align-items-center gap-3 bg-info-lt">
           <h5 class="card-title d-flex align-items-center gap-2 mb-0">
             <i class="fa-solid fa-star text-info"></i>
@@ -639,7 +639,7 @@
     {% if analysis_results and (functional_reqs or stylistic_reqs or summary) %}
       {# Summary Card #}
       {% if summary %}
-        <div class="card card-table-compact mb-3">
+        <div class="card card-table-compact mb-3 shadow-sm">
           <div class="card-header d-flex flex-wrap align-items-center gap-3">
             <h5 class="card-title d-flex align-items-center gap-2 mb-0">
               <i class="fa-solid fa-clipboard-check"></i>
@@ -691,7 +691,7 @@
 
       {# Functional Requirements #}
       {% if functional_reqs %}
-        <div class="card card-table-compact mb-3">
+        <div class="card card-table-compact mb-3 shadow-sm">
           <div class="card-header d-flex flex-wrap align-items-center gap-3">
             <h5 class="card-title d-flex align-items-center gap-2 mb-0">
               <i class="fa-solid fa-list-check"></i>
@@ -754,7 +754,7 @@
 
       {# Stylistic Requirements (legacy) #}
       {% if stylistic_reqs %}
-        <div class="card card-table-compact mb-3">
+        <div class="card card-table-compact mb-3 shadow-sm">
           <div class="card-header d-flex flex-wrap align-items-center gap-3">
             <h5 class="card-title d-flex align-items-center gap-2 mb-0">
               <i class="fa-solid fa-palette"></i>

@@ -37,13 +37,13 @@
     This application failed during generation and is marked as dead. It will be skipped by all analyzers.
   </div>
 
-  <div class="row g-3">
+  <div class="row g-2">
     {# Left Column - Details #}
     <div class="col-lg-8">
       {# Quick Info Grid #}
       <div class="card mb-3">
         <div class="card-body py-3">
-          <div class="row g-3">
+          <div class="row g-2">
             <div class="col-6 col-md-3">
               <div class="text-muted small">Model</div>
               <div class="fw-medium">{{ model_display_name }}</div>
@@ -82,13 +82,13 @@
       {# Error Message Card #}
       <div class="card mb-3">
         <div class="card-header py-2">
-          <h3 class="card-title h5 mb-0">
+          <h5 class="card-title mb-0">
             <i class="fas fa-exclamation-triangle text-danger me-2"></i>Error Message
           </h3>
         </div>
         <div class="card-body py-2">
           {% if error_message %}
-            <div class="bg-danger-lt rounded p-3">
+            <div class="bg-danger-lt rounded-2 p-3">
               <code class="text-danger" style="white-space: pre-wrap; word-wrap: break-word;">{{ error_message }}</code>
             </div>
           {% else %}
@@ -101,7 +101,7 @@
       {% if error_log_content %}
       <div class="card mb-3">
         <div class="card-header py-2 d-flex justify-content-between align-items-center">
-          <h3 class="card-title h5 mb-0">
+          <h5 class="card-title mb-0">
             <i class="fas fa-file-alt me-2"></i>Error Log
           </h3>
           <button class="btn btn-sm btn-ghost-secondary" onclick="copyErrorLog()">
@@ -118,7 +118,7 @@
       {% if metadata and metadata.errors %}
       <div class="card">
         <div class="card-header py-2">
-          <h3 class="card-title h5 mb-0">
+          <h5 class="card-title mb-0">
             <i class="fas fa-list-ol me-2"></i>Generation Errors ({{ metadata.errors|length }})
           </h3>
         </div>
@@ -152,7 +152,7 @@
       {# Timestamps Card #}
       <div class="card mb-3">
         <div class="card-header py-2">
-          <h3 class="card-title h5 mb-0">
+          <h5 class="card-title mb-0">
             <i class="fas fa-clock me-2"></i>Timeline
           </h3>
         </div>
@@ -181,7 +181,7 @@
       {# What This Means Card #}
       <div class="card">
         <div class="card-header py-2">
-          <h3 class="card-title h5 mb-0">
+          <h5 class="card-title mb-0">
             <i class="fas fa-info-circle me-2"></i>Impact
           </h3>
         </div>

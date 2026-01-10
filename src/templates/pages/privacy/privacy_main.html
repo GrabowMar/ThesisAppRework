@@ -1,0 +1,356 @@
+{% extends 'layouts/base_smart.html' %}
+{% set has_right_sidebar = false %}
+{% set page_title = 'Privacy Policy & Data Usage' %}
+{% set page_icon = 'fa-solid fa-shield-halved' %}
+{% set page_subtitle = 'How we collect, use, and protect your data' %}
+
+{% block content %}
+<div class="container-xl">
+
+  {# Header Section #}
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <div class="avatar avatar-lg bg-primary-lt">
+          <i class="fa-solid fa-shield-halved text-primary fa-2x"></i>
+        </div>
+        <div>
+          <h1 class="mb-1">Privacy Policy & Data Usage</h1>
+          <p class="text-muted mb-0">Last updated: January 2026</p>
+        </div>
+      </div>
+      <div class="alert alert-info mb-0">
+        <i class="fa-solid fa-info-circle me-2"></i>
+        <strong>Your Privacy Matters:</strong> This document explains what data we collect, how we use it, and how you can control your privacy settings.
+      </div>
+    </div>
+  </div>
+
+  {# Quick Summary #}
+  <div class="card mb-4 border-primary">
+    <div class="card-header bg-primary-lt">
+      <h3 class="card-title text-primary">
+        <i class="fa-solid fa-list-check me-2"></i>
+        Quick Summary
+      </h3>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="d-flex gap-2">
+            <i class="fa-solid fa-check-circle text-success mt-1"></i>
+            <div>
+              <strong>Data Stored Locally:</strong> Most data is stored in your browser using localStorage
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="d-flex gap-2">
+            <i class="fa-solid fa-check-circle text-success mt-1"></i>
+            <div>
+              <strong>No Third-Party Tracking:</strong> We don't share your data with advertisers
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="d-flex gap-2">
+            <i class="fa-solid fa-check-circle text-success mt-1"></i>
+            <div>
+              <strong>You Control Your Data:</strong> Manage cookie preferences at any time
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="d-flex gap-2">
+            <i class="fa-solid fa-check-circle text-success mt-1"></i>
+            <div>
+              <strong>Essential Only Option:</strong> Disable all optional tracking and analytics
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Data Categories #}
+  <div class="row g-4 mb-4">
+
+    {# Essential Data #}
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h3 class="card-title">
+            <span class="badge bg-success me-2">Required</span>
+            Essential Data
+          </h3>
+        </div>
+        <div class="card-body">
+          <p class="text-muted">Required for core functionality. Cannot be disabled.</p>
+
+          <h5 class="mt-3 mb-2">What We Store:</h5>
+          <ul class="mb-3">
+            <li><strong>Authentication Tokens:</strong> Session management and login state</li>
+            <li><strong>CSRF Tokens:</strong> Security protection against cross-site attacks</li>
+            <li><strong>Theme Preference:</strong> Dark/light mode selection</li>
+            <li><strong>Language Settings:</strong> UI language preference</li>
+            <li><strong>Security State:</strong> Login attempts and session validation</li>
+          </ul>
+
+          <h5 class="mb-2">Storage Method:</h5>
+          <ul class="mb-3">
+            <li>HTTP-only cookies (secure, not accessible via JavaScript)</li>
+            <li>localStorage for theme preferences</li>
+            <li>Session storage for temporary data</li>
+          </ul>
+
+          <h5 class="mb-2">Retention Period:</h5>
+          <p class="text-muted mb-0">Session data expires after 24 hours of inactivity. Theme preferences persist indefinitely.</p>
+        </div>
+      </div>
+    </div>
+
+    {# Analytics Data #}
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h3 class="card-title">
+            <span class="badge bg-blue me-2">Optional</span>
+            Analytics & Performance
+          </h3>
+        </div>
+        <div class="card-body">
+          <p class="text-muted">Helps us improve the application.</p>
+
+          <h5 class="mt-3 mb-2">What We Collect:</h5>
+          <ul class="mb-3">
+            <li><strong>Page Views:</strong> Which pages you visit and navigation patterns</li>
+            <li><strong>Feature Usage:</strong> Which features you use most often</li>
+            <li><strong>Performance Metrics:</strong> Page load times, API response times</li>
+            <li><strong>Error Logs:</strong> JavaScript errors and failed requests</li>
+            <li><strong>Session Duration:</strong> How long you use the application</li>
+          </ul>
+
+          <h5 class="mb-2">How We Use It:</h5>
+          <ul class="mb-3">
+            <li>Identify performance bottlenecks</li>
+            <li>Understand which features are most valuable</li>
+            <li>Detect and fix bugs more quickly</li>
+            <li>Improve user experience</li>
+          </ul>
+
+          <h5 class="mb-2">Third-Party Services:</h5>
+          <p class="text-muted mb-0">None. All analytics are processed internally and never shared.</p>
+        </div>
+      </div>
+    </div>
+
+    {# Functional Data #}
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h3 class="card-title">
+            <span class="badge bg-purple me-2">Optional</span>
+            Functional & Preferences
+          </h3>
+        </div>
+        <div class="card-body">
+          <p class="text-muted">Personalizes your experience.</p>
+
+          <h5 class="mt-3 mb-2">What We Store:</h5>
+          <ul class="mb-3">
+            <li><strong>UI Preferences:</strong> Sidebar collapsed/expanded state</li>
+            <li><strong>Table Settings:</strong> Column visibility, sort order, page size</li>
+            <li><strong>Filter Preferences:</strong> Saved filter configurations</li>
+            <li><strong>Dashboard Layout:</strong> Widget positions and visibility</li>
+            <li><strong>Recent Searches:</strong> Quick access to previous queries</li>
+          </ul>
+
+          <h5 class="mb-2">Benefits:</h5>
+          <ul class="mb-3">
+            <li>Remember your UI customizations</li>
+            <li>Faster access to frequently used settings</li>
+            <li>Consistent experience across sessions</li>
+            <li>Reduce repetitive configuration tasks</li>
+          </ul>
+
+          <h5 class="mb-2">Storage Location:</h5>
+          <p class="text-muted mb-0">localStorage in your browser. Never sent to the server.</p>
+        </div>
+      </div>
+    </div>
+
+    {# AI Data #}
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h3 class="card-title">
+            <span class="badge bg-indigo me-2">Optional</span>
+            AI Processing & History
+          </h3>
+        </div>
+        <div class="card-body">
+          <p class="text-muted">Improves AI analysis performance.</p>
+
+          <h5 class="mt-3 mb-2">What We Cache:</h5>
+          <ul class="mb-3">
+            <li><strong>Analysis Results:</strong> Previous AI analysis outputs</li>
+            <li><strong>Model Configurations:</strong> Your preferred AI model settings</li>
+            <li><strong>Prompt History:</strong> Recently used prompts and templates</li>
+            <li><strong>Result Previews:</strong> Quick access to past results</li>
+            <li><strong>Model Ratings:</strong> Your feedback on model performance</li>
+          </ul>
+
+          <h5 class="mb-2">Why We Cache:</h5>
+          <ul class="mb-3">
+            <li>Avoid re-running expensive AI analyses</li>
+            <li>Faster loading of previous results</li>
+            <li>Quick access to analysis history</li>
+            <li>Better recommendations based on usage</li>
+          </ul>
+
+          <h5 class="mb-2">Data Handling:</h5>
+          <p class="text-muted mb-0">Cached data is stored both locally (for speed) and on our servers (for persistence). All data is encrypted in transit and at rest.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Your Rights #}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fa-solid fa-user-shield me-2 text-primary"></i>
+        Your Rights & Controls
+      </h3>
+    </div>
+    <div class="card-body">
+      <div class="row g-4">
+        <div class="col-md-4">
+          <div class="d-flex gap-2">
+            <i class="fa-solid fa-sliders text-primary fa-lg mt-1"></i>
+            <div>
+              <h5>Manage Preferences</h5>
+              <p class="text-muted mb-2">Control which categories of data you allow.</p>
+              <button type="button" class="btn btn-sm btn-primary" id="open-cookie-settings">
+                <i class="fa-solid fa-gear me-1"></i>
+                Cookie Settings
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="d-flex gap-2">
+            <i class="fa-solid fa-download text-primary fa-lg mt-1"></i>
+            <div>
+              <h5>Export Your Data</h5>
+              <p class="text-muted mb-2">Download all data we've collected about you.</p>
+              <a href="{{ url_for('profile.settings') }}" class="btn btn-sm btn-outline-primary" hx-boost="true">
+                <i class="fa-solid fa-file-export me-1"></i>
+                Request Export
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="d-flex gap-2">
+            <i class="fa-solid fa-trash text-primary fa-lg mt-1"></i>
+            <div>
+              <h5>Delete Your Data</h5>
+              <p class="text-muted mb-2">Request complete deletion of your account and data.</p>
+              <a href="{{ url_for('profile.settings') }}" class="btn btn-sm btn-outline-danger" hx-boost="true">
+                <i class="fa-solid fa-user-xmark me-1"></i>
+                Delete Account
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Security #}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fa-solid fa-lock me-2 text-success"></i>
+        Security & Protection
+      </h3>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <h5><i class="fa-solid fa-key me-2 text-muted"></i>Encryption</h5>
+          <p class="text-muted">All data transmitted between your browser and our servers is encrypted using industry-standard TLS/SSL protocols.</p>
+        </div>
+        <div class="col-md-6">
+          <h5><i class="fa-solid fa-server me-2 text-muted"></i>Secure Storage</h5>
+          <p class="text-muted">Server-side data is encrypted at rest and stored in secure, access-controlled databases.</p>
+        </div>
+        <div class="col-md-6">
+          <h5><i class="fa-solid fa-shield-halved me-2 text-muted"></i>Access Controls</h5>
+          <p class="text-muted">Strict authentication and authorization prevent unauthorized access to your data.</p>
+        </div>
+        <div class="col-md-6">
+          <h5><i class="fa-solid fa-user-lock me-2 text-muted"></i>Privacy by Design</h5>
+          <p class="text-muted">We collect only the minimum data necessary and delete it when no longer needed.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Contact #}
+  <div class="card">
+    <div class="card-body">
+      <h4 class="mb-3">
+        <i class="fa-solid fa-envelope me-2"></i>
+        Questions or Concerns?
+      </h4>
+      <p class="text-muted mb-3">
+        If you have questions about this privacy policy, how we handle your data, or wish to exercise your rights, please contact us.
+      </p>
+      <div class="d-flex gap-2">
+        <a href="mailto:privacy@thesisplatform.com" class="btn btn-primary">
+          <i class="fa-solid fa-paper-plane me-1"></i>
+          Contact Privacy Team
+        </a>
+        <button type="button" class="btn btn-outline-primary" id="open-cookie-settings-footer">
+          <i class="fa-solid fa-cookie-bite me-1"></i>
+          Manage Cookie Settings
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function() {
+  'use strict';
+
+  // Open cookie settings modal
+  function openCookieSettings() {
+    if (window.cookieManager) {
+      window.cookieManager.openSettings();
+    }
+  }
+
+  // Attach listeners when DOM is ready
+  document.addEventListener('DOMContentLoaded', function() {
+    const settingsBtn = document.getElementById('open-cookie-settings');
+    const footerBtn = document.getElementById('open-cookie-settings-footer');
+
+    if (settingsBtn) {
+      settingsBtn.addEventListener('click', openCookieSettings);
+    }
+
+    if (footerBtn) {
+      footerBtn.addEventListener('click', openCookieSettings);
+    }
+  });
+
+})();
+</script>
+{% endblock %}

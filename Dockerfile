@@ -54,6 +54,7 @@ WORKDIR /app
 COPY --chown=appuser:appuser src/ ./src/
 COPY --chown=appuser:appuser misc/ ./misc/
 COPY --chown=appuser:appuser analyzer/ ./analyzer/
+# Note: docs/ is excluded via .dockerignore (not needed at runtime)
 
 # Copy container control script
 COPY --chown=appuser:appuser container-start.sh ./start.sh

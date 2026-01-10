@@ -64,7 +64,8 @@ class DocsService:
     @classmethod
     def _docs_root(cls) -> str:
         # src/app -> project root is two levels up
-        return os.path.join(current_app.root_path, "..", "..", "docs")
+        # Resolve to absolute path to avoid ambiguity
+        return os.path.abspath(os.path.join(current_app.root_path, "..", "..", "docs"))
 
     @classmethod
     def _slugify(cls, name: str) -> str:

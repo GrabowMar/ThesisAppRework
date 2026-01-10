@@ -60,9 +60,20 @@ if (window.__MODELS_JS_LOADED__) {
       if (perPageSelect) perPageSelect.value = String(perPage);
       updateSourceButtons();
 
-      // Don't auto-restore selection - user must manually select models
-      selectedModels = [];
+      // Restore selection from localStorage (persist across filter changes)
+      try {
+        const savedSelection = localStorage.getItem('models_selected');
+        if (savedSelection) {
+          const parsed = JSON.parse(savedSelection);
+          if (Array.isArray(parsed)) {
+            selectedModels = parsed;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to restore model selection:', e);
+      }
       updateBatchSelectionCount();
+      updateCompareButton();
     } catch (e) {}
   }
 
@@ -480,6 +491,7 @@ function loadModelsPaginated() {
       // Re-setup handlers after table render
       setTimeout(() => {
         setupFilterHandlers();
+        updateMasterCheckboxState();
         if (bulkSelectionManager) {
           bulkSelectionManager.updateCheckboxListeners();
           bulkSelectionManager.updateSelectionState();
@@ -614,6 +626,9 @@ function renderModelsTable(models) {
   if (!tbody) return;
   if (!models.length) {
     tbody.innerHTML = '<tr><td colspan="12" class="text-center py-4 text-muted">No models found</td></tr>';
+    // Update selection indicator even when no models shown
+    updateBatchSelectionCount();
+    updateCompareButton();
     return;
   }
   tbody.innerHTML = models.map(m => {
@@ -772,7 +787,10 @@ function clearModelSelection() {
   checkboxes.forEach(cb => cb.checked = false);
   // Uncheck master checkbox
   const master = document.getElementById('select-all-models');
-  if (master) master.checked = false;
+  if (master) {
+    master.checked = false;
+    master.indeterminate = false;
+  }
   // Update UI
   updateBatchSelectionCount();
   updateCompareButton();
@@ -785,13 +803,14 @@ function toggleModelSelection(slug) {
   // If BulkSelectionManager is active, it handles the state via event listeners
   // However, since we use inline onchange handlers, we can also update state here
   // to ensure immediate feedback even if listeners haven't attached yet
-  
+
   const i = selectedModels.indexOf(slug);
   if (i > -1) selectedModels.splice(i, 1); else selectedModels.push(slug);
   updateBatchSelectionCount();
   updateCompareButton();
+  updateMasterCheckboxState();
   try { localStorage.setItem('models_selected', JSON.stringify(selectedModels)); } catch(e) {}
-  
+
   // Sync BulkSelectionManager if active
   if (bulkSelectionManager) {
     bulkSelectionManager.updateSelectionState();
@@ -825,19 +844,53 @@ function compareSelectedModels() {
   }
   window.location.href = `/models/comparison?models=${selectedModels.join(',')}`;
 }
-/** Master checkbox: select / deselect all visible models */
+/** Update master checkbox state based on visible selections */
+function updateMasterCheckboxState() {
+  const master = document.getElementById('select-all-models');
+  if (!master) return;
+
+  const checkboxes = [...document.querySelectorAll('#models-table-body input[type=checkbox].model-checkbox')];
+  if (checkboxes.length === 0) {
+    master.checked = false;
+    master.indeterminate = false;
+    return;
+  }
+
+  const checkedCount = checkboxes.filter(cb => cb.checked).length;
+
+  if (checkedCount === 0) {
+    master.checked = false;
+    master.indeterminate = false;
+  } else if (checkedCount === checkboxes.length) {
+    master.checked = true;
+    master.indeterminate = false;
+  } else {
+    master.checked = false;
+    master.indeterminate = true; // Show indeterminate state when some are selected
+  }
+}
+
+/** Master checkbox: select / deselect all visible models (preserves hidden selections) */
 function toggleSelectAll() {
   const master = document.getElementById('select-all-models');
-  const checkboxes = [...document.querySelectorAll('#models-table-body input[type=checkbox]')];
-  checkboxes.forEach(cb => {
-    const match = cb.getAttribute('onchange').match(/'(.*)'/);
-    const slug = match ? match[1] : null;
-    if (!slug) return;
-    cb.checked = master.checked;
-    const idx = selectedModels.indexOf(slug);
-    if (master.checked && idx === -1) selectedModels.push(slug);
-    if (!master.checked && idx > -1) selectedModels.splice(idx, 1);
-  });
+  const checkboxes = [...document.querySelectorAll('#models-table-body input[type=checkbox].model-checkbox')];
+
+  if (master.checked) {
+    // Add all visible models to selection (don't remove hidden ones)
+    checkboxes.forEach(cb => {
+      const slug = cb.value;
+      if (slug && !selectedModels.includes(slug)) {
+        selectedModels.push(slug);
+      }
+      cb.checked = true;
+    });
+  } else {
+    // Remove only visible models from selection (keep hidden ones)
+    const visibleSlugs = checkboxes.map(cb => cb.value).filter(Boolean);
+    selectedModels = selectedModels.filter(slug => !visibleSlugs.includes(slug));
+    checkboxes.forEach(cb => cb.checked = false);
+  }
+
   updateBatchSelectionCount();
   updateCompareButton();
   try { localStorage.setItem('models_selected', JSON.stringify(selectedModels)); } catch(e) {}
@@ -1216,10 +1269,21 @@ function updateBatchSelectionCount() {
   if (el) el.textContent = selectedModels.length;
   const indicator = document.getElementById('models-selection-indicator');
   const clearBtn = document.getElementById('clear-selection-btn');
-  
+
   if (indicator) {
     if (selectedModels.length > 0) {
-      indicator.textContent = `${selectedModels.length} selected`;
+      // Count how many selected models are currently visible in the table
+      const visibleCheckboxes = document.querySelectorAll('#models-table-body .model-checkbox');
+      const visibleSlugs = Array.from(visibleCheckboxes).map(cb => cb.value);
+      const visibleSelected = selectedModels.filter(slug => visibleSlugs.includes(slug));
+      const hiddenSelected = selectedModels.length - visibleSelected.length;
+
+      // Show count with breakdown if some are hidden by filters
+      if (hiddenSelected > 0) {
+        indicator.innerHTML = `<span class="text-primary">${selectedModels.length} selected</span> <span class="text-muted small">(${hiddenSelected} hidden by filters)</span>`;
+      } else {
+        indicator.textContent = `${selectedModels.length} selected`;
+      }
       indicator.className = 'text-primary small fw-bold';
       if (clearBtn) clearBtn.style.display = 'inline-block';
     } else {
@@ -1670,6 +1734,7 @@ function batchDelete() {
   window.clearModelSelection = clearModelSelection;
   window.toggleModelSelection = toggleModelSelection;
   window.toggleSelectAll = toggleSelectAll;
+  window.updateMasterCheckboxState = updateMasterCheckboxState;
   window.viewModelDetails = viewModelDetails;
   window.refreshModels = refreshModels;
   window.syncFromOpenRouter = syncFromOpenRouter;
@@ -1756,6 +1821,7 @@ if (typeof debounceSearch !== 'undefined') {
   window.clearModelSelection = clearModelSelection;
   window.toggleModelSelection = toggleModelSelection;
   window.toggleSelectAll = toggleSelectAll;
+  window.updateMasterCheckboxState = updateMasterCheckboxState;
   window.viewModelDetails = viewModelDetails;
   window.refreshModels = refreshModels;
   window.syncFromOpenRouter = syncFromOpenRouter;

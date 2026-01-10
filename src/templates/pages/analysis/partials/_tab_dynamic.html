@@ -81,7 +81,7 @@
   {% endfor %}
 
   {# Overall Summary Card #}
-  <div class="card card-table-compact mb-3">
+  <div class="card card-table-compact mb-3 shadow-sm">
     <div class="card-header d-flex flex-wrap align-items-center gap-3">
       <h5 class="card-title d-flex align-items-center gap-2 mb-0">
         <i class="fa-solid fa-chart-pie"></i>
@@ -148,7 +148,7 @@
 
   {# Connectivity Status Card #}
   {% if connectivity|length > 0 %}
-  <div class="card card-table-compact mb-3">
+  <div class="card card-table-compact mb-3 shadow-sm">
     <div class="card-header d-flex flex-wrap align-items-center gap-3 bg-info-lt">
       <h5 class="card-title d-flex align-items-center gap-2 mb-0">
         <i class="fa-solid fa-network-wired text-info"></i>
@@ -217,7 +217,7 @@
 
   {# ZAP Security Scan Card #}
   {% if zap_results %}
-  <div class="card card-table-compact mb-3">
+  <div class="card card-table-compact mb-3 shadow-sm">
     <div class="card-header d-flex flex-wrap align-items-center gap-3 bg-danger-lt">
       <h5 class="card-title d-flex align-items-center gap-2 mb-0">
         <i class="fa-solid fa-bug text-danger"></i>
@@ -297,7 +297,7 @@
   {% set port_host = port_results.get('host', 'localhost') if port_results.get is defined else port_results['host']|default('localhost') %}
   {% set port_open_ports = port_results.get('open_ports', []) if port_results.get is defined else port_results['open_ports']|default([]) %}
   {% set port_scanned_ports = port_results.get('scanned_ports', []) if port_results.get is defined else port_results['scanned_ports']|default([]) %}
-  <div class="card card-table-compact mb-3">
+  <div class="card card-table-compact mb-3 shadow-sm">
     <div class="card-header d-flex flex-wrap align-items-center gap-3 bg-secondary-lt">
       <h5 class="card-title d-flex align-items-center gap-2 mb-0">
         <i class="fa-solid fa-server text-secondary"></i>
@@ -370,7 +370,7 @@
   {% endfor %}
   
   {% if has_other_tools %}
-  <div class="card card-table-compact mb-3">
+  <div class="card card-table-compact mb-3 shadow-sm">
     <div class="card-header d-flex flex-wrap align-items-center gap-3">
       <h5 class="card-title d-flex align-items-center gap-2 mb-0">
         <i class="fa-solid fa-toolbox text-muted"></i>

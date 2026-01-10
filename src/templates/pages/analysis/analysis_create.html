@@ -15,9 +15,9 @@
   <div id="batch-app-inputs" class="d-none"></div>
   <div id="selected-tools-inputs" class="d-none"></div>
 
-  <div class="row row-cards g-3">
+  <div class="row row-cards g-2">
     <div class="col-xxl-8 col-xl-7 col-lg-7">
-      <div class="row row-cards g-3">
+      <div class="row row-cards g-2">
         <!-- Step 1: Model Selection -->
         <div class="col-12 wizard-panel active" data-panel="1">
           <div class="card card-table-compact">
@@ -100,7 +100,7 @@
             <div id="application-selection-list" class="table-responsive w-100">
               <div class="text-center text-muted py-4">
                 <i class="fas fa-info-circle fa-2x mb-2"></i>
-                <p class="fw-semibold mb-1">Select a model first</p>
+                <p class="fw-bold mb-1">Select a model first</p>
                 <p class="small mb-0">Please select a model in Step 1 to see available applications.</p>
               </div>
             </div>
@@ -165,12 +165,12 @@
                         <div class="d-flex align-items-start gap-2">
                           <i class="fas fa-search text-primary mt-1"></i>
                           <div>
-                            <div class="text-uppercase text-muted small fw-semibold">Static Analyzer</div>
+                            <div class="text-uppercase text-muted small fw-bold">Static Analyzer</div>
                             <h3 class="card-title mb-0">Static Analysis</h3>
                           </div>
                         </div>
                         <div class="text-end small">
-                          <span class="badge bg-secondary-lt text-secondary fw-semibold" id="static-container-status">Pending</span>
+                          <span class="badge bg-secondary-lt text-secondary fw-bold" id="static-container-status">Pending</span>
                           <div class="text-muted" id="static-tool-count">0 tools</div>
                         </div>
                       </div>
@@ -194,12 +194,12 @@
                         <div class="d-flex align-items-start gap-2">
                           <i class="fas fa-play text-success mt-1"></i>
                           <div>
-                            <div class="text-uppercase text-muted small fw-semibold">Dynamic Analyzer</div>
+                            <div class="text-uppercase text-muted small fw-bold">Dynamic Analyzer</div>
                             <h3 class="card-title mb-0">Dynamic Analysis</h3>
                           </div>
                         </div>
                         <div class="text-end small">
-                          <span class="badge bg-secondary-lt text-secondary fw-semibold" id="dynamic-container-status">Pending</span>
+                          <span class="badge bg-secondary-lt text-secondary fw-bold" id="dynamic-container-status">Pending</span>
                           <div class="text-muted" id="dynamic-tool-count">0 tools</div>
                         </div>
                       </div>
@@ -223,12 +223,12 @@
                         <div class="d-flex align-items-start gap-2">
                           <i class="fas fa-tachometer-alt text-info mt-1"></i>
                           <div>
-                            <div class="text-uppercase text-muted small fw-semibold">Performance Tester</div>
+                            <div class="text-uppercase text-muted small fw-bold">Performance Tester</div>
                             <h3 class="card-title mb-0">Performance Testing</h3>
                           </div>
                         </div>
                         <div class="text-end small">
-                          <span class="badge bg-secondary-lt text-secondary fw-semibold" id="performance-container-status">Pending</span>
+                          <span class="badge bg-secondary-lt text-secondary fw-bold" id="performance-container-status">Pending</span>
                           <div class="text-muted" id="performance-tool-count">0 tools</div>
                         </div>
                       </div>
@@ -252,12 +252,12 @@
                         <div class="d-flex align-items-start gap-2">
                           <i class="fas fa-brain text-warning mt-1"></i>
                           <div>
-                            <div class="text-uppercase text-muted small fw-semibold">AI Analyzer</div>
+                            <div class="text-uppercase text-muted small fw-bold">AI Analyzer</div>
                             <h3 class="card-title mb-0">AI Analysis</h3>
                           </div>
                         </div>
                         <div class="text-end small">
-                          <span class="badge bg-secondary-lt text-secondary fw-semibold" id="ai-container-status">Pending</span>
+                          <span class="badge bg-secondary-lt text-secondary fw-bold" id="ai-container-status">Pending</span>
                           <div class="text-muted" id="ai-tool-count">0 tools</div>
                         </div>
                       </div>
@@ -1261,7 +1261,7 @@ async function buildAggregatedAppsList() {
       const isSelected = selectedApps.some(sel => String(sel.number) === String(a.number) && sel.modelSlug === a.modelSlug);
       return `<div class='col-6 col-md-4 col-lg-3'>
         <div class='app-card border rounded p-2 h-100 small ${isSelected?'selected border-success':''}' data-app='${a.number}' data-model-slug='${a.modelSlug}'>
-          <div class='fw-semibold tiny text-truncate app-name'>#${a.number}</div>
+          <div class='fw-bold tiny text-truncate app-name'>#${a.number}</div>
           <div class='text-muted tiny'>${a.modelSlug}</div>
         </div>
       </div>`;
@@ -1523,14 +1523,14 @@ function updateContainerStatus(containerPrefix, status, toolCount) {
     const countElement = document.getElementById(`${containerPrefix}-tool-count`);
     
     if (statusElement) {
-    let statusClass = 'badge bg-secondary-lt text-secondary fw-semibold';
+    let statusClass = 'badge bg-secondary-lt text-secondary fw-bold';
     let statusText = 'Pending';
 
     if (status === 'running') {
-      statusClass = 'badge bg-success-lt text-success fw-semibold';
+      statusClass = 'badge bg-success-lt text-success fw-bold';
       statusText = 'Online';
     } else if (status === 'error') {
-      statusClass = 'badge bg-danger-lt text-danger fw-semibold';
+      statusClass = 'badge bg-danger-lt text-danger fw-bold';
       statusText = 'Error';
     } else if (status === 'stopped') {
       statusClass = 'badge bg-warning-lt text-warning fw-semibold';
