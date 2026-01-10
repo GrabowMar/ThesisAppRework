@@ -51,7 +51,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('Interactive', 'Start', 'Dev', 'Stop', 'Status', 'Logs', 'Rebuild', 'CleanRebuild', 'Clean', 'Wipeout', 'Health', 'Help', 'Password', 'Maintenance', 'Reload')]
+    [ValidateSet('Interactive', 'Start', 'Docker', 'Local', 'Dev', 'Stop', 'Status', 'Logs', 'Rebuild', 'CleanRebuild', 'Clean', 'Wipeout', 'Health', 'Help', 'Password', 'Maintenance', 'Reload')]
     [string]$Mode = 'Interactive',
 
     [switch]$NoAnalyzer,
@@ -651,7 +651,13 @@ function Stop-Service {
 function Stop-AllServices {
     Write-Banner "Stopping ThesisApp Services"
     
-    # Stop in reverse dependency order
+    # Check if we're in Docker mode
+    $modeFile = Join-Path $Script:RUN_DIR "docker.mode"
+    if (Test-Path $modeFile) {
+        Stop-DockerStack
+    }
+    
+    # Stop in reverse dependency order (local services)
     $stopOrder = @('Flask', 'Analyzers')
     
     foreach ($service in $stopOrder) {
@@ -708,8 +714,8 @@ function Show-StatusDashboard {
     } while ($ContinuousRefresh)
 }
 
-function Start-FullStack {
-    Write-Banner "Starting ThesisApp Full Stack"
+function Start-LocalStack {
+    Write-Banner "Starting ThesisApp Local Stack (Non-Containerized)"
     
     # Dependency-aware startup sequence
     $success = $true
@@ -742,10 +748,10 @@ function Start-FullStack {
         }
         
         Write-Host ""
-        Write-Banner "ThesisApp Started Successfully"
+        Write-Banner "ThesisApp Started (Local Mode)"
         Write-Host "🌐 Application URL: " -NoNewline -ForegroundColor Cyan
         Write-Host "http://127.0.0.1:$Port" -ForegroundColor White
-        Write-Host "⚡ Task Execution: Celery Distributed Task Queue" -ForegroundColor Gray
+        Write-Host "⚡ Task Execution: ThreadPoolExecutor (local, non-distributed)" -ForegroundColor Gray
         Write-Host ""
         Write-Host "💡 Quick Commands:" -ForegroundColor Cyan
         Write-Host "   .\start.ps1 -Mode Status    - Check service status" -ForegroundColor Gray
@@ -755,6 +761,128 @@ function Start-FullStack {
     }
     
     return $success
+}
+
+function Start-DockerStack {
+    Write-Banner "Starting ThesisApp Docker Production Stack"
+    
+    Write-Host "🐳 Production Docker configuration:" -ForegroundColor Yellow
+    Write-Host "  • Flask app running in container (production mode)" -ForegroundColor Gray
+    Write-Host "  • Celery + Redis for distributed task execution" -ForegroundColor Gray
+    Write-Host "  • All analyzer microservices containerized" -ForegroundColor Gray
+    Write-Host "  • Shared thesis-network for inter-container communication" -ForegroundColor Gray
+    Write-Host ""
+    
+    # Check if root docker-compose.yml exists
+    $composeFile = Join-Path $Script:ROOT_DIR "docker-compose.yml"
+    if (-not (Test-Path $composeFile)) {
+        Write-Status "docker-compose.yml not found in project root" "Error"
+        return $false
+    }
+    
+    Write-Status "Building and starting Docker production stack..." "Info"
+    
+    Push-Location $Script:ROOT_DIR
+    try {
+        # Build and start all services
+        $buildOutput = docker compose up -d --build 2>&1
+        $buildExitCode = $LASTEXITCODE
+        
+        # Log output
+        $buildOutput | Out-File -FilePath (Join-Path $Script:LOGS_DIR "docker-compose.log") -Append
+        
+        if ($buildExitCode -ne 0) {
+            Write-Status "Failed to start Docker stack" "Error"
+            Write-Host ($buildOutput | Out-String) -ForegroundColor Red
+            return $false
+        }
+        
+        Write-Status "Docker containers starting..." "Success"
+        
+        # Wait for services to be healthy
+        $maxWait = 120
+        $waited = 0
+        
+        Write-Host "  Waiting for services to be ready" -NoNewline -ForegroundColor Cyan
+        while ($waited -lt $maxWait) {
+            Start-Sleep -Seconds 2
+            $waited += 2
+            Write-Host "." -NoNewline -ForegroundColor Yellow
+            
+            # Check web service health
+            try {
+                $response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/health" -TimeoutSec 2 -ErrorAction SilentlyContinue
+                if ($response.StatusCode -eq 200) {
+                    Write-Host ""
+                    Write-Status "All services are ready! (${waited}s)" "Success"
+                    break
+                }
+            } catch {
+                # Not ready yet, continue waiting
+            }
+        }
+        
+        if ($waited -ge $maxWait) {
+            Write-Host ""
+            Write-Status "Timeout waiting for services (check docker compose logs)" "Warning"
+        }
+        
+        # Show container status
+        Write-Host ""
+        Write-Host "📦 Container Status:" -ForegroundColor Cyan
+        docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>$null | ForEach-Object {
+            Write-Host "  $_" -ForegroundColor Gray
+        }
+        
+        Write-Host ""
+        Write-Banner "ThesisApp Docker Stack Started"
+        Write-Host "🌐 Application URL: " -NoNewline -ForegroundColor Cyan
+        Write-Host "http://127.0.0.1:$Port" -ForegroundColor White
+        Write-Host "⚡ Task Execution: Celery + Redis (distributed)" -ForegroundColor Gray
+        Write-Host "🔧 Analyzer Gateway: ws://127.0.0.1:8765" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "💡 Quick Commands:" -ForegroundColor Cyan
+        Write-Host "   .\start.ps1 -Mode Status    - Check service status" -ForegroundColor Gray
+        Write-Host "   docker compose logs -f      - View live container logs" -ForegroundColor Gray
+        Write-Host "   .\start.ps1 -Mode Stop      - Stop all services" -ForegroundColor Gray
+        Write-Host ""
+        
+        # Mark Docker mode for Stop-AllServices
+        $Script:DockerMode = $true
+        "docker-compose" | Out-File -FilePath (Join-Path $Script:RUN_DIR "docker.mode") -Encoding ASCII
+        
+        return $true
+    } finally {
+        Pop-Location
+    }
+}
+
+function Stop-DockerStack {
+    Write-Status "Stopping Docker production stack..." "Info"
+    
+    Push-Location $Script:ROOT_DIR
+    try {
+        docker compose down 2>&1 | Out-Null
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Status "Docker stack stopped" "Success"
+        } else {
+            Write-Status "Warning: Some containers may not have stopped cleanly" "Warning"
+        }
+        
+        # Clean up mode file
+        $modeFile = Join-Path $Script:RUN_DIR "docker.mode"
+        if (Test-Path $modeFile) {
+            Remove-Item $modeFile -Force
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
+function Start-FullStack {
+    # Default Start mode now uses Docker production stack
+    return Start-DockerStack
 }
 
 function Start-DevMode {
@@ -783,7 +911,8 @@ function Show-InteractiveMenu {
     
     Write-Host "Select an option:" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "  [S] Start        - Start full stack (Flask + Analyzers)" -ForegroundColor White
+    Write-Host "  [S] Start        - 🐳 Start Docker production stack (containerized, Celery+Redis)" -ForegroundColor White
+    Write-Host "  [K] Local        - Start local stack (Flask + Analyzers, non-containerized)" -ForegroundColor White
     Write-Host "  [D] Dev          - Developer mode (Flask + ThreadPoolExecutor, debug on)" -ForegroundColor White
     Write-Host "  [O] Reload       - 🔄 Quick reload (Stop → Start for live code changes)" -ForegroundColor White
     Write-Host "  [R] Rebuild      - Rebuild containers (fast, with cache)" -ForegroundColor White
@@ -804,7 +933,13 @@ function Show-InteractiveMenu {
     switch ($choice.ToUpper()) {
         'S' { 
             $Script:Background = $true
-            Start-FullStack
+            Start-DockerStack
+            Read-Host "`nPress Enter to return to menu"
+            Show-InteractiveMenu
+        }
+        'K' {
+            $Script:Background = $true
+            Start-LocalStack
             Read-Host "`nPress Enter to return to menu"
             Show-InteractiveMenu
         }
@@ -1922,7 +2057,9 @@ function Show-Help {
     
     Write-Host "MODES:" -ForegroundColor Cyan
     Write-Host "  Interactive   Launch interactive menu (default)" -ForegroundColor White
-    Write-Host "  Start         Start full stack (Flask + Analyzers)" -ForegroundColor White
+    Write-Host "  Start         🐳 Start Docker production stack (full containerized deployment)" -ForegroundColor White
+    Write-Host "  Docker        🐳 Alias for Start - Docker production stack" -ForegroundColor White
+    Write-Host "  Local         Start local development (Flask via Python + Analyzer containers)" -ForegroundColor White
     Write-Host "  Dev           Developer mode (Flask with ThreadPoolExecutor, debug enabled)" -ForegroundColor White
     Write-Host "  Reload        Quick reload - stop and restart all services (for live code changes)" -ForegroundColor White
     Write-Host "  Stop          Stop all services gracefully" -ForegroundColor White
@@ -1952,8 +2089,14 @@ function Show-Help {
     Write-Host "  .\start.ps1" -ForegroundColor Yellow
     Write-Host "    → Interactive menu for easy navigation`n" -ForegroundColor DarkGray
     
-    Write-Host "  .\start.ps1 -Mode Start -Background" -ForegroundColor Yellow
-    Write-Host "    → Start full stack in background`n" -ForegroundColor DarkGray
+    Write-Host "  .\start.ps1 -Mode Docker" -ForegroundColor Yellow
+    Write-Host "    → 🐳 Start full Docker production stack (recommended)`n" -ForegroundColor DarkGray
+    
+    Write-Host "  .\start.ps1 -Mode Docker -Background" -ForegroundColor Yellow
+    Write-Host "    → 🐳 Start Docker stack in background mode`n" -ForegroundColor DarkGray
+    
+    Write-Host "  .\start.ps1 -Mode Local" -ForegroundColor Yellow
+    Write-Host "    → Local development mode (Flask via Python + Analyzer containers)`n" -ForegroundColor DarkGray
     
     Write-Host "  .\start.ps1 -Mode Dev -NoAnalyzer" -ForegroundColor Yellow
     Write-Host "    → Quick dev mode without analyzer containers`n" -ForegroundColor DarkGray
@@ -2079,6 +2222,42 @@ try {
         }
         'Password' {
             Invoke-ResetPassword
+        }
+        'Docker' {
+            # Direct CLI mode for Docker production stack
+            $Script:Background = $Background
+            if (Start-DockerStack) {
+                if (-not $Background) {
+                    Write-Host "`nPress Ctrl+C to stop Docker stack" -ForegroundColor Yellow
+                    try {
+                        while ($true) {
+                            Start-Sleep -Seconds 60
+                        }
+                    } finally {
+                        Stop-DockerStack
+                    }
+                }
+            } else {
+                exit 1
+            }
+        }
+        'Local' {
+            # Direct CLI mode for local development (Flask + Analyzers without full Docker)
+            $Script:Background = $Background
+            if (Start-LocalStack) {
+                if (-not $Background) {
+                    Write-Host "`nPress Ctrl+C to stop local services" -ForegroundColor Yellow
+                    try {
+                        while ($true) {
+                            Start-Sleep -Seconds 60
+                        }
+                    } finally {
+                        Stop-AllServices
+                    }
+                }
+            } else {
+                exit 1
+            }
         }
         'Help' {
             Show-Help

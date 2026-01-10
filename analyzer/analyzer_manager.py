@@ -170,51 +170,59 @@ class AnalyzerManager:
             pass
         return False
     
-    def __init__(self):
+    def __init__(self, isolation_id: Optional[str] = None):
+        """Initialize AnalyzerManager with optional isolation ID for parallel execution.
+
+        Args:
+            isolation_id: Optional isolation identifier for parallel test execution.
+                         If not provided, uses ANALYSIS_ISOLATION_ID from environment.
+                         Empty string or None means production mode (no isolation).
+        """
+        # Get isolation ID from parameter or environment
+        self.isolation_id = isolation_id or os.environ.get('ANALYSIS_ISOLATION_ID', '')
+
         # Detect if running inside Docker to use service names instead of localhost
         in_docker = self._is_running_in_docker()
-        
-        # When running in Docker (e.g., Celery worker), use service names
-        # When running on host (CLI), use localhost with port mapping
-        if in_docker:
-            static_url = 'ws://static-analyzer:2001'
-            dynamic_url = 'ws://dynamic-analyzer:2002'
-            perf_url = 'ws://performance-tester:2003'
-            ai_url = 'ws://ai-analyzer:2004'
-            logger.info("Running in Docker - using container service names for WebSocket URLs")
-        else:
-            static_url = 'ws://127.0.0.1:2001'
-            dynamic_url = 'ws://127.0.0.1:2002'
-            perf_url = 'ws://127.0.0.1:2003'
-            ai_url = 'ws://127.0.0.1:2004'
-        
-        self.services = {
-            'static-analyzer': ServiceInfo(
-                name='static-analyzer',
-                port=2001,
-                container_name='analyzer-static-analyzer-1',
-                websocket_url=static_url
-            ),
-            'dynamic-analyzer': ServiceInfo(
-                name='dynamic-analyzer', 
-                port=2002,
-                container_name='analyzer-dynamic-analyzer-1',
-                websocket_url=dynamic_url
-            ),
-            'performance-tester': ServiceInfo(
-                name='performance-tester',
-                port=2003, 
-                container_name='analyzer-performance-tester-1',
-                websocket_url=perf_url
-            ),
-            'ai-analyzer': ServiceInfo(
-                name='ai-analyzer',
-                port=2004,
-                container_name='analyzer-ai-analyzer-1', 
-                websocket_url=ai_url
-            )
+
+        # Calculate port offsets for isolation to avoid conflicts
+        port_offset = self._calculate_port_offset()
+
+        # Build service configurations with dynamic naming and ports
+        base_ports = {
+            'static': 2001,
+            'dynamic': 2002,
+            'perf': 2003,
+            'ai': 2004
         }
-        
+
+        self.services = {}
+        for service_type, base_port in base_ports.items():
+            port = base_port + port_offset
+
+            # Map service types to service names
+            service_name_map = {
+                'static': 'static-analyzer',
+                'dynamic': 'dynamic-analyzer',
+                'perf': 'performance-tester',
+                'ai': 'ai-analyzer'
+            }
+            service_name = service_name_map[service_type]
+
+            # Add isolation suffix to container names if in isolated mode
+            container_suffix = f"-{self.isolation_id}" if self.isolation_id else ""
+
+            self.services[service_name] = ServiceInfo(
+                name=service_name,
+                port=port,
+                container_name=f'analyzer-{service_name}-1{container_suffix}',
+                websocket_url=self._build_websocket_url(service_name, port, in_docker, container_suffix)
+            )
+
+        if self.isolation_id:
+            logger.info(f"AnalyzerManager initialized in ISOLATED mode: isolation_id={self.isolation_id}, port_offset={port_offset}")
+        else:
+            logger.info("AnalyzerManager initialized in PRODUCTION mode (no isolation)")
+
         # Compose file located in the same directory as this script
         self.compose_file = (Path(__file__).parent / "docker-compose.yml").resolve()
         # Save results under project root results folder
@@ -233,6 +241,39 @@ class AnalyzerManager:
         self._port_config_cache: Optional[List[Dict[str, Any]]] = None
         # Legacy directory names we want to keep pruned under each app folder
         self._legacy_result_dirs = ["static-analyzer","dynamic-analyzer","performance-tester","ai-analyzer","security-analyzer"]
+
+    def _calculate_port_offset(self) -> int:
+        """Calculate port offset based on isolation ID to avoid port conflicts.
+
+        Returns:
+            int: Port offset (0 for production, 100/200/300/... for isolated sessions)
+
+        The offset allows up to 10 parallel test sessions (100 ports apart each).
+        """
+        if not self.isolation_id:
+            return 0
+        # Hash isolation ID to consistent port offset (0, 100, 200, ...)
+        hash_val = sum(ord(c) for c in self.isolation_id)
+        return (hash_val % 10) * 100
+
+    def _build_websocket_url(self, service_name: str, port: int, in_docker: bool, container_suffix: str) -> str:
+        """Build WebSocket URL with isolation awareness.
+
+        Args:
+            service_name: Base service name (e.g., 'static-analyzer')
+            port: Port number (with offset applied)
+            in_docker: Whether running inside Docker container
+            container_suffix: Suffix to add to container name (empty for production)
+
+        Returns:
+            str: WebSocket URL (e.g., 'ws://static-analyzer:2001' or 'ws://127.0.0.1:2101')
+        """
+        if in_docker:
+            # Use service name with isolation suffix for container-to-container communication
+            return f'ws://{service_name}{container_suffix}:{port}'
+        else:
+            # Use localhost with offset port for host-to-container communication
+            return f'ws://127.0.0.1:{port}'
 
     @staticmethod
     def _sanitize_task_id(task_id: str) -> str:
@@ -695,17 +736,56 @@ class AnalyzerManager:
     # DOCKER CONTAINER MANAGEMENT
     # =================================================================
     
-    def run_command(self, command: List[str], capture_output: bool = False, 
-                   timeout: int = 60) -> Tuple[int, str, str]:
-        """Run a shell command and return result."""
+    def _get_compose_env(self) -> Dict[str, str]:
+        """Get environment variables for docker-compose with isolation support.
+
+        Returns:
+            Dict[str, str]: Environment variables including isolation context
+        """
+        env = os.environ.copy()
+        if self.isolation_id:
+            # Set project name for isolation
+            env['COMPOSE_PROJECT_NAME'] = f'analyzer-{self.isolation_id}'
+            env['ISOLATION_ID'] = self.isolation_id
+            env['ISOLATION_SUFFIX'] = f'-{self.isolation_id}'
+
+            # Pass port offsets to docker-compose
+            offset = self._calculate_port_offset()
+            env['STATIC_PORT'] = str(2001 + offset)
+            env['DYNAMIC_PORT'] = str(2002 + offset)
+            env['PERF_PORT'] = str(2003 + offset)
+            env['AI_PORT'] = str(2004 + offset)
+            env['REDIS_PORT'] = str(6379 + offset)
+
+            logger.debug(f"Compose env with isolation: project={env['COMPOSE_PROJECT_NAME']}, ports={offset}")
+        return env
+
+    def run_command(self, command: List[str], capture_output: bool = False,
+                   timeout: int = 60, env: Optional[Dict[str, str]] = None) -> Tuple[int, str, str]:
+        """Run a shell command and return result.
+
+        Args:
+            command: Command to run as list of strings
+            capture_output: Whether to capture stdout/stderr
+            timeout: Command timeout in seconds
+            env: Optional environment variables (uses _get_compose_env() if None for compose commands)
+
+        Returns:
+            Tuple of (returncode, stdout, stderr)
+        """
         try:
+            # Use isolation-aware environment for docker-compose commands
+            if env is None and 'compose' in ' '.join(command).lower():
+                env = self._get_compose_env()
+
             logger.info(f"Running: {' '.join(command)}")
             result = subprocess.run(
                 command,
                 capture_output=capture_output,
                 text=True,
                 cwd=Path(__file__).parent,
-                timeout=timeout
+                timeout=timeout,
+                env=env
             )
             return result.returncode, result.stdout or "", result.stderr or ""
         except subprocess.TimeoutExpired:

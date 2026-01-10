@@ -48,12 +48,14 @@ services:
       context: ..
       dockerfile: analyzer/services/static-analyzer/Dockerfile
     ports:
-      - "2001:2001"
+      - "${STATIC_PORT:-2001}:2001"
+    container_name: "analyzer-static-analyzer-1${ISOLATION_SUFFIX:-}"
     environment:
       - LOG_LEVEL=INFO
       - WEBSOCKET_HOST=0.0.0.0
       - WEBSOCKET_PORT=2001
       - PYTHONPATH=/app
+      - ISOLATION_ID=${ISOLATION_ID:-}
     volumes:
       - ../generated/apps:/app/sources:ro
       - ../results:/app/results
@@ -82,12 +84,14 @@ services:
       context: ..
       dockerfile: analyzer/services/dynamic-analyzer/Dockerfile
     ports:
-      - "2002:2002"
+      - "${DYNAMIC_PORT:-2002}:2002"
+    container_name: "analyzer-dynamic-analyzer-1${ISOLATION_SUFFIX:-}"
     environment:
       - LOG_LEVEL=INFO
       - WEBSOCKET_HOST=0.0.0.0
       - WEBSOCKET_PORT=2002
       - PYTHONPATH=/app
+      - ISOLATION_ID=${ISOLATION_ID:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -118,12 +122,14 @@ services:
       context: ..
       dockerfile: analyzer/services/performance-tester/Dockerfile
     ports:
-      - "2003:2003"
+      - "${PERF_PORT:-2003}:2003"
+    container_name: "analyzer-performance-tester-1${ISOLATION_SUFFIX:-}"
     environment:
       - LOG_LEVEL=INFO
       - WEBSOCKET_HOST=0.0.0.0
       - WEBSOCKET_PORT=2003
       - PYTHONPATH=/app
+      - ISOLATION_ID=${ISOLATION_ID:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -154,7 +160,8 @@ services:
       context: ..
       dockerfile: analyzer/services/ai-analyzer/Dockerfile
     ports:
-      - "2004:2004"
+      - "${AI_PORT:-2004}:2004"
+    container_name: "analyzer-ai-analyzer-1${ISOLATION_SUFFIX:-}"
     env_file:
       - ../.env
     environment:
@@ -162,6 +169,7 @@ services:
       - WEBSOCKET_HOST=0.0.0.0
       - WEBSOCKET_PORT=2004
       - PYTHONPATH=/app
+      - ISOLATION_ID=${ISOLATION_ID:-}
     volumes:
       - ../generated/apps:/app/sources:ro
       - ../results:/app/results
@@ -188,7 +196,8 @@ services:
   redis:
     image: redis:7.2-alpine
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
+    container_name: "analyzer-redis-1${ISOLATION_SUFFIX:-}"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
@@ -234,6 +243,7 @@ services:
 
 networks:
   analyzer-network:
+    name: "analyzer-network${ISOLATION_SUFFIX:-}"
     driver: bridge
   thesis-apps-network:
     external: true

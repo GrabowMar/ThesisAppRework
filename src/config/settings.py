@@ -251,7 +251,7 @@ class Config:
         }
     }
     
-    # AI Analysis Tool Configurations  
+    # AI Analysis Tool Configurations
     AI_ANALYZER_CONFIG = {
         'code_quality': {
             'enabled': True,
@@ -260,7 +260,7 @@ class Config:
             'max_tokens': 2000,
             'analysis_types': [
                 'readability',
-                'maintainability', 
+                'maintainability',
                 'design_patterns',
                 'best_practices',
                 'code_smells'
@@ -300,6 +300,37 @@ class Config:
             'timeout': 300
         }
     }
+
+
+class IsolationConfig:
+    """Configuration for test/pipeline isolation for parallel execution.
+
+    This configuration enables multiple test sessions or pipeline executions
+    to run concurrently without conflicts by isolating:
+    - Container names and ports
+    - Redis keys and databases
+    - File system paths
+    - Database instances
+    """
+
+    @staticmethod
+    def get_isolation_id() -> str:
+        """Get or generate isolation ID for this session/test.
+
+        Returns:
+            str: Isolation ID from ANALYSIS_ISOLATION_ID env var if set,
+                 otherwise empty string (production mode - no isolation)
+        """
+        return os.environ.get('ANALYSIS_ISOLATION_ID', '')
+
+    @staticmethod
+    def is_isolated_mode() -> bool:
+        """Check if running in isolated test mode.
+
+        Returns:
+            bool: True if isolation ID is set, False otherwise
+        """
+        return bool(IsolationConfig.get_isolation_id())
 
 
 class DevelopmentConfig(Config):

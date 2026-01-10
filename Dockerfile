@@ -55,6 +55,10 @@ COPY --chown=appuser:appuser src/ ./src/
 COPY --chown=appuser:appuser misc/ ./misc/
 COPY --chown=appuser:appuser analyzer/ ./analyzer/
 
+# Copy container control script
+COPY --chown=appuser:appuser container-start.sh ./start.sh
+RUN chmod +x ./start.sh
+
 # Create necessary directories with correct permissions
 RUN mkdir -p /app/src/data /app/logs /app/generated/apps /app/results && \
     chown -R appuser:appuser /app/src/data /app/logs /app/generated /app/results

@@ -7,6 +7,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Grant access to Docker socket (socket is owned by root:root on most hosts)
+    group_add:
+      - "0"  # root group for Docker socket access
     ports:
       - "5000:5000"
     environment:
@@ -18,6 +21,8 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OPENROUTER_ALLOW_ALL_PROVIDERS=${OPENROUTER_ALLOW_ALL_PROVIDERS:-true}
       - PYTHONUNBUFFERED=1
+      # Docker environment flag for inter-container communication
+      - IN_DOCKER=true
       # Celery configuration for Docker environment
       - USE_CELERY_ANALYSIS=true
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -70,9 +75,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Grant access to Docker socket (socket is owned by root:root on most hosts)
+    group_add:
+      - "0"  # root group for Docker socket access
     command: celery -A app.celery_worker.celery worker --loglevel=info
     environment:
       - FLASK_ENV=${FLASK_ENV:-production}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - DATABASE_URL=${DATABASE_URL:-sqlite:////app/src/data/thesis_app.db}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0

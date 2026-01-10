@@ -82,6 +82,44 @@ pip install -r requirements.txt
 python analyzer/analyzer_manager.py start
 ```
 
+### Docker Socket Permission Denied (Container-to-Docker Access)
+
+**Symptoms:** 
+- Tasks fail with `Permission denied` errors accessing `/var/run/docker.sock`
+- Dynamic analyzer and performance tester fail to start target app containers
+- Pipeline shows partial failures for tasks requiring container management
+
+**Cause:** When running in Docker, the `web` and `celery-worker` containers need access to the Docker socket to manage target application containers. If the socket on the host is owned by a different group (e.g., `root:root` with GID 0), the container user won't have access.
+
+**Diagnosis:**
+```bash
+# Check socket ownership on host
+ls -la /var/run/docker.sock
+
+# Check if Docker works inside container
+docker exec thesis-web docker version
+docker exec thesis-celery-worker docker version
+```
+
+**Solution:** Add `group_add: ["0"]` to the services in `docker-compose.yml`:
+
+```yaml
+web:
+  group_add:
+    - "0"  # root group for Docker socket access
+
+celery-worker:
+  group_add:
+    - "0"  # root group for Docker socket access
+```
+
+Then restart containers:
+```bash
+docker compose up -d
+```
+
+**Note:** The GID to add depends on your host's Docker socket ownership. Use `stat /var/run/docker.sock` to find the GID.
+
 ### WebSocket Connection Failed
 
 **Symptoms:** `Connection refused` on ports 2001-2004

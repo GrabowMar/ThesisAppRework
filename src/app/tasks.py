@@ -2,7 +2,8 @@
 Celery Tasks
 ============
 
-Distributed tasks for analysis execution.
+Distributed tasks for analysis execution with distributed locking
+to prevent SQLite concurrency issues.
 """
 
 import logging
@@ -15,6 +16,7 @@ from app.celery_worker import celery
 from app.extensions import db
 from app.models import AnalysisTask, AnalysisStatus
 from app.services.result_summary_utils import summarise_findings
+from app.utils.distributed_lock import database_write_lock
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +36,12 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
         subtask = AnalysisTask.query.get(subtask_id)
         if not subtask:
             return {'status': 'error', 'error': f'Subtask {subtask_id} not found'}
-        
-        # Mark as running
-        subtask.status = AnalysisStatus.RUNNING
-        subtask.started_at = datetime.now(timezone.utc)
-        db.session.commit()
+
+        # Mark as running (with distributed lock to prevent SQLite I/O errors)
+        with database_write_lock(f"subtask_{subtask_id}_start"):
+            subtask.status = AnalysisStatus.RUNNING
+            subtask.started_at = datetime.now(timezone.utc)
+            db.session.commit()
         
         # Execute via WebSocket (reusing logic from TaskExecutionService, but adapted)
         # We can't easily reuse the instance method, so we'll duplicate the WS logic here
@@ -46,22 +49,23 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
         
         result = _run_websocket_sync(service_name, model_slug, app_number, tools)
         
-        # Store result
+        # Store result (with distributed lock to prevent SQLite I/O errors)
         status = str(result.get('status', '')).lower()
         success = status in ('success', 'completed', 'ok', 'partial')
         is_partial = status == 'partial'
-        
-        subtask.status = AnalysisStatus.PARTIAL_SUCCESS if is_partial else (AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED)
-        subtask.completed_at = datetime.now(timezone.utc)
-        subtask.progress_percentage = 100.0
-        
-        if result.get('payload'):
-            subtask.set_result_summary(result['payload'])
-        
-        if result.get('error'):
-            subtask.error_message = result['error']
-        
-        db.session.commit()
+
+        with database_write_lock(f"subtask_{subtask_id}_complete"):
+            subtask.status = AnalysisStatus.PARTIAL_SUCCESS if is_partial else (AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED)
+            subtask.completed_at = datetime.now(timezone.utc)
+            subtask.progress_percentage = 100.0
+
+            if result.get('payload'):
+                subtask.set_result_summary(result['payload'])
+
+            if result.get('error'):
+                subtask.error_message = result['error']
+
+            db.session.commit()
         
         return {
             'status': result.get('status', 'error'),
@@ -76,10 +80,11 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
         try:
             subtask = AnalysisTask.query.get(subtask_id)
             if subtask:
-                subtask.status = AnalysisStatus.FAILED
-                subtask.error_message = str(e)
-                subtask.completed_at = datetime.now(timezone.utc)
-                db.session.commit()
+                with database_write_lock(f"subtask_{subtask_id}_error"):
+                    subtask.status = AnalysisStatus.FAILED
+                    subtask.error_message = str(e)
+                    subtask.completed_at = datetime.now(timezone.utc)
+                    db.session.commit()
         except Exception:
             pass
         return {'status': 'error', 'error': str(e), 'service_name': service_name}
@@ -100,11 +105,12 @@ def execute_analysis(self, task_id: int) -> Dict[str, Any]:
         if not task:
             return {'status': 'error', 'error': f'Task {task_id} not found'}
         
-        # Mark as running
-        task.status = AnalysisStatus.RUNNING
-        task.started_at = datetime.now(timezone.utc)
-        task.progress_percentage = 10.0
-        db.session.commit()
+        # Mark as running (with distributed lock)
+        with database_write_lock(f"task_{task_id}_start"):
+            task.status = AnalysisStatus.RUNNING
+            task.started_at = datetime.now(timezone.utc)
+            task.progress_percentage = 10.0
+            db.session.commit()
         
         # Get wrapper
         wrapper = get_analyzer_wrapper()
@@ -127,9 +133,10 @@ def execute_analysis(self, task_id: int) -> Dict[str, Any]:
         
         logger.info(f"[CELERY] Running {analysis_method} analysis for task {task.task_id}")
         
-        # Update progress
-        task.progress_percentage = 30.0
-        db.session.commit()
+        # Update progress (with distributed lock)
+        with database_write_lock(f"task_{task_id}_progress"):
+            task.progress_percentage = 30.0
+            db.session.commit()
         
         # Execute analysis
         task_name = task.task_id
@@ -157,9 +164,10 @@ def execute_analysis(self, task_id: int) -> Dict[str, Any]:
         # Process results (similar to TaskExecutionService logic)
         # For comprehensive, result is already consolidated. For others, it's a dict of services.
         
-        # Update progress
-        task.progress_percentage = 90.0
-        db.session.commit()
+        # Update progress (with distributed lock)
+        with database_write_lock(f"task_{task_id}_progress_90"):
+            task.progress_percentage = 90.0
+            db.session.commit()
         
         # Determine status
         # If result has 'results' key, it's likely the consolidated format from comprehensive
@@ -186,18 +194,19 @@ def execute_analysis(self, task_id: int) -> Dict[str, Any]:
         task.completed_at = datetime.now(timezone.utc)
         task.progress_percentage = 100.0
         
-        # Store result summary
-        task.set_result_summary(payload)
-        
-        # Update issues count if available
-        if 'summary' in payload: # Direct payload
-             summary = payload['summary']
-             task.issues_found = summary.get('total_findings', 0)
-        elif 'results' in payload and 'summary' in payload['results']: # Nested
-             summary = payload['results']['summary']
-             task.issues_found = summary.get('total_findings', 0)
-             
-        db.session.commit()
+        # Store result summary (with distributed lock)
+        with database_write_lock(f"task_{task_id}_complete"):
+            task.set_result_summary(payload)
+
+            # Update issues count if available
+            if 'summary' in payload: # Direct payload
+                 summary = payload['summary']
+                 task.issues_found = summary.get('total_findings', 0)
+            elif 'results' in payload and 'summary' in payload['results']: # Nested
+                 summary = payload['results']['summary']
+                 task.issues_found = summary.get('total_findings', 0)
+
+            db.session.commit()
         
         return {'status': status, 'task_id': task_id}
         
@@ -206,10 +215,11 @@ def execute_analysis(self, task_id: int) -> Dict[str, Any]:
         try:
             task = AnalysisTask.query.get(task_id)
             if task:
-                task.status = AnalysisStatus.FAILED
-                task.error_message = str(e)
-                task.completed_at = datetime.now(timezone.utc)
-                db.session.commit()
+                with database_write_lock(f"task_{task_id}_error"):
+                    task.status = AnalysisStatus.FAILED
+                    task.error_message = str(e)
+                    task.completed_at = datetime.now(timezone.utc)
+                    db.session.commit()
         except Exception:
             pass
         return {'status': 'error', 'error': str(e)}
@@ -274,21 +284,22 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
             }
         }
         
-        # Update main task
-        main_task.status = AnalysisStatus.COMPLETED if not any_failed else AnalysisStatus.FAILED
-        main_task.completed_at = datetime.now(timezone.utc)
-        main_task.progress_percentage = 100.0
-        
-        if main_task.started_at:
-             # Ensure started_at is timezone-aware
-            started_at = main_task.started_at
-            if started_at.tzinfo is None:
-                started_at = started_at.replace(tzinfo=timezone.utc)
-            duration = (main_task.completed_at - started_at).total_seconds()
-            main_task.actual_duration = duration
-            
-        main_task.set_result_summary(unified_payload)
-        db.session.commit()
+        # Update main task (with distributed lock)
+        with database_write_lock(f"task_{main_task_id}_aggregate"):
+            main_task.status = AnalysisStatus.COMPLETED if not any_failed else AnalysisStatus.FAILED
+            main_task.completed_at = datetime.now(timezone.utc)
+            main_task.progress_percentage = 100.0
+
+            if main_task.started_at:
+                 # Ensure started_at is timezone-aware
+                started_at = main_task.started_at
+                if started_at.tzinfo is None:
+                    started_at = started_at.replace(tzinfo=timezone.utc)
+                duration = (main_task.completed_at - started_at).total_seconds()
+                main_task.actual_duration = duration
+
+            main_task.set_result_summary(unified_payload)
+            db.session.commit()
         
         # Write to filesystem (we need to duplicate this logic or import it)
         # Ideally, we should use a shared service for this.
@@ -305,9 +316,10 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
     except Exception as e:
         logger.error(f"[CELERY] Aggregation failed: {e}", exc_info=True)
         if main_task:
-            main_task.status = AnalysisStatus.FAILED
-            main_task.error_message = str(e)
-            db.session.commit()
+            with database_write_lock(f"task_{main_task_id}_aggregate_error"):
+                main_task.status = AnalysisStatus.FAILED
+                main_task.error_message = str(e)
+                db.session.commit()
         return {'status': 'error', 'error': str(e)}
 
 def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, tools: List[str], timeout: int = 600) -> Dict[str, Any]:

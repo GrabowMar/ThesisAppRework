@@ -45,6 +45,7 @@ from app.models import AnalysisTask
 from app.constants import AnalysisStatus
 from app.services.result_summary_utils import summarise_findings
 from app.services.service_locator import ServiceLocator
+from app.utils.redis_isolation import get_redis_db_number, prefix_key, get_isolation_aware_redis_url
 
 # Import shared utilities for consistent result handling
 from app.utils.sarif_utils import (
@@ -124,33 +125,40 @@ class TaskExecutionService:
 
     def _is_redis_available(self) -> bool:
         """Check if Redis is available for Celery task dispatch.
-        
+
         Uses a cached result to avoid checking Redis on every single task.
         Re-checks every 30 seconds.
+        Uses isolation-aware Redis database to prevent conflicts.
         """
         import time as _time
-        
+
         current_time = _time.time()
-        
+
         # Return cached result if still valid
         if self._redis_available is not None and (current_time - self._redis_check_time) < self._redis_check_interval:
             return self._redis_available
-        
+
         # Perform actual Redis check
         try:
             import redis
-            redis_url = os.environ.get('CELERY_BROKER_URL') or os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+            base_url = os.environ.get('CELERY_BROKER_URL') or os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+            # Use isolation-aware Redis URL (different DB for tests)
+            redis_url = get_isolation_aware_redis_url(base_url)
             client = redis.from_url(redis_url, socket_timeout=2.0, socket_connect_timeout=2.0)
             client.ping()  # type: ignore[union-attr]
             self._redis_available = True
-            self._log("[REDIS] Redis is available at %s", redis_url, level='debug')
+            db_num = get_redis_db_number()
+            if db_num != 0:
+                self._log("[REDIS] Redis available at %s (isolated DB %d)", redis_url, db_num, level='debug')
+            else:
+                self._log("[REDIS] Redis available at %s (production DB)", redis_url, level='debug')
         except ImportError:
             self._log("[REDIS] redis-py not installed, Celery unavailable", level='warning')
             self._redis_available = False
         except Exception as e:
             self._log("[REDIS] Redis not reachable: %s", str(e), level='warning')
             self._redis_available = False
-        
+
         self._redis_check_time = current_time
         return self._redis_available
     
@@ -824,6 +832,7 @@ class TaskExecutionService:
                         except Exception as e:
                             self._log("Analysis execution failed for task %s: %s", task_db.task_id, e, level='error')
                             success = False
+                            is_partial = False  # Ensure is_partial is defined for exception path
                             result = {'status': 'error', 'error': str(e)}
                             # Save error to results
                             error_payload = {
