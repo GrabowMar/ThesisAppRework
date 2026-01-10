@@ -44,7 +44,7 @@ flowchart TB
 
 **Location**: [src/app/services/task_execution_service.py](../src/app/services/task_execution_service.py)
 
-Asynchronous daemon that picks up PENDING analysis tasks and executes them via analyzer containers.
+Asynchronous daemon that picks up PENDING analysis tasks and dispatches them for execution. In Docker environments (default), tasks are executed via **Celery workers**. In local development, tasks can optionally use ThreadPoolExecutor.
 
 ### Lifecycle
 
@@ -82,10 +82,44 @@ sequenceDiagram
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
+| **Task Execution** | | |
+| `USE_CELERY_ANALYSIS` | Use Celery workers (recommended) | `true` (Docker) |
+| `CELERY_BROKER_URL` | Redis broker for Celery | `redis://redis:6379/0` |
+| `CELERY_RESULT_BACKEND` | Task result storage | `redis://redis:6379/0` |
+| **Polling & Timeouts** | | |
 | `TASK_POLL_INTERVAL` | Polling interval (seconds) | 5 (prod), 2 (test) |
 | `TASK_TIMEOUT` | Overall task timeout (seconds) | 1800 (30 min) |
+| **Retry Behavior** | | |
 | `PREFLIGHT_MAX_RETRIES` | Max retries for service unavailability | 3 |
 | `TRANSIENT_FAILURE_MAX_RETRIES` | Max auto-recovery attempts for failed tasks | 3 |
+
+### Celery vs ThreadPoolExecutor
+
+The TaskExecutionService supports two execution backends:
+
+| Backend | Mode | Use Case |
+|---------|------|----------|
+| **Celery** | `USE_CELERY_ANALYSIS=true` | **Default** - Docker, production, scalable |
+| ThreadPoolExecutor | `USE_CELERY_ANALYSIS=false` | Legacy local development only |
+
+**Celery Mode (Docker):**
+```mermaid
+flowchart LR
+    TES[TaskExecutionService] -->|Submit| Redis[Redis Queue]
+    Redis -->|Pick| Worker[Celery Worker]
+    Worker -->|Execute| Analyzer[Analyzer Services]
+```
+
+**Benefits:**
+- Distributed execution across multiple workers
+- Task persistence and automatic retry
+- Built-in monitoring and inspection
+- Production-ready scalability
+
+**ThreadPoolExecutor Mode (Local):**
+- In-process execution with 8 worker threads
+- Faster for development (no Redis overhead)
+- Limited scalability
 
 ### Automatic Retry Behavior (December 2025)
 
@@ -98,6 +132,8 @@ The TaskExecutionService implements robust retry mechanisms:
 3. **Stuck Task Recovery**: Tasks stuck in RUNNING state for >15 minutes are reset to PENDING for retry (up to 3 retries).
 
 ### Debugging
+
+#### Check TaskExecutionService
 
 ```python
 # Check if service is running
@@ -114,6 +150,35 @@ for task in stuck:
 
 # Manual recovery
 python scripts/fix_task_statuses.py
+```
+
+#### Monitor Celery Workers (Docker)
+
+```bash
+# Check worker status
+docker compose exec web celery -A app.celery_worker.celery inspect active
+
+# View registered tasks
+docker compose exec web celery -A app.celery_worker.celery inspect registered
+
+# Monitor queue length
+docker compose exec web celery -A app.celery_worker.celery inspect stats
+
+# View worker logs
+docker compose logs -f celery-worker
+
+# Restart workers
+docker compose restart celery-worker
+```
+
+#### Scale Celery Workers
+
+```bash
+# Scale to 3 workers
+docker compose up -d --scale celery-worker=3
+
+# Check worker count
+docker compose ps celery-worker
 ```
 
 ### Common Issues

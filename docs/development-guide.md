@@ -4,12 +4,33 @@ Setup and development workflow for ThesisAppRework.
 
 ## Prerequisites
 
-- Python 3.10+
-- Docker Desktop (for analyzers)
-- Node.js 18+ (for frontend tools)
-- Git
+- **Docker Desktop** - Required for running analyzer services and full stack
+- **Python 3.10+** - For local development
+- **Node.js 18+** - For frontend tools (optional)
+- **Git** - Version control
 
 ## Quick Setup
+
+### Docker-First Development (Recommended)
+
+```bash
+# Clone repository
+git clone https://github.com/GrabowMar/ThesisAppRework.git
+cd ThesisAppRework
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your settings (OPENROUTER_API_KEY, etc.)
+
+# Start full stack with Docker Compose
+docker compose up -d
+
+# View logs
+docker compose logs -f web
+docker compose logs -f celery-worker
+```
+
+### Local Development (Alternative)
 
 ```bash
 # Clone and setup
@@ -26,13 +47,13 @@ pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your settings (OPENROUTER_API_KEY, etc.)
+# Edit .env with your settings
 
 # Initialize database
 python src/init_db.py
 
-# Start development server
-./start.ps1 -Mode Dev -NoAnalyzer
+# Start Flask only (no Docker)
+./start.ps1 -Mode Dev
 ```
 
 ## Project Structure
@@ -60,23 +81,51 @@ ThesisAppRework/
 
 ## Development Modes
 
-### Flask Only (Fast)
+### Docker Compose (Full Stack)
+
+**Recommended for development** - matches production environment.
 
 ```bash
-./start.ps1 -Mode Dev -NoAnalyzer
-# Or directly:
-python src/main.py
+# Start all services
+docker compose up -d
+
+# Rebuild after code changes
+docker compose up -d --build
+
+# View logs
+docker compose logs -f web
+docker compose logs -f celery-worker
+
+# Access shell in web container
+docker compose exec web bash
 ```
 
 Access at http://localhost:5000
 
-### Full Stack
+**Stack includes:**
+- Flask web app (port 5000)
+- Redis (Celery broker)
+- Celery worker (background tasks)
+- All analyzer services
+- WebSocket gateway
+
+### Local Flask Only (Fast Iteration)
+
+For quick frontend/backend changes without Docker overhead.
 
 ```bash
-./start.ps1 -Mode Start
+./start.ps1 -Mode Dev
+# Or directly:
+python src/main.py
 ```
 
-Starts Flask + all analyzer containers.
+**Note:** Analyzer functionality requires Docker containers running separately.
+
+```bash
+# Start analyzers separately if needed
+cd analyzer
+docker compose up -d
+```
 
 ### Interactive Menu
 
@@ -276,23 +325,42 @@ Key variables for development:
 
 ```bash
 # Required
-OPENROUTER_API_KEY=sk-...
+OPENROUTER_API_KEY=sk-or-v1-your-key
 
-# Development
+# Development Mode
+FLASK_ENV=development
 FLASK_DEBUG=1
 LOG_LEVEL=DEBUG
+
+# Task Execution
+USE_CELERY_ANALYSIS=true  # Use Celery (recommended with Docker)
+CELERY_BROKER_URL=redis://redis:6379/0  # Docker: redis, Local: localhost
+CELERY_RESULT_BACKEND=redis://redis:6379/0
+
+# Analyzers
 ANALYZER_ENABLED=true
 ANALYZER_AUTO_START=false
 
 # Database
-DATABASE_URL=sqlite:///src/data/thesis_app.db
+DATABASE_URL=sqlite:///src/data/thesis_app.db  # Local
+DATABASE_URL=sqlite:////app/src/data/thesis_app.db  # Docker
 
 # Timeouts (seconds)
 STATIC_ANALYSIS_TIMEOUT=1800
 SECURITY_ANALYSIS_TIMEOUT=1800
 PERFORMANCE_TIMEOUT=1800
 AI_ANALYSIS_TIMEOUT=2400
+TASK_TIMEOUT=1800
 ```
+
+### Docker vs Local Configuration
+
+| Variable | Docker Value | Local Value |
+|----------|-------------|-------------|
+| `USE_CELERY_ANALYSIS` | `true` | `false` (or `true` with Redis) |
+| `CELERY_BROKER_URL` | `redis://redis:6379/0` | `redis://localhost:6379/0` |
+| `DATABASE_URL` | `sqlite:////app/src/data/thesis_app.db` | `sqlite:///src/data/thesis_app.db` |
+| `IN_DOCKER` | `true` | Not set |
 
 ## Git Workflow
 

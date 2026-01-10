@@ -6,20 +6,55 @@ Get up and running with ThesisAppRework in under 5 minutes.
 
 Before starting, ensure you have:
 
-- **Python 3.10+** - [Download](https://www.python.org/downloads/)
-- **Docker Desktop** - [Download](https://www.docker.com/products/docker-desktop/)
+- **Docker Desktop** - [Download](https://www.docker.com/products/docker-desktop/) (Required - application runs in containers)
 - **Git** - [Download](https://git-scm.com/downloads)
+- **Python 3.10+** - [Download](https://www.python.org/downloads/) (Optional - only for local development)
 
 ## Installation
 
-### 1. Clone the Repository
+### Docker-First Setup (Recommended)
+
+The application is designed to run entirely in Docker containers with Celery for distributed task processing.
+
+#### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/GrabowMar/ThesisAppRework.git
 cd ThesisAppRework
 ```
 
-### 2. Create Virtual Environment
+#### 2. Configure Environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set your API key:
+```
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+SECRET_KEY=your-secret-key-here
+```
+
+#### 3. Start with Docker Compose
+
+```bash
+docker compose up -d
+```
+
+This starts the complete stack:
+- Flask web application (port 5000)
+- Redis (Celery broker)
+- Celery worker (background tasks)
+- All analyzer services (static, dynamic, performance, AI)
+- WebSocket gateway (port 8765)
+
+Access the application at **http://localhost:5000**
+
+### Local Development Setup (Optional)
+
+For local development without Docker:
+
+#### 1. Create Virtual Environment
 
 **Windows (PowerShell):**
 ```powershell
@@ -33,25 +68,13 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Install Dependencies
+#### 2. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure Environment
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` and set your API key:
-```
-OPENROUTER_API_KEY=sk-or-v1-your-key-here
-SECRET_KEY=your-secret-key-here
-```
-
-### 5. Initialize Database
+#### 3. Initialize Database
 
 ```bash
 python src/init_db.py
@@ -59,19 +82,56 @@ python src/init_db.py
 
 ## Running the Application
 
-### Interactive Mode (Recommended)
+### Docker Compose (Production Mode)
+
+The application runs entirely in containers with Celery for distributed task processing.
+
+#### Start All Services
+
+```bash
+docker compose up -d
+```
+
+This starts:
+- **web**: Flask application with Gunicorn
+- **redis**: Task queue broker
+- **celery-worker**: Background task processor
+- **analyzer-gateway**: WebSocket gateway
+- **static-analyzer**: Code quality and security
+- **dynamic-analyzer**: Runtime security testing
+- **performance-tester**: Load testing
+- **ai-analyzer**: AI-powered analysis
+
+#### View Logs
+
+```bash
+docker compose logs -f web
+docker compose logs -f celery-worker
+```
+
+#### Stop Services
+
+```bash
+docker compose down
+```
+
+### Local Development Mode (Optional)
+
+For faster iteration without Docker:
+
+#### Interactive Menu
 
 ```bash
 ./start.ps1
 ```
 
-This opens an interactive menu with options:
+Available modes:
 
 | Mode | Description |
 |------|-------------|
-| `Start` | Full stack (Flask + Analyzers) |
+| `Start` | Full stack (Flask + Analyzers) in Docker |
 | `Stop` | Stop all services |
-| `Dev` | Development mode (Flask only, debug on) |
+| `Dev` | Development mode (Flask only, local) |
 | `Status` | Status dashboard |
 | `Logs` | Tail all logs |
 | `Rebuild` | Fast incremental container rebuild |
@@ -82,20 +142,16 @@ This opens an interactive menu with options:
 | `Password` | Reset admin password |
 | `Health` | Check service health |
 
-> **Note**: Maintenance is now manual by default (as of Nov 2025). Orphan apps get a 7-day grace period before deletion.
-
-### Quick Commands
+#### Quick Commands
 
 | Command | Description |
 |---------|-------------|
-| `./start.ps1 -Mode Start` | Start Flask + all analyzers |
-| `./start.ps1 -Mode Dev` | Start Flask only (fast) |
+| `./start.ps1 -Mode Start` | Start full Docker stack |
+| `./start.ps1 -Mode Dev` | Start Flask locally (fast) |
 | `./start.ps1 -Mode Stop` | Stop all services |
 | `./start.ps1 -Mode Status` | View dashboard |
-| `./start.ps1 -Mode Maintenance` | Run cleanup manually |
-| `./start.ps1 -Mode Health` | Check service health |
 
-### Direct Python
+#### Direct Python (Local Only)
 
 ```bash
 python src/main.py
@@ -129,21 +185,44 @@ python analyzer/analyzer_manager.py status
 
 ## Verifying Installation
 
-### Check Flask
+### Check Flask Web Application
 
 ```bash
-curl http://localhost:5000/api/health
+curl http://localhost:5000/health
 ```
 
 Expected: `{"status": "healthy"}`
 
-### Check Analyzers
+### Check Docker Services
 
 ```bash
-python analyzer/analyzer_manager.py health
+docker compose ps
 ```
 
-All services should show "healthy" status.
+All services should show "healthy" status:
+- web
+- redis
+- celery-worker
+- analyzer-gateway
+- static-analyzer
+- dynamic-analyzer
+- performance-tester
+- ai-analyzer
+
+### Check Celery Worker
+
+```bash
+docker compose logs celery-worker | grep "ready"
+```
+
+Expected: `celery@<hostname> ready`
+
+### Check Analyzers (Alternative)
+
+```bash
+# Using analyzer manager CLI
+python analyzer/analyzer_manager.py health
+```
 
 ## Common Issues
 

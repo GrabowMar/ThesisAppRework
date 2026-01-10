@@ -4,19 +4,20 @@ Production deployment for ThesisAppRework.
 
 ## Deployment Options
 
+ThesisAppRework is designed as a **Docker-first application** with Celery for distributed task processing.
+
 | Option | Complexity | Best For |
 |--------|------------|----------|
-| Single Server | Low | Development, small scale |
-| Docker Compose | Medium | Production, single host |
-| Kubernetes | High | Scale, high availability |
+| Docker Compose | Low | **Recommended** - Production, single host |
+| Kubernetes | High | Multi-server, high availability, scale |
+| Single Server (Legacy) | Medium | Development only, not recommended |
 
-## Single Server Deployment
+## Docker Compose Deployment (Recommended)
 
 ### Requirements
 
-- Ubuntu 22.04+ / Windows Server 2022
-- Python 3.10+
-- Docker Engine 24+
+- Ubuntu 22.04+ / Windows Server 2022+ / macOS
+- Docker Engine 24+ with Docker Compose v2
 - 4GB RAM minimum, 8GB recommended
 - 50GB disk space
 
@@ -27,22 +28,12 @@ Production deployment for ThesisAppRework.
 git clone https://github.com/GrabowMar/ThesisAppRework.git
 cd ThesisAppRework
 
-# Setup Python environment
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Configure
+# Configure environment
 cp .env.example .env
-# Edit .env with production values
+# Edit .env with production values (see below)
 
-# Initialize database
-python src/init_db.py
-
-# Build analyzer containers
-cd analyzer
-docker compose build
-cd ..
+# Start complete stack
+docker compose up -d
 ```
 
 ### Production Configuration
@@ -51,8 +42,17 @@ cd ..
 
 ```bash
 # Flask
+FLASK_ENV=production
 FLASK_DEBUG=0
-SECRET_KEY=<generate-secure-key>
+SECRET_KEY=<generate-secure-random-key>
+
+# Database
+DATABASE_URL=sqlite:////app/src/data/thesis_app.db
+
+# Celery (required for Docker deployment)
+USE_CELERY_ANALYSIS=true
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/0
 
 # Logging
 LOG_LEVEL=INFO
@@ -68,85 +68,94 @@ PERFORMANCE_TIMEOUT=1800
 AI_ANALYSIS_TIMEOUT=2400
 
 # API
-OPENROUTER_API_KEY=sk-...
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+
+# Security
+REGISTRATION_ENABLED=false
+SESSION_COOKIE_SECURE=true
+SESSION_LIFETIME=86400
 ```
 
-### Running with Gunicorn
+### Container Architecture
+
+The Docker Compose stack includes:
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| **web** | 5000 | Flask web application (Gunicorn) |
+| **redis** | 6379 | Celery task queue broker |
+| **celery-worker** | - | Background task processor |
+| **analyzer-gateway** | 8765 | WebSocket routing gateway |
+| **static-analyzer** | 2001 | Static code analysis |
+| **dynamic-analyzer** | 2002 | Runtime security testing |
+| **performance-tester** | 2003 | Load testing |
+| **ai-analyzer** | 2004 | AI-powered analysis |
+
+### Managing Services
 
 ```bash
-# Install gunicorn
-pip install gunicorn
-
-# Run
-gunicorn -w 4 -b 0.0.0.0:5000 'src.app.factory:create_app()'
-```
-
-### Systemd Service
-
-`/etc/systemd/system/thesisapp.service`:
-
-```ini
-[Unit]
-Description=ThesisAppRework Flask Application
-After=network.target docker.service
-
-[Service]
-User=www-data
-Group=www-data
-WorkingDirectory=/opt/ThesisAppRework
-Environment="PATH=/opt/ThesisAppRework/.venv/bin"
-ExecStart=/opt/ThesisAppRework/.venv/bin/gunicorn -w 4 -b 0.0.0.0:5000 'src.app.factory:create_app()'
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl enable thesisapp
-sudo systemctl start thesisapp
-```
-
-## Docker Compose Deployment
-
-### Full Stack
-
-```bash
-# Build and start all services
-docker compose -f docker-compose.yml up -d --build
-
-# Check status
+# View service status
 docker compose ps
 
 # View logs
-docker compose logs -f
+docker compose logs -f web
+docker compose logs -f celery-worker
+
+# Restart specific service
+docker compose restart web
+
+# Stop all services
+docker compose down
+
+# Rebuild and restart
+docker compose up -d --build
+
+# View resource usage
+docker stats
 ```
 
-### Services
+## Celery Task Processing
 
-| Service | Port | Description |
-|---------|------|-------------|
-| flask | 5000 | Web application |
-| static-analyzer | 2001 | Static analysis |
-| dynamic-analyzer | 2002 | Security scanning |
-| performance-tester | 2003 | Load testing |
-| ai-analyzer | 2004 | AI analysis |
-| redis | 6379 | Task queue |
+The application uses Celery with Redis for distributed task execution.
 
-### Scaling Analyzers
+### How It Works
+
+```mermaid
+flowchart LR
+    Web[Flask Web] -->|Submit Task| Redis[Redis Queue]
+    Redis -->|Pick Task| Worker[Celery Worker]
+    Worker -->|WebSocket| Analyzers[Analyzer Services]
+    Worker -->|Save Results| DB[(Database)]
+```
+
+### Scaling Workers
 
 ```bash
-# Scale specific service
-docker compose up -d --scale static-analyzer=2
+# Scale to 3 Celery workers
+docker compose up -d --scale celery-worker=3
 
-# Resource adjustment in docker-compose.yml
-services:
-  static-analyzer:
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '2.0'
+# View worker status
+docker compose exec web celery -A app.celery_worker.celery inspect active
+
+# Monitor queue
+docker compose exec web celery -A app.celery_worker.celery inspect stats
+```
+
+### Task Configuration
+
+Environment variables for task control:
+
+```bash
+# Task execution
+USE_CELERY_ANALYSIS=true  # Enable Celery (required in Docker)
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/0
+
+# Task timeouts
+TASK_TIMEOUT=1800
+TASK_POLL_INTERVAL=5
+PREFLIGHT_MAX_RETRIES=3
+TRANSIENT_FAILURE_MAX_RETRIES=3
 ```
 
 ## Nginx Reverse Proxy
@@ -263,14 +272,18 @@ find $BACKUP_DIR -mtime +30 -delete
 
 ## Security Checklist
 
-- [ ] Change default `SECRET_KEY`
-- [ ] Enable HTTPS (SSL/TLS)
-- [ ] Configure firewall (ufw/iptables)
-- [ ] Restrict database file permissions
+- [ ] Change default `SECRET_KEY` to secure random value
+- [ ] Enable HTTPS (SSL/TLS) with reverse proxy
+- [ ] Configure firewall (ufw/iptables) to restrict ports
+- [ ] Restrict database file permissions (chmod 600)
+- [ ] Secure Docker socket access (correct GID in containers)
+- [ ] Set `REGISTRATION_ENABLED=false` in production
+- [ ] Set `SESSION_COOKIE_SECURE=true` with HTTPS
 - [ ] Set up API rate limiting
-- [ ] Enable log monitoring
-- [ ] Regular security updates
-- [ ] Backup strategy in place
+- [ ] Enable log monitoring and rotation
+- [ ] Regular security updates for base images
+- [ ] Backup strategy in place (database + results)
+- [ ] Secure Redis (network isolation, no public access)
 
 ## Troubleshooting
 

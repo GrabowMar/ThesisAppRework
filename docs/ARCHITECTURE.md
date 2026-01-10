@@ -350,48 +350,65 @@ See [analyzer/README.md](../analyzer/README.md) for detailed result format docum
 | `OPENROUTER_API_KEY` | AI analyzer authentication | Required |
 | `SECRET_KEY` | Flask session encryption | Required |
 | `DATABASE_URL` | Database connection | `sqlite:///src/data/thesis_app.db` |
+| **Celery Configuration** | | |
+| `USE_CELERY_ANALYSIS` | Use Celery for task processing | `true` (Docker) |
+| `CELERY_BROKER_URL` | Redis broker URL | `redis://redis:6379/0` |
+| `CELERY_RESULT_BACKEND` | Task result storage | `redis://redis:6379/0` |
+| **Analyzer Settings** | | |
 | `ANALYZER_ENABLED` | Enable analyzer integration | `true` |
 | `ANALYZER_AUTO_START` | Auto-start containers | `false` |
 | `MAINTENANCE_AUTO_START` | Auto-start cleanup service | `false` |
-| `USE_CELERY_ANALYSIS` | Use Celery instead of ThreadPoolExecutor | `false` |
+| **Logging** | | |
 | `LOG_LEVEL` | Logging verbosity | `INFO` |
-| `STATIC_ANALYSIS_TIMEOUT` | Static tool timeout (seconds) | `1800` |
-| `SECURITY_ANALYSIS_TIMEOUT` | Security tool timeout (seconds) | `1800` |
-| `PERFORMANCE_TIMEOUT` | Performance test timeout (seconds) | `1800` |
-| `AI_ANALYSIS_TIMEOUT` | AI analysis timeout (seconds) | `2400` |
-| `TASK_TIMEOUT` | Overall task timeout (seconds) | `1800` |
+| **Timeouts (seconds)** | | |
+| `STATIC_ANALYSIS_TIMEOUT` | Static tool timeout | `1800` |
+| `SECURITY_ANALYSIS_TIMEOUT` | Security tool timeout | `1800` |
+| `PERFORMANCE_TIMEOUT` | Performance test timeout | `1800` |
+| `AI_ANALYSIS_TIMEOUT` | AI analysis timeout | `2400` |
+| `TASK_TIMEOUT` | Overall task timeout | `1800` |
+| **Retry Configuration** | | |
 | `PREFLIGHT_MAX_RETRIES` | Pre-flight check retry attempts | `3` |
 | `TRANSIENT_FAILURE_MAX_RETRIES` | Transient failure recovery attempts | `3` |
+| **Startup Cleanup** | | |
 | `STARTUP_CLEANUP_ENABLED` | Enable startup task cleanup | `true` |
 | `STARTUP_CLEANUP_RUNNING_TIMEOUT` | RUNNING task timeout at startup (min) | `120` |
 | `STARTUP_CLEANUP_PENDING_TIMEOUT` | PENDING task timeout at startup (min) | `240` |
 
 ## Task Execution
 
-The system uses **ThreadPoolExecutor** by default (8 workers) for parallel task execution. Celery is available as an optional alternative for distributed workloads.
+The system uses **Celery with Redis** for distributed task execution. This is the default and recommended approach for both development and production.
 
 ```mermaid
 flowchart LR
-    subgraph Executor["Default: ThreadPoolExecutor"]
-        Pool["8 Worker Threads"]
-        Queue["Task Queue"]
-    end
-    
-    subgraph Optional["Optional: Celery"]
+    subgraph Docker["Docker Compose Stack"]
+        Flask["Flask Web"]
         Redis["Redis Broker"]
-        Workers["Celery Workers"]
+        Worker["Celery Worker(s)"]
     end
-    
-    Flask["Flask App"] --> Pool
-    Pool --> Queue
-    Flask -.->|USE_CELERY_ANALYSIS=true| Redis
-    Redis --> Workers
+
+    subgraph Legacy["Legacy: ThreadPoolExecutor"]
+        Pool["8 Worker Threads"]
+    end
+
+    Flask -->|Submit Task| Redis
+    Redis -->|Pick Task| Worker
+    Worker -->|WebSocket| Analyzers["Analyzer Services"]
+    Worker -->|Results| DB[(Database)]
+
+    Flask -.->|Local Dev Only| Pool
 ```
 
 | Mode | Environment | Use Case |
 |------|-------------|----------|
-| ThreadPoolExecutor | Default | Single-server, development |
-| Celery + Redis | `USE_CELERY_ANALYSIS=true` | Multi-server, production scale |
+| **Celery + Redis** | `USE_CELERY_ANALYSIS=true` | **Default** - Docker, production, scalable |
+| ThreadPoolExecutor | `USE_CELERY_ANALYSIS=false` | Legacy local development only |
+
+### Celery Benefits
+
+- **Distributed**: Scale workers across multiple containers/servers
+- **Reliable**: Task persistence and retry mechanisms
+- **Monitoring**: Built-in task inspection and monitoring
+- **Production-Ready**: Battle-tested for high-load scenarios
 
 ## Container Management
 

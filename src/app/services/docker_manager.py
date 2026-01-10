@@ -264,8 +264,21 @@ class DockerManager:
             self.logger.error("Error getting project containers: %s", e)
             return results
     
-    def start_containers(self, model: str, app_num: int) -> Dict[str, Any]:
-        """Start containers for a model/app using docker-compose."""
+    def start_containers(self, model: str, app_num: int, wait_for_healthy: bool = True,
+                         timeout_seconds: Optional[int] = None) -> Dict[str, Any]:
+        """Start containers for a model/app using docker-compose.
+        
+        Args:
+            model: Model slug
+            app_num: Application number
+            wait_for_healthy: If True, wait for containers to become healthy (default: True)
+            timeout_seconds: Max seconds to wait for health (default: CONTAINER_READY_TIMEOUT env, or 180s)
+        
+        Returns:
+            Dict with success status, health check results, and any errors
+        """
+        import os
+        
         compose_path = self._get_compose_path(model, app_num)
         if not compose_path.exists():
             return {
@@ -273,9 +286,40 @@ class DockerManager:
                 'error': f'Docker compose file not found: {compose_path}'
             }
         
-        return self._execute_compose_command(
+        # Execute docker compose up -d
+        result = self._execute_compose_command(
             compose_path, ['up', '-d'], model, app_num
         )
+        
+        if not result.get('success'):
+            return result
+        
+        # Optionally wait for containers to become healthy
+        if wait_for_healthy:
+            # Use env var or default to 180s (must exceed healthcheck start_period + interval)
+            if timeout_seconds is None:
+                timeout_seconds = int(os.environ.get('CONTAINER_READY_TIMEOUT', '180'))
+            
+            health_result = self._wait_for_container_health(
+                model, app_num, timeout_seconds=timeout_seconds
+            )
+            result['health_check'] = health_result
+            
+            # Check if containers are in a crash loop (permanent failure)
+            if not health_result.get('all_healthy'):
+                crash_check = self._check_for_crash_loop(model, app_num)
+                result['crash_loop'] = crash_check
+                
+                if crash_check.get('has_crash_loop'):
+                    # Permanent failure - don't mark as success
+                    result['success'] = False
+                    result['error'] = f"Container crash loop detected: {crash_check.get('crash_containers', [])}"
+                    self.logger.error(
+                        "[START] Crash loop detected for %s/app%s: %s",
+                        model, app_num, crash_check.get('crash_containers', [])
+                    )
+        
+        return result
     
     def stop_containers(self, model: str, app_num: int) -> Dict[str, Any]:
         """Stop containers for a model/app using docker-compose."""
@@ -300,17 +344,68 @@ class DockerManager:
         # Then start
         return self.start_containers(model, app_num)
     
+    def _check_for_crash_loop(self, model: str, app_num: int) -> Dict[str, Any]:
+        """Check if any containers are in a crash/restart loop.
+        
+        Detects containers that are continuously restarting due to application errors.
+        This is a permanent failure state that won't be fixed by waiting longer.
+        
+        Returns:
+            Dict with has_crash_loop boolean and list of affected containers
+        """
+        if not self.client:
+            return {'has_crash_loop': False, 'error': 'Docker client unavailable'}
+        
+        project_name = self._get_project_name(model, app_num)
+        crash_containers = []
+        
+        try:
+            containers = self.client.containers.list(
+                all=True,
+                filters={'label': f'com.docker.compose.project={project_name}'}
+            )
+            
+            for container in containers:
+                status = container.status.lower()
+                # Check for restarting state or high restart count
+                if status == 'restarting':
+                    crash_containers.append({
+                        'name': container.name,
+                        'status': status,
+                        'reason': 'Container is in restarting state'
+                    })
+                elif status == 'exited':
+                    # Check exit code - non-zero indicates crash
+                    exit_code = container.attrs.get('State', {}).get('ExitCode', 0)
+                    if exit_code != 0:
+                        crash_containers.append({
+                            'name': container.name,
+                            'status': status,
+                            'exit_code': exit_code,
+                            'reason': f'Container exited with code {exit_code}'
+                        })
+            
+            return {
+                'has_crash_loop': len(crash_containers) > 0,
+                'crash_containers': crash_containers
+            }
+        except Exception as e:
+            self.logger.warning("Error checking for crash loop: %s", e)
+            return {'has_crash_loop': False, 'error': str(e)}
+    
     def _wait_for_container_health(self, model: str, app_num: int, 
-                                    timeout_seconds: int = 60) -> Dict[str, Any]:
+                                    timeout_seconds: int = 180) -> Dict[str, Any]:
         """Wait for containers to become healthy after startup.
         
         Polls container health status with retries to handle slow startup times.
         Addresses intermittent health check failures that skip analysis subtasks.
+        Also detects crash loops early to fail fast on permanent errors.
         
         Args:
             model: Model slug
             app_num: Application number
-            timeout_seconds: Maximum time to wait for health (default: 60s)
+            timeout_seconds: Maximum time to wait for health (default: 180s to exceed
+                           docker-compose healthcheck start_period + interval)
         
         Returns:
             Dictionary with health check results
@@ -373,6 +468,22 @@ class DockerManager:
                         "[HEALTH] Waiting for containers to become healthy: %s",
                         ', '.join(unhealthy)
                     )
+                
+                # Check for crash loops periodically (every 4th poll = ~8 seconds)
+                elapsed = time.time() - start_time
+                if int(elapsed) % 8 == 0 and elapsed > 5:
+                    crash_check = self._check_for_crash_loop(model, app_num)
+                    if crash_check.get('has_crash_loop'):
+                        self.logger.warning(
+                            "[HEALTH] Crash loop detected during health wait for %s/app%s: %s",
+                            model, app_num, crash_check.get('crash_containers', [])
+                        )
+                        return {
+                            'all_healthy': False,
+                            'elapsed_seconds': elapsed,
+                            'crash_loop': True,
+                            'crash_containers': crash_check.get('crash_containers', [])
+                        }
                 
                 time.sleep(poll_interval)
                 

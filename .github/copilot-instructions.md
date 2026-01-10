@@ -189,7 +189,7 @@ python src/init_db.py       # Reinitialize database (after backup!)
 When automating via API calls, use the token from `.env`:
 ```bash
 # Token location: .env file, variable API_KEY_FOR_APP
-# Current token: DZHnCEy0b2rkWu6RI8wDMgSZ2NTSPNOLMVr7AU-HqcqgghDmLoZfN2XMYEz4FVsT
+# Get your token from the .env file (never commit this file to git)
 
 # Example API calls:
 # Generate app:
