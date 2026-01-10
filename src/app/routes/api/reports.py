@@ -90,7 +90,7 @@ def generate_report():
         if report_type == 'app_analysis':
             report_type = 'template_comparison'
         
-        valid_types = ['model_analysis', 'template_comparison', 'tool_analysis']
+        valid_types = ['model_analysis', 'template_comparison', 'tool_analysis', 'generation_analytics']
         if report_type not in valid_types:
             return jsonify({
                 'success': False,
@@ -102,6 +102,7 @@ def generate_report():
             return jsonify({'success': False, 'error': 'model_slug required'}), 400
         if report_type == 'template_comparison' and not config.get('template_slug'):
             return jsonify({'success': False, 'error': 'template_slug required'}), 400
+        # generation_analytics has no required config - analyzes all models
         
         service = get_report_service()
         user_id = current_user.id if current_user.is_authenticated else None

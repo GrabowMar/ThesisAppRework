@@ -459,6 +459,230 @@ def _get_app_status_fallback(model_slug: str, app_number: int):
             'errors': [{'error': str(e)}]
         }, message='Status error', status=200)
 
+
+@applications_bp.route('/app/<model_slug>/<int:app_number>/health', methods=['GET'])
+def get_app_health(model_slug: str, app_number: int):
+    """
+    Get container health status for a specific app.
+    
+    This endpoint provides detailed health and readiness information
+    designed for pipeline consumption. It checks:
+    - Container running state
+    - Health check status (if container supports healthchecks)
+    - Service readiness (ports responding)
+    - Time since containers started
+    
+    Endpoint: GET /api/app/{model_slug}/{app_number}/health
+    
+    Query parameters:
+        check_ports (bool): Also verify that exposed ports are responding (default: false)
+        timeout (int): Timeout in seconds for port checks (default: 5)
+    
+    Returns:
+    {
+        "success": true,
+        "data": {
+            "model_slug": "openai_gpt-4",
+            "app_number": 1,
+            "healthy": true,              # Overall health status
+            "ready_for_analysis": true,   # Can pipeline proceed?
+            "containers": {
+                "backend": {
+                    "running": true,
+                    "health_status": "healthy",  # healthy, unhealthy, starting, none
+                    "uptime_seconds": 120,
+                    "ports": {"5000": "open"}
+                },
+                "frontend": {
+                    "running": true,
+                    "health_status": "healthy",
+                    "uptime_seconds": 118,
+                    "ports": {"3000": "open"}
+                }
+            },
+            "checks": {
+                "all_containers_running": true,
+                "all_healthchecks_passing": true,
+                "minimum_uptime_met": true,      # Containers up > 10s
+                "ports_accessible": true
+            },
+            "issues": [],                 # List of any detected issues
+            "recommendation": "ready"     # ready, wait, restart, investigate
+        }
+    }
+    """
+    import socket
+    from datetime import datetime, timezone
+    
+    check_ports = request.args.get('check_ports', 'false').lower() == 'true'
+    port_timeout = min(int(request.args.get('timeout', '5')), 30)  # Cap at 30s
+    
+    try:
+        docker_mgr = ServiceLocator.get_docker_manager()
+        if not docker_mgr:
+            return api_error("Docker manager not available", 503)
+        
+        # Get container status summary
+        status_summary = docker_mgr.container_status_summary(model_slug, app_number)
+        
+        containers_found = status_summary.get('containers_found', 0)
+        container_names = status_summary.get('containers', [])
+        states = status_summary.get('states', [])
+        
+        # Build detailed container info
+        containers_info = {}
+        all_running = True
+        all_healthy = True
+        uptime_ok = True
+        issues = []
+        
+        # Minimum uptime threshold (containers should be up at least 10 seconds)
+        MIN_UPTIME_SECONDS = 10
+        
+        for i, name in enumerate(container_names):
+            state = states[i] if i < len(states) else 'unknown'
+            container_info = {
+                'running': state == 'running',
+                'state': state,
+                'health_status': 'none',  # Will be updated if container has healthcheck
+                'uptime_seconds': None,
+                'ports': {}
+            }
+            
+            if state != 'running':
+                all_running = False
+                issues.append(f"Container '{name}' is not running (state: {state})")
+            
+            # Try to get more detailed info via docker inspect
+            try:
+                detailed = docker_mgr.get_container_details(model_slug, app_number, name)
+                if detailed:
+                    # Health status from docker healthcheck
+                    health = detailed.get('health_status', 'none')
+                    container_info['health_status'] = health
+                    
+                    if health == 'unhealthy':
+                        all_healthy = False
+                        issues.append(f"Container '{name}' healthcheck is failing")
+                    elif health == 'starting':
+                        all_healthy = False
+                        issues.append(f"Container '{name}' healthcheck is still starting")
+                    
+                    # Calculate uptime
+                    started_at = detailed.get('started_at')
+                    if started_at:
+                        try:
+                            # Parse ISO format datetime
+                            if isinstance(started_at, str):
+                                # Handle various datetime formats
+                                started_at = started_at.replace('Z', '+00:00')
+                                start_time = datetime.fromisoformat(started_at)
+                            else:
+                                start_time = started_at
+                            
+                            now = datetime.now(timezone.utc)
+                            if start_time.tzinfo is None:
+                                start_time = start_time.replace(tzinfo=timezone.utc)
+                            
+                            uptime = (now - start_time).total_seconds()
+                            container_info['uptime_seconds'] = round(uptime, 1)
+                            
+                            if uptime < MIN_UPTIME_SECONDS:
+                                uptime_ok = False
+                                issues.append(f"Container '{name}' just started ({uptime:.1f}s ago), may not be ready")
+                        except Exception:
+                            pass
+                    
+                    # Get exposed ports
+                    ports = detailed.get('ports', {})
+                    container_info['ports'] = {str(k): 'mapped' for k in ports.keys()} if ports else {}
+            except Exception:
+                pass  # Detailed info not available
+            
+            containers_info[name] = container_info
+        
+        # Port accessibility check (optional, can be slow)
+        ports_accessible = True
+        if check_ports and all_running:
+            # Get ports from app .env file
+            try:
+                from app.utils.helpers import get_app_directory
+                app_dir = get_app_directory(model_slug, app_number)
+                env_file = app_dir / '.env'
+                
+                ports_to_check = []
+                if env_file.exists():
+                    with open(env_file, 'r') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line.startswith('BACKEND_PORT='):
+                                ports_to_check.append(('backend', int(line.split('=')[1])))
+                            elif line.startswith('FRONTEND_PORT='):
+                                ports_to_check.append(('frontend', int(line.split('=')[1])))
+                
+                for service_name, port in ports_to_check:
+                    try:
+                        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        sock.settimeout(port_timeout)
+                        result = sock.connect_ex(('localhost', port))
+                        sock.close()
+                        
+                        port_status = 'open' if result == 0 else 'closed'
+                        
+                        # Update container port info
+                        for cname, cinfo in containers_info.items():
+                            if service_name in cname.lower():
+                                cinfo['ports'][str(port)] = port_status
+                        
+                        if result != 0:
+                            ports_accessible = False
+                            issues.append(f"Port {port} ({service_name}) is not responding")
+                    except Exception as e:
+                        ports_accessible = False
+                        issues.append(f"Could not check port {port}: {str(e)}")
+            except Exception:
+                pass  # Port check failed, continue without it
+        
+        # Determine overall health and readiness
+        healthy = all_running and all_healthy and containers_found > 0
+        ready_for_analysis = healthy and uptime_ok and (not check_ports or ports_accessible)
+        
+        # Generate recommendation
+        if containers_found == 0:
+            recommendation = 'start'  # Need to start containers
+        elif not all_running:
+            recommendation = 'restart'  # Some containers not running
+        elif not uptime_ok:
+            recommendation = 'wait'  # Containers just started
+        elif not all_healthy:
+            recommendation = 'investigate'  # Healthchecks failing
+        elif not ports_accessible and check_ports:
+            recommendation = 'wait'  # Ports not ready yet
+        else:
+            recommendation = 'ready'  # Good to go
+        
+        return api_success({
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'healthy': healthy,
+            'ready_for_analysis': ready_for_analysis,
+            'containers_found': containers_found,
+            'containers': containers_info,
+            'checks': {
+                'all_containers_running': all_running,
+                'all_healthchecks_passing': all_healthy,
+                'minimum_uptime_met': uptime_ok,
+                'ports_accessible': ports_accessible if check_ports else None
+            },
+            'issues': issues,
+            'recommendation': recommendation
+        }, message='Health check complete')
+        
+    except Exception as e:
+        logger.error(f"Health check failed for {model_slug} app {app_number}: {e}")
+        return api_error(f"Health check failed: {str(e)}", 500)
+
+
 @applications_bp.route('/app/<model_slug>/<int:app_number>/logs/tails', methods=['GET'])
 def get_app_log_tails(model_slug, app_number):
     """Get tail of logs for a specific app."""

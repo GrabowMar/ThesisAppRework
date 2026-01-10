@@ -222,12 +222,8 @@ class ReportService:
                 data = self._generate_template_comparison(config, report)
             elif report_type == 'tool_analysis':
                 data = self._generate_tool_report(config, report)
-            else:
-                raise ValueError(f"Unknown report type: {report_type}")
-            
-            # Store data and mark complete
-            report.set_report_data(data)
-            report.set_summary(self._extract_summary(report_type, data))
+        elif report_type == 'generation_analytics':
+            data = self._generate_generation_analytics(config, report)
             report.status = 'completed'
             report.completed_at = utc_now()
             report.progress_percent = 100
@@ -2106,6 +2102,202 @@ class ReportService:
         }
     
     # ==========================================================================
+    # GENERATION ANALYTICS
+    # ==========================================================================
+    
+    def _generate_generation_analytics(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate analytics about app generation success/failure patterns.
+        
+        Provides insights into:
+        - Success rates by model and template
+        - Common failure stages and error patterns
+        - Fix effectiveness (automatic, LLM, manual)
+        - Generation attempt statistics
+        """
+        from datetime import datetime, timedelta
+        from sqlalchemy import func
+        
+        # Get filter parameters
+        model_filter = config.get('model_slug')
+        template_filter = config.get('template_slug')
+        days_back = config.get('days_back', 30)
+        
+        # Base query
+        query = GeneratedApplication.query
+        
+        # Apply filters
+        if model_filter:
+            query = query.filter(GeneratedApplication.model_slug == model_filter)
+        if template_filter:
+            query = query.filter(GeneratedApplication.template_name == template_filter)
+        if days_back:
+            cutoff = datetime.utcnow() - timedelta(days=days_back)
+            query = query.filter(GeneratedApplication.created_at >= cutoff)
+        
+        # Get all matching apps
+        apps = query.all()
+        
+        if not apps:
+            return {
+                'status': 'no_data',
+                'message': 'No generated applications found matching criteria',
+                'filters': {
+                    'model_slug': model_filter,
+                    'template_slug': template_filter,
+                    'days_back': days_back
+                }
+            }
+        
+        # Aggregate statistics
+        total_apps = len(apps)
+        successful_apps = [a for a in apps if not a.is_generation_failed]
+        failed_apps = [a for a in apps if a.is_generation_failed]
+        
+        # Model breakdown
+        models_stats = {}
+        for app in apps:
+            slug = app.model_slug or 'unknown'
+            if slug not in models_stats:
+                models_stats[slug] = {'total': 0, 'success': 0, 'failed': 0, 'attempts_sum': 0}
+            models_stats[slug]['total'] += 1
+            models_stats[slug]['attempts_sum'] += app.generation_attempts or 1
+            if app.is_generation_failed:
+                models_stats[slug]['failed'] += 1
+            else:
+                models_stats[slug]['success'] += 1
+        
+        # Calculate success rates per model
+        for slug, stats in models_stats.items():
+            stats['success_rate'] = round((stats['success'] / stats['total']) * 100, 1) if stats['total'] > 0 else 0
+            stats['avg_attempts'] = round(stats['attempts_sum'] / stats['total'], 2) if stats['total'] > 0 else 0
+        
+        # Template breakdown
+        templates_stats = {}
+        for app in apps:
+            tmpl = app.template_name or 'unknown'
+            if tmpl not in templates_stats:
+                templates_stats[tmpl] = {'total': 0, 'success': 0, 'failed': 0}
+            templates_stats[tmpl]['total'] += 1
+            if app.is_generation_failed:
+                templates_stats[tmpl]['failed'] += 1
+            else:
+                templates_stats[tmpl]['success'] += 1
+        
+        for tmpl, stats in templates_stats.items():
+            stats['success_rate'] = round((stats['success'] / stats['total']) * 100, 1) if stats['total'] > 0 else 0
+        
+        # Failure stage analysis
+        failure_stages = {}
+        error_patterns = {}
+        for app in failed_apps:
+            stage = app.failure_stage or 'unknown'
+            failure_stages[stage] = failure_stages.get(stage, 0) + 1
+            
+            # Extract error pattern
+            if app.error_message:
+                pattern = self._extract_error_pattern(app.error_message)
+                error_patterns[pattern] = error_patterns.get(pattern, 0) + 1
+        
+        # Fix effectiveness
+        fix_stats = {
+            'automatic_fixes': sum(1 for a in apps if a.automatic_fixes and a.automatic_fixes > 0),
+            'llm_fixes': sum(1 for a in apps if a.llm_fixes and a.llm_fixes > 0),
+            'manual_fixes': sum(1 for a in apps if a.manual_fixes and a.manual_fixes > 0),
+            'retry_fixes': sum(1 for a in apps if a.retry_fixes and a.retry_fixes > 0),
+            'total_automatic_fixes': sum(a.automatic_fixes or 0 for a in apps),
+            'total_llm_fixes': sum(a.llm_fixes or 0 for a in apps),
+            'total_manual_fixes': sum(a.manual_fixes or 0 for a in apps),
+            'total_retry_fixes': sum(a.retry_fixes or 0 for a in apps)
+        }
+        
+        # Generation attempts distribution
+        attempts_distribution = {}
+        for app in apps:
+            attempts = app.generation_attempts or 1
+            attempts_distribution[attempts] = attempts_distribution.get(attempts, 0) + 1
+        
+        # Recent failures (last 10)
+        recent_failures = []
+        for app in sorted(failed_apps, key=lambda a: a.last_error_at or a.created_at or datetime.min, reverse=True)[:10]:
+            recent_failures.append({
+                'model_slug': app.model_slug,
+                'app_number': app.app_number,
+                'template': app.template_name,
+                'failure_stage': app.failure_stage,
+                'error_message': (app.error_message[:200] + '...') if app.error_message and len(app.error_message) > 200 else app.error_message,
+                'attempts': app.generation_attempts,
+                'timestamp': app.last_error_at.isoformat() if app.last_error_at else None
+            })
+        
+        # Sort models and templates by success rate
+        sorted_models = sorted(
+            [{'model': k, **v} for k, v in models_stats.items()],
+            key=lambda x: x['success_rate'],
+            reverse=True
+        )
+        sorted_templates = sorted(
+            [{'template': k, **v} for k, v in templates_stats.items()],
+            key=lambda x: x['success_rate'],
+            reverse=True
+        )
+        
+        # Sort error patterns by frequency
+        sorted_errors = sorted(
+            [{'pattern': k, 'count': v} for k, v in error_patterns.items()],
+            key=lambda x: x['count'],
+            reverse=True
+        )[:20]  # Top 20 error patterns
+        
+        return {
+            'summary': {
+                'total_apps': total_apps,
+                'successful': len(successful_apps),
+                'failed': len(failed_apps),
+                'success_rate': round((len(successful_apps) / total_apps) * 100, 1) if total_apps > 0 else 0,
+                'models_analyzed': len(models_stats),
+                'templates_analyzed': len(templates_stats)
+            },
+            'filters_applied': {
+                'model_slug': model_filter,
+                'template_slug': template_filter,
+                'days_back': days_back
+            },
+            'by_model': sorted_models,
+            'by_template': sorted_templates,
+            'failure_analysis': {
+                'by_stage': [
+                    {'stage': k, 'count': v} 
+                    for k, v in sorted(failure_stages.items(), key=lambda x: x[1], reverse=True)
+                ],
+                'error_patterns': sorted_errors,
+                'recent_failures': recent_failures
+            },
+            'fix_effectiveness': fix_stats,
+            'attempts_distribution': [
+                {'attempts': k, 'count': v}
+                for k, v in sorted(attempts_distribution.items())
+            ]
+        }
+    
+    def _extract_error_pattern(self, error_message: str) -> str:
+        """Extract a normalized error pattern for grouping similar errors."""
+        if not error_message:
+            return 'unknown'
+        
+        # Normalize: lowercase, truncate, remove variable parts
+        pattern = error_message.lower()[:100]
+        
+        # Remove common variable parts (file paths, line numbers, etc.)
+        import re
+        pattern = re.sub(r'line \d+', 'line N', pattern)
+        pattern = re.sub(r'column \d+', 'column N', pattern)
+        pattern = re.sub(r'/[\w/.-]+', '/PATH', pattern)
+        pattern = re.sub(r"'[\w_]+'", "'VAR'", pattern)
+        pattern = re.sub(r'"[\w_]+"', '"VAR"', pattern)
+        
+        return pattern.strip()
+    
+    # ==========================================================================
     # HELPERS
     # ==========================================================================
     
@@ -2119,6 +2311,8 @@ class ReportService:
                 raise ValueError("template_slug is required for template_comparison")
         elif report_type == 'tool_analysis':
             pass  # All fields optional
+        elif report_type == 'generation_analytics':
+            pass  # All fields optional - model_slug, template_slug, days_back
         else:
             raise ValueError(f"Unknown report type: {report_type}")
     
@@ -2131,6 +2325,16 @@ class ReportService:
         elif report_type == 'tool_analysis':
             tool = config.get('tool_name', 'All Tools')
             return f"Tool Analysis: {tool}"
+        elif report_type == 'generation_analytics':
+            model = config.get('model_slug')
+            template = config.get('template_slug')
+            if model and template:
+                return f"Generation Analytics: {model} / {template}"
+            elif model:
+                return f"Generation Analytics: {model}"
+            elif template:
+                return f"Generation Analytics: Template {template}"
+            return "Generation Analytics: All Models & Templates"
         return "Analysis Report"
     
     def _process_task_for_report(
@@ -2500,6 +2704,15 @@ class ReportService:
                 'tools_count': data.get('tools_count', 0),
                 'total_executions': data.get('total_executions', 0),
                 'total_findings': summary.get('total_findings', 0)
+            }
+        elif report_type == 'generation_analytics':
+            return {
+                'total_apps': summary.get('total_apps', 0),
+                'successful': summary.get('successful', 0),
+                'failed': summary.get('failed', 0),
+                'success_rate': summary.get('success_rate', 0),
+                'models_analyzed': summary.get('models_analyzed', 0),
+                'templates_analyzed': summary.get('templates_analyzed', 0)
             }
         
         return summary

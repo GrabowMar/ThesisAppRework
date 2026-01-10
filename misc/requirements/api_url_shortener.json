@@ -6,7 +6,7 @@
   "backend_requirements": [
     "1. POST /api/shorten - accept long URL, generate 6-character random code",
     "2. URL model: id, original_url, short_code (unique), created_at, click_count",
-    "3. GET /:code - lookup and redirect to original URL, increment counter",
+    "3. GET /api/r/:code - lookup and redirect to original URL, increment counter",
     "4. Validate URL format before shortening",
     "5. GET /api/urls - return list of recently shortened URLs with click counts"
   ],
@@ -47,17 +47,17 @@
         "id": 1,
         "original_url": "string",
         "short_code": "string",
-        "short_url": "string",
+        "short_url": "/api/r/abc123",
         "click_count": 0,
         "created_at": "ISO8601"
       }
     },
     {
       "method": "GET",
-      "path": "/:code",
+      "path": "/api/r/:code",
       "description": "Redirect short code to original URL",
       "request": null,
-      "response": "302 redirect"
+      "response": null
     },
     {
       "method": "GET",

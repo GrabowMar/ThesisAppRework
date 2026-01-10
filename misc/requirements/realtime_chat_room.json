@@ -4,7 +4,7 @@
   "category": "Real-time",
   "description": "Simple real-time messaging",
   "backend_requirements": [
-    "1. WebSocket endpoint at /ws/chat for bidirectional communication",
+    "1. WebSocket endpoint at /api/ws/chat for bidirectional communication",
     "2. Message model: id, username, text, timestamp",
     "3. Broadcast incoming messages to all connected clients",
     "4. Store last 50 messages in memory or SQLite",
@@ -37,7 +37,7 @@
     },
     {
       "method": "WS",
-      "path": "/ws/chat",
+      "path": "/api/ws/chat",
       "description": "WebSocket endpoint for real-time messaging",
       "request": {
         "type": "message",

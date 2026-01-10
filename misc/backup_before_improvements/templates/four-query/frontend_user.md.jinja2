@@ -1,0 +1,66 @@
+# Generate {{ name }} - Frontend User Page
+
+{{ description }}
+
+## Your Task
+Implement the **USER-FACING** frontend functionality. This includes:
+- Main user interface in `pages/UserPage.jsx`
+- API service functions in `services/api.js`
+- Custom hooks in `hooks/useData.js` (if needed)
+- Additional UI components (if needed)
+
+## User Requirements
+{% for req in frontend_requirements %}
+- {{ req }}
+{% endfor %}
+
+{% if api_endpoints %}
+## Backend API Available
+{{ api_endpoints }}
+{% endif %}
+
+## File Structure (DO NOT CREATE App.jsx)
+The scaffolding already has these files ready for you to fill:
+- `pages/UserPage.jsx` - Main user interface
+- `services/api.js` - API call functions
+- `hooks/useData.js` - Custom React hooks
+
+Pre-built components available: `Spinner`, `ErrorBoundary` from `../components`
+
+## Reference
+{{ scaffolding_frontend_context }}
+
+## Output Format
+Generate code in these markdown blocks with EXACT filenames:
+
+**User Page (required):**
+```jsx:pages/UserPage.jsx
+// Main user interface component
+```
+
+**API Service (required):**
+```jsx:services/api.js
+// API call functions for user features
+```
+
+**Custom Hooks (if needed):**
+```jsx:hooks/useData.js
+// Custom hooks for data fetching, forms
+```
+
+**Additional Components (if needed):**
+```jsx:components/ItemList.jsx
+// Reusable UI component
+```
+
+**Styles (if needed):**
+```css
+/* Additional styles */
+```
+
+Generate COMPLETE, WORKING code with:
+- Loading states (use `<Spinner />`)
+- Error handling (try/catch, error messages)
+- Toast notifications for actions (use `toast.success()`, `toast.error()`)
+- Tailwind CSS for styling
+

@@ -41,7 +41,14 @@
       "method": "POST",
       "path": "/api/tracks/upload",
       "description": "Upload audio file",
-      "request": "multipart/form-data with 'audio' field",
+      "request": {
+        "content_type": "multipart/form-data",
+        "fields": {
+          "audio": "binary (required)",
+          "title": "string (optional)",
+          "artist": "string (optional)"
+        }
+      },
       "response": {
         "id": 1,
         "title": "string",

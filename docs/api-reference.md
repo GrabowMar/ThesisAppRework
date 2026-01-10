@@ -385,12 +385,12 @@ No rate limits currently enforced. Consider implementing for production deployme
 
 ## Task Execution
 
-By default, tasks are executed using **ThreadPoolExecutor** (8 workers) for parallel processing. Celery is available as an optional alternative for distributed workloads.
+The system uses **Celery with Redis** for distributed task execution. This is the default and recommended approach for both development and production.
 
 | Mode | Environment | Workers |
 |------|-------------|---------|
-| ThreadPoolExecutor | Default | 8 threads |
-| Celery | `USE_CELERY_ANALYSIS=true` | Configurable |
+| **Celery** | `USE_CELERY_ANALYSIS=true` (Default in Docker) | Configurable, scalable |
+| ThreadPoolExecutor | `USE_CELERY_ANALYSIS=false` (Legacy local dev) | 8 threads |
 
 ## WebSocket API
 

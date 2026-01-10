@@ -53,7 +53,24 @@ class PipelineExecutionService:
     - Handles stage transitions (generation → analysis → done)
     - Auto-manages containers (start before analysis, stop after completion)
     - Supports parallel analysis execution with configurable limits
+    
+    Robustness Features:
+    - Circuit breaker pattern per analyzer service (3 failures → 5min cooldown)
+    - Exponential backoff retries (2s → 4s → 8s → 16s)
+    - Per-service health checking (partial execution when some services unavailable)
+    - Health check TTL (30s cache invalidation)
     """
+    
+    # Circuit breaker configuration
+    CIRCUIT_BREAKER_THRESHOLD: int = 3  # Failures before circuit opens
+    CIRCUIT_BREAKER_COOLDOWN: float = 300.0  # 5 minutes cooldown
+    
+    # Retry configuration (exponential backoff)
+    MAX_STARTUP_RETRIES: int = 4  # Max retry attempts for analyzer startup
+    BASE_RETRY_DELAY: float = 2.0  # Base delay in seconds (doubles each attempt)
+    
+    # Health check TTL
+    HEALTH_CHECK_TTL: float = 30.0  # Invalidate health cache after 30 seconds
     
     def __init__(self, poll_interval: float = 3.0, app=None):
         """Initialize pipeline execution service.
@@ -73,10 +90,15 @@ class PipelineExecutionService:
         self._analysis_futures: Dict[str, Dict[str, Future]] = {}  # pipeline_id -> {task_id -> Future}
         self._in_flight_tasks: Dict[str, Set[str]] = {}  # pipeline_id -> set of task_ids
         
-        # Analyzer health cache
+        # Analyzer health cache (per-service)
         self._analyzer_healthy: Optional[bool] = None
         self._analyzer_check_time: float = 0.0
         self._analyzer_check_interval: float = 60.0  # Re-check every 60 seconds
+        self._service_health_cache: Dict[str, Dict[str, Any]] = {}  # service_name -> {healthy: bool, check_time: float}
+        
+        # Circuit breaker state (per-service)
+        self._analyzer_failures: Dict[str, int] = {}  # service_name -> consecutive failures
+        self._analyzer_cooldown_until: Dict[str, float] = {}  # service_name -> cooldown end time
         
         # Container management state
         self._containers_started_for: Set[str] = set()  # pipeline_ids with auto-started containers
@@ -112,6 +134,216 @@ class PipelineExecutionService:
         
         # Use environment variable if set, otherwise localhost
         return os.environ.get('ANALYZER_HOST', 'localhost')
+    
+    def _is_service_circuit_open(self, service_name: str) -> bool:
+        """Check if service circuit breaker is open (service should be skipped).
+        
+        Returns True if the service has failed too many times and is in cooldown.
+        """
+        current_time = time.time()
+        cooldown_until = self._analyzer_cooldown_until.get(service_name, 0)
+        
+        if current_time < cooldown_until:
+            remaining = int(cooldown_until - current_time)
+            self._log(
+                "[CIRCUIT] Service %s circuit OPEN, %ds remaining in cooldown",
+                service_name, remaining, level='debug'
+            )
+            return True
+        
+        # Cooldown expired - reset circuit breaker if it was tripped
+        if cooldown_until > 0 and current_time >= cooldown_until:
+            self._log(
+                "[CIRCUIT] Service %s cooldown expired, resetting circuit breaker",
+                service_name
+            )
+            self._analyzer_failures[service_name] = 0
+            self._analyzer_cooldown_until[service_name] = 0
+        
+        return False
+    
+    def _record_service_failure(self, service_name: str) -> None:
+        """Record a service failure and potentially open circuit breaker."""
+        failures = self._analyzer_failures.get(service_name, 0) + 1
+        self._analyzer_failures[service_name] = failures
+        
+        if failures >= self.CIRCUIT_BREAKER_THRESHOLD:
+            cooldown_end = time.time() + self.CIRCUIT_BREAKER_COOLDOWN
+            self._analyzer_cooldown_until[service_name] = cooldown_end
+            self._log(
+                "[CIRCUIT] Service %s circuit breaker TRIPPED after %d failures. "
+                "Cooldown for %ds",
+                service_name, failures, int(self.CIRCUIT_BREAKER_COOLDOWN),
+                level='warning'
+            )
+        else:
+            self._log(
+                "[CIRCUIT] Service %s failure recorded (%d/%d before trip)",
+                service_name, failures, self.CIRCUIT_BREAKER_THRESHOLD,
+                level='debug'
+            )
+    
+    def _record_service_success(self, service_name: str) -> None:
+        """Record a service success and reset failure counter."""
+        if self._analyzer_failures.get(service_name, 0) > 0:
+            self._log(
+                "[CIRCUIT] Service %s success, resetting failure count",
+                service_name, level='debug'
+            )
+        self._analyzer_failures[service_name] = 0
+    
+    def _get_service_health(self, service_name: str, force_refresh: bool = False) -> Dict[str, Any]:
+        """Get health status for a specific analyzer service with TTL caching.
+        
+        Returns cached health if within TTL, otherwise performs fresh check.
+        
+        Args:
+            service_name: Name of the analyzer service
+            force_refresh: If True, bypass cache and check fresh
+            
+        Returns:
+            Dict with 'healthy': bool, 'check_time': float, 'error': Optional[str]
+        """
+        current_time = time.time()
+        cached = self._service_health_cache.get(service_name, {})
+        
+        # Return cached result if valid and not forcing refresh
+        if not force_refresh and cached:
+            cache_age = current_time - cached.get('check_time', 0)
+            if cache_age < self.HEALTH_CHECK_TTL:
+                return cached
+        
+        # Perform fresh health check
+        SERVICE_PORTS = {
+            'static-analyzer': 2001,
+            'dynamic-analyzer': 2002,
+            'performance-tester': 2003,
+            'ai-analyzer': 2004
+        }
+        
+        port = SERVICE_PORTS.get(service_name)
+        if not port:
+            return {
+                'healthy': False,
+                'check_time': current_time,
+                'error': f'Unknown service: {service_name}'
+            }
+        
+        # Check if circuit breaker is open
+        if self._is_service_circuit_open(service_name):
+            return {
+                'healthy': False,
+                'check_time': current_time,
+                'error': 'Circuit breaker open (cooldown)',
+                'circuit_open': True
+            }
+        
+        # TCP port check
+        import socket
+        host = self._get_analyzer_host(service_name)
+        
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5.0)
+            result = sock.connect_ex((host, port))
+            sock.close()
+            
+            is_healthy = (result == 0)
+            health_result = {
+                'healthy': is_healthy,
+                'check_time': current_time,
+                'port': port,
+                'host': host,
+                'error': None if is_healthy else f'Port {port} not accessible'
+            }
+            
+            # Update circuit breaker based on result
+            if is_healthy:
+                self._record_service_success(service_name)
+            else:
+                self._record_service_failure(service_name)
+            
+        except socket.error as e:
+            health_result = {
+                'healthy': False,
+                'check_time': current_time,
+                'error': str(e)
+            }
+            self._record_service_failure(service_name)
+        
+        # Cache the result
+        self._service_health_cache[service_name] = health_result
+        return health_result
+    
+    def _check_services_health(self, service_names: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Check health of multiple services and return per-service status.
+        
+        Args:
+            service_names: List of service names to check
+            
+        Returns:
+            Dict mapping service_name -> health status dict
+        """
+        results = {}
+        for service_name in service_names:
+            results[service_name] = self._get_service_health(service_name)
+        return results
+    
+    def _get_available_services(self, required_services: List[str]) -> tuple:
+        """Determine which required services are available for partial execution.
+        
+        Implements Option B: Partial execution when some services unavailable.
+        
+        Args:
+            required_services: List of services needed for analysis
+            
+        Returns:
+            Tuple of (available_services, unavailable_services)
+        """
+        health_status = self._check_services_health(required_services)
+        
+        available = []
+        unavailable = []
+        
+        for service_name, status in health_status.items():
+            if status.get('healthy', False):
+                available.append(service_name)
+            else:
+                unavailable.append(service_name)
+                reason = status.get('error', 'Unknown')
+                self._log(
+                    "[HEALTH] Service %s unavailable: %s",
+                    service_name, reason, level='warning'
+                )
+        
+        if unavailable:
+            self._log(
+                "[HEALTH] Partial execution mode: %d/%d services available. "
+                "Unavailable: %s",
+                len(available), len(required_services), ', '.join(unavailable),
+                level='warning'
+            )
+        else:
+            self._log(
+                "[HEALTH] All %d required services available",
+                len(required_services)
+            )
+        
+        return (available, unavailable)
+    
+    def _invalidate_health_cache(self, service_name: Optional[str] = None) -> None:
+        """Invalidate health cache to force fresh checks.
+        
+        Args:
+            service_name: If provided, only invalidate that service. Otherwise invalidate all.
+        """
+        if service_name:
+            self._service_health_cache.pop(service_name, None)
+            self._log("[HEALTH] Invalidated cache for %s", service_name, level='debug')
+        else:
+            self._service_health_cache.clear()
+            self._analyzer_healthy = None
+            self._log("[HEALTH] Invalidated all health caches", level='debug')
     
     def start(self):
         """Start the background execution thread."""
@@ -1166,12 +1398,19 @@ class PipelineExecutionService:
             return stage_transitioned
     
     def _ensure_analyzers_healthy(self, pipeline: PipelineExecution) -> bool:
-        """Check and optionally start analyzer containers.
+        """Check and optionally start analyzer containers with circuit breaker and exponential backoff.
         
-        Returns True if analyzers are healthy or were successfully started.
-        Uses smarter restart logic to avoid unnecessary rebuilds.
+        Returns True if at least some analyzers are healthy (partial execution mode).
+        Uses circuit breaker pattern to avoid repeated failures and exponential backoff
+        for retry attempts.
+        
+        Robustness features:
+        - Per-service health checking with TTL caching
+        - Circuit breaker: 3 failures → 5 minute cooldown per service
+        - Exponential backoff: 2s → 4s → 8s → 16s between retry attempts
+        - Partial execution: Returns True if ANY services are available (Option B)
         """
-        # Check cache first
+        # Check global cache first (short-circuit for quick successive calls)
         current_time = time.time()
         if (self._analyzer_healthy is not None and 
             (current_time - self._analyzer_check_time) < self._analyzer_check_interval):
@@ -1179,111 +1418,179 @@ class PipelineExecutionService:
         
         config = pipeline.config
         analysis_config = config.get('analysis', {})
-        # Check both analysis.autoStartContainers and analysis.options.autoStartContainers
         auto_start = analysis_config.get('autoStartContainers', 
                                          analysis_config.get('options', {}).get('autoStartContainers', True))
+        
+        # Define all analyzer services
+        all_services = ['static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer']
         
         try:
             import sys
             from pathlib import Path
             from flask import current_app
             
-            # Add project root to path
             project_root = Path(current_app.root_path).parent.parent
             if str(project_root) not in sys.path:
                 sys.path.insert(0, str(project_root))
             
             from analyzer.analyzer_manager import AnalyzerManager
-            
             manager = AnalyzerManager()
             
-            # Check current status
+            # Use new per-service health checking with circuit breaker integration
+            available, unavailable = self._get_available_services(all_services)
+            
+            # Log initial status
+            self._log(
+                "[ANALYZER] Initial health check: %d/%d services available",
+                len(available), len(all_services)
+            )
+            
+            # If all services available, we're good
+            if len(available) == len(all_services):
+                self._analyzer_healthy = True
+                self._analyzer_check_time = current_time
+                self._log("[ANALYZER] All analyzer containers healthy")
+                return True
+            
+            # If some services unavailable and auto_start disabled, use partial execution
+            if not auto_start:
+                if available:
+                    self._log(
+                        "[ANALYZER] Auto-start disabled. Partial execution with %d/%d services: %s",
+                        len(available), len(all_services), ', '.join(available)
+                    )
+                    self._analyzer_healthy = True  # Partial is OK
+                    self._analyzer_check_time = current_time
+                    return True
+                else:
+                    self._log("[ANALYZER] Auto-start disabled and no services available", level='error')
+                    self._analyzer_healthy = False
+                    self._analyzer_check_time = current_time
+                    return False
+            
+            # Auto-start enabled - attempt to start containers with exponential backoff
+            self._log("[ANALYZER] Attempting to start analyzer containers...")
+            
+            # Check container status via AnalyzerManager
             containers = manager.get_container_status()
             all_running = all(
                 c.get('state') == 'running'
                 for c in containers.values()
             ) if containers else False
             
-            # Check port accessibility with retries (ports can be temporarily unavailable)
-            def check_all_ports():
-                return all(
-                    manager.check_port_accessibility(
-                        self._get_analyzer_host(service_name), service_info.port
+            # Retry loop with exponential backoff
+            for attempt in range(self.MAX_STARTUP_RETRIES):
+                # Calculate backoff delay: 2s, 4s, 8s, 16s
+                if attempt > 0:
+                    delay = self.BASE_RETRY_DELAY * (2 ** (attempt - 1))
+                    self._log(
+                        "[ANALYZER] Retry attempt %d/%d after %.1fs delay",
+                        attempt + 1, self.MAX_STARTUP_RETRIES, delay
                     )
-                    for service_name, service_info in manager.services.items()
-                )
-            
-            all_ports_accessible = check_all_ports()
-            
-            if all_running and all_ports_accessible:
-                self._analyzer_healthy = True
-                self._analyzer_check_time = current_time
-                self._log("Analyzer containers healthy")
-                return True
-            
-            # If containers are running but ports not accessible, wait a bit before giving up
-            if all_running and not all_ports_accessible:
-                self._log("Containers running but ports not accessible, waiting...")
-                for _ in range(5):  # Wait up to 15 seconds
-                    time.sleep(3)
-                    if check_all_ports():
-                        self._log("Ports now accessible")
-                        self._analyzer_healthy = True
-                        self._analyzer_check_time = current_time
-                        return True
-                self._log("Ports still not accessible after waiting", level='warning')
-            
-            # Need to start/restart containers if auto_start is enabled
-            if auto_start:
+                    time.sleep(delay)
+                
+                # Start or restart containers
                 if all_running:
-                    # Containers are running but unhealthy - use quick restart
-                    self._log("Restarting analyzer containers (quick restart)...")
+                    self._log("[ANALYZER] Containers running but unhealthy, restarting...")
                     returncode, stdout, stderr = manager.run_command(
                         manager._compose_cmd + ['restart'], timeout=60
                     )
-                    success = returncode == 0
                 else:
-                    # Containers not running - start without rebuild
-                    self._log("Starting analyzer containers...")
+                    self._log("[ANALYZER] Starting analyzer containers...")
                     returncode, stdout, stderr = manager.run_command(
                         manager._compose_cmd + ['up', '-d'], timeout=60
                     )
-                    success = returncode == 0
                 
-                if not success:
-                    self._log("Failed to start analyzer containers", level='error')
-                    self._analyzer_healthy = False
-                    self._analyzer_check_time = current_time
-                    return False
+                if returncode != 0:
+                    self._log(
+                        "[ANALYZER] Container command failed (attempt %d/%d): %s",
+                        attempt + 1, self.MAX_STARTUP_RETRIES, stderr[:200] if stderr else 'Unknown error',
+                        level='warning'
+                    )
+                    continue
                 
-                # Wait for containers to become healthy
-                # Use 180s to match CONTAINER_READY_TIMEOUT - analyzer containers may need
-                # time to start, especially if Docker is under load
+                # Wait for services to become healthy with adaptive polling
                 max_wait = int(os.environ.get('ANALYZER_STARTUP_TIMEOUT', 180))
                 start_time = time.time()
+                poll_interval = 2.0  # Start with 2s polling
                 
                 while time.time() - start_time < max_wait:
-                    if check_all_ports():
-                        self._log("Analyzer containers started and healthy")
+                    # Invalidate cache to force fresh checks
+                    self._invalidate_health_cache()
+                    
+                    # Check which services are now available
+                    available, unavailable = self._get_available_services(all_services)
+                    
+                    if len(available) == len(all_services):
+                        # All services healthy
+                        self._log("[ANALYZER] All %d analyzer containers now healthy", len(all_services))
                         self._analyzer_healthy = True
-                        self._analyzer_check_time = current_time
+                        self._analyzer_check_time = time.time()
                         return True
-                    time.sleep(3)
+                    
+                    if available and len(available) >= len(all_services) // 2:
+                        # At least half are healthy - good enough for partial execution
+                        elapsed = time.time() - start_time
+                        self._log(
+                            "[ANALYZER] %d/%d services available after %.1fs. "
+                            "Proceeding with partial execution (unavailable: %s)",
+                            len(available), len(all_services), elapsed, ', '.join(unavailable)
+                        )
+                        self._analyzer_healthy = True
+                        self._analyzer_check_time = time.time()
+                        return True
+                    
+                    # Adaptive polling: increase interval as we wait longer
+                    elapsed = time.time() - start_time
+                    if elapsed > 60:
+                        poll_interval = 5.0
+                    elif elapsed > 30:
+                        poll_interval = 3.0
+                    
+                    time.sleep(poll_interval)
                 
-                self._log("Timeout waiting for analyzer containers", level='warning')
-                self._analyzer_healthy = False
-                self._analyzer_check_time = current_time
-                return False
+                # Timeout on this attempt - check if we have enough for partial execution
+                available, unavailable = self._get_available_services(all_services)
+                if available:
+                    self._log(
+                        "[ANALYZER] Timeout on attempt %d/%d, but %d services available. "
+                        "Proceeding with partial execution.",
+                        attempt + 1, self.MAX_STARTUP_RETRIES, len(available),
+                        level='warning'
+                    )
+                    self._analyzer_healthy = True
+                    self._analyzer_check_time = time.time()
+                    return True
             
-            # Not auto-starting - just report status
+            # All retries exhausted - final check for partial execution
+            self._invalidate_health_cache()
+            available, unavailable = self._get_available_services(all_services)
+            
+            if available:
+                self._log(
+                    "[ANALYZER] All %d retry attempts exhausted. "
+                    "Partial execution with %d/%d services: %s",
+                    self.MAX_STARTUP_RETRIES, len(available), len(all_services),
+                    ', '.join(available),
+                    level='warning'
+                )
+                self._analyzer_healthy = True
+                self._analyzer_check_time = time.time()
+                return True
+            
+            self._log(
+                "[ANALYZER] Failed to start any analyzer containers after %d attempts",
+                self.MAX_STARTUP_RETRIES,
+                level='error'
+            )
             self._analyzer_healthy = False
-            self._analyzer_check_time = current_time
+            self._analyzer_check_time = time.time()
             return False
             
         except Exception as e:
-            self._log("Error checking analyzer health: %s", e, level='error')
+            self._log("[ANALYZER] Error during health check: %s", e, level='error')
             self._analyzer_healthy = False
-            self._analyzer_check_time = current_time
+            self._analyzer_check_time = time.time()
             return False
     
     def _emit_progress_update(self, pipeline: PipelineExecution):

@@ -39,7 +39,7 @@ Each requirements file follows this structure:
   "backend_requirements": ["..."],
   "frontend_requirements": ["..."],
   "api_endpoints": [{...}],
-  "control_endpoints": [{...}]
+  "control_endpoints": [{...}]  // optional
 }
 ```
 
@@ -52,7 +52,15 @@ Each requirements file follows this structure:
 - **backend_requirements**: Array of backend specifications
 - **frontend_requirements**: Array of frontend specifications
 - **api_endpoints**: Array of REST API endpoint definitions
-- **control_endpoints**: Health/status endpoints for monitoring
+- **control_endpoints**: Optional health/status endpoints for monitoring
+
+### Endpoint Schema Notes
+
+- **method**: One of `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, or `WS`.
+- **path**: Must start with `/`. For HTTP APIs, prefer `/api/...` paths (the validator warns on non-`/api/` paths).
+- **request/response**: Must be **object**, **array**, or **null**.
+  - Use `null` for endpoints that do not return JSON (e.g., redirects, file downloads/streams).
+  - For `multipart/form-data` uploads, use an object describing the content type and expected form fields.
 
 ## Available Templates (30 Simple Features)
 

@@ -19,6 +19,26 @@ Implement the **USER-FACING** frontend functionality. This includes:
 {{ api_endpoints }}
 {% endif %}
 
+
+## Implementation Guide
+
+**Step 1: Define Models**
+- Create database schema with all required fields
+- Include `is_active` field for soft delete
+- Include `created_at` timestamp
+- Implement `to_dict()` method for JSON serialization
+
+**Step 2: Implement Routes**
+- Use correct blueprint prefix (see routing rules below)
+- Add input validation for all POST/PUT routes
+- Include error handling with try/except
+- Return proper HTTP status codes
+
+**Step 3: Test**
+- Verify all endpoints return correct data
+- Test error cases (missing fields, invalid data)
+- Check that soft delete works correctly
+
 ## File Structure (DO NOT CREATE App.jsx)
 The scaffolding already has these files ready for you to fill:
 - `pages/UserPage.jsx` - Main user interface

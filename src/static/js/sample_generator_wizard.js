@@ -1410,7 +1410,10 @@ async function startGeneration() {
                 result_id: `${templateSlug}_${modelSlug.replace(/\//g, '_')}`,
                 message: attemptNumber > 1 ? `Generated successfully (attempt ${attemptNumber})` : 'Generated successfully',
                 batch_id: batchId,
-                attempts: attemptNumber
+                attempts: attemptNumber,
+                // Capture healing and stub file data from API response
+                healing: result.data?.healing || null,
+                stub_files_created: result.data?.stub_files_created || []
               });
             } else {
               lastError = result.message || result.error || 'Generation failed';
@@ -1432,7 +1435,10 @@ async function startGeneration() {
             error: frozenRerunOnFailure 
               ? `Failed after ${attemptNumber} attempt(s): ${lastError}`
               : lastError,
-            attempts: attemptNumber
+            attempts: attemptNumber,
+            // Capture any partial healing data from failed attempts
+            healing: null,
+            stub_files_created: []
           });
         }
           
@@ -1591,6 +1597,118 @@ function displayBatchResults(batchResults) {
     if (emptyState) emptyState.classList.add('d-none');
   } else if (emptyState) {
     emptyState.classList.remove('d-none');
+  }
+  
+  // =========================================================================
+  // Populate Healing Results and Stub Files UI Sections
+  // =========================================================================
+  
+  // Aggregate healing data from all results
+  const allHealing = results
+    .filter(r => r.healing && typeof r.healing === 'object')
+    .map(r => ({ model: r.model, healing: r.healing }));
+  
+  // Aggregate stub files from all results
+  const allStubFiles = results.flatMap(r => {
+    if (Array.isArray(r.stub_files_created) && r.stub_files_created.length > 0) {
+      return r.stub_files_created.map(sf => ({
+        ...sf,
+        model: r.model
+      }));
+    }
+    return [];
+  });
+  
+  // Update Healing Results Section
+  const healingSection = document.getElementById('healing-results-section');
+  const healingList = document.getElementById('healing-results-list');
+  const healingBadge = document.getElementById('healing-count-badge');
+  
+  if (healingSection && healingList && healingBadge) {
+    if (allHealing.length > 0) {
+      // Count total fixes applied
+      let totalFixes = 0;
+      healingList.innerHTML = '';
+      
+      allHealing.forEach(item => {
+        const h = item.healing;
+        const fixes = [];
+        
+        // Extract meaningful healing information
+        if (h.dependencies_added && h.dependencies_added.length > 0) {
+          fixes.push(`Dependencies added: ${h.dependencies_added.join(', ')}`);
+          totalFixes += h.dependencies_added.length;
+        }
+        if (h.imports_fixed && h.imports_fixed.length > 0) {
+          fixes.push(`Imports fixed: ${h.imports_fixed.length}`);
+          totalFixes += h.imports_fixed.length;
+        }
+        if (h.syntax_errors_fixed && h.syntax_errors_fixed.length > 0) {
+          fixes.push(`Syntax errors fixed: ${h.syntax_errors_fixed.length}`);
+          totalFixes += h.syntax_errors_fixed.length;
+        }
+        if (h.files_healed && h.files_healed.length > 0) {
+          fixes.push(`Files healed: ${h.files_healed.join(', ')}`);
+          totalFixes += h.files_healed.length;
+        }
+        if (h.jsx_extensions_added > 0) {
+          fixes.push(`JSX extensions added: ${h.jsx_extensions_added}`);
+          totalFixes += h.jsx_extensions_added;
+        }
+        if (h.missing_exports_stubbed > 0) {
+          fixes.push(`Missing exports stubbed: ${h.missing_exports_stubbed}`);
+          totalFixes += h.missing_exports_stubbed;
+        }
+        
+        // If no specific fixes but healing object exists, show generic message
+        if (fixes.length === 0 && Object.keys(h).length > 0) {
+          fixes.push('Auto-fix applied (see logs for details)');
+          totalFixes += 1;
+        }
+        
+        if (fixes.length > 0) {
+          const li = document.createElement('li');
+          li.className = 'mb-2';
+          li.innerHTML = `
+            <strong><code class="small">${escapeHtml(item.model)}</code></strong>:
+            <ul class="mb-0 mt-1">
+              ${fixes.map(f => `<li class="small text-muted">${escapeHtml(f)}</li>`).join('')}
+            </ul>
+          `;
+          healingList.appendChild(li);
+        }
+      });
+      
+      healingBadge.textContent = `${totalFixes} fix${totalFixes !== 1 ? 'es' : ''}`;
+      healingSection.style.display = 'block';
+    } else {
+      healingSection.style.display = 'none';
+    }
+  }
+  
+  // Update Stub Files Section
+  const stubSection = document.getElementById('stub-files-section');
+  const stubList = document.getElementById('stub-files-list');
+  const stubBadge = document.getElementById('stub-files-count-badge');
+  
+  if (stubSection && stubList && stubBadge) {
+    if (allStubFiles.length > 0) {
+      stubList.innerHTML = '';
+      
+      allStubFiles.forEach(sf => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><code class="small">${escapeHtml(sf.path || sf.file || 'Unknown')}</code></td>
+          <td class="text-muted small">${escapeHtml(sf.reason || 'Missing dependency')}</td>
+        `;
+        stubList.appendChild(tr);
+      });
+      
+      stubBadge.textContent = `${allStubFiles.length} file${allStubFiles.length !== 1 ? 's' : ''}`;
+      stubSection.style.display = 'block';
+    } else {
+      stubSection.style.display = 'none';
+    }
   }
   
   // Show summary notification

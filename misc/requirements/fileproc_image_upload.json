@@ -22,7 +22,12 @@
       "method": "POST",
       "path": "/api/images/upload",
       "description": "Upload image file",
-      "request": "multipart/form-data with 'image' field",
+      "request": {
+        "content_type": "multipart/form-data",
+        "fields": {
+          "image": "binary"
+        }
+      },
       "response": {
         "id": 1,
         "filename": "string",

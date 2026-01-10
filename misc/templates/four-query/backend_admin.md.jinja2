@@ -50,6 +50,19 @@ Generate code in these markdown blocks with EXACT filenames:
 package-name
 ```
 
+
+## Quality Checklist
+
+Before submitting, verify:
+- [x] All models have `to_dict()` methods
+- [x] All routes have error handling (try/except)
+- [x] All POST/PUT routes validate input
+- [x] All routes use correct blueprint/decorator
+- [x] All database queries use soft delete filter (`is_active=True`)
+- [x] No placeholders or TODO comments
+- [x] Proper HTTP status codes (200, 201, 400, 404, 500)
+
+
 Generate COMPLETE, WORKING code.
 Routes MUST use `admin_bp` blueprint from `routes import admin_bp`.
 Import models: `from models import db, ModelName`

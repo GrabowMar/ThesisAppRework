@@ -91,4 +91,10 @@ gunicorn>=21.0.0
 - CORS with origins=['*']
 - All requirements in requirements.txt
 
+## 🔗 API Routing Rules
+- Define routes EXACTLY as specified in the API endpoints section above
+- Use the full path in @app.route() decorator (e.g., `@app.route('/api/todos')`)
+- NO blueprint prefixes needed (this is single-file architecture)
+- Include BOTH /health (root) and /api/health (API) endpoints
+
 Generate the COMPLETE app.py now with all functionality in a single file.

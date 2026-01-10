@@ -552,6 +552,53 @@
                   </div>
                 </div>
               </div>
+              
+              <!-- Auto-Fix & Healing Results Section (Hidden by default) -->
+              <div class="col-12 mt-3" id="healing-results-section" style="display: none;">
+                <div class="card border-warning">
+                  <div class="card-header bg-warning-lt d-flex align-items-center justify-content-between">
+                    <h3 class="h6 mb-0">
+                      <i class="fas fa-wrench me-2"></i>Auto-Fix & Healing Applied
+                    </h3>
+                    <span class="badge bg-warning text-dark" id="healing-count-badge">0 fixes</span>
+                  </div>
+                  <div class="card-body">
+                    <p class="text-muted small mb-2">The following automatic fixes were applied during generation:</p>
+                    <ul class="list-unstyled mb-0" id="healing-results-list">
+                      <!-- Populated by JavaScript -->
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Stub Files Created Section (Hidden by default) -->
+              <div class="col-12 mt-3" id="stub-files-section" style="display: none;">
+                <div class="card border-info">
+                  <div class="card-header bg-info-lt d-flex align-items-center justify-content-between">
+                    <h3 class="h6 mb-0">
+                      <i class="fas fa-file-code me-2"></i>Stub Files Created
+                    </h3>
+                    <span class="badge bg-info text-dark" id="stub-files-count-badge">0 files</span>
+                  </div>
+                  <div class="card-body">
+                    <p class="text-muted small mb-2">Placeholder stub files were created to resolve missing dependencies:</p>
+                    <div class="table-responsive">
+                      <table class="table table-sm table-striped mb-0">
+                        <thead class="text-muted small">
+                          <tr>
+                            <th>File Path</th>
+                            <th>Reason</th>
+                          </tr>
+                        </thead>
+                        <tbody id="stub-files-list">
+                          <!-- Populated by JavaScript -->
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
               <div class="alert alert-info mt-4 help-content" data-help="3">
                 <i class="fas fa-lightbulb me-2"></i>
                 Monitor progress and review results. You can download outputs from the results page once generation finishes.

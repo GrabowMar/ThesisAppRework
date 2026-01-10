@@ -357,6 +357,93 @@ Pipeline execution is designed to be resilient to partial failures:
 | `PARTIAL_SUCCESS` | Some tasks failed, but at least one succeeded |
 | `FAILED` | All tasks failed OR critical exception |
 
+### Circuit Breaker Pattern (January 2026)
+
+PipelineExecutionService implements a circuit breaker pattern for analyzer service resilience:
+
+#### Configuration
+
+| Setting | Value | Description |
+|---------|-------|-------------|
+| `CIRCUIT_BREAKER_THRESHOLD` | 3 | Consecutive failures before circuit opens |
+| `CIRCUIT_BREAKER_COOLDOWN` | 300s (5 min) | Time before circuit resets |
+| `MAX_STARTUP_RETRIES` | 4 | Retry attempts with exponential backoff |
+| `BASE_RETRY_DELAY` | 2s | Initial retry delay (doubles each attempt) |
+| `HEALTH_CHECK_TTL` | 30s | Cache invalidation for per-service health |
+
+#### Circuit States
+
+```mermaid
+stateDiagram-v2
+    [*] --> CLOSED: Initial
+    CLOSED --> OPEN: 3 failures
+    OPEN --> HALF_OPEN: 5min cooldown
+    HALF_OPEN --> CLOSED: Success
+    HALF_OPEN --> OPEN: Failure
+    
+    note right of CLOSED: Normal operation
+    note right of OPEN: Requests skip service
+    note right of HALF_OPEN: Test connection
+```
+
+#### Partial Execution Behavior
+
+When some analyzer services are unavailable, the pipeline continues with available services:
+
+| Scenario | Behavior |
+|----------|----------|
+| All services healthy | Full analysis proceeds normally |
+| Some services unavailable | Partial execution with available services (≥50% required) |
+| Circuit breaker open | Service skipped until cooldown expires |
+| All services down | Pipeline fails with clear error message |
+
+#### Retry Strategy
+
+```mermaid
+flowchart LR
+    subgraph Backoff["Exponential Backoff"]
+        R1["Attempt 1\nimmediate"]
+        R2["Attempt 2\n+2s"]
+        R3["Attempt 3\n+4s"]
+        R4["Attempt 4\n+8s"]
+    end
+    
+    R1 -->|fail| R2
+    R2 -->|fail| R3
+    R3 -->|fail| R4
+    R4 -->|fail| PartialOrFail["Partial Execution\nor Fail"]
+```
+
+#### Adaptive Polling
+
+During container startup, poll intervals adjust based on elapsed time:
+
+| Elapsed Time | Poll Interval |
+|--------------|---------------|
+| 0-30s | 2s |
+| 30-60s | 3s |
+| >60s | 5s |
+
+#### Debugging Circuit Breaker
+
+```python
+# Check circuit breaker state for a service
+from app.services.pipeline_execution_service import get_pipeline_execution_service
+service = get_pipeline_execution_service()
+
+# View service failure counts
+print(service._analyzer_failures)  # {'static-analyzer': 0, ...}
+
+# View cooldown times (Unix timestamp when cooldown expires)
+print(service._analyzer_cooldown_until)  # {'static-analyzer': 0, ...}
+
+# View health cache
+print(service._service_health_cache)  # {'static-analyzer': {'healthy': True, 'check_time': ...}}
+
+# Force health cache invalidation
+service._invalidate_health_cache()  # Clears all cached health status
+```
+
 ### Integration with TaskExecutionService
 
 Pipelines create child tasks that are executed by TaskExecutionService:

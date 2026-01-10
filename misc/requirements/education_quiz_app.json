@@ -59,7 +59,7 @@
           {
             "question_id": 1,
             "correct": true,
-            "your_answer": "A",
+            "user_answer": "A",
             "correct_answer": "A"
           }
         ]
