@@ -18,39 +18,8 @@ if TYPE_CHECKING:  # pragma: no cover
 # Create applications blueprint
 applications_bp = Blueprint('api_applications', __name__)
 
-# NOTE: Generic /applications/* CRUD endpoints removed - they were unused stubs.
-# All actual application operations use the /app/{model_slug}/{app_number}/* pattern below.
-# If you need CRUD operations, use the model-specific endpoints or add them here.
-
-@applications_bp.route('/applications/<int:app_id>/start', methods=['POST'])
-def start_application(app_id):
-    """Start an application container."""
-    # TODO: Move implementation from api.py
-    return api_error("Start application endpoint not yet migrated", 501)
-
-@applications_bp.route('/applications/<int:app_id>/stop', methods=['POST'])
-def stop_application(app_id):
-    """Stop an application container."""
-    # TODO: Move implementation from api.py
-    return api_error("Stop application endpoint not yet migrated", 501)
-
-@applications_bp.route('/applications/<int:app_id>/restart', methods=['POST'])
-def restart_application(app_id):
-    """Restart an application container."""
-    # TODO: Move implementation from api.py
-    return api_error("Restart application endpoint not yet migrated", 501)
-
-@applications_bp.route('/apps/grid')
-def get_apps_grid():
-    """Get applications grid view data."""
-    # TODO: Move implementation from api.py
-    return api_error("Apps grid endpoint not yet migrated", 501)
-
-@applications_bp.route('/stats/apps')
-def get_apps_stats():
-    """Get application statistics."""
-    # TODO: Move implementation from api.py
-    return api_error("Apps stats endpoint not yet migrated", 501)
+# NOTE: All application operations use the /app/{model_slug}/{app_number}/* pattern.
+# Legacy integer-based /applications/<int:app_id>/* stubs have been removed.
 
 # Container management routes for specific model/app combinations
 @applications_bp.route('/app/<model_slug>/<int:app_number>/start', methods=['POST'])
@@ -274,12 +243,6 @@ def get_app_logs(model_slug, app_number):
         }, message='Logs retrieved')
     except Exception as e:
         return api_error(f'Error retrieving logs: {e}', status=500)
-
-@applications_bp.route('/app/<model_slug>/<int:app_number>/diagnose', methods=['GET'])
-def diagnose_app(model_slug, app_number):
-    """Diagnose issues with a specific app."""
-    # TODO: Move implementation from api.py
-    return api_error("Diagnose app endpoint not yet migrated", 501)
 
 @applications_bp.route('/app/<model_slug>/<int:app_number>/test-port/<int:port>', methods=['GET'])
 def test_app_port(model_slug, app_number, port):
@@ -683,24 +646,6 @@ def get_app_health(model_slug: str, app_number: int):
         return api_error(f"Health check failed: {str(e)}", 500)
 
 
-@applications_bp.route('/app/<model_slug>/<int:app_number>/logs/tails', methods=['GET'])
-def get_app_log_tails(model_slug, app_number):
-    """Get tail of logs for a specific app."""
-    # TODO: Move implementation from api.py
-    return api_error("Get app log tails endpoint not yet migrated", 501)
-
-@applications_bp.route('/app/<model_slug>/<int:app_number>/logs/download', methods=['GET'])
-def download_app_logs(model_slug, app_number):
-    """Download logs for a specific app."""
-    # TODO: Move implementation from api.py
-    return api_error("Download app logs endpoint not yet migrated", 501)
-
-@applications_bp.route('/app/<model_slug>/<int:app_number>/scan-files', methods=['POST'])
-def scan_app_files(model_slug, app_number):
-    """Scan files for a specific app."""
-    # TODO: Move implementation from api.py
-    return api_error("Scan app files endpoint not yet migrated", 501)
-
 @applications_bp.route('/app/<model_slug>/<int:app_number>/analyze', methods=['POST'])
 def analyze_application(model_slug, app_number):
     """
@@ -819,13 +764,6 @@ def analyze_application(model_slug, app_number):
         current_app.logger.exception(f"Error starting analysis: {e}")
         return api_error(f"Failed to start analysis: {e}", 500)
 
-@applications_bp.route('/apps/bulk/list', methods=['GET'])
-def list_bulk_apps():
-    """List applications for bulk operations."""
-    # TODO: Move implementation from api.py
-    return api_error("List bulk apps endpoint not yet migrated", 501)
-
-
 @applications_bp.route('/apps/bulk-status', methods=['POST'])
 def get_bulk_status():
     """
@@ -917,13 +855,6 @@ def get_bulk_status():
     except Exception as e:
         current_app.logger.exception("Error in bulk status lookup: %s", e)
         return api_error(f"Error retrieving bulk status: {e}", 500)
-
-@applications_bp.route('/apps/bulk/docker', methods=['POST'])
-def bulk_docker_operations():
-    """Perform bulk Docker operations on applications."""
-    # TODO: Move implementation from api.py
-    return api_error("Bulk docker operations endpoint not yet migrated", 501)
-
 
 # =============================================================================
 # Container Action Tracking API (Async Operations with Progress)

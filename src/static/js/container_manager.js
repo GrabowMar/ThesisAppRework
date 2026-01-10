@@ -230,10 +230,14 @@ class ContainerManager {
 
     /**
      * Tail logs (live stream)
+     * 
+     * Note: Live log streaming requires a backend WebSocket endpoint for Docker log 
+     * streaming (docker logs -f). For now, use refreshLogs() for periodic updates
+     * or downloadLogs() for full log export.
      */
     async tailLogs() {
-        // TODO: Implement WebSocket log streaming
-        this.showToast('Live log streaming coming soon!', 'info');
+        // Live streaming not yet implemented - use refresh as workaround
+        this.showToast('Live log streaming not yet available. Use "Refresh" for latest logs or "Download" for full export.', 'info');
     }
 
     /**

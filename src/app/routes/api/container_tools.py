@@ -8,10 +8,44 @@ Provides access to tools grouped by analyzer containers with configuration schem
 
 from flask import Blueprint, jsonify, request
 import logging
+import socket
+from typing import Dict
 
 from ...engines.container_tool_registry import get_container_tool_registry, AnalyzerContainer
 
 logger = logging.getLogger(__name__)
+
+# Service port mapping for health checks
+SERVICE_PORTS: Dict[str, int] = {
+    'static-analyzer': 2001,
+    'dynamic-analyzer': 2002,
+    'performance-tester': 2003,
+    'ai-analyzer': 2004,
+}
+
+
+def _check_service_port(service_name: str, timeout: float = 2.0) -> bool:
+    """Check if an analyzer service port is accessible via TCP.
+    
+    Args:
+        service_name: Name of the analyzer service
+        timeout: Connection timeout in seconds
+        
+    Returns:
+        True if port is accessible, False otherwise
+    """
+    port = SERVICE_PORTS.get(service_name)
+    if not port:
+        return False
+    
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex(('localhost', port))
+        sock.close()
+        return result == 0
+    except socket.error:
+        return False
 
 # Create blueprint (no URL prefix since it's registered under /api)
 container_tools_bp = Blueprint('container_tools', __name__, url_prefix='/container-tools')
@@ -160,13 +194,11 @@ def get_tool_availability():
         
         # Get container status from analyzer bridge
         try:
-            # Check each container service
+            # Check each container service via TCP port check
             for container in AnalyzerContainer:
                 service_name = container.value
                 try:
-                    # Simple availability check - assume running for now
-                    # TODO: Implement proper service health check
-                    is_available = True
+                    is_available = _check_service_port(service_name)
                     availability_data[f'{service_name}_status'] = 'running' if is_available else 'stopped'
                 except Exception as e:
                     logger.warning(f"Could not check {service_name} status: {e}")
