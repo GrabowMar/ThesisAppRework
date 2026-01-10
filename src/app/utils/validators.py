@@ -405,8 +405,6 @@ def validate_url(url: str) -> Dict[str, Any]:
 
 def sanitize_input(text: str, max_length: int = 1000, allow_html: bool = False) -> str:
     """Sanitize user input text."""
-    import re
-    
     if not isinstance(text, str):
         return ""
     

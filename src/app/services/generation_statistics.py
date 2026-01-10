@@ -698,16 +698,10 @@ def _get_task_statistics() -> Dict[str, Any]:
             count = AnalysisTask.query.filter_by(status=status).count()
             if count > 0:
                 status_counts[status.value] = count
-        
-        # Count by type
-        # Note: AnalysisTask no longer has analysis_type column (uses task_name now)
-        # This metric is disabled until refactored
+
+        # Type counts disabled - AnalysisTask uses task_name instead of analysis_type column
         type_counts = {}
-        # for analysis_type in AnalysisType:
-        #     count = AnalysisTask.query.filter_by(analysis_type=analysis_type).count()
-        #     if count > 0:
-        #         type_counts[analysis_type.value] = count
-        
+
         # Calculate success rate
         completed_tasks = AnalysisTask.query.filter_by(status=AnalysisStatus.COMPLETED).count()
         failed_tasks = AnalysisTask.query.filter_by(status=AnalysisStatus.FAILED).count()

@@ -1,4 +1,11 @@
-````jinja
+#!/usr/bin/env python3
+"""Script to write the fullstack.md.jinja2 template file."""
+
+import os
+from pathlib import Path
+
+# Template content
+content = r'''````jinja
 # {{ name }} - Full Stack Application (Unguarded Mode)
 
 {{ description }}
@@ -114,4 +121,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 - **Professional UI** - Clean, functional appearance
 
 Generate ALL 6 files now with COMPLETE, RUNNABLE code.
-````
+````'''
+
+if __name__ == '__main__':
+    # Get project root
+    project_root = Path(__file__).parent.parent
+    target_file = project_root / 'misc' / 'templates' / 'unguarded' / 'fullstack.md.jinja2'
+    
+    # Write the file
+    target_file.write_text(content, encoding='utf-8')
+    print(f"Successfully wrote template to: {target_file}")

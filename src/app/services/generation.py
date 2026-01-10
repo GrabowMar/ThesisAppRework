@@ -63,6 +63,7 @@ from app.paths import (
 )
 from app.services.port_allocation_service import get_port_allocation_service
 from app.services.openrouter_chat_service import get_openrouter_chat_service
+from app.config.config_manager import get_config
 from app.extensions import db
 from app.models import GeneratedApplication, ModelCapability, AnalysisStatus, GenerationMode
 from app.utils.time import utc_now
@@ -90,7 +91,9 @@ def _ensure_timezone_aware(dt: Optional[datetime]) -> Optional[datetime]:
 
 
 # Model-specific token limits for output generation
-MODEL_TOKEN_LIMITS = {
+# NOTE: These are now loaded from config. This dict serves as a fallback reference.
+# Use get_model_token_limit() function which reads from ConfigManager.
+_LEGACY_MODEL_TOKEN_LIMITS = {
     # Anthropic models (increased limits for longer code generation)
     'anthropic/claude-3.5-sonnet': 16384,
     'anthropic/claude-3-5-sonnet-20240620': 16384,
@@ -130,14 +133,24 @@ MODEL_TOKEN_LIMITS = {
 def get_model_token_limit(model_slug: str, default: int = 32000) -> int:
     """Get the maximum output tokens for a given model.
     
+    Uses ConfigManager for centralized configuration. Supports two modes:
+    - 'uniform': Same token limit for all models (for fair comparisons)
+    - 'model_specific': Per-model limits from configuration
+    
     Args:
         model_slug: The model identifier (e.g., 'anthropic/claude-3.5-sonnet')
-        default: Default limit if model not found
+        default: Default limit if model not found (only used as final fallback)
         
     Returns:
         Maximum output tokens for the model
     """
-    return MODEL_TOKEN_LIMITS.get(model_slug, MODEL_TOKEN_LIMITS.get('default', default))
+    try:
+        gen_config = get_config().generation
+        return gen_config.get_token_limit(model_slug)
+    except Exception as e:
+        # Fallback to legacy dict if config not available
+        logger.warning(f"Failed to get token limit from config for {model_slug}: {e}. Using legacy fallback.")
+        return _LEGACY_MODEL_TOKEN_LIMITS.get(model_slug, _LEGACY_MODEL_TOKEN_LIMITS.get('default', default))
 
 
 @dataclass
@@ -348,11 +361,28 @@ class CodeGenerator:
         self.template_dir = TEMPLATES_V2_DIR
         self.scaffolding_info_path = SCAFFOLDING_DIR / 'SCAFFOLDING_INFO.md'
     
-    async def generate(self, config: GenerationConfig) -> Tuple[bool, str, str]:
+    async def generate(self, config: GenerationConfig) -> Tuple[bool, str, str, dict]:
         """Generate code for frontend or backend.
         
-        Returns: (success, content, error_message)
+        Returns: (success, content, error_message, metrics)
+        
+        metrics dict contains:
+            - truncation_retries: int - Number of truncation retry attempts
+            - validation_retries: int - Number of validation retry attempts  
+            - was_truncated: bool - Whether the final response was truncated
+            - initial_max_tokens: int - Starting token limit
+            - final_max_tokens: int - Token limit after any adjustments
+            - validation_errors: list - Any validation errors from final output
         """
+        # Default metrics - will be updated throughout generation
+        metrics = {
+            'truncation_retries': 0,
+            'validation_retries': 0,
+            'was_truncated': False,
+            'initial_max_tokens': 0,
+            'final_max_tokens': 0,
+            'validation_errors': [],
+        }
         # Build prompt
         prompt = self._build_prompt(config)
         
@@ -360,7 +390,7 @@ class CodeGenerator:
         model = ModelCapability.query.filter_by(canonical_slug=config.model_slug).first()
         if not model:
             logger.error(f"Model not found in database: {config.model_slug}")
-            return False, "", f"Model not found in database: {config.model_slug}"
+            return False, "", f"Model not found in database: {config.model_slug}", metrics
         
         # Priority: 1) hugging_face_id (case-sensitive, most accurate)
         #          2) base_model_id (normalized, no variant suffix)
@@ -399,83 +429,247 @@ class CodeGenerator:
         generation_mode = config.generation_mode if hasattr(config, 'generation_mode') and config.generation_mode else 'guarded'
         system_prompt = self._get_system_prompt(config.component, query_type, generation_mode)
         
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
-        ]
+        # Base messages - will be rebuilt in loop if healing context is added
+        base_user_prompt = prompt
 
         # Prepare metadata tracking
         timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
         safe_model = re.sub(r'[^\w\-.]', '_', config.model_slug)
         run_id = f"{safe_model}_app{config.app_num}_{config.component}_{timestamp}"
         
-        try:
-            success, response_data, status_code = await self.chat_service.generate_chat_completion(
-                model=openrouter_model,
-                messages=messages,
-                temperature=config.temperature,
-                max_tokens=effective_max_tokens
-            )
+        # Get generation config for truncation retry settings
+        from app.config.config_manager import get_config
+        gen_config = get_config().generation
+        
+        # Track truncation retry attempts
+        truncation_attempt = 0
+        max_truncation_retries = gen_config.max_truncation_retries if gen_config.retry_on_truncation else 0
+        current_max_tokens = effective_max_tokens
+        
+        # Track validation retry attempts (healing loop)
+        validation_attempt = 0
+        max_validation_retries = gen_config.max_validation_retries if gen_config.retry_on_validation_failure else 0
+        healing_context = ""  # Will contain error info for retry prompts
+        
+        while True:
+            # Build messages with optional healing context for validation retries
+            if healing_context:
+                enhanced_prompt = f"""{base_user_prompt}
 
-            # Save request/response artifacts regardless of outcome
-            self._save_payload(run_id, safe_model, config.app_num, self.chat_service._build_payload(openrouter_model, messages, config.temperature, effective_max_tokens), self.chat_service._get_headers())
-            self._save_response(run_id, safe_model, config.app_num, response_data, {})
+---
+CRITICAL: Your previous response had validation errors that must be fixed:
+{healing_context}
 
-            if not success:
-                error_obj = response_data.get("error", {})
-                error_message = error_obj.get("message", "Unknown API error")
-                error_code = error_obj.get("code", status_code)
-                
-                # Log detailed error for debugging
-                logger.error(f"OpenRouter API error for {openrouter_model}: {error_code} - {error_message}")
-                logger.error(f"Full error response: {response_data}")
-                
-                # Return user-friendly error with model ID info
-                return False, "", f"API error {error_code}: {error_message} (tried model ID: {openrouter_model})"
+Please regenerate the code, ensuring you fix ALL the issues listed above.
+Do NOT repeat the same mistakes. Focus on:
+1. Valid Python/JavaScript syntax (no truncated code)
+2. Proper import statements and dependencies
+3. Complete function definitions with proper indentation
+4. No placeholder comments like "# ... rest of code" or "// TODO"
+---"""
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": enhanced_prompt}
+                ]
+            else:
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": base_user_prompt}
+                ]
+            try:
+                success, response_data, status_code = await self.chat_service.generate_chat_completion(
+                    model=openrouter_model,
+                    messages=messages,
+                    temperature=config.temperature,
+                    max_tokens=current_max_tokens
+                )
 
-            # Validate response structure before accessing
-            if not isinstance(response_data, dict) or 'choices' not in response_data:
-                error_msg = f"Invalid API response structure: {type(response_data).__name__}"
-                if isinstance(response_data, dict) and 'error' in response_data:
-                    error_obj = response_data.get('error', {})
-                    if isinstance(error_obj, dict):
-                        error_msg += f" - {error_obj.get('message', str(error_obj))}"
-                    else:
-                        error_msg += f" - {error_obj}"
-                logger.error(error_msg)
-                logger.error(f"Response data: {response_data}")
-                return False, "", f"Backend generation failed: {error_msg}"
-            
-            # Validate choices array structure
-            if not response_data.get('choices') or not isinstance(response_data['choices'], list):
-                error_msg = "API response missing valid 'choices' array"
-                logger.error(f"{error_msg}: {response_data}")
-                return False, "", f"Backend generation failed: {error_msg}"
-            
-            if len(response_data['choices']) == 0:
-                error_msg = "API response has empty 'choices' array"
-                logger.error(f"{error_msg}: {response_data}")
-                return False, "", f"Backend generation failed: {error_msg}"
+                # Save request/response artifacts regardless of outcome
+                retry_suffix = f"_retry{truncation_attempt}" if truncation_attempt > 0 else ""
+                self._save_payload(f"{run_id}{retry_suffix}", safe_model, config.app_num, self.chat_service._build_payload(openrouter_model, messages, config.temperature, current_max_tokens), self.chat_service._get_headers())
+                self._save_response(f"{run_id}{retry_suffix}", safe_model, config.app_num, response_data, {})
 
-            content = response_data['choices'][0]['message']['content']
-            finish_reason = response_data['choices'][0].get('finish_reason', 'unknown')
-            
-            # Check for truncation
-            if finish_reason == 'length':
-                token_count = response_data.get('usage', {}).get('completion_tokens', 0)
-                logger.warning(f"Generation truncated at {token_count} tokens (hit model limit). Code may be incomplete!")
-                logger.warning(f"Consider: 1) Using a model with higher output limit, or 2) Simplifying requirements")
-            
-            # Save metadata on success
-            await self._save_metadata(run_id, safe_model, config.app_num, config.component, 
-                                    self.chat_service._build_payload(openrouter_model, messages, config.temperature, effective_max_tokens), 
-                                    response_data, status_code, {})
-            
-            return True, content, ""
+                if not success:
+                    error_obj = response_data.get("error", {})
+                    error_message = error_obj.get("message", "Unknown API error")
+                    error_code = error_obj.get("code", status_code)
                     
-        except Exception as e:
-            logger.error(f"Generation failed: {e}")
-            return False, "", str(e)
+                    # Log detailed error for debugging
+                    logger.error(f"OpenRouter API error for {openrouter_model}: {error_code} - {error_message}")
+                    logger.error(f"Full error response: {response_data}")
+                    
+                    # Update metrics before returning
+                    metrics['truncation_retries'] = truncation_attempt
+                    metrics['initial_max_tokens'] = effective_max_tokens
+                    metrics['final_max_tokens'] = current_max_tokens
+                    
+                    # Return user-friendly error with model ID info
+                    return False, "", f"API error {error_code}: {error_message} (tried model ID: {openrouter_model})", metrics
+
+                # Validate response structure before accessing
+                if not isinstance(response_data, dict) or 'choices' not in response_data:
+                    error_msg = f"Invalid API response structure: {type(response_data).__name__}"
+                    if isinstance(response_data, dict) and 'error' in response_data:
+                        error_obj = response_data.get('error', {})
+                        if isinstance(error_obj, dict):
+                            error_msg += f" - {error_obj.get('message', str(error_obj))}"
+                        else:
+                            error_msg += f" - {error_obj}"
+                    logger.error(error_msg)
+                    logger.error(f"Response data: {response_data}")
+                    metrics['truncation_retries'] = truncation_attempt
+                    metrics['initial_max_tokens'] = effective_max_tokens
+                    metrics['final_max_tokens'] = current_max_tokens
+                    return False, "", f"Backend generation failed: {error_msg}", metrics
+                
+                # Validate choices array structure
+                if not response_data.get('choices') or not isinstance(response_data['choices'], list):
+                    error_msg = "API response missing valid 'choices' array"
+                    logger.error(f"{error_msg}: {response_data}")
+                    metrics['truncation_retries'] = truncation_attempt
+                    metrics['initial_max_tokens'] = effective_max_tokens
+                    metrics['final_max_tokens'] = current_max_tokens
+                    return False, "", f"Backend generation failed: {error_msg}", metrics
+                
+                if len(response_data['choices']) == 0:
+                    error_msg = "API response has empty 'choices' array"
+                    logger.error(f"{error_msg}: {response_data}")
+                    metrics['truncation_retries'] = truncation_attempt
+                    metrics['initial_max_tokens'] = effective_max_tokens
+                    metrics['final_max_tokens'] = current_max_tokens
+                    return False, "", f"Backend generation failed: {error_msg}", metrics
+
+                content = response_data['choices'][0]['message']['content']
+                finish_reason = response_data['choices'][0].get('finish_reason', 'unknown')
+                
+                # Check for truncation and handle retry logic
+                if finish_reason == 'length':
+                    usage = response_data.get('usage', {})
+                    token_count = usage.get('completion_tokens', 0)
+                    prompt_tokens = usage.get('prompt_tokens', 0)
+                    
+                    # Calculate usage percentage to determine if truncation is significant
+                    usage_percentage = (token_count / current_max_tokens * 100) if current_max_tokens > 0 else 100
+                    
+                    logger.warning(
+                        f"Generation truncated at {token_count}/{current_max_tokens} tokens "
+                        f"({usage_percentage:.1f}% of limit, attempt {truncation_attempt + 1})"
+                    )
+                    
+                    # Check if we should retry with reduced token expectation
+                    if (gen_config.retry_on_truncation and 
+                        truncation_attempt < max_truncation_retries and
+                        usage_percentage >= gen_config.truncation_threshold_percentage):
+                        
+                        truncation_attempt += 1
+                        
+                        # Reduce max_tokens to signal we expect smaller output
+                        # This helps some models produce more complete code within limits
+                        previous_tokens = current_max_tokens
+                        current_max_tokens = int(current_max_tokens * gen_config.truncation_token_reduction_factor)
+                        
+                        # Ensure we don't go below a reasonable minimum
+                        min_tokens = 4000
+                        if current_max_tokens < min_tokens:
+                            current_max_tokens = min_tokens
+                            logger.warning(f"Token limit floored at {min_tokens}")
+                        
+                        logger.info(
+                            f"Truncation retry {truncation_attempt}/{max_truncation_retries}: "
+                            f"reducing max_tokens from {previous_tokens} to {current_max_tokens}"
+                        )
+                        continue  # Retry the generation
+                    else:
+                        # No retry: either disabled, max retries reached, or below threshold
+                        if truncation_attempt >= max_truncation_retries:
+                            logger.warning(
+                                f"Max truncation retries ({max_truncation_retries}) reached. "
+                                f"Returning potentially incomplete code."
+                            )
+                        elif usage_percentage < gen_config.truncation_threshold_percentage:
+                            logger.info(
+                                f"Truncation below threshold ({usage_percentage:.1f}% < {gen_config.truncation_threshold_percentage}%). "
+                                f"Accepting output without retry."
+                            )
+                        else:
+                            logger.warning("Truncation retry disabled. Code may be incomplete!")
+                
+                # ========== VALIDATION RETRY LOOP (HEALING) ==========
+                # Validate the generated code and retry with error context if validation fails
+                if gen_config.validation_enabled:
+                    is_valid, validation_errors = self.validate_generated_code(
+                        content, config.component, generation_mode, query_type
+                    )
+                    
+                    if not is_valid:
+                        logger.warning(
+                            f"Generated code failed validation (attempt {validation_attempt + 1}): "
+                            f"{len(validation_errors)} error(s)"
+                        )
+                        
+                        # Check if we should retry with healing context
+                        if (gen_config.retry_on_validation_failure and 
+                            validation_attempt < max_validation_retries):
+                            
+                            validation_attempt += 1
+                            
+                            # Build healing context with specific errors to fix
+                            error_list = "\n".join([f"  - {err}" for err in validation_errors[:10]])  # Limit to 10 errors
+                            if len(validation_errors) > 10:
+                                error_list += f"\n  ... and {len(validation_errors) - 10} more errors"
+                            
+                            healing_context = f"""
+VALIDATION ERRORS FOUND ({len(validation_errors)} total):
+{error_list}
+
+Component: {config.component}
+Generation Mode: {generation_mode}
+Query Type: {query_type}
+"""
+                            
+                            logger.info(
+                                f"Validation retry {validation_attempt}/{max_validation_retries}: "
+                                f"regenerating with {len(validation_errors)} errors in healing context"
+                            )
+                            
+                            # Reset truncation tracking for the retry
+                            truncation_attempt = 0
+                            current_max_tokens = effective_max_tokens
+                            
+                            continue  # Retry with healing context
+                        else:
+                            # No retry: either disabled or max retries reached
+                            if validation_attempt >= max_validation_retries:
+                                logger.warning(
+                                    f"Max validation retries ({max_validation_retries}) reached. "
+                                    f"Returning code with {len(validation_errors)} validation errors."
+                                )
+                            else:
+                                logger.warning(
+                                    f"Validation retry disabled. Code has {len(validation_errors)} validation errors."
+                                )
+                            # Continue to return the code anyway (let caller decide what to do)
+                
+                # Update final metrics
+                metrics['truncation_retries'] = truncation_attempt
+                metrics['validation_retries'] = validation_attempt
+                metrics['final_max_tokens'] = current_max_tokens
+                metrics['was_truncated'] = finish_reason == 'length'
+                
+                # Save metadata on success (or after retries exhausted)
+                await self._save_metadata(run_id, safe_model, config.app_num, config.component, 
+                                        self.chat_service._build_payload(openrouter_model, messages, config.temperature, current_max_tokens), 
+                                        response_data, status_code, 
+                                        {"truncation_retries": truncation_attempt, 
+                                         "validation_retries": validation_attempt,
+                                         "final_max_tokens": current_max_tokens})
+                
+                return True, content, "", metrics
+                        
+            except Exception as e:
+                logger.error(f"Generation failed: {e}")
+                metrics['validation_errors'].append(f"Exception: {str(e)}")
+                return False, "", str(e), metrics
     
     def _load_requirements(self, template_slug: str) -> Optional[Dict]:
         """Load requirements from JSON file using slug naming convention.
@@ -1192,22 +1386,47 @@ class CodeMerger:
             'pyjwt': 'PyJWT==2.8.0',
         }
 
-    def validate_generated_code(self, code: str, component: str) -> Tuple[bool, List[str]]:
-        """Validate generated code for syntax errors before merging.
+    def validate_generated_code(
+        self, 
+        code: str, 
+        component: str,
+        generation_mode: str = 'guarded',
+        query_type: Optional[str] = None
+    ) -> Tuple[bool, List[str]]:
+        """Validate generated code for syntax errors and structural compliance.
         
         Args:
             code: The generated code to validate
             component: 'backend' or 'frontend'
+            generation_mode: 'guarded' or 'unguarded'
+            query_type: For guarded: 'backend_user', 'backend_admin', 'frontend_user', 'frontend_admin'
+                       For unguarded: 'backend', 'frontend'
             
         Returns:
             Tuple of (is_valid, list_of_errors)
         """
         errors = []
+        warnings = []
+        
+        # Get validation config
+        config = get_config()
+        validation_strictness = config.generation.validation_strictness
+        
+        # Determine query_type if not provided
+        if query_type is None:
+            if generation_mode == 'unguarded':
+                query_type = component  # 'backend' or 'frontend'
+            else:
+                query_type = f"{component}_user"  # Default to user query type
+        
+        # Get validation rules for this mode/query combination
+        validation_rules = config.generation.get_validation_rules(generation_mode, query_type)
         
         if not code or not code.strip():
             errors.append("Generated code is empty")
             return False, errors
         
+        # ========== Basic syntax validation ==========
         if component == 'backend':
             # Validate Python syntax
             try:
@@ -1223,23 +1442,24 @@ class CodeMerger:
                     try:
                         ast.parse(cleaned_code)
                         logger.info("✓ Code is valid after fence cleanup - fence markers were the issue")
-                        # Code is valid after cleanup - return success
-                        # The caller's _select_code_block should have already cleaned this,
-                        # but we accept it as valid since the core code is correct
-                        return True, []
+                        # Code is valid after cleanup - continue with pattern validation
                     except SyntaxError:
                         # Fall through to original error handling
                         logger.warning("Code still invalid after fence cleanup - genuine syntax error")
-                
-                # Original error handling
-                error_msg = f"Python syntax error at line {e.lineno}: {e.msg}"
-                # Only include error text if it doesn't contain fence markers (avoids confusing output)
-                if e.text and '```' not in e.text:
-                    error_msg += f"\n  Code: {e.text.strip()}"
-                elif e.text:
-                    error_msg += f"\n  (Error text contains fence markers - code extraction likely failed)"
-                errors.append(error_msg)
-                logger.error(f"Backend code validation failed: {error_msg}")
+                        error_msg = f"Python syntax error at line {e.lineno}: {e.msg}"
+                        if e.text and '```' not in e.text:
+                            error_msg += f"\n  Code: {e.text.strip()}"
+                        errors.append(error_msg)
+                        logger.error(f"Backend code validation failed: {error_msg}")
+                else:
+                    # No fence markers - genuine syntax error
+                    error_msg = f"Python syntax error at line {e.lineno}: {e.msg}"
+                    if e.text and '```' not in e.text:
+                        error_msg += f"\n  Code: {e.text.strip()}"
+                    elif e.text:
+                        error_msg += f"\n  (Error text contains fence markers - code extraction likely failed)"
+                    errors.append(error_msg)
+                    logger.error(f"Backend code validation failed: {error_msg}")
             except Exception as e:
                 errors.append(f"Unexpected error during Python parsing: {str(e)}")
                 logger.error(f"Backend code validation failed with unexpected error: {e}")
@@ -1258,10 +1478,43 @@ class CodeMerger:
             if 'localhost' in code.lower() and 'backend:5000' not in code:
                 errors.append("Frontend code should use 'http://backend:5000' not localhost")
                 logger.warning("Frontend code validation: found localhost instead of backend:5000")
+        
+        # ========== Configurable pattern validation ==========
+        if validation_rules:
+            # Check required patterns
+            required_patterns = validation_rules.get('required_patterns', [])
+            for pattern in required_patterns:
+                if pattern not in code:
+                    msg = f"Missing required pattern: '{pattern}' (query_type={query_type})"
+                    warnings.append(msg)
+                    logger.warning(f"Validation warning: {msg}")
             
-            logger.info(f"Frontend code validation completed with {len(errors)} warnings")
+            # Check forbidden patterns
+            forbidden_patterns = validation_rules.get('forbidden_patterns', [])
+            for pattern in forbidden_patterns:
+                if pattern in code:
+                    msg = f"Found forbidden pattern: '{pattern}' (query_type={query_type})"
+                    warnings.append(msg)
+                    logger.warning(f"Validation warning: {msg}")
+        
+        # ========== Apply strictness level ==========
+        if validation_strictness == 'strict':
+            # In strict mode, pattern warnings become errors
+            errors.extend(warnings)
+        else:
+            # In lenient mode, pattern issues are just logged warnings
+            if warnings:
+                logger.info(f"Validation completed with {len(warnings)} pattern warnings (lenient mode - not failing)")
         
         is_valid = len(errors) == 0
+        
+        log_level = "info" if is_valid else "warning"
+        total_issues = len(errors) + len(warnings)
+        getattr(logger, log_level)(
+            f"{component.capitalize()} code validation completed: "
+            f"valid={is_valid}, errors={len(errors)}, warnings={len(warnings)}"
+        )
+        
         return is_valid, errors
 
     # File whitelists for query_type filtering
@@ -1511,8 +1764,10 @@ class CodeMerger:
                         continue
             
             if target_path:
-                # Validate Python syntax
-                is_valid, errors = self.validate_generated_code(code, 'backend')
+                # Validate Python syntax with GUARDED backend_user rules
+                is_valid, errors = self.validate_generated_code(
+                    code, 'backend', generation_mode='guarded', query_type='backend_user'
+                )
                 if not is_valid:
                     logger.warning(f"Backend code validation warnings for {target_path.name}:")
                     for err in errors[:3]:  # Limit error output
@@ -1600,8 +1855,10 @@ class CodeMerger:
                 target_path = backend_dir / filename
                 target_path.parent.mkdir(parents=True, exist_ok=True)
                 
-                # Validate Python syntax
-                is_valid, errors = self.validate_generated_code(code, 'backend')
+                # Validate Python syntax with GUARDED backend_admin rules
+                is_valid, errors = self.validate_generated_code(
+                    code, 'backend', generation_mode='guarded', query_type='backend_admin'
+                )
                 if not is_valid:
                     logger.warning(f"Admin backend code validation warnings for {filename}:")
                     for err in errors:
@@ -1788,8 +2045,10 @@ class CodeMerger:
             logger.error("[UNGUARDED] Failed to extract app.py code from LLM response")
             return False
         
-        # Validate Python syntax
-        is_valid, errors = self.validate_generated_code(app_py_code, 'backend')
+        # Validate Python syntax with UNGUARDED backend rules
+        is_valid, errors = self.validate_generated_code(
+            app_py_code, 'backend', generation_mode='unguarded', query_type='backend'
+        )
         if not is_valid:
             logger.warning("[UNGUARDED] Backend code validation warnings:")
             for err in errors:
@@ -1963,8 +2222,10 @@ class CodeMerger:
         app_jsx_code = app_jsx_code.replace("'http://127.0.0.1:5000/api", "'/api")
         app_jsx_code = app_jsx_code.replace('"http://127.0.0.1:5000/api', '"/api')
         
-        # Validate JSX syntax (basic check)
-        is_valid, errors = self.validate_generated_code(app_jsx_code, 'frontend')
+        # Validate JSX syntax with UNGUARDED frontend rules
+        is_valid, errors = self.validate_generated_code(
+            app_jsx_code, 'frontend', generation_mode='unguarded', query_type='frontend'
+        )
         if not is_valid:
             logger.warning("[UNGUARDED] Frontend code validation warnings:")
             for err in errors:
@@ -2918,7 +3179,18 @@ class GenerationService:
             'backend_generated': False,
             'frontend_generated': False,
             'generation_mode': generation_mode,
-            'errors': []
+            'errors': [],
+            'generation_metrics': {
+                'backend': None,
+                'backend_user': None,
+                'backend_admin': None,
+                'frontend': None,
+                'frontend_user': None,
+                'frontend_admin': None,
+                'total_truncation_retries': 0,
+                'total_validation_retries': 0,
+                'any_truncated': False,
+            }
         }
         
         try:
@@ -2972,7 +3244,14 @@ class GenerationService:
                             generation_mode='unguarded'
                         )
                         
-                        success, content, error = await self.generator.generate(config)
+                        success, content, error, metrics = await self.generator.generate(config)
+                        
+                        # Track metrics
+                        result['generation_metrics']['backend'] = metrics
+                        result['generation_metrics']['total_truncation_retries'] += metrics.get('truncation_retries', 0)
+                        result['generation_metrics']['total_validation_retries'] += metrics.get('validation_retries', 0)
+                        if metrics.get('was_truncated'):
+                            result['generation_metrics']['any_truncated'] = True
                         
                         if success:
                             # Unguarded mode: more permissive merge
@@ -3014,7 +3293,14 @@ class GenerationService:
                             generation_mode='unguarded'
                         )
                         
-                        success, content, error = await self.generator.generate(config)
+                        success, content, error, metrics = await self.generator.generate(config)
+                        
+                        # Track metrics
+                        result['generation_metrics']['frontend'] = metrics
+                        result['generation_metrics']['total_truncation_retries'] += metrics.get('truncation_retries', 0)
+                        result['generation_metrics']['total_validation_retries'] += metrics.get('validation_retries', 0)
+                        if metrics.get('was_truncated'):
+                            result['generation_metrics']['any_truncated'] = True
                         
                         if success:
                             if merger.merge_frontend(app_dir, content, query_type='user', generation_mode='unguarded'):
@@ -3065,7 +3351,14 @@ class GenerationService:
                             generation_mode='guarded'
                         )
                         
-                        success, content, error = await self.generator.generate(config)
+                        success, content, error, metrics = await self.generator.generate(config)
+                        
+                        # Track metrics
+                        result['generation_metrics']['backend_user'] = metrics
+                        result['generation_metrics']['total_truncation_retries'] += metrics.get('truncation_retries', 0)
+                        result['generation_metrics']['total_validation_retries'] += metrics.get('validation_retries', 0)
+                        if metrics.get('was_truncated'):
+                            result['generation_metrics']['any_truncated'] = True
                         
                         if success:
                             if merger.merge_backend(app_dir, content, query_type='user'):
@@ -3110,7 +3403,14 @@ class GenerationService:
                                 existing_models_summary=models_summary
                             )
                             
-                            success, content, error = await self.generator.generate(config)
+                            success, content, error, metrics = await self.generator.generate(config)
+                            
+                            # Track metrics
+                            result['generation_metrics']['backend_admin'] = metrics
+                            result['generation_metrics']['total_truncation_retries'] += metrics.get('truncation_retries', 0)
+                            result['generation_metrics']['total_validation_retries'] += metrics.get('validation_retries', 0)
+                            if metrics.get('was_truncated'):
+                                result['generation_metrics']['any_truncated'] = True
                             
                             if success:
                                 if merger.merge_backend(app_dir, content, query_type='admin'):
@@ -3155,7 +3455,14 @@ class GenerationService:
                             generation_mode='guarded'
                         )
                         
-                        success, content, error = await self.generator.generate(config)
+                        success, content, error, metrics = await self.generator.generate(config)
+                        
+                        # Track metrics
+                        result['generation_metrics']['frontend_user'] = metrics
+                        result['generation_metrics']['total_truncation_retries'] += metrics.get('truncation_retries', 0)
+                        result['generation_metrics']['total_validation_retries'] += metrics.get('validation_retries', 0)
+                        if metrics.get('was_truncated'):
+                            result['generation_metrics']['any_truncated'] = True
                         
                         if success:
                             if merger.merge_frontend(app_dir, content, query_type='user'):
@@ -3197,7 +3504,14 @@ class GenerationService:
                                 generation_mode='guarded'
                             )
                             
-                            success, content, error = await self.generator.generate(config)
+                            success, content, error, metrics = await self.generator.generate(config)
+                            
+                            # Track metrics
+                            result['generation_metrics']['frontend_admin'] = metrics
+                            result['generation_metrics']['total_truncation_retries'] += metrics.get('truncation_retries', 0)
+                            result['generation_metrics']['total_validation_retries'] += metrics.get('validation_retries', 0)
+                            if metrics.get('was_truncated'):
+                                result['generation_metrics']['any_truncated'] = True
                             
                             if success:
                                 if merger.merge_frontend(app_dir, content, query_type='admin'):
@@ -3563,6 +3877,11 @@ class GenerationService:
             'last_generated_at': utc_now().isoformat(),
         }
         metadata.update({key: value for key, value in metadata_updates.items() if value is not None})
+        
+        # Persist generation metrics for analysis (truncation retries, validation retries, etc.)
+        generation_metrics = result_snapshot.get('generation_metrics')
+        if generation_metrics:
+            metadata['generation_metrics'] = generation_metrics
         app_record.set_metadata(metadata)
 
         app_record.updated_at = utc_now()

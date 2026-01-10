@@ -4,11 +4,14 @@ Utility Functions for Celery App
 Common utility functions used throughout the application.
 """
 
+import csv
 import json
 import logging
-from datetime import datetime, UTC
-from pathlib import Path
 import re
+import time
+from datetime import datetime, UTC
+from io import StringIO
+from pathlib import Path
 from typing import Dict, Any, Optional, Union
 
 try:  # Import path constants; keep optional to avoid circular issues in early migrations
@@ -155,16 +158,6 @@ def get_models_base_path() -> Path:
 def _normalize_slug_for_match(s: str) -> str:
     """Normalize slugs for fuzzy matching: lowercase and remove non-alphanumerics."""
     return re.sub(r"[^a-z0-9]", "", s.lower())
-
-
-def utc_now() -> datetime:
-    """Return a timezone-aware UTC datetime.
-
-    Central helper to avoid direct use of deprecated utcnow() and to
-    provide a single place to adjust time source if we later introduce
-    clock abstraction (e.g., for testing or monotonic sequencing).
-    """
-    return datetime.now(UTC)
 
 
 def now() -> datetime:
@@ -347,7 +340,6 @@ def validate_app_number(app_number: Union[str, int]) -> bool:
 
 def sanitize_filename(filename: str) -> str:
     """Sanitize filename for safe filesystem usage."""
-    import re
     # Remove or replace invalid characters
     sanitized = re.sub(r'[<>:"/\\|?*]', '_', filename)
     # Remove consecutive underscores
@@ -382,7 +374,6 @@ def extract_error_message(exception: Exception) -> str:
 
 def is_valid_url(url: str) -> bool:
     """Check if string is a valid URL."""
-    import re
     url_pattern = re.compile(
         r'^https?://'  # http:// or https://
         r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain...
@@ -462,8 +453,6 @@ def create_success_response(data: Any = None, message: str = "Success") -> Dict[
 
 def retry_operation(operation, max_retries: int = 3, delay: float = 1.0):
     """Retry an operation with exponential backoff."""
-    import time
-    
     for attempt in range(max_retries):
         try:
             return operation()
@@ -511,9 +500,6 @@ def dicts_to_csv(rows: list[dict], fieldnames: Optional[list[str]] = None) -> st
     Returns:
         CSV content as string (including header row).
     """
-    import csv
-    from io import StringIO
-
     output = StringIO()
     if not rows:
         # Emit minimal header if none provided
@@ -527,8 +513,8 @@ def dicts_to_csv(rows: list[dict], fieldnames: Optional[list[str]] = None) -> st
 
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
-    for r in rows:
-        writer.writerow(r)
+    for row in rows:
+        writer.writerow(row)
     return output.getvalue()
 
 

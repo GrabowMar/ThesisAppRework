@@ -1,0 +1,91 @@
+{
+  "generation_settings": {
+    "token_limit_mode": "uniform",
+    "uniform_token_limit": 32000,
+    "validation_strictness": "strict",
+    "retry_on_truncation": true,
+    "max_truncation_retries": 2,
+    "retry_on_validation_failure": true,
+    "max_validation_retries": 3,
+    "temperature": 0.3,
+    "enable_metrics_tracking": true
+  },
+  "model_token_limits": {
+    "default": 32000,
+    "anthropic/claude-3-5-sonnet": 16384,
+    "anthropic/claude-3.5-sonnet": 16384,
+    "anthropic/claude-3-5-sonnet:beta": 16384,
+    "anthropic/claude-3-opus": 16384,
+    "anthropic/claude-3-sonnet": 16384,
+    "anthropic/claude-3-haiku": 16384,
+    "anthropic/claude-3.5-haiku": 16384,
+    "anthropic/claude-3-5-haiku": 16384,
+    "anthropic/claude-sonnet-4": 16384,
+    "openai/gpt-4o": 32768,
+    "openai/gpt-4o-mini": 32768,
+    "openai/gpt-4-turbo": 16384,
+    "openai/gpt-4": 8192,
+    "openai/o1-preview": 32768,
+    "openai/o1-mini": 32768,
+    "openai/o3-mini": 65536,
+    "openai/o3-mini-high": 65536,
+    "google/gemini-pro-1.5": 32000,
+    "google/gemini-flash-1.5": 16384,
+    "google/gemini-2.0-flash-001": 16384,
+    "google/gemini-2.5-flash-preview": 16384,
+    "meta-llama/llama-3.3-70b-instruct": 16384,
+    "meta-llama/llama-3.1-405b-instruct": 16384,
+    "meta-llama/llama-3.1-70b-instruct": 16384,
+    "mistralai/mixtral-8x22b-instruct": 65536,
+    "mistralai/mistral-large": 65536,
+    "deepseek/deepseek-chat": 16384,
+    "deepseek/deepseek-coder": 16384,
+    "deepseek/deepseek-r1": 16384,
+    "deepseek/deepseek-chat-v3-0324:free": 16384,
+    "qwen/qwen-2.5-coder-32b-instruct": 16384,
+    "qwen/qwen-2.5-72b-instruct": 16384
+  },
+  "validation_rules": {
+    "guarded": {
+      "backend_user": {
+        "required_files": ["models.py", "routes/user.py"],
+        "forbidden_patterns": ["from flask import Flask", "app = Flask"],
+        "required_patterns": ["user_bp = Blueprint", "to_dict"]
+      },
+      "backend_admin": {
+        "required_files": ["routes/admin.py"],
+        "forbidden_patterns": ["from flask import Flask", "app = Flask"],
+        "required_patterns": ["admin_bp = Blueprint", "/api/admin/"]
+      },
+      "frontend_user": {
+        "required_files": ["pages/UserPage.jsx", "services/api.js"],
+        "forbidden_patterns": [],
+        "required_patterns": ["export default", "axios"]
+      },
+      "frontend_admin": {
+        "required_files": ["pages/AdminPage.jsx"],
+        "forbidden_patterns": [],
+        "required_patterns": ["export default", "/api/admin/"]
+      }
+    },
+    "unguarded": {
+      "backend": {
+        "required_files": ["app.py"],
+        "forbidden_files": ["models.py", "services.py", "routes/user.py", "routes/admin.py"],
+        "forbidden_patterns": ["Blueprint(", "from routes", "import routes"],
+        "required_patterns": ["app = Flask", "@app.route", "/api/health"]
+      },
+      "frontend": {
+        "required_files": ["main.jsx", "App.jsx", "App.css"],
+        "forbidden_files": ["components/", "pages/", "hooks/", "services/", "utils/"],
+        "forbidden_patterns": ["import axios", "from 'axios'"],
+        "required_patterns": ["fetch(", "export default"]
+      }
+    }
+  },
+  "truncation_detection": {
+    "threshold_percentage": 90,
+    "retry_with_reduced_tokens": true,
+    "token_reduction_factor": 0.8
+  }
+}

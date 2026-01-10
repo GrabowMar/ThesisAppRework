@@ -109,16 +109,7 @@ def register_blueprints(app):
 
     # Register refactored API blueprints under /api prefix
     app.register_blueprint(api_bp, url_prefix='/api')  # Main API orchestrator (includes all nested blueprints)
-    
-    # Individual blueprint registration commented out since they're now nested in api_bp
-    # app.register_blueprint(core_bp, url_prefix='/api')
-    # app.register_blueprint(api_models_bp, url_prefix='/api/models')
-    # app.register_blueprint(system_bp, url_prefix='/api/system')
-    # app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
-    # app.register_blueprint(applications_bp, url_prefix='/api')
-    # app.register_blueprint(api_analysis_bp, url_prefix='/api')
-    # app.register_blueprint(migration_bp, url_prefix='/api')
-    
+
     # These already have their prefixes defined in the blueprint files
     app.register_blueprint(gen_bp)  # /api/gen (scaffolding-first generation)
     app.register_blueprint(tasks_rt_bp)   # /api/tasks

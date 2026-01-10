@@ -20,7 +20,7 @@ class AnalyzerServiceConfig:
     name: str
     websocket_url: str
 
-@dataclass 
+@dataclass
 class AnalyzerConfig:
     """Complete analyzer configuration."""
     services: Dict[str, AnalyzerServiceConfig]
@@ -31,18 +31,108 @@ class AnalyzerConfig:
     valid_tools: Dict[str, List[str]]
     timeouts: Dict[str, int]
 
+
+@dataclass
+class GenerationSettings:
+    """Configuration for code generation behavior.
+    
+    Controls token limits, validation strictness, and retry behavior
+    to improve generation success rate and cross-model comparison fairness.
+    """
+    # Token limit mode: 'uniform' uses same limit for all models, 'model_specific' uses per-model limits
+    token_limit_mode: str = 'uniform'
+    # Token limit when using uniform mode
+    uniform_token_limit: int = 32000
+    # Validation strictness: 'strict' fails on missing patterns, 'lenient' only logs warnings
+    validation_strictness: str = 'strict'
+    # Whether to retry when truncation is detected
+    retry_on_truncation: bool = True
+    # Maximum retries for truncation
+    max_truncation_retries: int = 2
+    # Whether to retry when validation fails
+    retry_on_validation_failure: bool = True
+    # Maximum retries for validation failures
+    max_validation_retries: int = 3
+    # Default temperature for generation
+    temperature: float = 0.3
+    # Whether to track generation metrics
+    enable_metrics_tracking: bool = True
+    # Per-model token limits (used when token_limit_mode='model_specific')
+    model_token_limits: Dict[str, int] = None
+    # Validation rules for each query type
+    validation_rules: Dict[str, Any] = None
+    # Truncation detection settings
+    truncation_threshold_percentage: int = 90
+    truncation_token_reduction_factor: float = 0.8
+    
+    def __post_init__(self):
+        """Initialize mutable defaults."""
+        if self.model_token_limits is None:
+            self.model_token_limits = {}
+        if self.validation_rules is None:
+            self.validation_rules = {}
+    
+    def get_token_limit(self, model_slug: str) -> int:
+        """Get token limit for a model based on current mode.
+        
+        Args:
+            model_slug: The model identifier (e.g., 'openai/gpt-4o')
+            
+        Returns:
+            Token limit to use for this model
+        """
+        if self.token_limit_mode == 'uniform':
+            return self.uniform_token_limit
+        
+        # Model-specific mode - look up limit
+        # Try exact match first
+        if model_slug in self.model_token_limits:
+            return self.model_token_limits[model_slug]
+        
+        # Try lowercase match
+        model_lower = model_slug.lower()
+        for key, limit in self.model_token_limits.items():
+            if key.lower() == model_lower:
+                return limit
+        
+        # Try partial match (provider/model-name pattern)
+        for key, limit in self.model_token_limits.items():
+            if model_lower.startswith(key.lower().split('/')[0]):
+                return limit
+        
+        # Fallback to default
+        return self.model_token_limits.get('default', 32000)
+    
+    def get_validation_rules(self, generation_mode: str, query_type: str) -> Dict[str, Any]:
+        """Get validation rules for a specific generation mode and query type.
+        
+        Args:
+            generation_mode: 'guarded' or 'unguarded'
+            query_type: For guarded: 'backend_user', 'backend_admin', 'frontend_user', 'frontend_admin'
+                       For unguarded: 'backend', 'frontend'
+        
+        Returns:
+            Dictionary with validation rules (required_files, forbidden_patterns, etc.)
+        """
+        mode_rules = self.validation_rules.get(generation_mode, {})
+        return mode_rules.get(query_type, {})
+
 class ConfigManager:
     """Centralized configuration manager."""
     
     def __init__(self, config_dir: Optional[str] = None):
         self.config_dir = Path(config_dir or 'src/config')
         self._analyzer_config: Optional[AnalyzerConfig] = None
+        self._generation_config: Optional[GenerationSettings] = None
         self._load_configs()
     
     def _load_configs(self):
         """Load all configuration files."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Load analyzer configuration
         try:
-            # Load analyzer configuration
             analyzer_config_path = self.config_dir / 'analyzer_config.json'
             if analyzer_config_path.exists():
                 with open(analyzer_config_path) as f:
@@ -52,9 +142,25 @@ class ConfigManager:
                 # Fallback to defaults if config file doesn't exist
                 self._analyzer_config = self._get_default_analyzer_config()
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(f"Could not load configuration: {e}")
+            logger.warning(f"Could not load analyzer configuration: {e}")
             self._analyzer_config = self._get_default_analyzer_config()
+        
+        # Load generation configuration
+        try:
+            generation_config_path = self.config_dir / 'generation_config.json'
+            if generation_config_path.exists():
+                with open(generation_config_path) as f:
+                    generation_data = json.load(f)
+                self._generation_config = self._parse_generation_config(generation_data)
+                logger.info(f"Loaded generation config: token_limit_mode={self._generation_config.token_limit_mode}, "
+                           f"validation_strictness={self._generation_config.validation_strictness}")
+            else:
+                # Fallback to defaults if config file doesn't exist
+                self._generation_config = self._get_default_generation_config()
+                logger.info("Using default generation configuration")
+        except Exception as e:
+            logger.warning(f"Could not load generation configuration: {e}")
+            self._generation_config = self._get_default_generation_config()
     
     def _parse_analyzer_config(self, data: Dict[str, Any]) -> AnalyzerConfig:
         """Parse analyzer configuration from JSON data."""
@@ -143,6 +249,107 @@ class ConfigManager:
             }
         )
     
+    def _parse_generation_config(self, data: Dict[str, Any]) -> GenerationSettings:
+        """Parse generation configuration from JSON data."""
+        settings = data.get('generation_settings', {})
+        model_limits = data.get('model_token_limits', {})
+        validation_rules = data.get('validation_rules', {})
+        truncation = data.get('truncation_detection', {})
+        
+        return GenerationSettings(
+            token_limit_mode=settings.get('token_limit_mode', 'uniform'),
+            uniform_token_limit=settings.get('uniform_token_limit', 32000),
+            validation_strictness=settings.get('validation_strictness', 'strict'),
+            retry_on_truncation=settings.get('retry_on_truncation', True),
+            max_truncation_retries=settings.get('max_truncation_retries', 2),
+            retry_on_validation_failure=settings.get('retry_on_validation_failure', True),
+            max_validation_retries=settings.get('max_validation_retries', 3),
+            temperature=settings.get('temperature', 0.3),
+            enable_metrics_tracking=settings.get('enable_metrics_tracking', True),
+            model_token_limits=model_limits,
+            validation_rules=validation_rules,
+            truncation_threshold_percentage=truncation.get('threshold_percentage', 90),
+            truncation_token_reduction_factor=truncation.get('token_reduction_factor', 0.8)
+        )
+    
+    def _get_default_generation_config(self) -> GenerationSettings:
+        """Get default generation configuration as fallback."""
+        # Allow environment variable overrides for key settings
+        token_mode = os.environ.get('GENERATION_TOKEN_LIMIT_MODE', 'uniform')
+        uniform_limit = int(os.environ.get('GENERATION_UNIFORM_TOKEN_LIMIT', '32000'))
+        validation = os.environ.get('GENERATION_VALIDATION_STRICTNESS', 'strict')
+        temperature = float(os.environ.get('GENERATION_TEMPERATURE', '0.3'))
+        
+        # Default model token limits (used in model_specific mode)
+        default_model_limits = {
+            'default': 32000,
+            'openai/gpt-4o': 32768,
+            'openai/gpt-4-turbo': 32768,
+            'anthropic/claude-3-opus': 16384,
+            'anthropic/claude-3-sonnet': 16384,
+            'anthropic/claude-3-5-sonnet': 16384,
+            'google/gemini-pro': 16384,
+            'google/gemini-2.0-flash': 65536,
+            'deepseek/deepseek-coder': 16384,
+            'meta-llama/llama-3.1-70b': 16384,
+        }
+        
+        # Default validation rules for guarded mode
+        default_validation_rules = {
+            'guarded': {
+                'backend_user': {
+                    'required_files': ['models.py', 'services.py', 'routes/user.py'],
+                    'required_patterns': ['class.*Model', 'def '],
+                    'forbidden_patterns': []
+                },
+                'backend_admin': {
+                    'required_files': ['routes/admin.py'],
+                    'required_patterns': ['def '],
+                    'forbidden_patterns': []
+                },
+                'frontend_user': {
+                    'required_files': ['pages/UserPage.jsx'],
+                    'required_patterns': ['export', 'function.*\\(', 'return.*<'],
+                    'forbidden_patterns': []
+                },
+                'frontend_admin': {
+                    'required_files': ['pages/AdminPage.jsx'],
+                    'required_patterns': ['export', 'function.*\\(', 'return.*<'],
+                    'forbidden_patterns': []
+                }
+            },
+            'unguarded': {
+                'backend': {
+                    'required_files': ['app.py'],
+                    'required_patterns': ['Flask', 'def '],
+                    'forbidden_files': ['routes/', 'services.py', 'models.py'],
+                    'forbidden_patterns': ['from routes import', 'from services import']
+                },
+                'frontend': {
+                    'required_files': ['App.jsx'],
+                    'required_patterns': ['export', 'function'],
+                    'forbidden_files': ['pages/', 'hooks/'],
+                    'forbidden_patterns': ['import.*from.*pages', 'import.*from.*hooks']
+                }
+            }
+        }
+        
+        return GenerationSettings(
+            token_limit_mode=token_mode,
+            uniform_token_limit=uniform_limit,
+            validation_strictness=validation,
+            retry_on_truncation=True,
+            max_truncation_retries=2,
+            retry_on_validation_failure=True,
+            max_validation_retries=3,
+            temperature=temperature,
+            enable_metrics_tracking=True,
+            model_token_limits=default_model_limits,
+            validation_rules=default_validation_rules,
+            truncation_threshold_percentage=90,
+            truncation_token_reduction_factor=0.8
+        )
+    
     def get_queue_config(self) -> Dict[str, int]:
         """Get queue concurrency configuration from environment.
         
@@ -160,6 +367,13 @@ class ConfigManager:
         if self._analyzer_config is None:
             self._analyzer_config = self._get_default_analyzer_config()
         return self._analyzer_config
+    
+    @property
+    def generation(self) -> GenerationSettings:
+        """Get generation configuration."""
+        if self._generation_config is None:
+            self._generation_config = self._get_default_generation_config()
+        return self._generation_config
     
     def get_analyzer_service_url(self, service_type: str) -> str:
         """Get WebSocket URL for analyzer service."""

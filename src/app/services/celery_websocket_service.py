@@ -9,7 +9,6 @@ distributed task execution and message broadcasting.
 from __future__ import annotations
 
 import logging
-import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -73,18 +72,6 @@ class CeleryWebSocketService:
             for t in tasks
         ]
 
-    def get_event_log(self) -> List[Dict[str, Any]]:
-        """
-        Get recent events.
-        In a real distributed system, this might query a persistent event log.
-        For now, we return an empty list or implement a limited in-memory buffer if needed.
-        """
-        return []
-
-    def clear_event_log(self) -> None:
-        """Clear event log."""
-        pass
-
     def start_analysis(self, data: Dict[str, Any]) -> Optional[str]:
         """
         Start an analysis task.
@@ -116,13 +103,7 @@ class CeleryWebSocketService:
             task.status = AnalysisStatus.CANCELLED
             task.completed_at = datetime.now(timezone.utc)
             db.session.commit()
-            
-            # Revoke Celery task if we had the ID stored
-            # This would require storing the celery_task_id in the AnalysisTask model
-            # if task.celery_task_id:
-            #     from app.celery_worker import celery
-            #     celery.control.revoke(task.celery_task_id, terminate=True)
-            
+
             self.emit('analysis_cancelled', {'analysis_id': analysis_id})
             return True
         return False

@@ -5,13 +5,16 @@ This module initializes Flask extensions used throughout the application.
 Extensions are created here and then initialized in the app factory.
 """
 
+import csv
+import io
+import logging
+from typing import Optional
+
+import requests
 from flask import Flask, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
-import requests
-import logging
-from typing import Optional
 
 # Initialize extensions
 db = SQLAlchemy()
@@ -247,9 +250,6 @@ def dicts_to_csv(data: list[dict], filename: Optional[str] = None) -> str:
     """Convert list of dictionaries to CSV string."""
     if not data:
         return ""
-
-    import io
-    import csv
 
     # Get all unique keys from all dictionaries
     fieldnames = set()

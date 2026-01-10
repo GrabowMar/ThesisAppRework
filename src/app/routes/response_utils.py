@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 
 def json_success(data: Any = None, message: Optional[str] = None, status: int = 200, **meta):
     """Build a standardized success JSON response.
+
     Additional keyword args become part of meta.
     """
     payload: Dict[str, Any] = {
