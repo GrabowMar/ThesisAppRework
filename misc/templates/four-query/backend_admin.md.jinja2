@@ -29,6 +29,11 @@ Admin routes should typically provide:
 3. Bulk delete operations
 4. Dashboard statistics (counts, aggregates)
 
+## Common Mistakes to Avoid
+- ❌ Re-defining models → ✅ use the existing models from Query 1
+- ❌ Using user endpoints for admin features → ✅ use `/api/admin/...` via `admin_bp`
+- ❌ Filtering admin lists by `is_active=True` → ✅ admins typically need ALL items
+
 ## Reference
 {{ scaffolding_backend_context }}
 
@@ -63,7 +68,7 @@ Before submitting, verify:
 - [x] Proper HTTP status codes (200, 201, 400, 404, 500)
 
 
-Generate COMPLETE, WORKING code.
+Generate COMPLETE, WORKING code. Do not include explanations.
 Routes MUST use `admin_bp` blueprint from `routes import admin_bp`.
 Import models: `from models import db, ModelName`
 

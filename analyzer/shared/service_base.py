@@ -174,12 +174,12 @@ class BaseWSService:
                     # Allow streaming for progress_update and status_update messages
                     if msg_type in ("analysis_request", "static_analyze", "performance_test", "ai_analysis"):
                         # Analysis requests are terminal - close after response
-                        self.log.debug(f"Analysis complete for {client}, initiating graceful close")
-                        try:
-                            await websocket.close(1000, "Analysis complete")  # Normal closure
-                        except Exception:
-                            pass  # Client may have already disconnected
-                        return  # Exit handler after analysis
+                        self.log.debug(f"Analysis complete for {client}, waiting for client to close")
+                        # IMPORTANT: Let the CLIENT (gateway) close the connection after receiving the response
+                        # Closing here causes a race condition where the gateway hasn't read the response yet
+                        # The gateway will close the connection after receiving our response
+                        # We'll exit naturally when the connection closes
+                        # Don't explicitly close here to avoid race condition
 
         except websockets.exceptions.ConnectionClosed:
             self.log.debug(f"Client disconnected: {client}")

@@ -664,23 +664,51 @@ class PipelineExecutionService:
     
     def _submit_analysis_task(self, pipeline: PipelineExecution, job: Dict[str, Any]) -> str:
         """Create and submit a single analysis task.
-        
+
         Returns task_id on success, or error/skipped marker on failure.
         """
         model_slug = job['model_slug']
         app_number = job['app_number']
         pipeline_id = pipeline.pipeline_id
-        
+
+        # CRITICAL: Use SELECT FOR UPDATE to prevent race conditions
+        # This locks the pipeline row until transaction commits, preventing concurrent duplicate creation
+        # Refresh pipeline from DB with lock
+        from sqlalchemy import select
+        stmt = select(PipelineExecution).filter_by(pipeline_id=pipeline_id).with_for_update()
+        pipeline = db.session.execute(stmt).scalar_one()
+
         # Check for duplicate task (prevents issues on server restart)
         progress = pipeline.progress
         existing_task_ids = progress.get('analysis', {}).get('task_ids', [])
-        
+        submitted_apps = progress.get('analysis', {}).get('submitted_apps', [])
+        job_key = f"{model_slug}:{app_number}"
+
+        # Check submitted_apps first (fastest check)
+        if job_key in submitted_apps:
+            self._log(
+                "Skipping duplicate analysis task for %s app %d (in submitted_apps)",
+                model_slug, app_number
+            )
+            # Find and return existing task_id
+            for task_id in existing_task_ids:
+                if task_id.startswith('skipped') or task_id.startswith('error:'):
+                    continue
+                existing_task = AnalysisTask.query.filter_by(task_id=task_id).first()
+                if (existing_task and
+                    existing_task.target_model == model_slug and
+                    existing_task.target_app_number == app_number):
+                    return task_id
+            # Shouldn't reach here, but return marker if inconsistent state
+            return f'error:duplicate_inconsistent_{model_slug}_{app_number}'
+
+        # Double-check against existing tasks (belt-and-suspenders)
         for task_id in existing_task_ids:
             if task_id.startswith('skipped') or task_id.startswith('error:'):
                 continue
             existing_task = AnalysisTask.query.filter_by(task_id=task_id).first()
-            if (existing_task and 
-                existing_task.target_model == model_slug and 
+            if (existing_task and
+                existing_task.target_model == model_slug and
                 existing_task.target_app_number == app_number):
                 self._log(
                     "Skipping duplicate analysis task for %s app %d (already have %s)",

@@ -43,6 +43,8 @@ class GenerationSettings:
     token_limit_mode: str = 'uniform'
     # Token limit when using uniform mode
     uniform_token_limit: int = 32000
+    # Whether validation is enabled (syntax and structure checks)
+    validation_enabled: bool = True
     # Validation strictness: 'strict' fails on missing patterns, 'lenient' only logs warnings
     validation_strictness: str = 'strict'
     # Whether to retry when truncation is detected

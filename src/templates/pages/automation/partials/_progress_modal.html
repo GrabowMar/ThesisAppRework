@@ -262,7 +262,11 @@
 
 <script>
 // Pipeline Progress Modal Controller
-const PipelineProgressModal = {
+// Guard against re-declaration on HTMX content swaps
+if (typeof window.PipelineProgressModal !== 'undefined') {
+  console.debug('PipelineProgressModal already defined, skipping re-initialization');
+} else {
+window.PipelineProgressModal = {
   pipelineId: null,
   pollInterval: null,
   startTime: null,
@@ -273,7 +277,9 @@ const PipelineProgressModal = {
    */
   open(pipelineId) {
     this.pipelineId = pipelineId;
-    this.startTime = Date.now();
+    // Don't set startTime here - we'll get it from the server response
+    // to ensure the clock shows accurate elapsed time even on page refresh
+    this.startTime = null;
     
     // Show modal
     const modal = new bootstrap.Modal(document.getElementById('pipelineProgressModal'));
@@ -281,9 +287,9 @@ const PipelineProgressModal = {
     
     // Start polling
     this.startPolling();
-    this.startElapsedTimer();
+    // Don't start elapsed timer until we get started_at from server
     
-    // Initial fetch
+    // Initial fetch (will set startTime from server data)
     this.fetchDetailedStatus();
   },
   
@@ -336,11 +342,19 @@ const PipelineProgressModal = {
    * Update elapsed time display
    */
   updateElapsed() {
+    if (!this.startTime) return;
+    
     const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
-    const mins = Math.floor(elapsed / 60);
+    const hours = Math.floor(elapsed / 3600);
+    const mins = Math.floor((elapsed % 3600) / 60);
     const secs = elapsed % 60;
-    document.getElementById('progress-modal-elapsed').textContent = 
-      `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    
+    // Show hours if elapsed time is >= 1 hour
+    const display = hours > 0 
+      ? `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+      : `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    
+    document.getElementById('progress-modal-elapsed').textContent = display;
   },
   
   /**
@@ -372,19 +386,27 @@ const PipelineProgressModal = {
     // Pipeline ID and status
     document.getElementById('progress-modal-pipeline-id').textContent = data.id || '--';
     
+    // Set startTime from server's started_at (only once, to preserve accurate elapsed time)
+    if (!this.startTime && data.started_at) {
+      this.startTime = new Date(data.started_at).getTime();
+      this.startElapsedTimer();
+      this.updateElapsed(); // Immediate update
+    }
+    
     const statusBadge = document.getElementById('progress-modal-status-badge');
     const statusColors = {
       'pending': 'bg-secondary',
       'running': 'bg-primary',
       'completed': 'bg-success',
+      'partial_success': 'bg-warning',
       'failed': 'bg-danger',
       'cancelled': 'bg-warning'
     };
     statusBadge.className = `badge fs-6 ${statusColors[data.status] || 'bg-secondary'}`;
-    statusBadge.textContent = (data.status || 'unknown').charAt(0).toUpperCase() + (data.status || 'unknown').slice(1);
+    statusBadge.textContent = (data.status || 'unknown').replace('_', ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     
-    // Overall progress
-    const overallPct = data.overall_progress || 0;
+    // Overall progress (capped at 100 on server side, but also cap here for safety)
+    const overallPct = Math.min(data.overall_progress || 0, 100);
     document.getElementById('progress-modal-overall-pct').textContent = `${Math.round(overallPct)}%`;
     document.getElementById('progress-modal-overall-bar').style.width = `${overallPct}%`;
     
@@ -653,6 +675,7 @@ const PipelineProgressModal = {
     }).join('');
   }
 };
+} // End guard pattern
 
 // Filter change handler
 document.querySelectorAll('input[name="task-filter"]').forEach(radio => {

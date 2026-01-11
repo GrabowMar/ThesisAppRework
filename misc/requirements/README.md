@@ -145,8 +145,8 @@ Keep it **simple and focused**:
 
 ## Technical Stack
 
-- **Backend:** Flask 3.0.0 + SQLAlchemy 2.0.25 + SQLite
-- **Frontend:** React 18.2.0 + Vite 5.0.0 + Bootstrap 5.3.2
+- **Backend:** Flask + SQLAlchemy + SQLite (see scaffolding for exact versions)
+- **Frontend:** React + Vite + Tailwind (available in scaffolding) + axios
 - **Deployment:** Docker Compose with health checks
 - **Port Allocation:** Deterministic based on model + app number
 

@@ -6,6 +6,13 @@
 {% set active_page = 'sample-generator' %}
 
 {% block content %}
+{# Embed server-side data for JavaScript consumption - avoids auth issues with fetch #}
+<script id="page-data" type="application/json">
+{
+  "models": {{ models|tojson if models else '[]' }},
+  "templates": {{ templates|tojson if templates else '[]' }}
+}
+</script>
 {% include 'pages/sample_generator/partials/_wizard.html' %}
 {% endblock %}
 

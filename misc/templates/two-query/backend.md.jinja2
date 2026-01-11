@@ -2,17 +2,38 @@
 
 {{ description }}
 
+## YOUR MISSION
+Generate **complete, runnable** Flask backend code that satisfies ALL requirements and fits into the provided scaffolding.
+
+## Stack & Versions
+- Python 3.11+
+- Flask 3.x
+- Flask-SQLAlchemy 3.1+ (SQLAlchemy 2.0 style)
+- flask-cors 4.x
+
 ## Requirements
 {% for req in backend_requirements %}
 - {{ req }}
 {% endfor %}
 
 {% if api_endpoints %}
-## API Endpoints
+## Suggested API Endpoints
 {{ api_endpoints }}
 {% endif %}
 
-## Reference
+## Implementation Process (DO INTERNALLY)
+1. Map requirements → models, fields, relationships, and routes.
+2. Align response shapes to the endpoint specs.
+3. Implement models with `to_dict()` (JSON-safe) and soft-delete (`is_active`).
+4. Implement routes with validation + correct status codes.
+5. Sanity-check: no missing imports, no truncated code, no placeholders.
+
+## Common Mistakes to Avoid
+- ❌ Returning raw SQLAlchemy objects → ✅ always serialize with `to_dict()`.
+- ❌ Forgetting `db.session.rollback()` on exceptions → ✅ rollback in except blocks.
+- ❌ Using unfiltered `.all()` for user-facing lists → ✅ filter `is_active=True`.
+
+## Reference (Scaffolding Context)
 {{ scaffolding_backend_context }}
 
 ## Output Format
@@ -21,6 +42,12 @@ Wrap each file in markdown code blocks:
 - `python:filename.py` → additional Python file
 - `requirements` → extra dependencies
 
-Generate complete, working code for ALL requirements.
+## Success Criteria
+- ✅ All listed endpoints exist and return expected shapes
+- ✅ Correct status codes (200/201/400/404/500)
+- ✅ Input validation on write routes
+- ✅ No placeholders, TODOs, or truncated code
+
+Generate complete, working code for ALL requirements. Do not include explanations.
 
 

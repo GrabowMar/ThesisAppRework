@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -454,8 +455,12 @@ def _collect_app_prompts(app_number: int, model_slug: Optional[str] = None) -> T
     
     # Try new location first: generated/raw/payloads/{model_slug}/app{number}/
     if model_slug:
-        payloads_dir = _project_root() / 'generated' / 'raw' / 'payloads' / model_slug / f'app{app_number}'
-        responses_dir = _project_root() / 'generated' / 'raw' / 'responses' / model_slug / f'app{app_number}'
+        # Sanitize model_slug the same way generation.py does when saving files
+        # This ensures we look in the same directory where files were saved
+        safe_model = re.sub(r'[^\w\-.]', '_', model_slug)
+        
+        payloads_dir = _project_root() / 'generated' / 'raw' / 'payloads' / safe_model / f'app{app_number}'
+        responses_dir = _project_root() / 'generated' / 'raw' / 'responses' / safe_model / f'app{app_number}'
         current_app.logger.info(f"Looking for prompts in: {payloads_dir}, exists: {payloads_dir.exists()}")
         
         if payloads_dir.exists():

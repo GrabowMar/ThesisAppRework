@@ -97,4 +97,11 @@ gunicorn>=21.0.0
 - NO blueprint prefixes needed (this is single-file architecture)
 - Include BOTH /health (root) and /api/health (API) endpoints
 
-Generate the COMPLETE app.py now with all functionality in a single file.
+## Implementation Process (DO INTERNALLY)
+1. Map requirements → models + endpoints.
+2. Implement models with `to_dict()` and JSON-safe values.
+3. Implement routes with validation + correct status codes.
+4. Verify `/health` and `/api/health` return 200.
+5. Ensure there are no placeholder comments or truncated code.
+
+Generate the COMPLETE app.py now with all functionality in a single file. Do not include explanations.

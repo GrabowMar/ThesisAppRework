@@ -1355,6 +1355,210 @@ Return your code wrapped in markdown code blocks:
 
 Generate complete, working code - no placeholders or TODOs."""
 
+    def validate_generated_code(
+        self, 
+        code: str, 
+        component: str,
+        generation_mode: str = 'guarded',
+        query_type: Optional[str] = None
+    ) -> Tuple[bool, List[str]]:
+        """Validate generated code for syntax errors and structural compliance.
+        
+        Args:
+            code: The generated code to validate
+            component: 'backend' or 'frontend'
+            generation_mode: 'guarded' or 'unguarded'
+            query_type: For guarded: 'backend_user', 'backend_admin', 'frontend_user', 'frontend_admin'
+                       For unguarded: 'backend', 'frontend'
+            
+        Returns:
+            Tuple of (is_valid, list_of_errors)
+        """
+        errors = []
+        warnings = []
+        
+        # Get validation config
+        config = get_config()
+        validation_strictness = config.generation.validation_strictness
+        
+        # Determine query_type if not provided
+        if query_type is None:
+            if generation_mode == 'unguarded':
+                query_type = component  # 'backend' or 'frontend'
+            else:
+                query_type = f"{component}_user"  # Default to user query type
+        
+        # Get validation rules for this mode/query combination
+        validation_rules = config.generation.get_validation_rules(generation_mode, query_type)
+        
+        if not code or not code.strip():
+            errors.append("Generated code is empty")
+            return False, errors
+        
+        # ========== Basic syntax validation ==========
+        if component == 'backend':
+            # Validate Python syntax
+            try:
+                ast.parse(code)
+                logger.info("Backend code validation passed: Python syntax is valid")
+            except SyntaxError as e:
+                # Check if error is due to fence markers in the code
+                if '```' in code[:100]:  # Check first 100 chars for fence markers
+                    logger.warning("Syntax error may be due to markdown fences, attempting cleanup")
+                    cleaned_code = re.sub(r'^```[a-z]*\s*\n?', '', code, flags=re.MULTILINE)
+                    cleaned_code = re.sub(r'\n?```\s*$', '', cleaned_code, flags=re.MULTILINE)
+                    
+                    try:
+                        ast.parse(cleaned_code)
+                        logger.info("✓ Code is valid after fence cleanup - fence markers were the issue")
+                        # Code is valid after cleanup - continue with pattern validation
+                    except SyntaxError:
+                        # Fall through to original error handling
+                        logger.warning("Code still invalid after fence cleanup - genuine syntax error")
+                        error_msg = f"Python syntax error at line {e.lineno}: {e.msg}"
+                        if e.text and '```' not in e.text:
+                            error_msg += f"\n  Code: {e.text.strip()}"
+                        errors.append(error_msg)
+                        logger.error(f"Backend code validation failed: {error_msg}")
+                else:
+                    # No fence markers - genuine syntax error
+                    error_msg = f"Python syntax error at line {e.lineno}: {e.msg}"
+                    if e.text and '```' not in e.text:
+                        error_msg += f"\n  Code: {e.text.strip()}"
+                    elif e.text:
+                        error_msg += f"\n  (Error text contains fence markers - code extraction likely failed)"
+                    errors.append(error_msg)
+                    logger.error(f"Backend code validation failed: {error_msg}")
+            except Exception as e:
+                errors.append(f"Unexpected error during Python parsing: {str(e)}")
+                logger.error(f"Backend code validation failed with unexpected error: {e}")
+        
+        elif component == 'frontend':
+            # ========== Enhanced JSX/JavaScript Validation ==========
+            # Unlike Python (which uses ast.parse), JS validation uses robust regex patterns
+            
+            # 1. Check for basic structure presence
+            if 'import' not in code and 'function' not in code and 'const' not in code:
+                errors.append("Frontend code appears incomplete (missing imports, functions, or components)")
+                logger.warning("Frontend code validation: code appears incomplete")
+            
+            # 2. Validate export default statement
+            if 'export default' not in code:
+                errors.append("Frontend code missing 'export default' statement")
+                logger.warning("Frontend code validation: missing export default")
+            
+            # 3. Check for balanced brackets/braces (common JSX error)
+            open_braces = code.count('{')
+            close_braces = code.count('}')
+            if abs(open_braces - close_braces) > 2:  # Allow small imbalance for string literals
+                errors.append(f"JSX bracket imbalance: {open_braces} opening braces vs {close_braces} closing braces")
+                logger.warning(f"Frontend code validation: bracket imbalance ({open_braces} vs {close_braces})")
+            
+            open_parens = code.count('(')
+            close_parens = code.count(')')
+            if abs(open_parens - close_parens) > 2:
+                errors.append(f"JSX parenthesis imbalance: {open_parens} opening vs {close_parens} closing")
+                logger.warning(f"Frontend code validation: parenthesis imbalance ({open_parens} vs {close_parens})")
+            
+            # 4. Validate import statement syntax (common LLM mistake: malformed imports)
+            import_pattern = re.compile(r'import\s+(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+[\'"][^\'"]+[\'"]')
+            import_lines = [line for line in code.split('\n') if line.strip().startswith('import ')]
+            for line in import_lines:
+                if not import_pattern.search(line) and 'import React' not in line:
+                    # Allow simple "import X from 'Y'" and "import { X } from 'Y'" patterns
+                    simple_import = re.compile(r'import\s+\w+\s+from\s+[\'"][^\'"]+[\'"]')
+                    if not simple_import.search(line):
+                        warnings.append(f"Potentially malformed import statement: {line[:60]}...")
+                        logger.warning(f"Frontend code validation: malformed import in '{line[:60]}...'")
+            
+            # 5. Check for common JSX syntax errors
+            # Missing closing tags for self-closing elements
+            self_closing_pattern = re.compile(r'<(input|img|br|hr|meta|link|area|base|col|embed|param|source|track|wbr)\b[^/>]*>')
+            for match in self_closing_pattern.finditer(code):
+                tag = match.group(1)
+                # Check if tag is properly self-closed with />
+                tag_content = match.group(0)
+                if not tag_content.endswith('/>') and '/>' not in code[match.end():match.end()+20]:
+                    warnings.append(f"JSX self-closing element <{tag}> should use /> syntax")
+                    logger.warning(f"Frontend code validation: <{tag}> should be self-closing")
+            
+            # 6. Validate React component function structure
+            component_pattern = re.compile(r'(?:function\s+(\w+)|const\s+(\w+)\s*=\s*(?:\([^)]*\)\s*=>|\function))')
+            component_matches = component_pattern.findall(code)
+            if not component_matches:
+                warnings.append("No React component function found (expected 'function ComponentName' or 'const ComponentName = ')")
+                logger.warning("Frontend code validation: no component function pattern found")
+            else:
+                # Check if any component starts with uppercase (React convention)
+                has_uppercase_component = any(
+                    (m[0] and m[0][0].isupper()) or (m[1] and m[1][0].isupper())
+                    for m in component_matches
+                )
+                if not has_uppercase_component:
+                    warnings.append("React components should start with uppercase (e.g., 'function MyComponent' not 'function myComponent')")
+                    logger.warning("Frontend code validation: no uppercase component name found")
+            
+            # 7. Check for JSX return statement
+            jsx_return_pattern = re.compile(r'return\s*\(\s*<|return\s+<')
+            if not jsx_return_pattern.search(code):
+                warnings.append("No JSX return statement found (expected 'return (<JSX>)' or 'return <JSX>')")
+                logger.warning("Frontend code validation: no JSX return pattern found")
+            
+            # 8. Check for common mistakes
+            if 'localhost' in code.lower() and 'backend:5000' not in code:
+                errors.append("Frontend code should use 'http://backend:5000' not localhost")
+                logger.warning("Frontend code validation: found localhost instead of backend:5000")
+            
+            # 9. Check for incomplete JSX expressions (common LLM truncation)
+            incomplete_patterns = [
+                (r'<\w+\s+[^>]*$', "Incomplete JSX tag at end of code"),
+                (r'\{\s*$', "Incomplete JSX expression (unclosed brace at end)"),
+                (r'return\s*\(\s*$', "Incomplete return statement at end of code"),
+            ]
+            last_100_chars = code[-100:] if len(code) > 100 else code
+            for pattern, msg in incomplete_patterns:
+                if re.search(pattern, last_100_chars, re.MULTILINE):
+                    errors.append(f"Code appears truncated: {msg}")
+                    logger.warning(f"Frontend code validation: {msg}")
+        
+        # ========== Configurable pattern validation ==========
+        if validation_rules:
+            # Check required patterns
+            required_patterns = validation_rules.get('required_patterns', [])
+            for pattern in required_patterns:
+                if pattern not in code:
+                    msg = f"Missing required pattern: '{pattern}' (query_type={query_type})"
+                    warnings.append(msg)
+                    logger.warning(f"Validation warning: {msg}")
+            
+            # Check forbidden patterns
+            forbidden_patterns = validation_rules.get('forbidden_patterns', [])
+            for pattern in forbidden_patterns:
+                if pattern in code:
+                    msg = f"Found forbidden pattern: '{pattern}' (query_type={query_type})"
+                    warnings.append(msg)
+                    logger.warning(f"Validation warning: {msg}")
+        
+        # ========== Apply strictness level ==========
+        if validation_strictness == 'strict':
+            # In strict mode, pattern warnings become errors
+            errors.extend(warnings)
+        else:
+            # In lenient mode, pattern issues are just logged warnings
+            if warnings:
+                logger.info(f"Validation completed with {len(warnings)} pattern warnings (lenient mode - not failing)")
+        
+        is_valid = len(errors) == 0
+        
+        log_level = "info" if is_valid else "warning"
+        total_issues = len(errors) + len(warnings)
+        getattr(logger, log_level)(
+            f"{component.capitalize()} code validation completed: "
+            f"valid={is_valid}, errors={len(errors)}, warnings={len(warnings)}"
+        )
+        
+        return is_valid, errors
+
 
 class CodeMerger:
     """Simplified code merger that overwrites files with LLM-generated code.

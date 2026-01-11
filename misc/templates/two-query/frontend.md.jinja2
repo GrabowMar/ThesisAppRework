@@ -2,15 +2,30 @@
 
 {{ description }}
 
+## YOUR MISSION
+Generate **complete, runnable** React frontend code that satisfies ALL requirements and integrates with the provided backend API.
+
+## Stack & Versions
+- React 18
+- Axios (use the provided axios instance pattern)
+- Tailwind CSS + react-hot-toast
+
 ## Requirements
 {% for req in frontend_requirements %}
 - {{ req }}
 {% endfor %}
 
 {% if api_endpoints %}
-## Backend API
+## Backend API Available
 {{ api_endpoints }}
 {% endif %}
+
+## Implementation Process (DO INTERNALLY)
+1. Map requirements → UI sections, state, and user flows.
+2. Map endpoints → functions in `services/api.js` (axios baseURL is `/api`).
+3. Implement loading/error/empty states and optimistic UX where safe.
+4. Add toast notifications for create/update/delete actions.
+5. Sanity-check: no placeholders/TODOs/truncated code.
 
 ## Reference
 {{ scaffolding_frontend_context }}
@@ -21,6 +36,12 @@ Wrap each file in markdown code blocks:
 - `jsx:components/Name.jsx` → additional component
 - `css` → becomes App.css
 
-Generate complete, working code with good UX (loading, errors, toasts).
+## Success Criteria
+- ✅ All requirements implemented
+- ✅ API integration matches endpoints + response shapes
+- ✅ Good UX (loading/errors/toasts)
+- ✅ No placeholders/TODOs
+
+Generate complete, working code with good UX (loading, errors, toasts). Do not include explanations.
 
 

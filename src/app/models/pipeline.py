@@ -350,6 +350,7 @@ class PipelineExecution(db.Model):
         
         Progress is split between generation (50%) and analysis (50%).
         If analysis is disabled, generation is 100%.
+        Result is always capped at 100% to prevent display issues.
         """
         progress = self.progress
         
@@ -370,10 +371,12 @@ class PipelineExecution(db.Model):
         gen_weight = 0.5 if analysis_total > 0 else 1.0
         analysis_weight = 0.5 if analysis_total > 0 else 0.0
         
-        gen_progress = (gen_done / gen_total * 100) if gen_total > 0 else 100.0
-        analysis_progress = (analysis_done / analysis_total * 100) if analysis_total > 0 else 0.0
+        # Cap individual stage progress at 100% (handles cases where done > total due to race conditions)
+        gen_progress = min((gen_done / gen_total * 100) if gen_total > 0 else 100.0, 100.0)
+        analysis_progress = min((analysis_done / analysis_total * 100) if analysis_total > 0 else 0.0, 100.0)
         
-        return round(gen_progress * gen_weight + analysis_progress * analysis_weight, 1)
+        # Cap overall progress at 100%
+        return min(round(gen_progress * gen_weight + analysis_progress * analysis_weight, 1), 100.0)
     
     def get_next_job(self) -> Optional[Dict[str, Any]]:
         """Get the next job to execute based on current stage and index."""

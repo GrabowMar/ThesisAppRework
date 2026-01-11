@@ -196,7 +196,7 @@ class Item(db.Model):
 ### Example 2: GET Route with Query Params
 
 ```python
-@user_bp.route('/items', methods=['GET'])
+@app.route('/api/items', methods=['GET'])
 def get_items():
     try:
         # Parse query parameters
@@ -224,7 +224,7 @@ def get_items():
 ### Example 3: POST Route with Validation
 
 ```python
-@user_bp.route('/items', methods=['POST'])
+@app.route('/api/items', methods=['POST'])
 def create_item():
     try:
         data = request.get_json()

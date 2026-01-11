@@ -587,6 +587,7 @@ async function launchPipeline() {
         // Call API to start pipeline
         const response = await fetch(wizard.endpoints.startPipeline, {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'
@@ -638,6 +639,7 @@ async function pausePipeline() {
     try {
         const response = await fetch(wizard.endpoints.pausePipeline(wizard.state.pipelineId), {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'
@@ -675,6 +677,7 @@ async function cancelPipeline() {
     try {
         const response = await fetch(wizard.endpoints.cancelPipeline(wizard.state.pipelineId), {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'
@@ -745,6 +748,7 @@ async function pollPipelineStatus() {
         const response = await fetch(
             wizard.endpoints.getStatus(wizard.state.pipelineId),
             {
+                credentials: 'include',
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             }
         );
@@ -864,15 +868,18 @@ function updateStageProgress(stageName, progress) {
  * Update overall progress bar
  */
 function updateOverallProgress(pct) {
+    // Cap progress at 100% to prevent display issues
+    const cappedPct = Math.min(pct, 100);
+    
     const progressBar = document.getElementById('overall-progress-bar');
     const progressText = document.getElementById('overall-progress-text');
     
     if (progressBar) {
-        progressBar.style.width = `${pct}%`;
-        progressBar.setAttribute('aria-valuenow', pct);
+        progressBar.style.width = `${cappedPct}%`;
+        progressBar.setAttribute('aria-valuenow', cappedPct);
     }
     if (progressText) {
-        progressText.textContent = `${Math.round(pct)}%`;
+        progressText.textContent = `${Math.round(cappedPct)}%`;
     }
 }
 
@@ -916,6 +923,7 @@ async function checkAndRestoreActivePipeline() {
     
     try {
         const response = await fetch('/automation/api/pipelines/active', {
+            credentials: 'include',
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
         
@@ -1361,7 +1369,10 @@ async function loadAnalysisTools() {
     
     try {
         console.log('[AutomationWizard] Loading analysis tools from:', wizard.endpoints.getTools);
-        const response = await fetch(wizard.endpoints.getTools);
+        const response = await fetch(wizard.endpoints.getTools, {
+            credentials: 'include',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
         
         if (!response.ok) {
             console.error('[AutomationWizard] Failed to load tools:', response.status, response.statusText);
@@ -1969,7 +1980,7 @@ function showLoadSettingsModal() {
     modal.show();
     
     // Load settings list
-    fetch('/automation/api/settings')
+    fetch('/automation/api/settings', { credentials: 'include' })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -2076,7 +2087,7 @@ function renderLoadSettingsList(settings) {
  * Load pipeline settings and close the modal
  */
 function loadPipelineSettingsAndClose(settingsId) {
-    fetch(`/automation/api/settings/${settingsId}`)
+    fetch(`/automation/api/settings/${settingsId}`, { credentials: 'include' })
         .then(response => response.json())
         .then(data => {
             if (data.success && data.data) {
@@ -2102,7 +2113,7 @@ function loadPipelineSettingsAndClose(settingsId) {
  */
 function showManageSettingsModal() {
     // Load settings list first
-    fetch('/automation/api/settings')
+    fetch('/automation/api/settings', { credentials: 'include' })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -2187,6 +2198,7 @@ function saveCurrentSettings() {
     
     fetch('/automation/api/settings', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, description, config, is_default: isDefault }),
     })
@@ -2214,7 +2226,7 @@ function saveCurrentSettings() {
  * Load pipeline settings by ID
  */
 function loadPipelineSettings(settingsId) {
-    fetch(`/automation/api/settings/${settingsId}`)
+    fetch(`/automation/api/settings/${settingsId}`, { credentials: 'include' })
         .then(response => response.json())
         .then(data => {
             if (data.success && data.data) {
@@ -2307,7 +2319,7 @@ function applySettings(config) {
  * Set a settings preset as default
  */
 function setDefaultSettings(settingsId) {
-    fetch(`/automation/api/settings/${settingsId}/default`, { method: 'POST' })
+    fetch(`/automation/api/settings/${settingsId}/default`, { method: 'POST', credentials: 'include' })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -2324,7 +2336,7 @@ function setDefaultSettings(settingsId) {
 function deleteSettings(settingsId) {
     if (!confirm('Are you sure you want to delete this settings preset?')) return;
     
-    fetch(`/automation/api/settings/${settingsId}`, { method: 'DELETE' })
+    fetch(`/automation/api/settings/${settingsId}`, { method: 'DELETE', credentials: 'include' })
         .then(response => response.json())
         .then(data => {
             if (data.success) {

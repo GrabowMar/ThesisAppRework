@@ -6,20 +6,40 @@ This directory contains Jinja2 templates for generating AI prompts.
 
 ```
 templates/
-└── two-query/
-    ├── backend.md.jinja2           # Full backend template
-    └── frontend.md.jinja2          # Full frontend template
+├── four-query/
+│   ├── backend_user.md.jinja2      # Query 1: models + user routes
+│   ├── backend_admin.md.jinja2     # Query 2: admin routes (uses models from Q1)
+│   ├── frontend_user.md.jinja2     # Query 3: user page + API functions
+│   └── frontend_admin.md.jinja2    # Query 4: admin page + admin API functions
+├── two-query/
+│   ├── backend.md.jinja2           # Legacy fallback (backend)
+│   └── frontend.md.jinja2          # Legacy fallback (frontend)
+└── unguarded/
+    ├── backend.md.jinja2           # Single-file backend prompt
+    ├── frontend.md.jinja2          # Minimal-file frontend prompt
+    └── fullstack.md.jinja2         # Fullstack unguarded prompt (optional)
 ```
 
 ## Template Types
+
+### four-query (recommended)
+A four-step, scaffolding-first generation approach:
+1. Backend user prompt (models + user routes)
+2. Backend admin prompt (admin routes)
+3. Frontend user prompt (user page + API functions)
+4. Frontend admin prompt (admin page + admin API functions)
 
 ### two-query
 A two-step generation approach:
 1. **Backend First**: Generate backend code with API endpoints
 2. **Frontend Second**: Generate frontend that consumes the backend API
 
+### unguarded
+Looser prompts intended for simpler “single-file/minimal-file” generation where scaffolding rules differ.
+
 ### Template Selection
-The generation service uses the standard full templates for all models to ensure consistent quality and detailed instructions.
+The generation service prefers the 4-query templates in guarded mode for consistent quality and strong constraint enforcement.
+The 2-query templates remain as a backward-compatible fallback.
 
 ## Template Variables
 
@@ -69,8 +89,8 @@ prompt = template.render(
 
 ## Best Practices
 
-- Keep templates focused on clear instructions
-- Include scaffolding code in the prompts
-- Provide specific patterns and guidelines
-- Ensure templates work with variable content lengths
-- Test templates with different requirement sets
+- Keep templates focused on clear instructions and explicit output formats
+- Use structured decomposition (models → routes → UI → validation)
+- Include success criteria + common anti-patterns to reduce iteration
+- Avoid “reasoning leakage”: allow internal planning but require code-only output
+- Test templates across all requirement sets

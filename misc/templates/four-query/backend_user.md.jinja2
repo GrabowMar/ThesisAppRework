@@ -21,24 +21,28 @@ Implement the **USER-FACING** backend functionality:
 {{ api_endpoints }}
 {% endif %}
 
-## Implementation Guide
+## Stack & Constraints
+- Flask 3.x + Flask-SQLAlchemy 3.1+ (SQLAlchemy 2.0 style)
+- SQLite at `sqlite:////app/data/app.db` (preconfigured)
+- Use the existing blueprints from `routes/__init__.py`
+- Generate ONLY application code (no Docker/infra files)
 
-**Step 1: Define Models**
-Create database schema in `models.py` with:
-- All required fields from requirements
-- `is_active` field for soft delete
-- `created_at` timestamp
-- `to_dict()` method for JSON serialization
+## Implementation Process (DO INTERNALLY)
+1. Map requirements → models, fields, relationships, and routes.
+2. Implement models in `models.py`:
+    - Include `is_active` for soft delete
+    - Include `created_at` (UTC)
+    - Provide `to_dict()` that produces JSON-safe values
+3. Implement user routes in `routes/user.py`:
+    - Use `@user_bp.route('/path')` (NOT `/api/path`)
+    - Validate inputs and return correct status codes
+    - Wrap DB writes in try/except and rollback on failure
+4. Add `services.py` only if business logic is non-trivial.
 
-**Step 2: Implement Routes**
-Create API endpoints in `routes/user.py`:
-- Use `@user_bp.route('/path')` (NOT `/api/path` - prefix added automatically)
-- Add input validation
-- Include error handling with try/except
-- Return proper status codes (200, 201, 400, 404, 500)
-
-**Step 3: Add Business Logic (Optional)**
-If you have complex operations, extract them to `services.py`
+## Common Mistakes to Avoid
+- ❌ `@user_bp.route('/api/...')` → ✅ `@user_bp.route('/...')` (prefix already applied)
+- ❌ Missing `db.session.rollback()` → ✅ rollback in exception paths
+- ❌ Returning inactive items → ✅ filter `is_active=True` for user-facing lists
 
 ## Code Examples
 
@@ -87,6 +91,7 @@ def get_items():
 - MUST include `to_dict()` method (required for JSON responses)
 - MUST include `is_active` field (enables soft delete pattern)
 - MUST use `datetime.utcnow` for timestamps
+- MUST keep the existing `User` model required for authentication (do not remove/rename it)
 
 **Error Handling:** ⚠️
 - Wrap all routes in try/except
@@ -151,4 +156,10 @@ Before submitting, verify:
 - ✅ No placeholders or TODO comments
 - ✅ Proper HTTP status codes used
 
-Generate the complete implementation now.
+## Success Criteria
+- ✅ All endpoints implemented and match endpoint specs
+- ✅ Correct status codes (200/201/400/404/500)
+- ✅ Clean JSON serialization (no datetime/Decimal issues)
+- ✅ No placeholders/TODOs/truncated code
+
+Generate the complete implementation now. Do not include explanations.

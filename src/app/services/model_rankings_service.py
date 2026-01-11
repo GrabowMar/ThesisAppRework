@@ -6,6 +6,11 @@ Service for aggregating AI model rankings from multiple sources with focus on
 coding benchmarks (HumanEval, MBPP, SWE-bench, BigCodeBench, LiveBench).
 
 Provides unified rankings with pricing data from OpenRouter for cost-effectiveness analysis.
+
+Enhanced with modular fetchers for:
+- HuggingFace Datasets (EvalPlus, BigCodeBench)
+- GitHub Raw JSON (SWE-bench, LiveBench, LiveCodeBench)
+- Artificial Analysis (Performance metrics: TTFT, throughput, quality index)
 """
 
 import json
@@ -16,6 +21,13 @@ import requests
 from datetime import timedelta
 from typing import Dict, Any, List, Optional, Tuple
 from flask import Flask
+
+from .benchmark_fetchers import (
+    HuggingFaceBenchmarkFetcher,
+    GitHubRawFetcher,
+    ArtificialAnalysisFetcher,
+    CombinedBenchmarkAggregator
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,21 +80,24 @@ class ModelRankingsService:
     def __init__(self, app: Optional[Flask] = None):
         self.app = app
         self.logger = logger
-        
+
         # API configuration
         self.hf_token = os.getenv('HF_TOKEN')
         self.openrouter_key = os.getenv('OPENROUTER_API_KEY')
-        
+
         # Cache configuration (24 hours default, manual refresh only)
         self.cache_duration_hours = int(os.getenv('RANKINGS_CACHE_HOURS', '24'))
-        
+
         # In-memory cache for quick access
         self._memory_cache: Dict[str, Any] = {}
         self._memory_cache_timestamp = None
-        
+
         # Track fetch status
         self._last_fetch_status: Dict[str, Any] = {}
-        
+
+        # Initialize modular fetchers
+        self.benchmark_aggregator = CombinedBenchmarkAggregator(hf_token=self.hf_token)
+
         if not self.hf_token:
             self.logger.warning("HF_TOKEN not found. Some benchmark sources may have limited access.")
     
@@ -756,14 +771,34 @@ class ModelRankingsService:
                 return cached
         
         self.logger.info("Aggregating rankings from all sources...")
-        
+
         # Fetch from all sources
         openrouter_models = self.fetch_openrouter_models()
-        evalplus_results = self.fetch_evalplus_results()
-        swe_bench_results = self.fetch_swe_bench_results()
-        bigcodebench_results = self.fetch_bigcodebench_results()
-        livebench_results = self.fetch_livebench_results()
-        livecodebench_results = self.fetch_livecodebench_results()
+
+        # Use new modular fetchers for benchmark data
+        self.logger.info("Fetching benchmark data from modular fetchers...")
+        benchmark_data = self.benchmark_aggregator.fetch_all_benchmarks()
+
+        # Extract individual benchmark sources for compatibility
+        evalplus_results = benchmark_data.get('evalplus', {})
+        swe_bench_results = benchmark_data.get('swebench', {})
+        bigcodebench_results = benchmark_data.get('bigcodebench', {})
+        livebench_results = benchmark_data.get('livebench', {})
+        livecodebench_results = benchmark_data.get('livecodebench', {})
+        performance_results = benchmark_data.get('performance', {})
+
+        # Chapter 4 MSS benchmarks
+        bfcl_results = benchmark_data.get('bfcl', {})
+        webdev_arena_results = benchmark_data.get('webdev_arena', {})
+        arc_agi_results = benchmark_data.get('arc_agi', {})
+        simplebench_results = benchmark_data.get('simplebench', {})
+        canaicode_results = benchmark_data.get('canaicode', {})
+        seal_showdown_results = benchmark_data.get('seal_showdown', {})
+        gpqa_results = benchmark_data.get('gpqa', {})
+        adoption_results = benchmark_data.get('adoption', {})
+
+        # Update fetch status
+        self._last_fetch_status = benchmark_data.get('fetch_status', {})
         
         aggregated = []
         
@@ -791,13 +826,24 @@ class ModelRankingsService:
             bigcodebench = self.find_benchmark_match(model_id, bigcodebench_results) or {}
             livebench = self.find_benchmark_match(model_id, livebench_results) or {}
             livecodebench = self.find_benchmark_match(model_id, livecodebench_results) or {}
-            
+            performance = self.find_benchmark_match(model_id, performance_results) or {}
+
+            # Chapter 4 MSS benchmarks
+            bfcl = self.find_benchmark_match(model_id, bfcl_results) or {}
+            webdev_arena = self.find_benchmark_match(model_id, webdev_arena_results) or {}
+            arc_agi = self.find_benchmark_match(model_id, arc_agi_results) or {}
+            simplebench = self.find_benchmark_match(model_id, simplebench_results) or {}
+            canaicode = self.find_benchmark_match(model_id, canaicode_results) or {}
+            seal_showdown = self.find_benchmark_match(model_id, seal_showdown_results) or {}
+            gpqa = self.find_benchmark_match(model_id, gpqa_results) or {}
+            adoption = self.find_benchmark_match(model_id, adoption_results) or {}
+
             # Build entry
             entry = {
                 'model_id': model_id,
                 'model_name': model.get('name', model_id),
                 'provider': model_id.split('/')[0] if '/' in model_id else 'unknown',
-                
+
                 # Benchmarks
                 'humaneval_plus': evalplus.get('humaneval_plus'),
                 'mbpp_plus': evalplus.get('mbpp_plus'),
@@ -806,19 +852,48 @@ class ModelRankingsService:
                 'bigcodebench_hard': bigcodebench.get('bigcodebench_hard'),
                 'bigcodebench_full': bigcodebench.get('bigcodebench_full'),
                 'livebench_coding': livebench.get('livebench_coding'),
+                'livebench_global': livebench.get('livebench_global'),
                 'livecodebench': livecodebench.get('livecodebench'),
-                
+
+                # Performance metrics (NEW)
+                'ttft_median': performance.get('ttft_median'),
+                'ttft_p95': performance.get('ttft_p95'),
+                'throughput_median': performance.get('throughput_median'),
+                'throughput_p95': performance.get('throughput_p95'),
+                'total_latency_median': performance.get('total_latency_median'),
+                'total_latency_p95': performance.get('total_latency_p95'),
+                'quality_index': performance.get('quality_index'),
+
+                # Chapter 4 MSS Benchmarks
+                'bfcl_score': bfcl.get('bfcl_score'),
+                'webdev_elo': webdev_arena.get('webdev_elo'),
+                'arc_agi_score': arc_agi.get('arc_agi_score'),
+                'simplebench_score': simplebench.get('simplebench_score'),
+                'canaicode_score': canaicode.get('canaicode_score'),
+                'seal_coding_score': seal_showdown.get('seal_coding_score'),
+                'gpqa_score': gpqa.get('gpqa_score'),
+
+                # Adoption Metrics
+                'openrouter_programming_rank': adoption.get('programming_rank'),
+                'openrouter_overall_rank': None,  # TODO: Add overall rank fetcher
+                'openrouter_market_share': None,  # TODO: Add market share fetcher
+
+                # Accessibility Metrics (default values for now)
+                'license_type': model.get('license') or 'api-only',  # From OpenRouter metadata
+                'api_stability': 'stable',  # Default: assume stable if on OpenRouter
+                'documentation_quality': 'basic',  # Default: assume basic docs
+
                 # Pricing (template expects these names)
                 'price_per_million_input': input_price_mtok,
                 'price_per_million_output': output_price_mtok,
                 'is_free': is_free,
-                
+
                 # Metadata
                 'context_length': model.get('context_length'),
                 'huggingface_id': model.get('hugging_face_id'),
                 'openrouter_id': model_id,
                 'description': model.get('description', ''),
-                
+
                 # Sources used
                 'sources': ['openrouter']
             }
@@ -834,10 +909,40 @@ class ModelRankingsService:
                 entry['sources'].append('livebench')
             if livecodebench:
                 entry['sources'].append('livecodebench')
-            
-            # Compute composite score (will be recomputed client-side with custom weights)
+            if performance:
+                entry['sources'].append('artificial_analysis')
+
+            # Track Chapter 4 benchmark sources
+            if bfcl:
+                entry['sources'].append('bfcl')
+            if webdev_arena:
+                entry['sources'].append('webdev_arena')
+            if arc_agi:
+                entry['sources'].append('arc_agi')
+            if simplebench:
+                entry['sources'].append('simplebench')
+            if canaicode:
+                entry['sources'].append('canaicode')
+            if seal_showdown:
+                entry['sources'].append('seal_showdown')
+            if gpqa:
+                entry['sources'].append('gpqa')
+            if adoption:
+                entry['sources'].append('openrouter_adoption')
+
+            # Compute Chapter 3 scores (legacy compatibility)
             entry['composite_score'] = self._compute_default_composite(entry)
-            
+            entry['overall_score'] = self._compute_overall_score(entry)
+
+            # Compute Chapter 4 MSS components
+            entry['adoption_score'] = self._compute_adoption_score(entry)
+            entry['benchmark_score'] = self._compute_benchmark_score_mss(entry)
+            entry['cost_efficiency_score'] = self._compute_cost_efficiency_score(entry)
+            entry['accessibility_score'] = self._compute_accessibility_score(entry)
+
+            # Compute final MSS
+            entry['mss'] = self._compute_mss(entry)
+
             aggregated.append(entry)
         
         # Sort by composite score (highest first), handling None values
@@ -886,7 +991,408 @@ class ModelRankingsService:
         adjusted_coverage = (coverage_factor ** 0.5)  # 0.45 to 1.0
         
         return round(score * adjusted_coverage / coverage_factor, 2)  # Scale back to 0-100 range
-    
+
+    def _compute_overall_score(self, entry: Dict[str, Any]) -> Optional[float]:
+        """
+        Compute overall score combining coding, performance, and value metrics.
+
+        Methodology-aligned scoring (Chapter 3):
+        - Coding Capability: 50% (coding_composite)
+        - Performance: 30% (throughput, TTFT, quality index)
+        - Value: 20% (price efficiency, context length)
+
+        Returns:
+            Overall score (0-100 scale) or None if insufficient data
+        """
+        # Coding score (already computed)
+        coding_score = entry.get('composite_score')
+        if coding_score is None:
+            return None
+
+        # Performance score (0-100 scale)
+        performance_score = self._compute_performance_score(entry)
+
+        # Value score (0-100 scale)
+        value_score = self._compute_value_score(entry)
+
+        # Weighted combination
+        # Coding must exist, performance and value are optional
+        if performance_score is not None and value_score is not None:
+            overall = (coding_score * 0.5) + (performance_score * 0.3) + (value_score * 0.2)
+        elif performance_score is not None:
+            # No value data - reweight
+            overall = (coding_score * 0.625) + (performance_score * 0.375)
+        elif value_score is not None:
+            # No performance data - reweight
+            overall = (coding_score * 0.714) + (value_score * 0.286)
+        else:
+            # Only coding data available
+            overall = coding_score
+
+        return round(overall, 2)
+
+    def _compute_performance_score(self, entry: Dict[str, Any]) -> Optional[float]:
+        """
+        Compute performance score from TTFT, throughput, and quality index.
+
+        Returns score 0-100 or None if no performance data.
+        """
+        ttft = entry.get('ttft_median')
+        throughput = entry.get('throughput_median')
+        quality = entry.get('quality_index')
+
+        if ttft is None and throughput is None and quality is None:
+            return None
+
+        score = 0.0
+        weight_used = 0.0
+
+        # Throughput (higher is better) - normalize to 0-100
+        # Typical range: 20-150 tokens/sec
+        if throughput is not None:
+            throughput_norm = min(100, (throughput / 150) * 100)
+            score += throughput_norm * 0.5
+            weight_used += 0.5
+
+        # TTFT (lower is better, invert) - normalize to 0-100
+        # Typical range: 0.2-3.0 seconds
+        if ttft is not None:
+            ttft_inverse = max(0, 100 - (ttft / 3.0) * 100)
+            score += ttft_inverse * 0.3
+            weight_used += 0.3
+
+        # Quality index (already 0-100 scale from Artificial Analysis)
+        if quality is not None:
+            score += quality * 0.2
+            weight_used += 0.2
+
+        if weight_used > 0:
+            return round(score / weight_used, 2)
+        return None
+
+    def _compute_value_score(self, entry: Dict[str, Any]) -> Optional[float]:
+        """
+        Compute value score from price efficiency and context length.
+
+        Returns score 0-100 or None if no value data.
+        """
+        coding_score = entry.get('composite_score')
+        price_input = entry.get('price_per_million_input')
+        context_length = entry.get('context_length')
+
+        if coding_score is None:
+            return None
+
+        score = 0.0
+        weight_used = 0.0
+
+        # Price efficiency: coding_score / price (higher is better)
+        # Normalize to 0-100 scale
+        if price_input is not None and price_input > 0:
+            # Typical range: 1-100 (score/price ratio)
+            # Example: 90 score / $10 = 9, 90 score / $1 = 90
+            price_efficiency = coding_score / price_input
+            price_norm = min(100, price_efficiency * 2)  # Scale to 0-100
+            score += price_norm * 0.6
+            weight_used += 0.6
+        elif entry.get('is_free'):
+            # Free models get maximum price efficiency
+            score += 100 * 0.6
+            weight_used += 0.6
+
+        # Context length (normalized to 0-100)
+        # Typical range: 4K - 1M tokens
+        if context_length is not None:
+            # Log scale for context: 4K=30, 32K=60, 128K=80, 1M=100
+            import math
+            context_norm = min(100, (math.log(context_length / 4096) / math.log(256)) * 100)
+            context_norm = max(0, context_norm)
+            score += context_norm * 0.4
+            weight_used += 0.4
+
+        if weight_used > 0:
+            return round(score / weight_used, 2)
+        return None
+
+    # ========================================================================
+    # Chapter 4: MSS (Model Selection Score) Computation Methods
+    # ========================================================================
+
+    def _compute_adoption_score(self, entry: Dict[str, Any]) -> float:
+        """
+        Compute adoption score from OpenRouter usage rank.
+
+        MSS Component: 35% weight
+        Based on OpenRouter programming category rank.
+        Lower rank = higher score (rank 1 is best).
+
+        Normalized to [0, 1] scale:
+        - Rank 1-5: 1.0 - 0.8
+        - Rank 6-10: 0.8 - 0.6
+        - Rank 11-20: 0.6 - 0.4
+        - Rank 21-50: 0.4 - 0.2
+        - Rank 51+: 0.2 - 0.0
+
+        Args:
+            entry: Model data dictionary
+
+        Returns:
+            Adoption score 0.0-1.0
+        """
+        programming_rank = entry.get('openrouter_programming_rank')
+        if not programming_rank:
+            return 0.0
+
+        if programming_rank <= 5:
+            return 1.0 - (programming_rank - 1) * 0.04
+        elif programming_rank <= 10:
+            return 0.8 - (programming_rank - 6) * 0.04
+        elif programming_rank <= 20:
+            return 0.6 - (programming_rank - 11) * 0.02
+        elif programming_rank <= 50:
+            return 0.4 - (programming_rank - 21) * 0.00667
+        else:
+            return max(0.0, 0.2 - (programming_rank - 51) * 0.004)
+
+    def _normalize_benchmark_score(self, benchmark: str, score: float) -> float:
+        """
+        Normalize benchmark-specific scores to [0, 1] scale.
+
+        Args:
+            benchmark: Benchmark name
+            score: Raw score value
+
+        Returns:
+            Normalized score 0.0-1.0
+        """
+        ranges = {
+            'bfcl_score': (0, 100),  # Percentage
+            'webdev_elo': (800, 1400),  # Elo range (estimated)
+            'livebench_coding': (0, 100),  # Percentage
+            'livecodebench': (0, 100),  # Percentage
+            'arc_agi_score': (0, 100),  # Pass rate percentage
+            'simplebench_score': (0, 100),  # Accuracy percentage
+            'canaicode_score': (0, 100),  # Pass rate percentage
+            'seal_coding_score': (800, 1400),  # Bradley-Terry score (Elo-like)
+            'gpqa_score': (0, 100),  # Accuracy percentage
+        }
+
+        min_val, max_val = ranges.get(benchmark, (0, 100))
+        if score is None:
+            return 0.0
+        return max(0.0, min(1.0, (score - min_val) / (max_val - min_val)))
+
+    def _compute_benchmark_score_mss(self, entry: Dict[str, Any]) -> float:
+        """
+        Compute Chapter 4 benchmark score from 9 benchmarks.
+
+        MSS Component: 30% weight
+
+        Benchmarks and their weights:
+        - BFCL (Berkeley Function Calling): 15%
+        - WebDev Arena: 15%
+        - LiveBench: 10%
+        - LiveCodeBench: 10%
+        - ARC-AGI: 10%
+        - SimpleBench: 10%
+        - CanAiCode: 10%
+        - SEAL Showdown: 10%
+        - GPQA: 10%
+
+        Each benchmark is normalized to [0, 1] then weighted.
+        Requires at least 50% of benchmarks to have data.
+
+        Args:
+            entry: Model data dictionary
+
+        Returns:
+            Benchmark score 0.0-1.0
+        """
+        benchmarks = {
+            'bfcl_score': 0.15,
+            'webdev_elo': 0.15,
+            'livebench_coding': 0.10,
+            'livecodebench': 0.10,
+            'arc_agi_score': 0.10,
+            'simplebench_score': 0.10,
+            'canaicode_score': 0.10,
+            'seal_coding_score': 0.10,
+            'gpqa_score': 0.10,
+        }
+
+        total_score = 0.0
+        total_weight = 0.0
+
+        for bench_name, weight in benchmarks.items():
+            score = entry.get(bench_name)
+            if score is not None:
+                # Normalize to [0, 1] based on benchmark-specific ranges
+                normalized = self._normalize_benchmark_score(bench_name, score)
+                total_score += normalized * weight
+                total_weight += weight
+
+        # If we have at least 50% of benchmarks, compute weighted average
+        if total_weight >= 0.50:  # At least 50% of total weight (1.0)
+            return total_score / total_weight
+        else:
+            return 0.0  # Not enough data
+
+    def _compute_cost_efficiency_score(self, entry: Dict[str, Any]) -> float:
+        """
+        Compute cost efficiency score (performance per dollar).
+
+        MSS Component: 20% weight
+
+        Factors:
+        - Price efficiency: benchmark_score / normalized_price (70%)
+        - Context length bonus (30%)
+
+        Args:
+            entry: Model data dictionary
+
+        Returns:
+            Cost efficiency score 0.0-1.0
+        """
+        benchmark_score = entry.get('benchmark_score', 0)
+        avg_price_input = entry.get('price_per_million_input')
+        avg_price_output = entry.get('price_per_million_output')
+        context_length = entry.get('context_length', 0)
+        is_free = entry.get('is_free', False)
+
+        # Calculate average price
+        if is_free:
+            # Free models get perfect price efficiency
+            price_efficiency = 1.0
+        elif avg_price_input is not None and avg_price_output is not None:
+            avg_price = (avg_price_input + avg_price_output) / 2
+            if avg_price <= 0 or benchmark_score <= 0:
+                return 0.0
+
+            # Normalize price to [0, 1] (inverse: lower is better)
+            # Assume price range: $0.10 - $100 per million tokens
+            max_price = 100.0
+            min_price = 0.10
+            normalized_price = min(1.0, (avg_price - min_price) / (max_price - min_price))
+
+            # Efficiency = benchmark performance / price (inverted normalized price)
+            price_efficiency = (1.0 - normalized_price) * 0.5 + benchmark_score * 0.5
+        else:
+            return 0.0
+
+        # Context length bonus (0.0 - 0.3 additional score)
+        # Longer context = more value
+        import math
+        if context_length > 0:
+            # Log scale: 4K=0.0, 32K=0.15, 128K=0.25, 1M=0.3
+            context_bonus = min(0.3, (math.log(context_length / 4096) / math.log(256)) * 0.3)
+            context_bonus = max(0.0, context_bonus)
+        else:
+            context_bonus = 0.0
+
+        # Combine: 70% price efficiency + 30% context bonus
+        efficiency = price_efficiency * 0.7 + context_bonus
+
+        return min(1.0, max(0.0, efficiency))
+
+    def _get_license_score(self, license_type: Optional[str]) -> float:
+        """Map license type to accessibility score component."""
+        if not license_type:
+            return 0.7  # Unknown - assume moderate
+
+        license_type = license_type.lower()
+        license_scores = {
+            'apache': 1.0, 'mit': 1.0, 'bsd': 1.0, 'cc-by': 1.0,
+            'llama': 0.7, 'gemma': 0.7, 'yi': 0.7,
+            'commercial': 0.4, 'api-only': 0.4,
+            'unknown': 0.0, 'proprietary': 0.0
+        }
+        return license_scores.get(license_type, 0.7)
+
+    def _get_stability_score(self, stability: Optional[str]) -> float:
+        """Map API stability to accessibility score component."""
+        if not stability:
+            return 0.7  # Unknown - assume stable
+
+        stability = stability.lower()
+        stability_scores = {
+            'stable': 1.0, 'production': 1.0,
+            'reliable': 0.7, 'recent': 0.7,
+            'beta': 0.4, 'experimental': 0.4,
+            'deprecated': 0.0, 'unreliable': 0.0
+        }
+        return stability_scores.get(stability, 0.7)
+
+    def _get_documentation_score(self, docs_quality: Optional[str]) -> float:
+        """Map documentation quality to accessibility score component."""
+        if not docs_quality:
+            return 0.7  # Unknown - assume basic docs
+
+        docs_quality = docs_quality.lower()
+        docs_scores = {
+            'comprehensive': 1.0, 'excellent': 1.0,
+            'good': 0.7, 'basic': 0.7,
+            'minimal': 0.4, 'poor': 0.4,
+            'none': 0.0, 'missing': 0.0
+        }
+        return docs_scores.get(docs_quality, 0.7)
+
+    def _compute_accessibility_score(self, entry: Dict[str, Any]) -> float:
+        """
+        Compute accessibility score (licensing, API stability, documentation).
+
+        MSS Component: 15% weight
+
+        Factors:
+        - Licensing (40%): Open source > Restricted > Commercial
+        - API Stability (40%): Stable > Beta > Experimental
+        - Documentation (20%): Comprehensive > Basic > Minimal
+
+        Args:
+            entry: Model data dictionary
+
+        Returns:
+            Accessibility score 0.0-1.0
+        """
+        license_score = self._get_license_score(entry.get('license_type'))
+        stability_score = self._get_stability_score(entry.get('api_stability'))
+        docs_score = self._get_documentation_score(entry.get('documentation_quality'))
+
+        return (0.40 * license_score +
+                0.40 * stability_score +
+                0.20 * docs_score)
+
+    def _compute_mss(self, entry: Dict[str, Any]) -> float:
+        """
+        Compute final MSS (Model Selection Score).
+
+        MSS = 0.35×Adoption + 0.30×Benchmarks + 0.20×Cost + 0.15×Accessibility
+
+        All components are normalized to [0, 1] scale before weighting.
+
+        Args:
+            entry: Model data dictionary with computed component scores
+
+        Returns:
+            MSS score 0.0-1.0
+        """
+        adoption = entry.get('adoption_score', 0.0)
+        benchmarks = entry.get('benchmark_score', 0.0)
+        cost_efficiency = entry.get('cost_efficiency_score', 0.0)
+        accessibility = entry.get('accessibility_score', 0.0)
+
+        mss = (
+            0.35 * adoption +
+            0.30 * benchmarks +
+            0.20 * cost_efficiency +
+            0.15 * accessibility
+        )
+
+        return round(mss, 4)
+
+    # ========================================================================
+    # End of MSS Methods
+    # ========================================================================
+
     def _get_cached_rankings(self) -> Optional[List[Dict[str, Any]]]:
         """Get rankings from database cache if valid."""
         try:
@@ -953,16 +1459,74 @@ class ModelRankingsService:
                     cache_entry.bigcodebench_full = entry.get('bigcodebench_full')
                     cache_entry.livebench_coding = entry.get('livebench_coding')
                     cache_entry.livecodebench = entry.get('livecodebench')
+
+                    # Performance metrics (NEW)
+                    cache_entry.ttft_median = entry.get('ttft_median')
+                    cache_entry.ttft_p95 = entry.get('ttft_p95')
+                    cache_entry.throughput_median = entry.get('throughput_median')
+                    cache_entry.throughput_p95 = entry.get('throughput_p95')
+                    cache_entry.total_latency_median = entry.get('total_latency_median')
+                    cache_entry.total_latency_p95 = entry.get('total_latency_p95')
+                    cache_entry.quality_index = entry.get('quality_index')
+
+                    # Chapter 4 MSS Benchmarks
+                    cache_entry.bfcl_score = entry.get('bfcl_score')
+                    cache_entry.webdev_elo = entry.get('webdev_elo')
+                    cache_entry.arc_agi_score = entry.get('arc_agi_score')
+                    cache_entry.simplebench_score = entry.get('simplebench_score')
+                    cache_entry.canaicode_score = entry.get('canaicode_score')
+                    cache_entry.seal_coding_score = entry.get('seal_coding_score')
+                    cache_entry.gpqa_score = entry.get('gpqa_score')
+
+                    # MSS Components
+                    cache_entry.adoption_score = entry.get('adoption_score')
+                    cache_entry.benchmark_score = entry.get('benchmark_score')
+                    cache_entry.cost_efficiency_score = entry.get('cost_efficiency_score')
+                    cache_entry.accessibility_score = entry.get('accessibility_score')
+                    cache_entry.mss = entry.get('mss')
+
+                    # Adoption Metrics
+                    cache_entry.openrouter_programming_rank = entry.get('openrouter_programming_rank')
+                    cache_entry.openrouter_overall_rank = entry.get('openrouter_overall_rank')
+                    cache_entry.openrouter_market_share = entry.get('openrouter_market_share')
+
+                    # Accessibility Metrics
+                    cache_entry.license_type = entry.get('license_type')
+                    cache_entry.api_stability = entry.get('api_stability')
+                    cache_entry.documentation_quality = entry.get('documentation_quality')
+
+                    # Composite scores (Chapter 3 legacy)
                     cache_entry.coding_composite = entry.get('composite_score')  # Map to DB column
+                    cache_entry.overall_score = entry.get('overall_score')
+
+                    # Pricing
                     cache_entry.input_price_per_mtok = entry.get('price_per_million_input')
                     cache_entry.output_price_per_mtok = entry.get('price_per_million_output')
                     cache_entry.is_free = entry.get('is_free', False)
+
+                    # Metadata
                     cache_entry.context_length = entry.get('context_length')
                     cache_entry.huggingface_id = entry.get('huggingface_id')
                     cache_entry.openrouter_id = entry.get('openrouter_id')
                     cache_entry.set_sources(entry.get('sources', []))
+
+                    # Cache metadata
                     cache_entry.cache_expires_at = cache_expiry
                     cache_entry.fetched_at = utc_now()
+
+                    # Data freshness tracking
+                    now = utc_now()
+                    if any([entry.get('humaneval_plus'), entry.get('swe_bench_verified'), entry.get('bigcodebench_hard'),
+                            entry.get('bfcl_score'), entry.get('webdev_elo'), entry.get('arc_agi_score')]):
+                        cache_entry.benchmark_data_updated_at = now
+                    if any([entry.get('ttft_median'), entry.get('throughput_median'), entry.get('quality_index')]):
+                        cache_entry.performance_data_updated_at = now
+                    if entry.get('price_per_million_input') is not None:
+                        cache_entry.pricing_data_updated_at = now
+                    if entry.get('openrouter_programming_rank') is not None:
+                        cache_entry.adoption_data_updated_at = now
+                    if entry.get('license_type') or entry.get('api_stability'):
+                        cache_entry.accessibility_data_updated_at = now
                 else:
                     # Create new
                     cache_entry = ModelBenchmarkCache()
@@ -977,15 +1541,72 @@ class ModelRankingsService:
                     cache_entry.bigcodebench_full = entry.get('bigcodebench_full')
                     cache_entry.livebench_coding = entry.get('livebench_coding')
                     cache_entry.livecodebench = entry.get('livecodebench')
+
+                    # Performance metrics (NEW)
+                    cache_entry.ttft_median = entry.get('ttft_median')
+                    cache_entry.ttft_p95 = entry.get('ttft_p95')
+                    cache_entry.throughput_median = entry.get('throughput_median')
+                    cache_entry.throughput_p95 = entry.get('throughput_p95')
+                    cache_entry.total_latency_median = entry.get('total_latency_median')
+                    cache_entry.total_latency_p95 = entry.get('total_latency_p95')
+                    cache_entry.quality_index = entry.get('quality_index')
+
+                    # Chapter 4 MSS Benchmarks
+                    cache_entry.bfcl_score = entry.get('bfcl_score')
+                    cache_entry.webdev_elo = entry.get('webdev_elo')
+                    cache_entry.arc_agi_score = entry.get('arc_agi_score')
+                    cache_entry.simplebench_score = entry.get('simplebench_score')
+                    cache_entry.canaicode_score = entry.get('canaicode_score')
+                    cache_entry.seal_coding_score = entry.get('seal_coding_score')
+                    cache_entry.gpqa_score = entry.get('gpqa_score')
+
+                    # MSS Components
+                    cache_entry.adoption_score = entry.get('adoption_score')
+                    cache_entry.benchmark_score = entry.get('benchmark_score')
+                    cache_entry.cost_efficiency_score = entry.get('cost_efficiency_score')
+                    cache_entry.accessibility_score = entry.get('accessibility_score')
+                    cache_entry.mss = entry.get('mss')
+
+                    # Adoption Metrics
+                    cache_entry.openrouter_programming_rank = entry.get('openrouter_programming_rank')
+                    cache_entry.openrouter_overall_rank = entry.get('openrouter_overall_rank')
+                    cache_entry.openrouter_market_share = entry.get('openrouter_market_share')
+
+                    # Accessibility Metrics
+                    cache_entry.license_type = entry.get('license_type')
+                    cache_entry.api_stability = entry.get('api_stability')
+                    cache_entry.documentation_quality = entry.get('documentation_quality')
+
+                    # Composite scores (Chapter 3 legacy)
                     cache_entry.coding_composite = entry.get('composite_score')  # Map to DB column
+                    cache_entry.overall_score = entry.get('overall_score')
+
+                    # Pricing
                     cache_entry.input_price_per_mtok = entry.get('price_per_million_input')
                     cache_entry.output_price_per_mtok = entry.get('price_per_million_output')
                     cache_entry.is_free = entry.get('is_free', False)
+
+                    # Metadata
                     cache_entry.context_length = entry.get('context_length')
                     cache_entry.huggingface_id = entry.get('huggingface_id')
                     cache_entry.openrouter_id = entry.get('openrouter_id')
                     cache_entry.cache_expires_at = cache_expiry
                     cache_entry.set_sources(entry.get('sources', []))
+
+                    # Data freshness tracking
+                    now = utc_now()
+                    if any([entry.get('humaneval_plus'), entry.get('swe_bench_verified'), entry.get('bigcodebench_hard'),
+                            entry.get('bfcl_score'), entry.get('webdev_elo'), entry.get('arc_agi_score')]):
+                        cache_entry.benchmark_data_updated_at = now
+                    if any([entry.get('ttft_median'), entry.get('throughput_median'), entry.get('quality_index')]):
+                        cache_entry.performance_data_updated_at = now
+                    if entry.get('price_per_million_input') is not None:
+                        cache_entry.pricing_data_updated_at = now
+                    if entry.get('openrouter_programming_rank') is not None:
+                        cache_entry.adoption_data_updated_at = now
+                    if entry.get('license_type') or entry.get('api_stability'):
+                        cache_entry.accessibility_data_updated_at = now
+
                     db.session.add(cache_entry)
             
             db.session.commit()

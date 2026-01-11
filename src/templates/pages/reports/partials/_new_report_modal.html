@@ -31,6 +31,7 @@
               <option value="model_analysis">Model Analysis - All analyses for one model</option>
               <option value="template_comparison">Template Comparison - Compare models for same template</option>
               <option value="tool_analysis">Tool Analysis - Tool performance across all analyses</option>
+              <option value="generation_analytics">Generation Analytics - App generation success/failure patterns</option>
             </select>
             <div class="form-text">Choose what perspective you want to analyze</div>
           </div>
@@ -222,10 +223,42 @@
         <label class="form-label">Filter by Model (Optional)</label>
         <select class="form-select" name="filter_model">
           <option value="">All models</option>
-          ${optionsData?.models?.map(m => 
+          ${optionsData?.models?.map(m =>
             `<option value="${m.slug}">${m.name} (${m.provider})</option>`
           ).join('') || ''}
         </select>
+      </div>
+    `,
+
+    generation_analytics: () => `
+      <div class="mb-3">
+        <label class="form-label">Filter by Model (Optional)</label>
+        <select class="form-select" name="model_slug">
+          <option value="">All models</option>
+          ${optionsData?.models?.map(m =>
+            `<option value="${m.slug}">${m.name} (${m.provider})</option>`
+          ).join('') || ''}
+        </select>
+        <div class="form-text">Analyze generation patterns for a specific model or all models</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Filter by Template (Optional)</label>
+        <select class="form-select" name="template_slug">
+          ${buildTemplateSelect()}
+        </select>
+        <div class="form-text">Analyze generation patterns for a specific template or all templates</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Time Period</label>
+        <select class="form-select" name="days_back">
+          <option value="7">Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="60">Last 60 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="">All time</option>
+        </select>
+        <div class="form-text">Analyze generation attempts within this time period</div>
       </div>
     `
   };
@@ -273,7 +306,7 @@
         payload.config.model_slug = formData.get('model_slug');
       } else if (reportType === 'template_comparison') {
         payload.config.template_slug = formData.get('template_slug');
-        
+
         // Get selected filter models if any
         const filterModels = Array.from(form.querySelectorAll('[name="filter_models"] option:checked'))
           .map(opt => opt.value)
@@ -284,9 +317,18 @@
       } else if (reportType === 'tool_analysis') {
         const toolName = formData.get('tool_name');
         if (toolName) payload.config.tool_name = toolName;
-        
+
         const filterModel = formData.get('filter_model');
         if (filterModel) payload.config.filter_model = filterModel;
+      } else if (reportType === 'generation_analytics') {
+        const modelSlug = formData.get('model_slug');
+        if (modelSlug) payload.config.model_slug = modelSlug;
+
+        const templateSlug = formData.get('template_slug');
+        if (templateSlug) payload.config.template_slug = templateSlug;
+
+        const daysBack = formData.get('days_back');
+        if (daysBack) payload.config.days_back = parseInt(daysBack, 10);
       }
       
       const response = await fetch('/api/reports/generate', {

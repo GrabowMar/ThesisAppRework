@@ -93,58 +93,90 @@ function initializeWizard() {
 
 async function loadInitialData() {
   try {
-    // Load templates
-        console.log('[Wizard] Loading templates from /api/gen/templates...');
-
-    const templatesResponse = await fetch('/api/gen/templates');
-    if (templatesResponse.ok) {
-      const templatesData = await templatesResponse.json();
-      console.log('[Wizard] Templates response:', templatesData);
-      
-      // Standardized API envelope: {success: true, data: [...], message: "..."}
-      if (templatesData.success && Array.isArray(templatesData.data)) {
-        templatesCache = templatesData.data;
-        console.log(`[Wizard] Loaded ${templatesCache.length} templates`);
-      } else {
-        console.error('[Wizard] Invalid templates response format:', templatesData);
-        templatesCache = [];
+    // First, try to load from server-rendered embedded data (avoids auth issues with fetch)
+    const pageDataEl = document.getElementById('page-data');
+    if (pageDataEl) {
+      try {
+        const pageData = JSON.parse(pageDataEl.textContent);
+        console.log('[Wizard] Found embedded page data:', pageData);
+        
+        if (pageData.templates && Array.isArray(pageData.templates)) {
+          templatesCache = pageData.templates;
+          console.log(`[Wizard] Loaded ${templatesCache.length} templates from embedded data`);
+        }
+        if (pageData.models && Array.isArray(pageData.models)) {
+          modelsCache = pageData.models;
+          console.log(`[Wizard] Loaded ${modelsCache.length} models from embedded data`);
+        }
+        
+        // If we successfully loaded both from embedded data, we're done
+        if (templatesCache && templatesCache.length > 0 && modelsCache && modelsCache.length > 0) {
+          console.log('[Wizard] Successfully loaded initial data from server-rendered page');
+          return;
+        }
+      } catch (parseError) {
+        console.warn('[Wizard] Failed to parse embedded page data, falling back to API fetch:', parseError);
       }
-    } else {
-      console.error('[Wizard] Failed to load templates:', templatesResponse.status, templatesResponse.statusText);
-      const errorText = await templatesResponse.text();
-      console.error('[Wizard] Error response:', errorText);
-      templatesCache = [];
     }
     
-    // Load models - use the actual working endpoint
-    console.log('[Wizard] Loading models from /api/models...');
-    const modelsResponse = await fetch('/api/models');
-    if (modelsResponse.ok) {
-      const modelsData = await modelsResponse.json();
-      console.log('[Wizard] Models response:', modelsData);
-      
-      // Handle standardized API envelope: {success: true, data: [...], message: "..."}
-      if (modelsData.success && modelsData.data) {
-        modelsCache = Array.isArray(modelsData.data) ? modelsData.data : [];
-      } else if (Array.isArray(modelsData)) {
-        modelsCache = modelsData;
-      } else if (modelsData.models && Array.isArray(modelsData.models)) {
-        modelsCache = modelsData.models;
+    // Fallback: Load via API fetch (requires credentials for authenticated endpoints)
+    console.log('[Wizard] Loading initial data via API fetch (fallback)...');
+    
+    // Load templates
+    if (!templatesCache || templatesCache.length === 0) {
+      console.log('[Wizard] Loading templates from /api/gen/templates...');
+      const templatesResponse = await fetch('/api/gen/templates', { credentials: 'include' });
+      if (templatesResponse.ok) {
+        const templatesData = await templatesResponse.json();
+        console.log('[Wizard] Templates response:', templatesData);
+        
+        // Standardized API envelope: {success: true, data: [...], message: "..."}
+        if (templatesData.success && Array.isArray(templatesData.data)) {
+          templatesCache = templatesData.data;
+          console.log(`[Wizard] Loaded ${templatesCache.length} templates`);
+        } else {
+          console.error('[Wizard] Invalid templates response format:', templatesData);
+          templatesCache = [];
+        }
       } else {
-        console.warn('[Wizard] Unexpected models response format:', modelsData);
+        console.error('[Wizard] Failed to load templates:', templatesResponse.status, templatesResponse.statusText);
+        const errorText = await templatesResponse.text();
+        console.error('[Wizard] Error response:', errorText);
+        templatesCache = [];
+      }
+    }
+    
+    // Load models
+    if (!modelsCache || modelsCache.length === 0) {
+      console.log('[Wizard] Loading models from /api/models...');
+      const modelsResponse = await fetch('/api/models', { credentials: 'include' });
+      if (modelsResponse.ok) {
+        const modelsData = await modelsResponse.json();
+        console.log('[Wizard] Models response:', modelsData);
+        
+        // Handle standardized API envelope: {success: true, data: [...], message: "..."}
+        if (modelsData.success && modelsData.data) {
+          modelsCache = Array.isArray(modelsData.data) ? modelsData.data : [];
+        } else if (Array.isArray(modelsData)) {
+          modelsCache = modelsData;
+        } else if (modelsData.models && Array.isArray(modelsData.models)) {
+          modelsCache = modelsData.models;
+        } else {
+          console.warn('[Wizard] Unexpected models response format:', modelsData);
+          modelsCache = [];
+        }
+        console.log(`[Wizard] Loaded ${modelsCache.length} models`);
+      } else {
+        console.error('[Wizard] Failed to load models:', modelsResponse.status, modelsResponse.statusText);
+        const errorText = await modelsResponse.text();
+        console.error('[Wizard] Error response:', errorText);
         modelsCache = [];
       }
-      console.log(`[Wizard] Loaded ${modelsCache.length} models`);
-    } else {
-      console.error('[Wizard] Failed to load models:', modelsResponse.status, modelsResponse.statusText);
-      const errorText = await modelsResponse.text();
-      console.error('[Wizard] Error response:', errorText);
-      modelsCache = [];
     }
   } catch (error) {
     console.error('[Wizard] Error loading initial data:', error);
-    templatesCache = [];
-    modelsCache = [];
+    templatesCache = templatesCache || [];
+    modelsCache = modelsCache || [];
   }
 }
 
@@ -515,11 +547,20 @@ async function loadTemplates() {
   const listContainer = document.getElementById('template-selection-list');
   if (!listContainer) return;
   
+  // Check if templates are already in cache (loaded from embedded page data)
+  if (templatesCache && templatesCache.length > 0) {
+    console.log('[Wizard] Using cached templates from embedded data:', templatesCache.length);
+    renderTemplatesTable(listContainer, templatesCache);
+    return;
+  }
+  
   listContainer.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary"></div><p class="small text-muted mt-2">Loading templates...</p></div>';
   
   try {
-    console.log('[Wizard] Loading templates from /api/gen/templates...');
-    const response = await fetch('/api/gen/templates');
+    console.log('[Wizard] Fetching templates from /api/gen/templates...');
+    const response = await fetch('/api/gen/templates', {
+      credentials: 'include'  // Include session cookies for authentication
+    });
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[Wizard] Template load error:', response.status, errorText);
@@ -541,6 +582,16 @@ async function loadTemplates() {
     
     templatesCache = templates;
     console.log(`[Wizard] Parsed ${templates.length} templates`);
+    
+    renderTemplatesTable(listContainer, templates);
+  } catch (error) {
+    console.error('[Wizard] Error loading templates:', error);
+    listContainer.innerHTML = `<div class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><p class="fw-bold">Error loading templates</p><p class="small">${error.message}</p><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadTemplates()">Retry</button></div>`;
+  }
+}
+
+// Helper function to render templates table (extracted for reuse)
+function renderTemplatesTable(listContainer, templates) {
     
     listContainer.innerHTML = '';
     
@@ -587,14 +638,11 @@ async function loadTemplates() {
       const row = createTemplateTableRow(template);
       tbody.appendChild(row);
     });
-  console.log('[Wizard] Templates UI updated with V2 requirements');
-  console.log('[Wizard] Template items added to wizard list, ready for clicks');  
-  updateSidebar();
-  updateNavigationButtons();
-  } catch (error) {
-    console.error('[Wizard] Error loading templates:', error);
-    listContainer.innerHTML = `<div class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><p class="fw-bold">Error loading templates</p><p class="small">${error.message}</p><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadTemplates()">Retry</button></div>`;
-  }
+    
+    console.log('[Wizard] Templates UI updated with V2 requirements');
+    console.log('[Wizard] Template items added to wizard list, ready for clicks');  
+    updateSidebar();
+    updateNavigationButtons();
 }
 
 function createTemplateTableRow(template) {

@@ -2,6 +2,8 @@
 
 You are an expert React developer. Generate complete, working code for ADMIN features.
 
+Before coding, make a brief internal plan (do not output your reasoning). Then output ONLY the requested code blocks.
+
 ## Architecture
 The project uses a modular structure:
 - `App.jsx` - Router and navigation (DO NOT MODIFY)
@@ -55,10 +57,12 @@ function ItemList() {
                 ? `/api/items?search=${encodeURIComponent(searchQuery)}`
                 : '/api/items'
 
-            const res = await fetch(url)
-            if (!res.ok) throw new Error(`HTTP ${res.status}`)
-
-            const data = await res.json()
+            const res = await api.get(
+                searchQuery
+                    ? `/items?search=${encodeURIComponent(searchQuery)}`
+                    : '/items'
+            )
+            const data = res.data
             setItems(data.items || [])
         } catch (err) {
             setError(err.message)
@@ -106,21 +110,12 @@ async function handleSubmit(e) {
         setLoading(true)
         setError(null)
 
-        const res = await fetch('/api/items', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name,
-                description: e.target.description.value.trim()
-            })
+        const res = await api.post('/items', {
+            name,
+            description: e.target.description.value.trim()
         })
 
-        if (!res.ok) {
-            const error = await res.json()
-            throw new Error(error.error || `HTTP ${res.status}`)
-        }
-
-        const newItem = await res.json()
+        const newItem = res.data
         setItems([newItem, ...items])
         e.target.reset()
 
@@ -182,6 +177,6 @@ export const adminGetStats = () => api.get('/admin/stats');
 2. **Always handle errors:** Display error messages to users
 3. **Always validate input:** Check required fields before submission
 4. **Always encode URLs:** Use `encodeURIComponent()` for query parameters
-5. **Always check response status:** Throw error if `!res.ok`
+5. **Always handle API errors:** Show actionable messages and toasts
 6. **Always use proper HTTP methods:** GET (read), POST (create), PUT (update), DELETE (remove)
 7. **Always reset forms:** Clear form after successful submission

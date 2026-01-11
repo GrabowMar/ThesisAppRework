@@ -127,13 +127,10 @@
     }
 
     /**
-     * Show floating settings button
+     * Show floating settings button - removed
      */
     showFloatButton() {
-      const floatBtn = document.getElementById('cookie-float-btn');
-      if (floatBtn) {
-        floatBtn.style.display = 'block';
-      }
+      // Floating button removed
     }
 
     /**
@@ -302,11 +299,7 @@
         settingsBtn.addEventListener('click', () => this.openSettings());
       }
 
-      // Floating settings button
-      const floatSettingsBtn = document.getElementById('cookie-float-settings');
-      if (floatSettingsBtn) {
-        floatSettingsBtn.addEventListener('click', () => this.openSettings());
-      }
+      // Floating settings button removed
 
       // Save settings button in modal
       const saveBtn = document.getElementById('cookie-save-settings');

@@ -29,6 +29,11 @@ Admin page should typically include:
 5. Bulk delete button
 6. Visual indicators for item status (active/inactive)
 
+## Common Mistakes to Avoid
+- ❌ Replacing existing user API functions → ✅ only ADD admin functions
+- ❌ Using user endpoints for admin actions → ✅ call `/api/admin/...`
+- ❌ Forgetting inactive items → ✅ admin tables typically show ALL items
+
 ## Reference
 {{ scaffolding_frontend_context }}
 
@@ -63,4 +68,6 @@ Generate COMPLETE, WORKING code with:
 - Loading states and error handling
 - Toast notifications for admin actions
 - Tailwind CSS for styling
+
+Do not include explanations—only the requested code blocks.
 

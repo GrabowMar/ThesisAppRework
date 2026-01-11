@@ -33,13 +33,33 @@ gen_bp = Blueprint('generation', __name__, url_prefix='/api/gen')
 # Require authentication for all generation API routes
 @gen_bp.before_request
 def require_authentication():
-    """Require authentication for all generation API endpoints."""
-    if not current_user.is_authenticated:
-        return jsonify({
-            'error': 'Authentication required',
-            'message': 'Please log in to access this endpoint',
-            'login_url': '/auth/login'
-        }), 401
+    """Require authentication for all generation API endpoints.
+    
+    Supports both session-based auth and Bearer token auth.
+    """
+    # Check if already authenticated via session
+    if current_user.is_authenticated:
+        return None
+    
+    # Try Bearer token authentication (like api_bp does)
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:]
+        try:
+            from app.models import User
+            from flask_login import login_user
+            user = User.verify_api_token(token)
+            if user:
+                login_user(user, remember=False)
+                return None
+        except Exception as e:
+            logger.warning(f"Token auth failed: {e}")
+    
+    return jsonify({
+        'error': 'Authentication required',
+        'message': 'Please log in or provide a valid Bearer token',
+        'login_url': '/auth/login'
+    }), 401
 
 
 @gen_bp.route('/templates', methods=['GET'])

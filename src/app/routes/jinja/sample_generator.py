@@ -18,6 +18,7 @@ from flask import Blueprint, current_app, jsonify, render_template, flash, redir
 from flask_login import current_user
 
 from app.services.generation import get_generation_service
+from app.models import ModelCapability
 
 sample_generator_bp = Blueprint('sample_generator', __name__, url_prefix='/sample-generator')
 
@@ -56,6 +57,42 @@ def _build_status() -> Dict[str, Any]:
             'system_healthy': False,
             'stubbed': True,
         }
+
+
+def _load_available_models() -> List[Dict[str, Any]]:
+    """Load models available for generation from database."""
+    try:
+        models = ModelCapability.query.order_by(
+            ModelCapability.provider,
+            ModelCapability.model_name
+        ).all()
+        return [
+            {
+                'id': m.model_id,
+                'slug': m.canonical_slug,
+                'name': m.model_name,
+                'provider': m.provider,
+                'display_name': f"{m.provider}/{m.model_name}",
+                'pricing': {
+                    'input': m.input_cost_per_1k,
+                    'output': m.output_cost_per_1k,
+                } if hasattr(m, 'input_cost_per_1k') else None,
+            }
+            for m in models
+        ]
+    except Exception as exc:
+        current_app.logger.exception("Failed to load models", exc_info=exc)
+        return []
+
+
+def _load_available_templates() -> List[Dict[str, Any]]:
+    """Load available generation templates."""
+    try:
+        svc = _service()
+        return svc.get_template_catalog()
+    except Exception as exc:
+        current_app.logger.exception("Failed to load templates", exc_info=exc)
+        return []
 
 
 def _load_recent(limit: int = 10) -> List[Dict[str, Any]]:
@@ -115,10 +152,14 @@ def index():
     """Main sample generator interface with live status context."""
     status = _build_status()
     recent = _load_recent(limit=8)
+    models = _load_available_models()
+    templates = _load_available_templates()
     return render_template(
         'pages/sample_generator/sample_generator_main.html',
         status=status,
         recent=recent,
+        models=models,
+        templates=templates,
     )
 
 

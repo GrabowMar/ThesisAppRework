@@ -19,25 +19,26 @@ Implement the **USER-FACING** frontend functionality. This includes:
 {{ api_endpoints }}
 {% endif %}
 
+## Stack & Constraints
+- React 18 + Tailwind CSS
+- Use Axios via the existing `services/api.js` (baseURL is `/api`)
+- Use `react-hot-toast` for user feedback (`toast.success`, `toast.error`)
+- Do NOT create/modify `App.jsx` (scaffolding owns routing/navigation)
 
-## Implementation Guide
+## Implementation Process (DO INTERNALLY)
+1. Translate requirements into page sections, state, and user flows.
+2. Map API endpoints → functions in `services/api.js` (use the axios instance).
+3. Implement `pages/UserPage.jsx`:
+	- Loading, error, empty states
+	- Forms with client-side validation
+	- Toasts for create/update/delete actions
+4. If you repeat data-fetch logic, extract it to `hooks/useData.js`.
+5. Sanity-check: no placeholder UI, no missing imports, no dead endpoints.
 
-**Step 1: Define Models**
-- Create database schema with all required fields
-- Include `is_active` field for soft delete
-- Include `created_at` timestamp
-- Implement `to_dict()` method for JSON serialization
-
-**Step 2: Implement Routes**
-- Use correct blueprint prefix (see routing rules below)
-- Add input validation for all POST/PUT routes
-- Include error handling with try/except
-- Return proper HTTP status codes
-
-**Step 3: Test**
-- Verify all endpoints return correct data
-- Test error cases (missing fields, invalid data)
-- Check that soft delete works correctly
+## Common Mistakes to Avoid
+- ❌ Calling `/api/api/...` → ✅ call `api.get('/...')` (baseURL already `/api`)
+- ❌ Silent failures → ✅ always show a toast and a visible error state
+- ❌ Forgetting empty states → ✅ show friendly “no items yet” UI
 
 ## File Structure (DO NOT CREATE App.jsx)
 The scaffolding already has these files ready for you to fill:
@@ -83,4 +84,12 @@ Generate COMPLETE, WORKING code with:
 - Error handling (try/catch, error messages)
 - Toast notifications for actions (use `toast.success()`, `toast.error()`)
 - Tailwind CSS for styling
+
+## Success Criteria
+- ✅ All UI requirements implemented
+- ✅ API calls match backend response shapes
+- ✅ Great UX: loading/errors/toasts/empty states
+- ✅ No placeholders/TODOs/truncated code
+
+Do not include explanations—only the requested code blocks.
 

@@ -95,10 +95,46 @@ class ModelBenchmarkCache(db.Model):
     # General benchmarks (for context)
     mmlu = db.Column(db.Float)  # MMLU score
     math_score = db.Column(db.Float)  # Math benchmark
-    
+
+    # Chapter 4 MSS Benchmarks
+    bfcl_score = db.Column(db.Float)  # Berkeley Function Calling 0-100
+    webdev_elo = db.Column(db.Float)  # WebDev Arena Elo score
+    arc_agi_score = db.Column(db.Float)  # ARC-AGI pass rate 0-100
+    simplebench_score = db.Column(db.Float)  # SimpleBench accuracy 0-100
+    canaicode_score = db.Column(db.Float)  # CanAiCode pass rate 0-100
+    seal_coding_score = db.Column(db.Float)  # SEAL Showdown coding BT score
+    gpqa_score = db.Column(db.Float)  # GPQA accuracy 0-100
+
+    # Performance metrics (from Artificial Analysis)
+    ttft_median = db.Column(db.Float)  # Time to First Token median (seconds)
+    ttft_p95 = db.Column(db.Float)  # Time to First Token P95 (seconds)
+    throughput_median = db.Column(db.Float)  # Output tokens/second median
+    throughput_p95 = db.Column(db.Float)  # Output tokens/second P95
+    total_latency_median = db.Column(db.Float)  # Total response time median (seconds)
+    total_latency_p95 = db.Column(db.Float)  # Total response time P95 (seconds)
+    quality_index = db.Column(db.Float)  # Artificial Analysis quality/intelligence index
+
     # Composite scores (computed)
     coding_composite = db.Column(db.Float)  # Weighted composite coding score
-    
+    overall_score = db.Column(db.Float)  # Overall score (coding + performance + value) - Chapter 3 legacy
+
+    # MSS Components (Chapter 4)
+    adoption_score = db.Column(db.Float)  # 0-1 normalized adoption score (35% of MSS)
+    benchmark_score = db.Column(db.Float)  # 0-1 normalized benchmark score (30% of MSS)
+    cost_efficiency_score = db.Column(db.Float)  # 0-1 normalized cost efficiency (20% of MSS)
+    accessibility_score = db.Column(db.Float)  # 0-1 normalized accessibility (15% of MSS)
+    mss = db.Column(db.Float)  # Model Selection Score (final composite)
+
+    # Adoption Metrics (for MSS calculation)
+    openrouter_programming_rank = db.Column(db.Integer)  # Rank in programming category
+    openrouter_overall_rank = db.Column(db.Integer)  # Overall popularity rank
+    openrouter_market_share = db.Column(db.Float)  # Market share percentage
+
+    # Accessibility Metrics (for MSS calculation)
+    license_type = db.Column(db.String(50))  # apache, mit, llama, commercial, etc.
+    api_stability = db.Column(db.String(20))  # stable, beta, experimental, deprecated
+    documentation_quality = db.Column(db.String(20))  # comprehensive, basic, minimal, none
+
     # Pricing info (from OpenRouter)
     input_price_per_mtok = db.Column(db.Float)  # Price per million input tokens
     output_price_per_mtok = db.Column(db.Float)  # Price per million output tokens
@@ -117,7 +153,14 @@ class ModelBenchmarkCache(db.Model):
     # Cache metadata
     cache_expires_at = db.Column(db.DateTime(timezone=True), nullable=False, index=True)
     fetched_at = db.Column(db.DateTime(timezone=True), default=utc_now)
-    
+
+    # Data freshness tracking (per category)
+    benchmark_data_updated_at = db.Column(db.DateTime(timezone=True))  # Last coding benchmark update
+    performance_data_updated_at = db.Column(db.DateTime(timezone=True))  # Last performance metrics update
+    pricing_data_updated_at = db.Column(db.DateTime(timezone=True))  # Last pricing update
+    adoption_data_updated_at = db.Column(db.DateTime(timezone=True))  # Last OpenRouter ranking update
+    accessibility_data_updated_at = db.Column(db.DateTime(timezone=True))  # Last accessibility data update
+
     # Timestamps
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
     updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
@@ -216,20 +259,63 @@ class ModelBenchmarkCache(db.Model):
             'bigcodebench_full': self.bigcodebench_full,
             'livebench_coding': self.livebench_coding,
             'livecodebench': self.livecodebench,
-            
-            # Composite score (template expects 'composite_score')
+
+            # Chapter 4 MSS Benchmarks
+            'bfcl_score': self.bfcl_score,
+            'webdev_elo': self.webdev_elo,
+            'arc_agi_score': self.arc_agi_score,
+            'simplebench_score': self.simplebench_score,
+            'canaicode_score': self.canaicode_score,
+            'seal_coding_score': self.seal_coding_score,
+            'gpqa_score': self.gpqa_score,
+
+            # Performance metrics
+            'ttft_median': self.ttft_median,
+            'ttft_p95': self.ttft_p95,
+            'throughput_median': self.throughput_median,
+            'throughput_p95': self.throughput_p95,
+            'total_latency_median': self.total_latency_median,
+            'total_latency_p95': self.total_latency_p95,
+            'quality_index': self.quality_index,
+
+            # Composite scores (template expects 'composite_score')
             'composite_score': self.coding_composite,
-            
+            'overall_score': self.overall_score,  # Chapter 3 legacy
+
+            # MSS Components (Chapter 4)
+            'adoption_score': self.adoption_score,
+            'benchmark_score': self.benchmark_score,
+            'cost_efficiency_score': self.cost_efficiency_score,
+            'accessibility_score': self.accessibility_score,
+            'mss': self.mss,
+
+            # Adoption Metrics
+            'openrouter_programming_rank': self.openrouter_programming_rank,
+            'openrouter_overall_rank': self.openrouter_overall_rank,
+            'openrouter_market_share': self.openrouter_market_share,
+
+            # Accessibility Metrics
+            'license_type': self.license_type,
+            'api_stability': self.api_stability,
+            'documentation_quality': self.documentation_quality,
+
             # Pricing (template expects these names)
             'price_per_million_input': self.input_price_per_mtok or 0,
             'price_per_million_output': self.output_price_per_mtok or 0,
             'is_free': self.is_free,
-            
+
             # Metadata
             'context_length': self.context_length,
             'huggingface_id': self.huggingface_id,
             'openrouter_id': self.openrouter_id,
-            
+
+            # Data freshness
+            'benchmark_data_updated_at': self.benchmark_data_updated_at.isoformat() if self.benchmark_data_updated_at else None,
+            'performance_data_updated_at': self.performance_data_updated_at.isoformat() if self.performance_data_updated_at else None,
+            'pricing_data_updated_at': self.pricing_data_updated_at.isoformat() if self.pricing_data_updated_at else None,
+            'adoption_data_updated_at': self.adoption_data_updated_at.isoformat() if self.adoption_data_updated_at else None,
+            'accessibility_data_updated_at': self.accessibility_data_updated_at.isoformat() if self.accessibility_data_updated_at else None,
+
             # Sources
             'sources': self.get_sources(),
             'fetched_at': self.fetched_at.isoformat() if self.fetched_at else None,
