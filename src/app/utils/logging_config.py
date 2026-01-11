@@ -234,19 +234,27 @@ class WerkzeugEndpointFilter(logging.Filter):
     """Filter to suppress high-frequency werkzeug request logs.
     
     Suppresses logging for:
-    - Health check endpoints (/health)
+    - Health check endpoints (/health, /api/health)
     - Pipeline status polling (/automation/api/pipeline/*/status)
     - Fragment status (/automation/fragments/status)
+    - Static files (css, js, images, fonts)
+    - Favicon requests
+    - Socket.IO polling
     
-    These endpoints are called every 2-3 seconds and create excessive noise.
+    These endpoints are called frequently and create excessive noise.
     """
     
     # Endpoints to suppress (substring matches)
     _suppressed_endpoints = (
         'GET /health ',
+        'GET /api/health ',
         '/status HTTP',
         '/detailed-status HTTP',
         '/fragments/status HTTP',
+        'GET /static/',
+        'GET /favicon',
+        '/socket.io/',
+        '?polling',
     )
     
     def filter(self, record: logging.LogRecord) -> bool:
@@ -257,6 +265,88 @@ class WerkzeugEndpointFilter(logging.Filter):
         for endpoint in self._suppressed_endpoints:
             if endpoint in message:
                 return False
+        
+        return True
+
+
+class SecurityScannerProbeFilter(logging.Filter):
+    """Filter to suppress security scanner probe 404s from web app logs.
+    
+    Security scanners (like OWASP ZAP) probe for common admin paths, vulnerability
+    endpoints, and technology-specific files. These generate many 404s that clutter
+    the web app logs.
+    
+    This filter:
+    - Detects scanner probe patterns (admin paths, .asp/.aspx/.php files, etc.)
+    - Suppresses individual probe logs
+    - Emits periodic summary notices
+    """
+    
+    # Common scanner probe patterns (lowercase for matching)
+    _scanner_patterns = (
+        # Admin panels
+        '/admin', '/administrator', '/wp-admin', '/phpmyadmin',
+        '/siteadmin', '/controlpanel', '/cpanel', '/webadmin',
+        '/memberadmin', '/moderator', '/manager',
+        # Legacy file extensions (ASP, ASPX, PHP probes)
+        '.asp', '.aspx', '.php', '.cgi', '.pl', '.cfm', '.jsp',
+        # Common vulnerability paths
+        '/login', '/signin', '/user', '/account',
+        '/upload', '/backup', '/config', '.bak', '.old', '.sql',
+        # CMS paths
+        '/wordpress', '/joomla', '/drupal', '/magento',
+        # Misc scanner patterns  
+        '/shell', '/cmd', '/exec', '/phpinfo',
+    )
+    
+    # Track suppressed probes for periodic summary
+    _probe_count = 0
+    _last_summary_time = None
+    _summary_interval = 60  # seconds between summaries
+    
+    def __init__(self, name: str = ""):
+        super().__init__(name)
+        SecurityScannerProbeFilter._last_summary_time = datetime.now()
+    
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Filter security scanner probe requests."""
+        message = _safe_get_message(record).lower()
+        
+        # Only filter 404 responses that match scanner patterns
+        if '404' not in message:
+            return True
+        
+        # Check if this looks like a scanner probe
+        is_probe = False
+        for pattern in self._scanner_patterns:
+            if pattern in message:
+                is_probe = True
+                break
+        
+        # Also detect HEAD requests (common scanner technique)
+        if 'head /' in message:
+            is_probe = True
+        
+        if is_probe:
+            SecurityScannerProbeFilter._probe_count += 1
+            
+            # Emit periodic summary
+            now = datetime.now()
+            if SecurityScannerProbeFilter._last_summary_time:
+                elapsed = (now - SecurityScannerProbeFilter._last_summary_time).total_seconds()
+                if elapsed >= self._summary_interval and SecurityScannerProbeFilter._probe_count > 0:
+                    # Log summary and reset counter
+                    count = SecurityScannerProbeFilter._probe_count
+                    SecurityScannerProbeFilter._probe_count = 0
+                    SecurityScannerProbeFilter._last_summary_time = now
+                    # Modify the record to show summary instead of individual probe
+                    record.msg = f"[SCANNER] Suppressed {count} security scanner probe 404s (see dynamic-analyzer logs for details)"
+                    record.args = ()
+                    record.levelno = logging.DEBUG
+                    return True
+            
+            # Suppress individual probe logs
+            return False
         
         return True
 
@@ -338,11 +428,28 @@ class SmartLogFilter(logging.Filter):
             r'Redis is loading the dataset in memory\.',
             # High-frequency polling endpoints (suppress completely)
             r'GET /health HTTP',
+            r'GET /api/health HTTP',
             r'GET /automation/api/pipeline/[^/]+/status HTTP',
             r'GET /automation/api/pipeline/[^/]+/detailed-status HTTP',
             r'GET /automation/fragments/status HTTP',
             # Pipeline executor debug spam
             r'\[PIPELINE:[^:]+:DEBUG\]',
+            r'\[[a-z0-9_]+:DEBUG\]',  # All DEBUG context prefixes
+            # Security scanner probe patterns (404s for admin paths, .asp/.aspx files)
+            r'HEAD /.*\.(asp|aspx|php|cgi|jsp|cfm)\s',
+            r'HEAD /(admin|administrator|wp-admin|phpmyadmin|login|cpanel)',
+            r'POST /\d+ HTTP',  # Random numeric POST probes
+            # Static file requests (reduce noise)
+            r'GET /static/.*\.(css|js|png|jpg|jpeg|gif|ico|woff|woff2|ttf|svg) HTTP',
+            r'"GET /static/.*" 200',
+            r'"GET /static/.*" 304',
+            # Werkzeug request logging patterns for common non-essential requests
+            r'127\.0\.0\.1 - - \[.*\] "GET /static/',
+            r'127\.0\.0\.1 - - \[.*\] "GET /favicon',
+            r'127\.0\.0\.1 - - \[.*\] "GET /health',
+            # Socket.IO/WebSocket noise
+            r'socket\.io.*polling',
+            r'GET /socket\.io/.*polling',
         }
         
         self._rate_limited_messages = {}
@@ -700,9 +807,10 @@ class LoggingConfig:
         logging.getLogger('analyzer.websocket_gateway').setLevel(logging.INFO)
         logging.getLogger('app.services.analyzer_integration').setLevel(logging.INFO)
         
-        # Add filter to werkzeug to suppress high-frequency polling endpoints
+        # Add filters to werkzeug to suppress high-frequency polling and scanner probes
         werkzeug_logger = logging.getLogger('werkzeug')
         werkzeug_logger.addFilter(WerkzeugEndpointFilter())
+        werkzeug_logger.addFilter(SecurityScannerProbeFilter())
     
     def create_service_logger(self, service_name: str) -> logging.Logger:
         """Create a logger for a specific service."""

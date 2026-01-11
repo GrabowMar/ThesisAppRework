@@ -902,6 +902,54 @@ function Start-DevMode {
         Start-AnalyzerServices | Out-Null
     }
     
+    # Generate and set admin password for dev mode
+    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
+    $devPassword = -join ((1..16) | ForEach-Object { $chars[(Get-Random -Maximum $chars.Length)] })
+    
+    $resetScript = @"
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'src'))
+from app.factory import create_app
+from app.models import User
+from app.extensions import db
+
+app = create_app()
+with app.app_context():
+    admin = User.query.filter_by(username='admin').first()
+    if not admin:
+        admin = User(username='admin', email='admin@thesis.local', full_name='System Administrator')
+        admin.set_password('$devPassword')
+        admin.is_admin = True
+        admin.is_active = True
+        db.session.add(admin)
+    else:
+        admin.set_password('$devPassword')
+    db.session.commit()
+    print('OK')
+"@
+    
+    $tempScript = Join-Path $Script:ROOT_DIR "temp_dev_password.py"
+    $resetScript | Out-File -FilePath $tempScript -Encoding UTF8
+    
+    try {
+        $output = & $Script:PYTHON_CMD $tempScript 2>&1
+        if ($LASTEXITCODE -eq 0 -and $output -match 'OK') {
+            Write-Host "Admin Credentials:" -ForegroundColor Cyan
+            Write-Host "  Username: " -NoNewline -ForegroundColor White
+            Write-Host "admin" -ForegroundColor Green
+            Write-Host "  Password: " -NoNewline -ForegroundColor White
+            Write-Host "$devPassword" -ForegroundColor Green
+            Write-Host ""
+        }
+    } catch {
+        Write-Status "Warning: Could not set dev password" "Warning"
+    } finally {
+        if (Test-Path $tempScript) {
+            Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
+        }
+    }
+    
     # Start Flask in foreground (dev mode is interactive)
     Start-FlaskApp | Out-Null
 }

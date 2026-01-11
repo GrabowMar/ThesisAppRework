@@ -558,6 +558,15 @@ def create_app(config_name: str = 'default') -> Flask:
             '/detailed-status',
             '/fragments/status',
         )
+        
+        # Scanner probe patterns to suppress (these are logged by dynamic-analyzer instead)
+        _SCANNER_PROBE_PATTERNS = (
+            '.asp', '.aspx', '.php', '.cgi', '.jsp', '.cfm', '.pl',
+            '/admin', '/administrator', '/wp-admin', '/phpmyadmin',
+            '/login', '/signin', '/cpanel', '/manager', '/webadmin',
+        )
+        _scanner_probe_count = [0]  # Use list for mutable counter in closure
+        _last_scanner_summary = [None]
 
         @app.before_request  # type: ignore[misc]
         def _req_start_timer():
@@ -569,6 +578,32 @@ def create_app(config_name: str = 'default') -> Flask:
                 # Skip logging for high-frequency polling endpoints
                 path = request.path
                 if any(path.endswith(ep) for ep in _SKIP_LOGGING_ENDPOINTS):
+                    return resp
+                
+                # Detect and aggregate security scanner probes
+                # These are 404s for admin paths, .asp/.aspx files, etc.
+                path_lower = path.lower()
+                is_scanner_probe = (
+                    resp.status_code == 404 and
+                    (request.method == 'HEAD' or
+                     any(pattern in path_lower for pattern in _SCANNER_PROBE_PATTERNS))
+                )
+                
+                if is_scanner_probe:
+                    _scanner_probe_count[0] += 1
+                    # Emit summary every 60 seconds or 50 probes
+                    import time as _time
+                    now = _time.time()
+                    if (_last_scanner_summary[0] is None or 
+                        now - _last_scanner_summary[0] > 60 or 
+                        _scanner_probe_count[0] >= 50):
+                        if _scanner_probe_count[0] > 1:
+                            logger.debug(
+                                f"[SCANNER] {_scanner_probe_count[0]} security probe 404s suppressed "
+                                f"(see dynamic-analyzer logs for scan details)"
+                            )
+                        _scanner_probe_count[0] = 0
+                        _last_scanner_summary[0] = now
                     return resp
                 
                 duration_ms = None

@@ -153,7 +153,13 @@ class DynamicAnalyzer(BaseWSService):
                     'url': url
                 }
             
-            self.log.info(f"Running OWASP ZAP {scan_type} scan on {url}")
+            self.log.info(f"=" * 60)
+            self.log.info(f"OWASP ZAP Security Scan Started")
+            self.log.info(f"  Target: {url}")
+            self.log.info(f"  Scan type: {scan_type}")
+            self.log.info(f"  Note: ZAP will probe for common paths (admin panels, tech-specific files)")
+            self.log.info(f"        These probes are EXPECTED and will generate 404s on the target")
+            self.log.info(f"=" * 60)
             
             # Run appropriate scan type
             if scan_type == 'full':

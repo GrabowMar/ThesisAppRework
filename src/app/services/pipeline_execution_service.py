@@ -144,43 +144,37 @@ class PipelineExecutionService:
         self._shutting_down: bool = False
         self._shutdown_event: threading.Event = threading.Event()
         
-        self._log("INIT", "PipelineExecutionService initialized (poll_interval=%s)", poll_interval)
+        self._log("INIT", f"PipelineExecutionService initialized (poll_interval={poll_interval})")
     
-    def _log(self, context: str, msg: str, *args, level: str = 'info', **kwargs) -> None:
+    def _log(self, context: str, msg: str, level: str = 'info') -> None:
         """Log with consistent formatting and context prefixes.
         
-        Logging format: [PIPELINE:{context}] message
+        Uses f-strings for message formatting (NOT printf-style %s).
+        
+        Logging format: [PIPELINE:{pipeline_id}:{context}] message
         
         Standard context prefixes:
         - INIT: Service initialization
-        - GEN: Generation stage operations
-        - ANAL: Analysis stage operations  
-        - TASK: Individual task operations
-        - HEALTH: Health check operations
-        - CIRCUIT: Circuit breaker operations
-        - CONTAINER: Container management
-        - SHUTDOWN: Graceful shutdown
+        - GEN: Generation stage
+        - ANAL: Analysis stage  
+        - TASK: Task operations
+        - HEALTH: Health checks
+        - CIRCUIT: Circuit breaker
+        - CONTAINER: Container ops
+        - SHUTDOWN: Shutdown
+        
+        Example usage:
+            self._log("GEN", f"Processing job {job_index} for {model_slug}")
         """
-        # Ensure msg is a string (handles misuse where context/msg are swapped)
-        msg_str = str(msg) if not isinstance(msg, str) else msg
-        
-        # Use try/except to handle cases where args contain % characters
-        # (e.g., exception messages with format specifiers)
-        if args:
-            try:
-                formatted = msg_str % args
-            except (TypeError, ValueError):
-                # Fallback: convert args to strings and join
-                formatted = msg_str + " " + " ".join(str(a) for a in args)
-        else:
-            formatted = msg_str
-        
         log_func = getattr(logger, level, logger.info)
-        # Include pipeline ID if available
+        
+        # Build prefix based on current context
         if self._current_pipeline_id:
-            log_func(f"[PIPELINE:{self._current_pipeline_id}:{context}] {formatted}")
+            prefix = f"[{self._current_pipeline_id}:{context}]"
         else:
-            log_func(f"[PIPELINE:{context}] {formatted}")
+            prefix = f"[PIPELINE:{context}]"
+        
+        log_func(f"{prefix} {msg}")
     
     def _get_analyzer_host(self, service_name: str) -> str:
         """Get the hostname for an analyzer service.
@@ -214,16 +208,15 @@ class PipelineExecutionService:
         if current_time < cooldown_until:
             remaining = int(cooldown_until - current_time)
             self._log(
-                "CIRCUIT", "Service %s circuit OPEN, %ds remaining in cooldown",
-                service_name, remaining, level='debug'
+                "CIRCUIT", f"Service {service_name} circuit OPEN, {remaining}s remaining in cooldown",
+                level='debug'
             )
             return True
         
         # Cooldown expired - reset circuit breaker if it was tripped
         if cooldown_until > 0 and current_time >= cooldown_until:
             self._log(
-                "CIRCUIT", "Service %s cooldown expired, resetting circuit breaker",
-                service_name
+                "CIRCUIT", f"Service {service_name} cooldown expired, resetting circuit breaker"
             )
             self._analyzer_failures[service_name] = 0
             self._analyzer_cooldown_until[service_name] = 0
@@ -239,15 +232,13 @@ class PipelineExecutionService:
             cooldown_end = time.time() + self.CIRCUIT_BREAKER_COOLDOWN
             self._analyzer_cooldown_until[service_name] = cooldown_end
             self._log(
-                "CIRCUIT", "Service %s circuit breaker TRIPPED after %d failures. "
-                "Cooldown for %ds",
-                service_name, failures, int(self.CIRCUIT_BREAKER_COOLDOWN),
+                "CIRCUIT", f"Service {service_name} circuit breaker TRIPPED after {failures} failures. "
+                f"Cooldown for {int(self.CIRCUIT_BREAKER_COOLDOWN)}s",
                 level='warning'
             )
         else:
             self._log(
-                "CIRCUIT", "Service %s failure recorded (%d/%d before trip)",
-                service_name, failures, self.CIRCUIT_BREAKER_THRESHOLD,
+                "CIRCUIT", f"Service {service_name} failure recorded ({failures}/{self.CIRCUIT_BREAKER_THRESHOLD} before trip)",
                 level='debug'
             )
     
@@ -255,8 +246,8 @@ class PipelineExecutionService:
         """Record a service success and reset failure counter."""
         if self._analyzer_failures.get(service_name, 0) > 0:
             self._log(
-                "CIRCUIT", "Service %s success, resetting failure count",
-                service_name, level='debug'
+                "CIRCUIT", f"Service {service_name} success, resetting failure count",
+                level='debug'
             )
         self._analyzer_failures[service_name] = 0
     
@@ -373,21 +364,18 @@ class PipelineExecutionService:
                 unavailable.append(service_name)
                 reason = status.get('error', 'Unknown')
                 self._log(
-                    "[HEALTH] Service %s unavailable: %s",
-                    service_name, reason, level='warning'
+                    "HEALTH", f"Service {service_name} unavailable: {reason}", level='warning'
                 )
         
         if unavailable:
             self._log(
-                "[HEALTH] Partial execution mode: %d/%d services available. "
-                "Unavailable: %s",
-                len(available), len(required_services), ', '.join(unavailable),
+                "HEALTH", f"Partial execution mode: {len(available)}/{len(required_services)} services available. "
+                f"Unavailable: {', '.join(unavailable)}",
                 level='warning'
             )
         else:
             self._log(
-                "[HEALTH] All %d required services available",
-                len(required_services)
+                "HEALTH", f"All {len(required_services)} required services available"
             )
         
         return (available, unavailable)
@@ -400,7 +388,7 @@ class PipelineExecutionService:
         """
         if service_name:
             self._service_health_cache.pop(service_name, None)
-            self._log("HEALTH", "Invalidated cache for %s", service_name, level='debug')
+            self._log("HEALTH", f"Invalidated cache for {service_name}", level='debug')
         else:
             self._service_health_cache.clear()
             self._analyzer_healthy = None
@@ -457,8 +445,7 @@ class PipelineExecutionService:
                 self._log("SHUTDOWN", "All in-flight tasks completed")
                 break
             
-            self._log("SHUTDOWN", "Waiting for %d in-flight items... (%.1fs remaining)",
-                     total_in_flight, GRACEFUL_SHUTDOWN_TIMEOUT - (time.time() - start_time))
+            self._log("SHUTDOWN", f"Waiting for {total_in_flight} in-flight items... ({GRACEFUL_SHUTDOWN_TIMEOUT - (time.time() - start_time):.1f}s remaining)")
             time.sleep(1.0)
         else:
             # Timeout reached - persist incomplete state
@@ -487,13 +474,11 @@ class PipelineExecutionService:
         with _pipeline_state_lock:
             for pipeline_id, task_ids in self._in_flight_tasks.items():
                 if task_ids:
-                    self._log("SHUTDOWN", "Pipeline %s has %d in-flight analysis tasks: %s",
-                             pipeline_id, len(task_ids), list(task_ids), level='warning')
+                    self._log("SHUTDOWN", f"Pipeline {pipeline_id} has {len(task_ids)} in-flight analysis tasks: {list(task_ids)}", level='warning')
             
             for pipeline_id, job_keys in self._in_flight_generation.items():
                 if job_keys:
-                    self._log("SHUTDOWN", "Pipeline %s has %d in-flight generation jobs: %s",
-                             pipeline_id, len(job_keys), list(job_keys), level='warning')
+                    self._log("SHUTDOWN", f"Pipeline {pipeline_id} has {len(job_keys)} in-flight generation jobs: {list(job_keys)}", level='warning')
     
     def _run_loop(self):
         """Main execution loop - polls for and processes pipelines."""
@@ -514,7 +499,7 @@ class PipelineExecutionService:
                         time.sleep(self.poll_interval)
                         continue
 
-                    self._log("MAIN", "Found %d running pipeline(s)", len(pipelines), level='debug')
+                    self._log("MAIN", f"Found {len(pipelines)} running pipeline(s)", level='debug')
 
                     # Process each running pipeline
                     for pipeline in pipelines:
@@ -523,8 +508,7 @@ class PipelineExecutionService:
                             self._process_pipeline(pipeline)
                         except Exception as e:
                             self._log(
-                                "ERROR", "Error processing pipeline %s: %s",
-                                pipeline.pipeline_id, e,
+                                "ERROR", f"Error processing pipeline {pipeline.pipeline_id}: {e}",
                                 level='error'
                             )
                             # Mark pipeline as failed on exception
@@ -537,11 +521,11 @@ class PipelineExecutionService:
                                 # Clean up generation tracking
                                 self._cleanup_generation_tracking(pipeline.pipeline_id)
                             except Exception as cleanup_error:
-                                self._log("ERROR", "Failed to cleanup after pipeline error: %s", cleanup_error, level='error')
+                                self._log("ERROR", f"Failed to cleanup after pipeline error: {cleanup_error}", level='error')
                                 try:
                                     db.session.rollback()
                                 except Exception as rollback_error:
-                                    self._log("ERROR", "Critical: Failed to rollback session: %s", rollback_error, level='critical')
+                                    self._log("ERROR", f"Critical: Failed to rollback session: {rollback_error}", level='critical')
                             finally:
                                 # Ensure session is cleaned up
                                 try:
@@ -552,7 +536,7 @@ class PipelineExecutionService:
                             self._current_pipeline_id = None
 
                 except Exception as e:
-                    self._log("ERROR", "Pipeline execution loop error: %s", e, level='error')
+                    self._log("ERROR", f"Pipeline execution loop error: {e}", level='error')
                     # Clean up session on loop errors
                     try:
                         db.session.remove()
@@ -566,9 +550,7 @@ class PipelineExecutionService:
         # Debug: Log current state before getting next job (at debug level to reduce noise)
         status_val = pipeline.status.value if hasattr(pipeline.status, 'value') else str(pipeline.status)  # type: ignore[union-attr]
         self._log(
-            "DEBUG", "Pipeline %s: stage=%s, job_index=%d, status=%s",
-            pipeline.pipeline_id, pipeline.current_stage, 
-            pipeline.current_job_index, status_val,
+            "DEBUG", f"Pipeline {pipeline.pipeline_id}: stage={pipeline.current_stage}, job_index={pipeline.current_job_index}, status={status_val}",
             level='debug'  # Use debug level to prevent spam
         )
         
@@ -602,8 +584,7 @@ class PipelineExecutionService:
         completed = progress.get('generation', {}).get('completed', 0)
         failed = progress.get('generation', {}).get('failed', 0)
         self._log(
-            "GEN", "Processing generation stage: job_index=%d, total=%d, completed=%d, failed=%d",
-            pipeline.current_job_index, total, completed, failed
+            "GEN", f"Processing generation stage: job_index={pipeline.current_job_index}, total={total}, completed={completed}, failed={failed}"
         )
         
         # Get parallelism settings from config (default: 2 concurrent for generation)
@@ -646,8 +627,8 @@ class PipelineExecutionService:
             with _pipeline_state_lock:
                 if job_key in self._in_flight_generation.get(pipeline_id, set()):
                     self._log(
-                        "Skipping duplicate generation job %s (already in-flight)",
-                        job_key, level='debug'
+                        "GEN", f"Skipping duplicate generation job {job_key} (already in-flight)",
+                        level='debug'
                     )
                     # Advance index to avoid infinite loop
                     pipeline.advance_job_index()
@@ -661,8 +642,8 @@ class PipelineExecutionService:
             )
             if already_done:
                 self._log(
-                    "Skipping generation job %d (already completed)",
-                    job_index, level='debug'
+                    "GEN", f"Skipping generation job {job_index} (already completed)",
+                    level='debug'
                 )
                 pipeline.advance_job_index()
                 db.session.commit()
@@ -695,8 +676,7 @@ class PipelineExecutionService:
         if done >= total and in_flight_count == 0:
             # All generation complete - transition to analysis
             self._log(
-                "GEN", "Generation complete for %s: %d/%d succeeded, %d failed (total results: %d)",
-                pipeline_id, completed, total, failed, len(progress.get('generation', {}).get('results', []))
+                "GEN", f"Generation complete for {pipeline_id}: {completed}/{total} succeeded, {failed} failed (total results: {len(progress.get('generation', {}).get('results', []))})"
             )
             progress['generation']['status'] = 'completed'
             pipeline.progress = progress
@@ -711,8 +691,7 @@ class PipelineExecutionService:
         else:
             # Log detailed state to help debug early completion issues
             self._log(
-                "GEN", "Generation progress for %s: done=%d/%d, in_flight=%d, results=%d",
-                pipeline_id, done, total, in_flight_count, len(progress.get('generation', {}).get('results', [])),
+                "GEN", f"Generation progress for {pipeline_id}: done={done}/{total}, in_flight={in_flight_count}, results={len(progress.get('generation', {}).get('results', []))}",
                 level='debug'
             )
         
@@ -727,8 +706,7 @@ class PipelineExecutionService:
         job_key = f"{job_index}:{model_slug}:{template_slug}"
         
         self._log(
-            "GEN", "Submitting generation job %d for %s: %s + %s",
-            job_index, pipeline_id, model_slug, template_slug
+            "GEN", f"Submitting generation job {job_index} for {pipeline_id}: {model_slug} + {template_slug}"
         )
         
         # Add to in-flight tracking
@@ -747,8 +725,8 @@ class PipelineExecutionService:
         else:
             # Fallback to synchronous execution
             self._log(
-                "GEN", "No executor for %s, running generation synchronously",
-                pipeline_id, level='warning'
+                "GEN", f"No executor for {pipeline_id}, running generation synchronously",
+                level='warning'
             )
             self._execute_generation_job_sync(pipeline_id, job)
     
@@ -775,8 +753,7 @@ class PipelineExecutionService:
             # Push Flask app context for this thread
             with (self._app.app_context() if self._app else _nullcontext()):
                 self._log(
-                    "GEN", "Worker starting job %d: %s + %s",
-                    job_index, model_slug, template_slug
+                    "GEN", f"Worker starting job {job_index}: {model_slug} + {template_slug}"
                 )
                 
                 # Validate required parameters
@@ -828,14 +805,12 @@ class PipelineExecutionService:
                     result['error'] = '; '.join(gen_result.get('errors', ['Unknown error']))
                 
                 self._log(
-                    "GEN", "Worker completed job %d: %s app %s (success=%s)",
-                    job_index, model_slug, app_number, result['success']
+                    "GEN", f"Worker completed job {job_index}: {model_slug} app {app_number} (success={result['success']})"
                 )
                 
         except Exception as e:
             self._log(
-                "GEN", "Worker job %d failed: %s",
-                job_index, str(e), level='error'
+                "GEN", f"Worker job {job_index} failed: {str(e)}", level='error'
             )
             result['error'] = str(e)
         
@@ -879,7 +854,7 @@ class PipelineExecutionService:
         # Re-fetch pipeline with fresh DB session
         pipeline = PipelineExecution.query.filter_by(pipeline_id=pipeline_id).first()
         if not pipeline:
-            self._log("GEN", "Cannot record result - pipeline %s not found", pipeline_id, level='error')
+            self._log("GEN", f"Cannot record result - pipeline {pipeline_id} not found", level='error')
             return
         
         record = {
@@ -896,8 +871,7 @@ class PipelineExecutionService:
         stage_transitioned = pipeline.add_generation_result(record)
         
         self._log(
-            "GEN", "Recorded generation result for %s job %d: success=%s, stage_transitioned=%s",
-            pipeline_id, record.get('job_index', -1), record['success'], stage_transitioned
+            "GEN", f"Recorded generation result for {pipeline_id} job {record.get('job_index', -1)}: success={record['success']}, stage_transitioned={stage_transitioned}"
         )
         
         db.session.commit()
@@ -914,14 +888,13 @@ class PipelineExecutionService:
                 if not future.done():
                     future.cancel()
                     self._log(
-                        "CLEANUP", "Cancelled generation job %s for pipeline %s",
-                        job_key, pipeline_id, level='debug'
+                        "CLEANUP", f"Cancelled generation job {job_key} for pipeline {pipeline_id}", level='debug'
                     )
             
             # Clear in-flight tracking
             self._in_flight_generation.pop(pipeline_id, None)
         
-        self._log("CLEANUP", "Cleaned up generation tracking for pipeline %s", pipeline_id, level='debug')
+        self._log("CLEANUP", f"Cleaned up generation tracking for pipeline {pipeline_id}", level='debug')
     
     def _process_analysis_stage(self, pipeline: PipelineExecution):
         """Process analysis stage with parallel execution.
@@ -965,8 +938,7 @@ class PipelineExecutionService:
             if not needs_containers:
                 # Static analysis only - skip container startup entirely
                 self._log(
-                    "ANAL", "Skipping analyzer container startup for %s - static analysis tools only (%s)",
-                    pipeline_id, ', '.join(tools)
+                    "ANAL", f"Skipping analyzer container startup for {pipeline_id} - static analysis tools only ({', '.join(tools)})"
                 )
                 with _pipeline_state_lock:
                     self._containers_started_for.add(pipeline_id)
@@ -1046,7 +1018,7 @@ class PipelineExecutionService:
                 pipeline.add_analysis_task_id('skipped:generation_failed', success=False,
                                               model_slug=model_slug, app_number=app_number)
                 db.session.commit()
-                self._log("ANAL", "Skipping analysis for %s app %s - generation failed", model_slug, app_number)
+                self._log("ANAL", f"Skipping analysis for {model_slug} app {app_number} - generation failed")
                 continue
             
             # FIX: Check if this model:app combo was already submitted (duplicate guard)
@@ -1057,8 +1029,7 @@ class PipelineExecutionService:
                 # Already submitted - just advance the index
                 pipeline.advance_job_index()
                 db.session.commit()
-                self._log("ANAL", "Skipping duplicate analysis submission for %s app %d (already in submitted_apps)",
-                         model_slug, app_number)
+                self._log("ANAL", f"Skipping duplicate analysis submission for {model_slug} app {app_number} (already in submitted_apps)")
                 continue
             
             # Double-check against existing main_task_ids (belt-and-suspenders)
@@ -1071,8 +1042,7 @@ class PipelineExecutionService:
                 if (existing_task and 
                     existing_task.target_model == model_slug and 
                     existing_task.target_app_number == app_number):
-                    self._log("ANAL", "Skipping duplicate analysis for %s app %d (already have task %s)",
-                             model_slug, app_number, task_id)
+                    self._log("ANAL", f"Skipping duplicate analysis for {model_slug} app {app_number} (already have task {task_id})")
                     already_submitted = True
                     break
             
@@ -1108,8 +1078,7 @@ class PipelineExecutionService:
                     # Remove from submitted_apps to allow retry
                     self._mark_job_retryable(pipeline, model_slug, app_number)
                 db.session.commit()
-                self._log("ANAL", "Task creation failed for %s app %d: %s",
-                         model_slug, app_number, task_id, level='warning')
+                self._log("ANAL", f"Task creation failed for {model_slug} app {app_number}: {task_id}", level='warning')
         
         # STEP 4: Check if all analysis is complete
         if self._check_analysis_tasks_completion(pipeline):
@@ -1133,7 +1102,7 @@ class PipelineExecutionService:
             submitted_apps.remove(job_key)
             progress['analysis']['submitted_apps'] = submitted_apps
             pipeline.progress = progress
-            self._log("ANAL", "Marked %s as retryable (removed from submitted_apps)", job_key)
+            self._log("ANAL", f"Marked {job_key} as retryable (removed from submitted_apps)")
     
     def _submit_analysis_task(self, pipeline: PipelineExecution, job: Dict[str, Any]) -> str:
         """Create and submit a single analysis task.
@@ -1154,16 +1123,15 @@ class PipelineExecutionService:
         existing_task_id = task_registry.get_existing_task_id(model_slug, app_number, pipeline_id)
         if existing_task_id:
             self._log(
-                "ANAL", "Task already exists in registry for %s app %d: %s",
-                model_slug, app_number, existing_task_id
+                "ANAL", f"Task already exists in registry for {model_slug} app {app_number}: {existing_task_id}"
             )
             return existing_task_id
         
         # Try to claim the task slot
         if not task_registry.try_claim_task(model_slug, app_number, pipeline_id, caller="PipelineExecutionService"):
             self._log(
-                "ANAL", "Could not claim task slot for %s app %d - another service is creating it",
-                model_slug, app_number, level='warning'
+                "ANAL", f"Could not claim task slot for {model_slug} app {app_number} - another service is creating it",
+                level='warning'
             )
             # Return a marker indicating we should skip (another service handling it)
             return f'skipped:claimed_by_other_service:{model_slug}:{app_number}'
@@ -1184,8 +1152,7 @@ class PipelineExecutionService:
         # Check submitted_apps first (fastest check)
         if job_key in submitted_apps:
             self._log(
-                "Skipping duplicate analysis task for %s app %d (in submitted_apps)",
-                model_slug, app_number
+                "ANAL", f"Skipping duplicate analysis task for {model_slug} app {app_number} (in submitted_apps)"
             )
             # Find and return existing task_id
             for task_id in existing_task_ids:
@@ -1208,8 +1175,7 @@ class PipelineExecutionService:
                 existing_task.target_model == model_slug and
                 existing_task.target_app_number == app_number):
                 self._log(
-                    "Skipping duplicate analysis task for %s app %d (already have %s)",
-                    model_slug, app_number, task_id
+                    "ANAL", f"Skipping duplicate analysis task for {model_slug} app {app_number} (already have {task_id})"
                 )
                 return task_id  # Return existing task ID
         
@@ -1220,8 +1186,7 @@ class PipelineExecutionService:
             task_registry.release_claim(model_slug, app_number, pipeline_id)
             
             self._log(
-                "Skipping analysis for %s app %d: %s",
-                model_slug, app_number, validation_msg,
+                "ANAL", f"Skipping analysis for {model_slug} app {app_number}: {validation_msg}",
                 level='warning'
             )
             skip_marker = f'skipped:app_missing:{validation_msg}'
@@ -1236,31 +1201,27 @@ class PipelineExecutionService:
                                          analysis_config.get('options', {}).get('autoStartContainers', True))
 
         if auto_start:
-            self._log("ANAL", "Starting containers for %s app %d...", model_slug, app_number)
+            self._log("ANAL", f"Starting containers for {model_slug} app {app_number}...")
             start_result = self._start_app_containers(pipeline_id, model_slug, app_number)
             if not start_result.get('success'):
                 # Log warning but continue - analysis might still work (e.g., static analysis)
                 self._log(
-                    "App container startup failed for %s app %d, continuing with analysis anyway: %s",
-                    model_slug, app_number, start_result.get('error', 'Unknown'),
+                    "ANAL", f"App container startup failed for {model_slug} app {app_number}, continuing with analysis anyway: {start_result.get('error', 'Unknown')}",
                     level='warning'
                 )
             else:
                 # SUCCESS: Containers started - wait for them to be healthy
-                self._log("ANAL", "Containers started for %s app %d, waiting for health check...", model_slug, app_number)
+                self._log("ANAL", f"Containers started for {model_slug} app {app_number}, waiting for health check...")
                 health_result = self._wait_for_app_containers_healthy(model_slug, app_number, timeout=APP_CONTAINER_HEALTH_TIMEOUT)
                 if health_result.get('healthy'):
-                    self._log("ANAL", "Containers healthy for %s app %d (took %.1fs)",
-                             model_slug, app_number, health_result.get('elapsed_time', 0))
+                    self._log("ANAL", f"Containers healthy for {model_slug} app {app_number} (took {health_result.get('elapsed_time', 0):.1f}s)")
                 else:
                     self._log(
-                        "ANAL", "Container health check timed out for %s app %d after %.1fs, continuing anyway: %s",
-                        model_slug, app_number, health_result.get('elapsed_time', 0),
-                        health_result.get('message', 'Unknown'),
+                        "ANAL", f"Container health check timed out for {model_slug} app {app_number} after {health_result.get('elapsed_time', 0):.1f}s, continuing anyway: {health_result.get('message', 'Unknown')}",
                         level='warning'
                     )
 
-        self._log("ANAL", "Creating analysis task for %s app %d", model_slug, app_number)
+        self._log("ANAL", f"Creating analysis task for {model_slug} app {app_number}")
         
         try:
             from app.services.task_service import AnalysisTaskService
@@ -1300,15 +1261,14 @@ class PipelineExecutionService:
                         service = tool_obj.container.value
                         tools_by_service.setdefault(service, []).append(tool_id)
                 else:
-                    self._log("ANAL", "Tool '%s' not found or unavailable", tool_name, level='warning')
+                    self._log("ANAL", f"Tool '{tool_name}' not found or unavailable", level='warning')
             
             if not tools_by_service or not valid_tool_names:
                 # Release registry claim before returning
                 task_registry.release_claim(model_slug, app_number, pipeline_id)
                 
                 self._log(
-                    "No valid tools found for %s app %d",
-                    model_slug, app_number, level='error'
+                    "ANAL", f"No valid tools found for {model_slug} app {app_number}", level='error'
                 )
                 error_marker = 'error:no_valid_tools'
                 pipeline.add_analysis_task_id(error_marker, success=False,
@@ -1365,9 +1325,7 @@ class PipelineExecutionService:
             )
             
             self._log(
-                "Created analysis task %s for %s app %d (unified=%s, services=%d, tools=%d, subtasks=%d)",
-                task.task_id, model_slug, app_number,
-                len(tools_by_service) > 1, len(tools_by_service), len(valid_tool_names), len(subtask_ids)
+                "ANAL", f"Created analysis task {task.task_id} for {model_slug} app {app_number} (unified={len(tools_by_service) > 1}, services={len(tools_by_service)}, tools={len(valid_tool_names)}, subtasks={len(subtask_ids)})"
             )
             return task.task_id
             
@@ -1376,8 +1334,7 @@ class PipelineExecutionService:
             task_registry.release_claim(model_slug, app_number, pipeline_id)
             
             self._log(
-                "Analysis task creation failed for %s app %d: %s",
-                model_slug, app_number, e,
+                "ANAL", f"Analysis task creation failed for {model_slug} app {app_number}: {e}",
                 level='error'
             )
             error_marker = f'error:{str(e)}'
@@ -1407,8 +1364,7 @@ class PipelineExecutionService:
                 with _pipeline_state_lock:
                     self._in_flight_tasks.get(pipeline_id, set()).discard(task_id)
                 self._log(
-                    "Task %s completed with status %s",
-                    task_id, task.status.value if task.status else 'unknown'
+                    "ANAL", f"Task {task_id} completed with status {task.status.value if task.status else 'unknown'}"
                 )
     
     def _requires_analyzer_containers(self, tools: list[str]) -> bool:
@@ -1468,7 +1424,7 @@ class PipelineExecutionService:
             ) if containers else False
             
         except Exception as e:
-            self._log("ANALYZER", "Error checking analyzer status: %s", e, level='error')
+            self._log("ANALYZER", f"Error checking analyzer status: {e}", level='error')
             return False
     
     def _cleanup_pipeline_containers(self, pipeline_id: str):
@@ -1482,9 +1438,9 @@ class PipelineExecutionService:
             task_registry = get_task_registry()
             cleared = task_registry.clear_pipeline(pipeline_id)
             if cleared > 0:
-                self._log("CLEANUP", "Cleared %d task registry entries for pipeline %s", cleared, pipeline_id)
+                self._log("CLEANUP", f"Cleared {cleared} task registry entries for pipeline {pipeline_id}")
         except Exception as e:
-            self._log("CLEANUP", "Error clearing task registry: %s", e, level='warning')
+            self._log("CLEANUP", f"Error clearing task registry: {e}", level='warning')
         
         with _pipeline_state_lock:
             if pipeline_id not in self._containers_started_for:
@@ -1502,11 +1458,11 @@ class PipelineExecutionService:
             from analyzer.analyzer_manager import AnalyzerManager
             manager = AnalyzerManager()
             
-            self._log("CONTAINER", "Stopping analyzer containers (auto-started for pipeline %s)", pipeline_id)
+            self._log("CONTAINER", f"Stopping analyzer containers (auto-started for pipeline {pipeline_id})")
             manager.stop_services()
             
         except Exception as e:
-            self._log("CONTAINER", "Error stopping containers: %s", e, level='warning')
+            self._log("CONTAINER", f"Error stopping containers: {e}", level='warning')
         finally:
             with _pipeline_state_lock:
                 self._containers_started_for.discard(pipeline_id)
@@ -1537,8 +1493,7 @@ class PipelineExecutionService:
             manager = DockerManager()
 
             self._log(
-                "CONTAINER", "Starting containers for %s app %d (pipeline %s)",
-                model_slug, app_number, pipeline_id
+                "CONTAINER", f"Starting containers for {model_slug} app {app_number} (pipeline {pipeline_id})"
             )
 
             result = manager.start_containers(model_slug, app_number)
@@ -1551,13 +1506,11 @@ class PipelineExecutionService:
                     self._app_containers_started[pipeline_id].add((model_slug, app_number))
 
                 self._log(
-                    "CONTAINER", "Successfully started containers for %s app %d",
-                    model_slug, app_number
+                    "CONTAINER", f"Successfully started containers for {model_slug} app {app_number}"
                 )
             else:
                 self._log(
-                    "CONTAINER", "Failed to start containers for %s app %d: %s",
-                    model_slug, app_number, result.get('error', 'Unknown error'),
+                    "CONTAINER", f"Failed to start containers for {model_slug} app {app_number}: {result.get('error', 'Unknown error')}",
                     level='warning'
                 )
 
@@ -1565,8 +1518,7 @@ class PipelineExecutionService:
 
         except Exception as e:
             self._log(
-                "CONTAINER", "Error starting app containers for %s app %d: %s",
-                model_slug, app_number, e,
+                "CONTAINER", f"Error starting app containers for {model_slug} app {app_number}: {e}",
                 level='error'
             )
             return {'success': False, 'error': str(e)}
@@ -1619,8 +1571,7 @@ class PipelineExecutionService:
                     healthy_count = sum(1 for c in containers.values() if c.get('health') == 'healthy')
                     total_count = len(containers)
                     self._log(
-                        "CONTAINER", "Waiting for containers %s app %d: %d/%d healthy (%.1fs elapsed)",
-                        model_slug, app_number, healthy_count, total_count, elapsed,
+                        "CONTAINER", f"Waiting for containers {model_slug} app {app_number}: {healthy_count}/{total_count} healthy ({elapsed:.1f}s elapsed)",
                         level='debug'
                     )
 
@@ -1641,7 +1592,7 @@ class PipelineExecutionService:
 
         except Exception as e:
             self._log(
-                "CONTAINER", "Error waiting for container health: %s", e,
+                "CONTAINER", f"Error waiting for container health: {e}",
                 level='error'
             )
             return {
@@ -1672,8 +1623,7 @@ class PipelineExecutionService:
             manager = DockerManager()
             
             self._log(
-                "Stopping containers for %s app %d (pipeline %s)",
-                model_slug, app_number, pipeline_id
+                "CONTAINER", f"Stopping containers for {model_slug} app {app_number} (pipeline {pipeline_id})"
             )
             
             result = manager.stop_containers(model_slug, app_number)
@@ -1685,13 +1635,11 @@ class PipelineExecutionService:
                         self._app_containers_started[pipeline_id].discard((model_slug, app_number))
                 
                 self._log(
-                    "Successfully stopped containers for %s app %d",
-                    model_slug, app_number
+                    "CONTAINER", f"Successfully stopped containers for {model_slug} app {app_number}"
                 )
             else:
                 self._log(
-                    "Failed to stop containers for %s app %d: %s",
-                    model_slug, app_number, result.get('error', 'Unknown error'),
+                    "CONTAINER", f"Failed to stop containers for {model_slug} app {app_number}: {result.get('error', 'Unknown error')}",
                     level='warning'
                 )
             
@@ -1699,8 +1647,7 @@ class PipelineExecutionService:
             
         except Exception as e:
             self._log(
-                "Error stopping app containers for %s app %d: %s",
-                model_slug, app_number, e,
+                "CONTAINER", f"Error stopping app containers for {model_slug} app {app_number}: {e}",
                 level='error'
             )
             return {'success': False, 'error': str(e)}
@@ -1725,10 +1672,10 @@ class PipelineExecutionService:
                                          analysis_config.get('options', {}).get('stopAfterAnalysis', True))
         
         if not stop_after:
-            self._log("CONTAINER", "stopAfterAnalysis disabled - keeping app containers running for pipeline %s", pipeline_id)
+            self._log("CONTAINER", f"stopAfterAnalysis disabled - keeping app containers running for pipeline {pipeline_id}")
             return
         
-        self._log("CONTAINER", "Stopping %d app container sets for pipeline %s", len(started_apps), pipeline_id)
+        self._log("CONTAINER", f"Stopping {len(started_apps)} app container sets for pipeline {pipeline_id}")
         
         for model_slug, app_number in started_apps:
             self._stop_app_containers(pipeline_id, model_slug, app_number)
@@ -1780,13 +1727,13 @@ class PipelineExecutionService:
                     pipeline.current_job_index = 0
                     progress['analysis']['status'] = 'running'
                     pipeline.progress = progress
-                    self._log("STAGE", "Pipeline %s (existing apps mode) transitioning to analysis stage", pipeline.pipeline_id)
+                    self._log("STAGE", f"Pipeline {pipeline.pipeline_id} (existing apps mode) transitioning to analysis stage")
                 else:
                     # No analysis - complete pipeline
                     pipeline.status = PipelineExecutionStatus.COMPLETED
                     pipeline.completed_at = datetime.now(timezone.utc)
                     pipeline.current_stage = 'done'
-                    self._log("STAGE", "Pipeline %s completed (existing apps, skipped analysis)", pipeline.pipeline_id)
+                    self._log("STAGE", f"Pipeline {pipeline.pipeline_id} completed (existing apps, skipped analysis)")
             elif gen.get('status') == 'completed':
                 # Generation complete - check if analysis is enabled
                 if progress.get('analysis', {}).get('status') != 'skipped':
@@ -1794,13 +1741,13 @@ class PipelineExecutionService:
                     pipeline.current_job_index = 0
                     progress['analysis']['status'] = 'running'
                     pipeline.progress = progress
-                    self._log("STAGE", "Pipeline %s transitioning to analysis stage", pipeline.pipeline_id)
+                    self._log("STAGE", f"Pipeline {pipeline.pipeline_id} transitioning to analysis stage")
                 else:
                     # No analysis - complete pipeline
                     pipeline.status = PipelineExecutionStatus.COMPLETED
                     pipeline.completed_at = datetime.now(timezone.utc)
                     pipeline.current_stage = 'done'
-                    self._log("STAGE", "Pipeline %s completed (skipped analysis)", pipeline.pipeline_id)
+                    self._log("STAGE", f"Pipeline {pipeline.pipeline_id} completed (skipped analysis)")
         
         elif pipeline.current_stage == 'analysis':
             # This shouldn't normally happen since _process_analysis_stage handles completion
@@ -1845,14 +1792,12 @@ class PipelineExecutionService:
             # No tasks created yet - check if jobs remain
             if expected_jobs > 0 and pipeline.current_job_index < expected_jobs:
                 self._log(
-                    "Pipeline %s: No analysis tasks yet, but %d jobs remaining (index=%d)",
-                    pipeline.pipeline_id, expected_jobs - pipeline.current_job_index, pipeline.current_job_index
+                    "ANAL", f"Pipeline {pipeline.pipeline_id}: No analysis tasks yet, but {expected_jobs - pipeline.current_job_index} jobs remaining (index={pipeline.current_job_index})"
                 )
                 return False
             else:
                 self._log(
-                    "Pipeline %s: No analysis tasks to wait for (expected=%d, index=%d)",
-                    pipeline.pipeline_id, expected_jobs, pipeline.current_job_index
+                    "ANAL", f"Pipeline {pipeline.pipeline_id}: No analysis tasks to wait for (expected={expected_jobs}, index={pipeline.current_job_index})"
                 )
                 # Mark as complete
                 pipeline.status = PipelineExecutionStatus.COMPLETED
@@ -1873,7 +1818,7 @@ class PipelineExecutionService:
             # Query actual task status (main task only, not subtasks)
             task = AnalysisTask.query.filter_by(task_id=task_id).first()
             if not task:
-                self._log("ANAL", "Analysis task %s not found in database", task_id, level='warning')
+                self._log("ANAL", f"Analysis task {task_id} not found in database", level='warning')
                 failed_count += 1
                 continue
             
@@ -1890,8 +1835,7 @@ class PipelineExecutionService:
         terminal_count = completed_count + failed_count
         
         self._log(
-            "Pipeline %s analysis status: %d/%d main tasks terminal (completed=%d, failed=%d, pending=%d)",
-            pipeline.pipeline_id, terminal_count, total_main_tasks, completed_count, failed_count, pending_count
+            "ANAL", f"Pipeline {pipeline.pipeline_id} analysis status: {terminal_count}/{total_main_tasks} main tasks terminal (completed={completed_count}, failed={failed_count}, pending={pending_count})"
         )
         
         # Must wait for ALL main tasks to reach terminal state
@@ -1902,8 +1846,7 @@ class PipelineExecutionService:
         pipeline.update_analysis_completion(completed_count, failed_count)
         
         self._log(
-            "Pipeline %s: All %d analysis main tasks finished (%d success, %d failed)",
-            pipeline.pipeline_id, total_main_tasks, completed_count, failed_count
+            "ANAL", f"Pipeline {pipeline.pipeline_id}: All {total_main_tasks} analysis main tasks finished ({completed_count} success, {failed_count} failed)"
         )
         return True
     
@@ -1938,8 +1881,7 @@ class PipelineExecutionService:
         # Check 0a: submitted_jobs set using job_index-aware key (prevents race condition duplicates)
         if job_key in submitted_jobs:
             self._log(
-                "Skipping duplicate generation for job %d: %s with template %s (already in submitted_jobs)",
-                job_index, model_slug, template_slug
+                "GEN", f"Skipping duplicate generation for job {job_index}: {model_slug} with template {template_slug} (already in submitted_jobs)"
             )
             return False  # No stage transition (job was skipped)
         
@@ -1947,8 +1889,7 @@ class PipelineExecutionService:
         # This handles pipelines created with older code format
         if legacy_job_key in submitted_jobs:
             self._log(
-                "Skipping duplicate generation for job %d: %s with template %s (found legacy key in submitted_jobs)",
-                job_index, model_slug, template_slug
+                "GEN", f"Skipping duplicate generation for job {job_index}: {model_slug} with template {template_slug} (found legacy key in submitted_jobs)"
             )
             return False  # No stage transition (job was skipped)
         
@@ -1960,23 +1901,19 @@ class PipelineExecutionService:
         pipeline.progress = progress
         db.session.commit()
         self._log(
-            "Marked job %d as started (pre-emptive race prevention): %s",
-            job_index, job_key, level='debug'
+            "GEN", f"Marked job {job_index} as started (pre-emptive race prevention): {job_key}", level='debug'
         )
         
         # Check 1: Job-index-based detection (most reliable)
         for existing in existing_results:
             if existing.get('job_index') == job_index:
                 self._log(
-                    "Skipping job %d: result already exists (model=%s, template=%s, app=%d)",
-                    job_index, existing.get('model_slug'), existing.get('template_slug'),
-                    existing.get('app_number', -1)
+                    "GEN", f"Skipping job {job_index}: result already exists (model={existing.get('model_slug')}, template={existing.get('template_slug')}, app={existing.get('app_number', -1)})"
                 )
                 return False  # No stage transition (job was skipped)
         
         self._log(
-            "Generating app for %s with template %s (job %d)",
-            model_slug, template_slug, job_index
+            "GEN", f"Generating app for {model_slug} with template {template_slug} (job {job_index})"
         )
         
         try:
@@ -2020,8 +1957,7 @@ class PipelineExecutionService:
                 # Fallback: try to get from app_id or other fields
                 app_number = gen_result.get('app_id') or gen_result.get('app_num') or -1
                 self._log(
-                    "Warning: app_number not in result, using fallback: %d",
-                    app_number, level='warning'
+                    "GEN", f"Warning: app_number not in result, using fallback: {app_number}", level='warning'
                 )
             
             # Record result with job_index for tracking
@@ -2035,16 +1971,14 @@ class PipelineExecutionService:
             stage_transitioned = pipeline.add_generation_result(result)
             
             self._log(
-                "Generated %s app %d with template %s (job %d, stage_transitioned=%s)",
-                model_slug, app_number, template_slug, job_index, stage_transitioned
+                "GEN", f"Generated {model_slug} app {app_number} with template {template_slug} (job {job_index}, stage_transitioned={stage_transitioned})"
             )
             
             return stage_transitioned
             
         except Exception as e:
             self._log(
-                "Generation failed for %s with %s (job %d): %s",
-                model_slug, template_slug, job_index, e,
+                "GEN", f"Generation failed for {model_slug} with {template_slug} (job {job_index}): {e}",
                 level='error'
             )
             result = {
@@ -2104,8 +2038,7 @@ class PipelineExecutionService:
             
             # Log initial status
             self._log(
-                "ANALYZER", "Initial health check: %d/%d services available",
-                len(available), len(all_services)
+                "ANALYZER", f"Initial health check: {len(available)}/{len(all_services)} services available"
             )
             
             # If all services available, we're good
@@ -2119,8 +2052,7 @@ class PipelineExecutionService:
             if not auto_start:
                 if available:
                     self._log(
-                        "ANALYZER", "Auto-start disabled. Partial execution with %d/%d services: %s",
-                        len(available), len(all_services), ', '.join(available)
+                        "ANALYZER", f"Auto-start disabled. Partial execution with {len(available)}/{len(all_services)} services: {', '.join(available)}"
                     )
                     self._analyzer_healthy = True  # Partial is OK
                     self._analyzer_check_time = current_time
@@ -2147,8 +2079,7 @@ class PipelineExecutionService:
                 if attempt > 0:
                     delay = self.BASE_RETRY_DELAY * (2 ** (attempt - 1))
                     self._log(
-                        "ANALYZER", "Retry attempt %d/%d after %.1fs delay",
-                        attempt + 1, self.MAX_STARTUP_RETRIES, delay
+                        "ANALYZER", f"Retry attempt {attempt + 1}/{self.MAX_STARTUP_RETRIES} after {delay:.1f}s delay"
                     )
                     time.sleep(delay)
                 
@@ -2166,8 +2097,7 @@ class PipelineExecutionService:
                 
                 if returncode != 0:
                     self._log(
-                        "ANALYZER", "Container command failed (attempt %d/%d): %s",
-                        attempt + 1, self.MAX_STARTUP_RETRIES, stderr[:200] if stderr else 'Unknown error',
+                        "ANALYZER", f"Container command failed (attempt {attempt + 1}/{self.MAX_STARTUP_RETRIES}): {stderr[:200] if stderr else 'Unknown error'}",
                         level='warning'
                     )
                     continue
@@ -2186,7 +2116,7 @@ class PipelineExecutionService:
                     
                     if len(available) == len(all_services):
                         # All services healthy
-                        self._log("ANALYZER", "All %d analyzer containers now healthy", len(all_services))
+                        self._log("ANALYZER", f"All {len(all_services)} analyzer containers now healthy")
                         self._analyzer_healthy = True
                         self._analyzer_check_time = time.time()
                         return True
@@ -2195,9 +2125,8 @@ class PipelineExecutionService:
                         # At least half are healthy - good enough for partial execution
                         elapsed = time.time() - start_time
                         self._log(
-                            "ANALYZER", "%d/%d services available after %.1fs. "
-                            "Proceeding with partial execution (unavailable: %s)",
-                            len(available), len(all_services), elapsed, ', '.join(unavailable)
+                            "ANALYZER", f"{len(available)}/{len(all_services)} services available after {elapsed:.1f}s. "
+                            f"Proceeding with partial execution (unavailable: {', '.join(unavailable)})"
                         )
                         self._analyzer_healthy = True
                         self._analyzer_check_time = time.time()
@@ -2216,9 +2145,8 @@ class PipelineExecutionService:
                 available, unavailable = self._get_available_services(all_services)
                 if available:
                     self._log(
-                        "ANALYZER", "Timeout on attempt %d/%d, but %d services available. "
+                        "ANALYZER", f"Timeout on attempt {attempt + 1}/{self.MAX_STARTUP_RETRIES}, but {len(available)} services available. "
                         "Proceeding with partial execution.",
-                        attempt + 1, self.MAX_STARTUP_RETRIES, len(available),
                         level='warning'
                     )
                     self._analyzer_healthy = True
@@ -2231,10 +2159,8 @@ class PipelineExecutionService:
             
             if available:
                 self._log(
-                    "ANALYZER", "All %d retry attempts exhausted. "
-                    "Partial execution with %d/%d services: %s",
-                    self.MAX_STARTUP_RETRIES, len(available), len(all_services),
-                    ', '.join(available),
+                    "ANALYZER", f"All {self.MAX_STARTUP_RETRIES} retry attempts exhausted. "
+                    f"Partial execution with {len(available)}/{len(all_services)} services: {', '.join(available)}",
                     level='warning'
                 )
                 self._analyzer_healthy = True
@@ -2242,8 +2168,7 @@ class PipelineExecutionService:
                 return True
             
             self._log(
-                "ANALYZER", "Failed to start any analyzer containers after %d attempts",
-                self.MAX_STARTUP_RETRIES,
+                "ANALYZER", f"Failed to start any analyzer containers after {self.MAX_STARTUP_RETRIES} attempts",
                 level='error'
             )
             self._analyzer_healthy = False
@@ -2251,7 +2176,7 @@ class PipelineExecutionService:
             return False
             
         except Exception as e:
-            self._log("ANALYZER", "Error during health check: %s", e, level='error')
+            self._log("ANALYZER", f"Error during health check: {e}", level='error')
             self._analyzer_healthy = False
             self._analyzer_check_time = time.time()
             return False
