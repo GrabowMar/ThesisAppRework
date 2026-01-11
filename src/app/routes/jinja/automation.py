@@ -394,7 +394,7 @@ def api_start_pipeline():
                 "profile": "comprehensive",
                 "tools": [...],
                 "parallel": true,
-                "maxConcurrentTasks": 3,
+                "maxConcurrentTasks": 2,
                 "autoStartContainers": true,
                 "options": {...}
             }

@@ -4,6 +4,12 @@ Rankings Routes
 
 Routes for AI model rankings aggregation and selection page.
 Provides leaderboard with coding benchmarks and filtering capabilities.
+
+Chapter 4 MSS (Model Selection Score) methodology:
+MSS = 0.35×Adoption + 0.30×Benchmarks + 0.20×CostEfficiency + 0.15×Accessibility
+
+Static benchmark data loaded by default for fast page loads.
+Live refresh available on-demand via refresh button.
 """
 
 import json
@@ -35,8 +41,8 @@ def rankings_index():
     """Main rankings page with filterable leaderboard."""
     service = get_rankings_service()
     
-    # Get rankings (from cache or fresh)
-    rankings = service.aggregate_rankings(force_refresh=False)
+    # Get rankings from cache or static data (fast path)
+    rankings = service.aggregate_rankings(force_refresh=False, fetch_live=False)
     
     # Get unique providers for filter dropdown
     providers = sorted(set(r.get('provider', 'unknown') for r in rankings if r.get('provider')))
@@ -53,6 +59,14 @@ def rankings_index():
         'mbpp_plus': 15
     }
     
+    # Chapter 4 MSS weights
+    mss_weights = {
+        'adoption': 35,
+        'benchmarks': 30,
+        'cost_efficiency': 20,
+        'accessibility': 15
+    }
+    
     # Get selected models from session
     selected_models = session.get('selected_ranking_models', [])
     
@@ -62,6 +76,7 @@ def rankings_index():
         providers=providers,
         fetch_status=fetch_status,
         default_weights=default_weights,
+        mss_weights=mss_weights,
         selected_models=selected_models,
         page_title='AI Model Rankings - Coding Benchmarks'
     )
@@ -69,18 +84,39 @@ def rankings_index():
 
 @rankings_bp.route('/refresh', methods=['POST'])
 def refresh_rankings():
-    """Force refresh rankings from all sources."""
+    """Force refresh rankings - clears cache and reloads static data."""
     service = get_rankings_service()
     
     try:
-        # Clear cache and fetch fresh data
+        # Clear cache
         service.clear_cache()
-        rankings = service.aggregate_rankings(force_refresh=True)
+        # Reload from static data (fast)
+        rankings = service.aggregate_rankings(force_refresh=True, fetch_live=False)
         
-        flash(f'Successfully refreshed rankings for {len(rankings)} models.', 'success')
+        flash(f'Successfully refreshed rankings for {len(rankings)} models from static data.', 'success')
         
     except Exception as e:
         logger.error(f"Error refreshing rankings: {e}")
+        flash(f'Error refreshing rankings: {str(e)}', 'error')
+    
+    return redirect(url_for('rankings.rankings_index'))
+
+
+@rankings_bp.route('/refresh-live', methods=['POST'])
+def refresh_rankings_live():
+    """Force refresh rankings from live external sources (slower)."""
+    service = get_rankings_service()
+    
+    try:
+        # Clear cache
+        service.clear_cache()
+        # Fetch from live sources (may take 10-30 seconds)
+        rankings = service.aggregate_rankings(force_refresh=True, fetch_live=True)
+        
+        flash(f'Successfully refreshed rankings for {len(rankings)} models from live sources.', 'success')
+        
+    except Exception as e:
+        logger.error(f"Error refreshing rankings from live sources: {e}")
         flash(f'Error refreshing rankings: {str(e)}', 'error')
     
     return redirect(url_for('rankings.rankings_index'))
@@ -135,24 +171,30 @@ def api_get_rankings():
             or search in (r.get('provider', '') or '').lower()
         ]
     
-    # Apply sorting
+    # Apply sorting - MSS columns (Chapter 4 methodology)
     sort_key_map = {
-        'composite': 'composite_score',
-        'humaneval': 'humaneval_plus',
-        'swebench': 'swe_bench_verified',
-        'bigcode': 'bigcodebench_hard',
+        'mss': 'mss_score',
+        'composite': 'composite_score',  # Legacy alias
+        'adoption': 'adoption_score',
+        'benchmark': 'benchmark_score',
+        'cost': 'cost_efficiency_score',
+        'access': 'accessibility_score',
+        'bfcl': 'bfcl_score',
+        'webdev': 'webdev_arena_elo',
         'livebench': 'livebench_coding',
-        'mbpp': 'mbpp_plus',
         'livecodebench': 'livecodebench',
         'context': 'context_length',
         'price': 'price_per_million_input',
         'name': 'model_name'
     }
-    sort_key = sort_key_map.get(sort_by, 'composite_score')
+    sort_key = sort_key_map.get(sort_by, 'mss_score')
     reverse = sort_dir == 'desc'
     
     def get_sort_value(item):
         val = item.get(sort_key)
+        # Fallback for mss_score to composite_score for backward compatibility
+        if val is None and sort_key == 'mss_score':
+            val = item.get('composite_score')
         if val is None:
             return float('-inf') if reverse else float('inf')
         return val
@@ -168,7 +210,7 @@ def api_get_rankings():
     
     # Statistics
     unique_providers = set(r.get('provider') for r in filtered if r.get('provider'))
-    with_benchmarks = sum(1 for r in filtered if r.get('composite_score') is not None)
+    with_benchmarks = sum(1 for r in filtered if r.get('mss_score') is not None or r.get('composite_score') is not None)
     
     return jsonify({
         'success': True,

@@ -183,7 +183,7 @@ if (window.__RANKINGS_JS_LOADED__) {
     if (!models || models.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="13" class="text-center text-muted py-4">
+          <td colspan="14" class="text-center text-muted py-4">
             <i class="fas fa-search me-2"></i>No models found matching your filters.
           </td>
         </tr>
@@ -196,10 +196,22 @@ if (window.__RANKINGS_JS_LOADED__) {
       const isSelected = selectedRankings.has(model.model_id);
       const modelSlug = model.model_id?.replace('/', '_') || '';
       
+      // MSS components (Chapter 4 methodology)
+      const mss = model.mss_score ?? model.composite_score;
+      const adoption = model.adoption_score ?? model.adoption;
+      const benchmark = model.benchmark_score ?? model.benchmarks;
+      const cost = model.cost_efficiency_score ?? model.cost_efficiency;
+      const access = model.accessibility_score ?? model.accessibility;
+      
+      // Chapter 4 benchmark scores
+      const bfcl = model.bfcl_score ?? model.bfcl;
+      const webdev = model.webdev_arena_elo ?? model.webdev_elo;
+      const livebench = model.livebench_coding ?? model.livebench;
+      
       return `
         <tr data-model-id="${escapeHtml(model.model_id)}" 
             data-provider="${escapeHtml(model.provider || '')}"
-            data-composite="${model.composite_score || 0}"
+            data-mss="${mss || 0}"
             class="${isSelected ? 'table-primary' : ''}">
           <td>
             <label class="form-check mb-0">
@@ -213,27 +225,31 @@ if (window.__RANKINGS_JS_LOADED__) {
           <td class="text-muted">${rank}</td>
           <td>
             <span class="fw-medium">${escapeHtml(model.model_name || model.name || '')}</span>
+            <small class="text-muted d-block">${escapeHtml(model.provider || '')}</small>
           </td>
-          <td class="fw-bold ${getScoreClass(model.composite_score, 70, 50)}">
-            ${formatScore(model.composite_score)}
+          <td class="fw-bold ${getMSSClass(mss)}">
+            ${formatScore(mss)}
           </td>
-          <td class="${getScoreClass(model.humaneval_plus, 80, 60)}">
-            ${formatScore(model.humaneval_plus, '%')}
+          <td class="${getComponentClass(adoption)}">
+            ${formatScore(adoption)}
           </td>
-          <td class="${getScoreClass(model.swe_bench_verified, 40, 20)}">
-            ${formatScore(model.swe_bench_verified, '%')}
+          <td class="${getComponentClass(benchmark)}">
+            ${formatScore(benchmark)}
           </td>
-          <td class="${getScoreClass(model.bigcodebench_hard, 30, 15)}">
-            ${formatScore(model.bigcodebench_hard, '%')}
+          <td class="${getComponentClass(cost)}">
+            ${formatScore(cost)}
           </td>
-          <td class="${getScoreClass(model.livebench_coding, 60, 40)}">
-            ${formatScore(model.livebench_coding)}
+          <td class="${getComponentClass(access)}">
+            ${formatScore(access)}
           </td>
-          <td class="${getScoreClass(model.mbpp_plus, 75, 55)}">
-            ${formatScore(model.mbpp_plus, '%')}
+          <td class="${getScoreClass(bfcl, 80, 60)}">
+            ${formatScore(bfcl, '%')}
           </td>
-          <td class="${getScoreClass(model.livecodebench, 40, 20)}">
-            ${formatScore(model.livecodebench, '%')}
+          <td class="text-info">
+            ${webdev ? webdev.toFixed(0) : '<span class="text-muted">—</span>'}
+          </td>
+          <td class="${getScoreClass(livebench, 60, 40)}">
+            ${formatScore(livebench)}
           </td>
           <td>${formatContext(model.context_length)}</td>
           <td>${formatPrice(model.price_per_million_input)}</td>
@@ -259,6 +275,24 @@ if (window.__RANKINGS_JS_LOADED__) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  // MSS-specific color coding (0-100 scale)
+  function getMSSClass(value) {
+    if (value === null || value === undefined) return 'text-muted';
+    if (value >= 70) return 'text-success';
+    if (value >= 50) return 'text-primary';
+    if (value >= 30) return 'text-warning';
+    return 'text-danger';
+  }
+
+  // Component score color coding (0-100 scale)
+  function getComponentClass(value) {
+    if (value === null || value === undefined) return 'text-muted';
+    if (value >= 80) return 'text-success';
+    if (value >= 60) return 'text-info';
+    if (value >= 40) return 'text-warning';
+    return 'text-muted';
   }
 
   function getScoreClass(value, highThreshold, medThreshold) {

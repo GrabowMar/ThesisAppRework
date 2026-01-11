@@ -97,7 +97,7 @@ class TestPipelineProgressGeneration:
                 'tools': ['bandit'],
                 'options': {
                     'parallel': True,
-                    'maxConcurrentTasks': 3
+                    'maxConcurrentTasks': 2  # 2x2 parallelism (matching generation)
                 }
             }
         }
@@ -114,7 +114,7 @@ class TestPipelineProgressGeneration:
         
         analysis_enabled = config.get('analysis', {}).get('enabled', True)
         analysis_options = config.get('analysis', {}).get('options', {})
-        max_concurrent = analysis_options.get('maxConcurrentTasks', 3)
+        max_concurrent = analysis_options.get('maxConcurrentTasks', 2)  # Now defaults to 2
         use_parallel = analysis_options.get('parallel', True)
         
         progress = {
@@ -145,7 +145,7 @@ class TestPipelineProgressGeneration:
         
         # Verify analysis settings
         assert progress['analysis']['total'] == 2
-        assert progress['analysis']['max_concurrent'] == 3
+        assert progress['analysis']['max_concurrent'] == 2  # Now 2x2 parallelism
 
 
 class TestPipelineExecutionService:

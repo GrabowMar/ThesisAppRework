@@ -751,12 +751,14 @@ class ModelRankingsService:
     # Aggregation and Composite Scoring
     # =========================================================================
     
-    def aggregate_rankings(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+    def aggregate_rankings(self, force_refresh: bool = False, fetch_live: bool = False) -> List[Dict[str, Any]]:
         """
         Aggregate rankings from all sources into unified list.
         
         Args:
             force_refresh: If True, bypass cache and fetch fresh data
+            fetch_live: If True, attempt live fetching from external APIs (slower).
+                       If False (default), use static curated data (instant).
             
         Returns:
             List of aggregated model rankings
@@ -775,9 +777,9 @@ class ModelRankingsService:
         # Fetch from all sources
         openrouter_models = self.fetch_openrouter_models()
 
-        # Use new modular fetchers for benchmark data
-        self.logger.info("Fetching benchmark data from modular fetchers...")
-        benchmark_data = self.benchmark_aggregator.fetch_all_benchmarks()
+        # Use new modular fetchers for benchmark data (static by default, live on demand)
+        self.logger.info(f"Fetching benchmark data (live={fetch_live})...")
+        benchmark_data = self.benchmark_aggregator.fetch_all_benchmarks(fetch_live=fetch_live)
 
         # Extract individual benchmark sources for compatibility
         evalplus_results = benchmark_data.get('evalplus', {})
@@ -796,9 +798,12 @@ class ModelRankingsService:
         seal_showdown_results = benchmark_data.get('seal_showdown', {})
         gpqa_results = benchmark_data.get('gpqa', {})
         adoption_results = benchmark_data.get('adoption', {})
+        accessibility_results = benchmark_data.get('accessibility', {})
 
-        # Update fetch status
+        # Update fetch status with data source info
         self._last_fetch_status = benchmark_data.get('fetch_status', {})
+        self._last_fetch_status['data_source'] = benchmark_data.get('data_source', 'unknown')
+        self._last_fetch_status['data_date'] = benchmark_data.get('data_date', 'unknown')
         
         aggregated = []
         
@@ -837,6 +842,7 @@ class ModelRankingsService:
             seal_showdown = self.find_benchmark_match(model_id, seal_showdown_results) or {}
             gpqa = self.find_benchmark_match(model_id, gpqa_results) or {}
             adoption = self.find_benchmark_match(model_id, adoption_results) or {}
+            accessibility = self.find_benchmark_match(model_id, accessibility_results) or {}
 
             # Build entry
             entry = {
@@ -878,10 +884,10 @@ class ModelRankingsService:
                 'openrouter_overall_rank': None,  # TODO: Add overall rank fetcher
                 'openrouter_market_share': None,  # TODO: Add market share fetcher
 
-                # Accessibility Metrics (default values for now)
-                'license_type': model.get('license') or 'api-only',  # From OpenRouter metadata
-                'api_stability': 'stable',  # Default: assume stable if on OpenRouter
-                'documentation_quality': 'basic',  # Default: assume basic docs
+                # Accessibility Metrics (from static data or OpenRouter metadata)
+                'license_type': accessibility.get('license_type') or model.get('license') or 'api-only',
+                'api_stability': accessibility.get('api_stability') or 'stable',
+                'documentation_quality': accessibility.get('documentation_quality') or 'basic',
 
                 # Pricing (template expects these names)
                 'price_per_million_input': input_price_mtok,

@@ -90,7 +90,7 @@ class PipelineExecution(db.Model):
                 'tools': [...],
                 'options': {
                     'parallel': True,
-                    'maxConcurrentTasks': 3,  # Default parallelism limit
+                    'maxConcurrentTasks': 2,  # Default parallelism limit (match generation)
                     'autoStartContainers': True,
                     'stopAfterAnalysis': True,
                 },
@@ -124,8 +124,8 @@ class PipelineExecution(db.Model):
         gen_use_parallel = gen_options.get('parallel', True)  # Default to parallel for efficiency
         gen_max_concurrent = gen_options.get('maxConcurrentTasks', 2) if gen_use_parallel else 1
         
-        # Analysis parallelism configuration (default: 3 concurrent tasks)
-        max_concurrent = analysis_options.get('maxConcurrentTasks', 3)
+        # Analysis parallelism configuration (default: 2 concurrent tasks, matching generation)
+        max_concurrent = analysis_options.get('maxConcurrentTasks', 2)
         use_parallel = analysis_options.get('parallel', True)  # Default to parallel for batch efficiency
         
         progress = {
@@ -144,7 +144,12 @@ class PipelineExecution(db.Model):
                 'completed': 0,
                 'failed': 0,
                 'status': 'pending' if analysis_enabled else 'skipped',
-                'task_ids': [],
+                # Task tracking (main_task_ids is authoritative, task_ids is deprecated)
+                'main_task_ids': [],      # AUTHORITATIVE: Main analysis tasks (one per model:app)
+                'subtask_ids': [],        # Subtasks created by create_main_task_with_subtasks
+                'task_ids': [],           # DEPRECATED: Legacy for backwards compatibility only
+                'submitted_apps': [],     # model:app_number pairs already submitted (duplicate prevention)
+                'retryable_apps': [],     # NEW: model:app pairs that can be retried (transient failures)
                 # Parallelism tracking for batch analysis
                 'max_concurrent': max_concurrent if use_parallel else 1,
                 'in_flight': 0,  # Currently running tasks
@@ -229,25 +234,60 @@ class PipelineExecution(db.Model):
         return stage_transitioned
     
     def add_analysis_task_id(self, task_id: str, success: bool = True,
-                             model_slug: Optional[str] = None, app_number: Optional[int] = None) -> None:
-        """Record an analysis task.
+                             model_slug: Optional[str] = None, app_number: Optional[int] = None,
+                             is_main_task: bool = True, subtask_ids: Optional[List[str]] = None) -> None:
+        """Record an analysis task with proper tracking for main tasks and subtasks.
+        
+        IMPORTANT: main_task_ids is the AUTHORITATIVE source for task counting.
+        task_ids is DEPRECATED and maintained only for backwards compatibility.
+        Always use main_task_ids for counting and completion checks.
         
         Args:
             task_id: The task ID or error/skip marker
             success: Whether task creation succeeded (not execution)
             model_slug: Model slug for duplicate tracking
             app_number: App number for duplicate tracking
+            is_main_task: True for main tasks, False for subtasks
+            subtask_ids: List of subtask IDs if this is a main task with subtasks
         """
         progress = self.progress
+        
+        # Initialize tracking arrays if they don't exist (backwards compatibility)
+        if 'main_task_ids' not in progress['analysis']:
+            progress['analysis']['main_task_ids'] = []
+        if 'subtask_ids' not in progress['analysis']:
+            progress['analysis']['subtask_ids'] = []
+        if 'task_ids' not in progress['analysis']:
+            progress['analysis']['task_ids'] = []
+        if 'submitted_apps' not in progress['analysis']:
+            progress['analysis']['submitted_apps'] = []
+        if 'retryable_apps' not in progress['analysis']:
+            progress['analysis']['retryable_apps'] = []
+        
+        # Add to appropriate list based on task type
+        # main_task_ids is AUTHORITATIVE for completion counting
+        if is_main_task:
+            progress['analysis']['main_task_ids'].append(task_id)
+            # Also add subtask IDs if provided
+            if subtask_ids:
+                progress['analysis']['subtask_ids'].extend(subtask_ids)
+        else:
+            progress['analysis']['subtask_ids'].append(task_id)
+        
+        # DEPRECATED: Add to legacy task_ids for backwards compatibility only
+        # New code should use main_task_ids instead
         progress['analysis']['task_ids'].append(task_id)
         
         # Track submitted model:app pairs to prevent race condition duplicates
         if model_slug and app_number is not None:
-            if 'submitted_apps' not in progress['analysis']:
-                progress['analysis']['submitted_apps'] = []
             job_key = f"{model_slug}:{app_number}"
             if job_key not in progress['analysis']['submitted_apps']:
                 progress['analysis']['submitted_apps'].append(job_key)
+            # Remove from retryable if it was there (successfully submitted now)
+            retryable = progress['analysis'].get('retryable_apps', [])
+            if job_key in retryable:
+                retryable.remove(job_key)
+                progress['analysis']['retryable_apps'] = retryable
         
         # For skipped or error tasks, mark as failed immediately
         if task_id.startswith('skipped') or task_id.startswith('error:'):
@@ -267,12 +307,46 @@ class PipelineExecution(db.Model):
         
         self.progress = progress
     
+    def mark_job_retryable(self, model_slug: str, app_number: int) -> None:
+        """Mark a job as retryable after a transient failure.
+        
+        This removes the job from submitted_apps and adds it to retryable_apps,
+        allowing it to be resubmitted on the next pipeline run.
+        
+        Args:
+            model_slug: Model slug
+            app_number: App number
+        """
+        progress = self.progress
+        job_key = f"{model_slug}:{app_number}"
+        
+        # Initialize arrays if needed
+        if 'submitted_apps' not in progress['analysis']:
+            progress['analysis']['submitted_apps'] = []
+        if 'retryable_apps' not in progress['analysis']:
+            progress['analysis']['retryable_apps'] = []
+        
+        # Remove from submitted_apps
+        submitted = progress['analysis']['submitted_apps']
+        if job_key in submitted:
+            submitted.remove(job_key)
+            progress['analysis']['submitted_apps'] = submitted
+        
+        # Add to retryable_apps if not already there
+        retryable = progress['analysis']['retryable_apps']
+        if job_key not in retryable:
+            retryable.append(job_key)
+            progress['analysis']['retryable_apps'] = retryable
+        
+        self.progress = progress
+        logger.info(f"[Pipeline] Marked {job_key} as retryable")
+    
     def update_analysis_completion(self, completed: int, failed: int) -> bool:
         """Update analysis completion counts from actual task statuses.
         
         Args:
-            completed: Number of tasks that reached COMPLETED status
-            failed: Number of tasks that reached FAILED/CANCELLED status
+            completed: Number of MAIN tasks that reached COMPLETED status
+            failed: Number of MAIN tasks that reached FAILED/CANCELLED status
             
         Returns:
             True if all analysis tasks are done (stage should transition)
@@ -281,14 +355,18 @@ class PipelineExecution(db.Model):
         progress['analysis']['completed'] = completed
         progress['analysis']['failed'] = failed
         
-        # Use actual number of task_ids as total (not config total)
-        # This handles cases where duplicate tasks were created
-        task_ids = progress['analysis'].get('task_ids', [])
-        actual_total = len(task_ids) if task_ids else progress['analysis']['total']
+        # Use main_task_ids for counting (not subtasks or legacy task_ids)
+        # This gives accurate count of actual analysis jobs
+        main_task_ids = progress['analysis'].get('main_task_ids', [])
+        # Fallback to legacy task_ids if main_task_ids not populated
+        if not main_task_ids:
+            main_task_ids = progress['analysis'].get('task_ids', [])
         
-        # Count skipped/error task_ids as part of failed (already counted in task_ids)
+        actual_total = len(main_task_ids) if main_task_ids else progress['analysis']['total']
+        
+        # Count skipped/error task_ids as part of failed (already counted in main_task_ids)
         skipped_count = sum(
-            1 for tid in task_ids
+            1 for tid in main_task_ids
             if tid.startswith('skipped') or tid.startswith('error:')
         )
         

@@ -25,7 +25,10 @@ class TestPipelineProgressTracking:
             },
             'analysis': {
                 'total': 1, 'completed': 0, 'failed': 0, 'status': 'pending',
-                'task_ids': []
+                'main_task_ids': [],
+                'subtask_ids': [],
+                'task_ids': [],
+                'submitted_apps': []
             }
         }
         
@@ -33,10 +36,18 @@ class TestPipelineProgressTracking:
         task_id = 'task_123'
         model_slug = 'model_a'
         app_number = 1
+        is_main_task = True
+        subtask_ids = ['subtask_1', 'subtask_2']
         
+        # Add to appropriate list based on task type
+        if is_main_task:
+            progress['analysis']['main_task_ids'].append(task_id)
+            if subtask_ids:
+                progress['analysis']['subtask_ids'].extend(subtask_ids)
+        
+        # Also add to legacy task_ids for backwards compatibility
         progress['analysis']['task_ids'].append(task_id)
-        if 'submitted_apps' not in progress['analysis']:
-            progress['analysis']['submitted_apps'] = []
+        
         job_key = f"{model_slug}:{app_number}"
         if job_key not in progress['analysis']['submitted_apps']:
             progress['analysis']['submitted_apps'].append(job_key)
@@ -44,7 +55,10 @@ class TestPipelineProgressTracking:
         # Verify submitted_apps contains the job key
         assert 'submitted_apps' in progress['analysis']
         assert 'model_a:1' in progress['analysis']['submitted_apps']
+        assert 'task_123' in progress['analysis']['main_task_ids']
         assert 'task_123' in progress['analysis']['task_ids']
+        assert 'subtask_1' in progress['analysis']['subtask_ids']
+        assert 'subtask_2' in progress['analysis']['subtask_ids']
     
     def test_submitted_apps_prevents_duplicate_tracking(self):
         """Verify that adding same model:app twice doesn't duplicate in submitted_apps."""
@@ -56,7 +70,9 @@ class TestPipelineProgressTracking:
             },
             'analysis': {
                 'total': 1, 'completed': 0, 'failed': 0, 'status': 'pending',
-                'task_ids': [],
+                'main_task_ids': ['task_123'],
+                'subtask_ids': [],
+                'task_ids': ['task_123'],
                 'submitted_apps': ['model_a:1']  # Already has one entry
             }
         }
@@ -66,6 +82,7 @@ class TestPipelineProgressTracking:
         model_slug = 'model_a'
         app_number = 1
         
+        progress['analysis']['main_task_ids'].append(task_id)
         progress['analysis']['task_ids'].append(task_id)
         job_key = f"{model_slug}:{app_number}"
         if job_key not in progress['analysis']['submitted_apps']:
@@ -83,6 +100,8 @@ class TestPipelineProgressTracking:
             },
             'analysis': {
                 'total': 1, 'completed': 0, 'failed': 0, 'status': 'pending',
+                'main_task_ids': [],
+                'subtask_ids': [],
                 'task_ids': []
             }
         }
@@ -122,6 +141,8 @@ class TestPipelineProgressTracking:
             },
             'analysis': {
                 'total': 2, 'completed': 0, 'failed': 0, 'status': 'pending',
+                'main_task_ids': [],
+                'subtask_ids': [],
                 'task_ids': []
             }
         }
@@ -145,6 +166,58 @@ class TestPipelineProgressTracking:
         assert '0:model_a:template_a' in progress['generation']['submitted_jobs']
         assert '1:model_a:template_a' in progress['generation']['submitted_jobs']
         assert len(progress['generation']['submitted_jobs']) == 2
+
+
+class TestMainTaskVsSubtaskTracking:
+    """Test proper separation of main task and subtask tracking."""
+    
+    def test_main_task_ids_separate_from_subtask_ids(self):
+        """Verify main tasks and subtasks are tracked separately."""
+        progress = {
+            'analysis': {
+                'total': 2, 'completed': 0, 'failed': 0, 'status': 'running',
+                'main_task_ids': [],
+                'subtask_ids': [],
+                'task_ids': [],
+                'submitted_apps': []
+            }
+        }
+        
+        # Add main task with subtasks
+        main_task_id = 'task_main_1'
+        subtask_ids = ['task_sub_1', 'task_sub_2', 'task_sub_3']
+        
+        progress['analysis']['main_task_ids'].append(main_task_id)
+        progress['analysis']['subtask_ids'].extend(subtask_ids)
+        progress['analysis']['task_ids'].append(main_task_id)
+        
+        # Verify separation
+        assert main_task_id in progress['analysis']['main_task_ids']
+        assert main_task_id not in progress['analysis']['subtask_ids']
+        assert len(progress['analysis']['main_task_ids']) == 1
+        assert len(progress['analysis']['subtask_ids']) == 3
+    
+    def test_completion_counts_only_main_tasks(self):
+        """Verify that completion counting uses main_task_ids not subtask_ids."""
+        # Setup: 2 main tasks, 6 subtasks (3 each)
+        progress = {
+            'analysis': {
+                'total': 2,  # 2 main tasks expected
+                'completed': 0,
+                'failed': 0,
+                'status': 'running',
+                'main_task_ids': ['task_main_1', 'task_main_2'],
+                'subtask_ids': ['sub_1a', 'sub_1b', 'sub_1c', 'sub_2a', 'sub_2b', 'sub_2c'],
+                'task_ids': ['task_main_1', 'task_main_2'],  # Legacy for backwards compat
+                'submitted_apps': ['model_a:1', 'model_b:2']
+            }
+        }
+        
+        # Count should be based on main_task_ids length (2), not subtask_ids (6)
+        main_task_ids = progress['analysis'].get('main_task_ids', [])
+        actual_total = len(main_task_ids) if main_task_ids else progress['analysis']['total']
+        
+        assert actual_total == 2
 
 
 class TestAnalysisStageJobIndexAdvancement:
@@ -177,6 +250,8 @@ class TestDuplicatePreventionLogic:
         progress = {
             'analysis': {
                 'total': 1, 'completed': 0, 'failed': 0, 'status': 'pending',
+                'main_task_ids': ['task_first'],
+                'subtask_ids': [],
                 'task_ids': ['task_first'],
                 'submitted_apps': ['model_a:1']
             }
@@ -239,6 +314,8 @@ class TestAnalysisStageDuplicateGuardOrder:
         # Progress with task already submitted
         progress = {
             'analysis': {
+                'main_task_ids': ['task_123'],
+                'subtask_ids': [],
                 'task_ids': ['task_123'],
                 'submitted_apps': ['model_a:1']
             }

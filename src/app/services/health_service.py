@@ -1,5 +1,17 @@
 """
-Service for performing system health checks.
+Health Service
+==============
+
+Service for performing system health checks on critical infrastructure components.
+
+This module provides the HealthService class which performs health checks on:
+- Database connectivity (PostgreSQL/SQLite)
+- Redis cache and message broker
+- Celery task workers
+- Analyzer microservices (static, dynamic, performance, AI)
+
+Each health check returns a standardized dictionary with status and message fields,
+enabling consistent monitoring and alerting across the platform.
 """
 from __future__ import annotations
 

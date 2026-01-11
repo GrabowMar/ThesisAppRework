@@ -40,8 +40,30 @@ logger = get_logger("pipeline_executor")
 # Thread safety lock for shared mutable state
 _pipeline_state_lock = threading.RLock()
 
-# Default parallelism limit for analysis tasks
-DEFAULT_MAX_CONCURRENT_TASKS = 3
+# =============================================================================
+# CONFIGURATION CONSTANTS (formerly magic numbers)
+# =============================================================================
+
+# Parallelism limits
+DEFAULT_MAX_CONCURRENT_TASKS: int = 3  # Default parallel analysis tasks
+DEFAULT_MAX_CONCURRENT_GENERATION: int = 2  # Default parallel generation jobs
+MAX_ANALYSIS_WORKERS: int = 8  # ThreadPool size for analysis
+MAX_GENERATION_WORKERS: int = 4  # ThreadPool size for generation
+
+# Timing constants (seconds)
+DEFAULT_POLL_INTERVAL: float = 3.0  # Polling interval for work
+CONTAINER_STABILIZATION_DELAY: float = 5.0  # Wait after container startup
+CONTAINER_RETRY_DELAY: float = 30.0  # Wait before retrying container startup
+GRACEFUL_SHUTDOWN_TIMEOUT: float = 10.0  # Max wait for in-flight tasks on shutdown
+THREAD_JOIN_TIMEOUT: float = 5.0  # Max wait for thread join
+
+# Service port mapping
+ANALYZER_SERVICE_PORTS: Dict[str, int] = {
+    'static-analyzer': 2001,
+    'dynamic-analyzer': 2002,
+    'performance-tester': 2003,
+    'ai-analyzer': 2004
+}
 
 
 class PipelineExecutionService:
@@ -59,6 +81,8 @@ class PipelineExecutionService:
     - Exponential backoff retries (2s → 4s → 8s → 16s)
     - Per-service health checking (partial execution when some services unavailable)
     - Health check TTL (30s cache invalidation)
+    - Graceful shutdown with in-flight task state preservation
+    - File-based locking for SQLite compatibility (row locking is no-op in SQLite)
     """
     
     # Circuit breaker configuration
@@ -68,6 +92,7 @@ class PipelineExecutionService:
     # Retry configuration (exponential backoff)
     MAX_STARTUP_RETRIES: int = 4  # Max retry attempts for analyzer startup
     BASE_RETRY_DELAY: float = 2.0  # Base delay in seconds (doubles each attempt)
+    MAX_TASK_CREATION_RETRIES: int = 3  # Retries for task creation conflicts
     
     # Health check TTL
     HEALTH_CHECK_TTL: float = 30.0  # Invalidate health cache after 30 seconds
@@ -111,13 +136,47 @@ class PipelineExecutionService:
         # App container tracking (model_slug, app_number) tuples started per pipeline
         self._app_containers_started: Dict[str, Set[tuple]] = {}  # pipeline_id -> {(model, app_num), ...}
         
-        self._log("PipelineExecutionService initialized (poll_interval=%s)", poll_interval)
+        # Graceful shutdown state
+        self._shutting_down: bool = False
+        self._shutdown_event: threading.Event = threading.Event()
+        
+        self._log("INIT", "PipelineExecutionService initialized (poll_interval=%s)", poll_interval)
     
-    def _log(self, msg: str, *args, level: str = 'info', **kwargs) -> None:
-        """Log with consistent formatting."""
-        formatted = msg % args if args else msg
+    def _log(self, context: str, msg: str, *args, level: str = 'info', **kwargs) -> None:
+        """Log with consistent formatting and context prefixes.
+        
+        Logging format: [PIPELINE:{context}] message
+        
+        Standard context prefixes:
+        - INIT: Service initialization
+        - GEN: Generation stage operations
+        - ANAL: Analysis stage operations  
+        - TASK: Individual task operations
+        - HEALTH: Health check operations
+        - CIRCUIT: Circuit breaker operations
+        - CONTAINER: Container management
+        - SHUTDOWN: Graceful shutdown
+        """
+        # Ensure msg is a string (handles misuse where context/msg are swapped)
+        msg_str = str(msg) if not isinstance(msg, str) else msg
+        
+        # Use try/except to handle cases where args contain % characters
+        # (e.g., exception messages with format specifiers)
+        if args:
+            try:
+                formatted = msg_str % args
+            except (TypeError, ValueError):
+                # Fallback: convert args to strings and join
+                formatted = msg_str + " " + " ".join(str(a) for a in args)
+        else:
+            formatted = msg_str
+        
         log_func = getattr(logger, level, logger.info)
-        log_func(f"[PipelineExecutor] {formatted}")
+        # Include pipeline ID if available
+        if self._current_pipeline_id:
+            log_func(f"[PIPELINE:{self._current_pipeline_id}:{context}] {formatted}")
+        else:
+            log_func(f"[PIPELINE:{context}] {formatted}")
     
     def _get_analyzer_host(self, service_name: str) -> str:
         """Get the hostname for an analyzer service.
@@ -151,7 +210,7 @@ class PipelineExecutionService:
         if current_time < cooldown_until:
             remaining = int(cooldown_until - current_time)
             self._log(
-                "[CIRCUIT] Service %s circuit OPEN, %ds remaining in cooldown",
+                "CIRCUIT", "Service %s circuit OPEN, %ds remaining in cooldown",
                 service_name, remaining, level='debug'
             )
             return True
@@ -159,7 +218,7 @@ class PipelineExecutionService:
         # Cooldown expired - reset circuit breaker if it was tripped
         if cooldown_until > 0 and current_time >= cooldown_until:
             self._log(
-                "[CIRCUIT] Service %s cooldown expired, resetting circuit breaker",
+                "CIRCUIT", "Service %s cooldown expired, resetting circuit breaker",
                 service_name
             )
             self._analyzer_failures[service_name] = 0
@@ -176,14 +235,14 @@ class PipelineExecutionService:
             cooldown_end = time.time() + self.CIRCUIT_BREAKER_COOLDOWN
             self._analyzer_cooldown_until[service_name] = cooldown_end
             self._log(
-                "[CIRCUIT] Service %s circuit breaker TRIPPED after %d failures. "
+                "CIRCUIT", "Service %s circuit breaker TRIPPED after %d failures. "
                 "Cooldown for %ds",
                 service_name, failures, int(self.CIRCUIT_BREAKER_COOLDOWN),
                 level='warning'
             )
         else:
             self._log(
-                "[CIRCUIT] Service %s failure recorded (%d/%d before trip)",
+                "CIRCUIT", "Service %s failure recorded (%d/%d before trip)",
                 service_name, failures, self.CIRCUIT_BREAKER_THRESHOLD,
                 level='debug'
             )
@@ -192,7 +251,7 @@ class PipelineExecutionService:
         """Record a service success and reset failure counter."""
         if self._analyzer_failures.get(service_name, 0) > 0:
             self._log(
-                "[CIRCUIT] Service %s success, resetting failure count",
+                "CIRCUIT", "Service %s success, resetting failure count",
                 service_name, level='debug'
             )
         self._analyzer_failures[service_name] = 0
@@ -218,15 +277,8 @@ class PipelineExecutionService:
             if cache_age < self.HEALTH_CHECK_TTL:
                 return cached
         
-        # Perform fresh health check
-        SERVICE_PORTS = {
-            'static-analyzer': 2001,
-            'dynamic-analyzer': 2002,
-            'performance-tester': 2003,
-            'ai-analyzer': 2004
-        }
-        
-        port = SERVICE_PORTS.get(service_name)
+        # Perform fresh health check using global constant
+        port = ANALYZER_SERVICE_PORTS.get(service_name)
         if not port:
             return {
                 'healthy': False,
@@ -344,11 +396,11 @@ class PipelineExecutionService:
         """
         if service_name:
             self._service_health_cache.pop(service_name, None)
-            self._log("[HEALTH] Invalidated cache for %s", service_name, level='debug')
+            self._log("HEALTH", "Invalidated cache for %s", service_name, level='debug')
         else:
             self._service_health_cache.clear()
             self._analyzer_healthy = None
-            self._log("[HEALTH] Invalidated all health caches", level='debug')
+            self._log("HEALTH", "Invalidated all health caches", level='debug')
     
     def start(self):
         """Start the background execution thread."""
@@ -356,26 +408,58 @@ class PipelineExecutionService:
             return
         
         self._running = True
+        self._shutting_down = False
+        self._shutdown_event.clear()
         
         # Initialize thread pool for parallel analysis
         self._analysis_executor = ThreadPoolExecutor(
-            max_workers=8,  # Allow up to 8 concurrent threads (actual limit controlled per-pipeline)
+            max_workers=MAX_ANALYSIS_WORKERS,
             thread_name_prefix="pipeline_analysis"
         )
         
         # Initialize thread pool for parallel generation
         self._generation_executor = ThreadPoolExecutor(
-            max_workers=4,  # Generation is more resource-intensive (LLM API calls)
+            max_workers=MAX_GENERATION_WORKERS,
             thread_name_prefix="pipeline_generation"
         )
         
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
-        self._log("PipelineExecutionService started")
+        self._log("INIT", "PipelineExecutionService started")
     
     def stop(self):
-        """Stop the background execution thread."""
+        """Stop the background execution thread with graceful shutdown.
+        
+        Graceful shutdown process:
+        1. Signal shutdown to main loop
+        2. Wait for in-flight tasks to complete (with timeout)
+        3. Persist state for any incomplete tasks
+        4. Shutdown thread pools
+        """
+        self._log("SHUTDOWN", "Initiating graceful shutdown...")
+        self._shutting_down = True
         self._running = False
+        self._shutdown_event.set()
+        
+        # Wait for in-flight tasks with timeout
+        start_time = time.time()
+        while time.time() - start_time < GRACEFUL_SHUTDOWN_TIMEOUT:
+            # Count in-flight work
+            with _pipeline_state_lock:
+                total_in_flight = sum(len(tasks) for tasks in self._in_flight_tasks.values())
+                total_in_flight += sum(len(jobs) for jobs in self._in_flight_generation.values())
+            
+            if total_in_flight == 0:
+                self._log("SHUTDOWN", "All in-flight tasks completed")
+                break
+            
+            self._log("SHUTDOWN", "Waiting for %d in-flight items... (%.1fs remaining)",
+                     total_in_flight, GRACEFUL_SHUTDOWN_TIMEOUT - (time.time() - start_time))
+            time.sleep(1.0)
+        else:
+            # Timeout reached - persist incomplete state
+            self._log("SHUTDOWN", "Timeout reached, persisting incomplete task state", level='warning')
+            self._persist_incomplete_state()
         
         # Shutdown thread pools
         if self._analysis_executor:
@@ -387,15 +471,36 @@ class PipelineExecutionService:
             self._generation_executor = None
         
         if self._thread:
-            self._thread.join(timeout=5)
+            self._thread.join(timeout=THREAD_JOIN_TIMEOUT)
         
-        self._log("PipelineExecutionService stopped")
+        self._log("SHUTDOWN", "PipelineExecutionService stopped")
+    
+    def _persist_incomplete_state(self) -> None:
+        """Persist state for incomplete tasks on forced shutdown.
+        
+        Records which tasks were in-flight so they can be recovered on restart.
+        """
+        with _pipeline_state_lock:
+            for pipeline_id, task_ids in self._in_flight_tasks.items():
+                if task_ids:
+                    self._log("SHUTDOWN", "Pipeline %s has %d in-flight analysis tasks: %s",
+                             pipeline_id, len(task_ids), list(task_ids), level='warning')
+            
+            for pipeline_id, job_keys in self._in_flight_generation.items():
+                if job_keys:
+                    self._log("SHUTDOWN", "Pipeline %s has %d in-flight generation jobs: %s",
+                             pipeline_id, len(job_keys), list(job_keys), level='warning')
     
     def _run_loop(self):
         """Main execution loop - polls for and processes pipelines."""
-        self._log("Execution loop started")
+        self._log("INIT", "Execution loop started")
         
         while self._running:
+            # Check for shutdown signal
+            if self._shutting_down:
+                self._log("SHUTDOWN", "Shutdown signal received, exiting loop")
+                break
+            
             with (self._app.app_context() if self._app else _nullcontext()):
                 try:
                     # Get running pipelines
@@ -405,7 +510,7 @@ class PipelineExecutionService:
                         time.sleep(self.poll_interval)
                         continue
 
-                    self._log("Found %d running pipeline(s)", len(pipelines), level='debug')
+                    self._log("MAIN", "Found %d running pipeline(s)", len(pipelines), level='debug')
 
                     # Process each running pipeline
                     for pipeline in pipelines:
@@ -414,7 +519,7 @@ class PipelineExecutionService:
                             self._process_pipeline(pipeline)
                         except Exception as e:
                             self._log(
-                                "Error processing pipeline %s: %s",
+                                "ERROR", "Error processing pipeline %s: %s",
                                 pipeline.pipeline_id, e,
                                 level='error'
                             )
@@ -428,11 +533,11 @@ class PipelineExecutionService:
                                 # Clean up generation tracking
                                 self._cleanup_generation_tracking(pipeline.pipeline_id)
                             except Exception as cleanup_error:
-                                self._log("Failed to cleanup after pipeline error: %s", cleanup_error, level='error')
+                                self._log("ERROR", "Failed to cleanup after pipeline error: %s", cleanup_error, level='error')
                                 try:
                                     db.session.rollback()
                                 except Exception as rollback_error:
-                                    self._log("Critical: Failed to rollback session: %s", rollback_error, level='critical')
+                                    self._log("ERROR", "Critical: Failed to rollback session: %s", rollback_error, level='critical')
                             finally:
                                 # Ensure session is cleaned up
                                 try:
@@ -443,7 +548,7 @@ class PipelineExecutionService:
                             self._current_pipeline_id = None
 
                 except Exception as e:
-                    self._log("Pipeline execution loop error: %s", e, level='error')
+                    self._log("ERROR", "Pipeline execution loop error: %s", e, level='error')
                     # Clean up session on loop errors
                     try:
                         db.session.remove()
@@ -457,7 +562,7 @@ class PipelineExecutionService:
         # Debug: Log current state before getting next job
         status_val = pipeline.status.value if hasattr(pipeline.status, 'value') else str(pipeline.status)  # type: ignore[union-attr]
         self._log(
-            "[DEBUG] Pipeline %s: stage=%s, job_index=%d, status=%s",
+            "DEBUG", "Pipeline %s: stage=%s, job_index=%d, status=%s",
             pipeline.pipeline_id, pipeline.current_stage, 
             pipeline.current_job_index, status_val
         )
@@ -576,7 +681,7 @@ class PipelineExecutionService:
         if done >= total and in_flight_count == 0:
             # All generation complete - transition to analysis
             self._log(
-                "[PIPELINE %s] Generation complete: %d/%d succeeded, %d failed",
+                "GEN", "Generation complete for %s: %d/%d succeeded, %d failed",
                 pipeline_id, completed, total, failed
             )
             progress['generation']['status'] = 'completed'
@@ -601,8 +706,8 @@ class PipelineExecutionService:
         job_key = f"{job_index}:{model_slug}:{template_slug}"
         
         self._log(
-            "[PIPELINE %s] Submitting generation job %d: %s + %s",
-            pipeline_id, job_index, model_slug, template_slug
+            "GEN", "Submitting generation job %d for %s: %s + %s",
+            job_index, pipeline_id, model_slug, template_slug
         )
         
         # Add to in-flight tracking
@@ -621,7 +726,7 @@ class PipelineExecutionService:
         else:
             # Fallback to synchronous execution
             self._log(
-                "[PIPELINE %s] No executor, running generation synchronously",
+                "GEN", "No executor for %s, running generation synchronously",
                 pipeline_id, level='warning'
             )
             self._execute_generation_job_sync(pipeline_id, job)
@@ -649,7 +754,7 @@ class PipelineExecutionService:
             # Push Flask app context for this thread
             with (self._app.app_context() if self._app else _nullcontext()):
                 self._log(
-                    "[GEN WORKER] Starting job %d: %s + %s",
+                    "GEN", "Worker starting job %d: %s + %s",
                     job_index, model_slug, template_slug
                 )
                 
@@ -702,13 +807,13 @@ class PipelineExecutionService:
                     result['error'] = '; '.join(gen_result.get('errors', ['Unknown error']))
                 
                 self._log(
-                    "[GEN WORKER] Completed job %d: %s app %s (success=%s)",
+                    "GEN", "Worker completed job %d: %s app %s (success=%s)",
                     job_index, model_slug, app_number, result['success']
                 )
                 
         except Exception as e:
             self._log(
-                "[GEN WORKER] Job %d failed: %s",
+                "GEN", "Worker job %d failed: %s",
                 job_index, str(e), level='error'
             )
             result['error'] = str(e)
@@ -753,7 +858,7 @@ class PipelineExecutionService:
         # Re-fetch pipeline with fresh DB session
         pipeline = PipelineExecution.query.filter_by(pipeline_id=pipeline_id).first()
         if not pipeline:
-            self._log("Cannot record result - pipeline %s not found", pipeline_id, level='error')
+            self._log("GEN", "Cannot record result - pipeline %s not found", pipeline_id, level='error')
             return
         
         record = {
@@ -770,7 +875,7 @@ class PipelineExecutionService:
         stage_transitioned = pipeline.add_generation_result(record)
         
         self._log(
-            "[PIPELINE %s] Recorded generation result for job %d: success=%s, stage_transitioned=%s",
+            "GEN", "Recorded generation result for %s job %d: success=%s, stage_transitioned=%s",
             pipeline_id, record.get('job_index', -1), record['success'], stage_transitioned
         )
         
@@ -788,23 +893,24 @@ class PipelineExecutionService:
                 if not future.done():
                     future.cancel()
                     self._log(
-                        "[CLEANUP] Cancelled generation job %s for pipeline %s",
+                        "CLEANUP", "Cancelled generation job %s for pipeline %s",
                         job_key, pipeline_id, level='debug'
                     )
             
             # Clear in-flight tracking
             self._in_flight_generation.pop(pipeline_id, None)
         
-        self._log("[CLEANUP] Cleaned up generation tracking for pipeline %s", pipeline_id, level='debug')
+        self._log("CLEANUP", "Cleaned up generation tracking for pipeline %s", pipeline_id, level='debug')
     
     def _process_analysis_stage(self, pipeline: PipelineExecution):
         """Process analysis stage with parallel execution.
         
         This method:
-        1. Starts containers if needed (first time in analysis stage)
-        2. Submits analysis tasks up to parallelism limit
-        3. Tracks in-flight tasks and polls for completion
-        4. Transitions to done stage when all tasks complete
+        1. Clears health cache for new pipelines (prevents stale health data)
+        2. Starts containers if needed (first time in analysis stage)
+        3. Submits analysis tasks up to parallelism limit
+        4. Tracks in-flight tasks and polls for completion
+        5. Transitions to done stage when all tasks complete
         """
         pipeline_id = pipeline.pipeline_id
         progress = pipeline.progress
@@ -818,6 +924,10 @@ class PipelineExecutionService:
         with _pipeline_state_lock:
             if pipeline_id not in self._in_flight_tasks:
                 self._in_flight_tasks[pipeline_id] = set()
+                # FIX: Clear health cache when starting a new pipeline's analysis
+                # This prevents stale health data from previous pipelines affecting this one
+                self._invalidate_health_cache()
+                self._log("ANAL", "Cleared health cache for new pipeline analysis stage")
         
         # STEP 1: Start containers if this is the first analysis job
         # NOTE: Analyzer container startup is a "soft requirement" - we warn but continue
@@ -834,7 +944,7 @@ class PipelineExecutionService:
             if not needs_containers:
                 # Static analysis only - skip container startup entirely
                 self._log(
-                    "[PIPELINE %s] Skipping analyzer container startup - static analysis tools only (%s)",
+                    "ANAL", "Skipping analyzer container startup for %s - static analysis tools only (%s)",
                     pipeline_id, ', '.join(tools)
                 )
                 with _pipeline_state_lock:
@@ -850,12 +960,12 @@ class PipelineExecutionService:
                             self._containers_started_for.add(pipeline_id)
                         # Additional stabilization delay after startup to ensure ports are fully bound
                         time.sleep(5)
-                        self._log("[PIPELINE %s] Analyzer containers ready, added 5s stabilization delay", pipeline_id)
+                        self._log("ANAL", "Analyzer containers ready, added 5s stabilization delay")
                     else:
                         # Retry once more after a longer delay (containers may still be starting)
                         self._log(
-                            "[PIPELINE %s] First analyzer startup attempt failed, retrying after 30s delay...",
-                            pipeline_id, level='warning'
+                            "ANAL", "First analyzer startup attempt failed, retrying after 30s delay...",
+                            level='warning'
                         )
                         time.sleep(30)
 
@@ -867,15 +977,15 @@ class PipelineExecutionService:
                             with _pipeline_state_lock:
                                 self._containers_started_for.add(pipeline_id)
                             time.sleep(5)  # Stabilization delay
-                            self._log("[PIPELINE %s] Analyzer containers ready on retry", pipeline_id)
+                            self._log("ANAL", "Analyzer containers ready on retry")
                         else:
                             # Log warning but continue - static analysis and individual tasks
                             # will handle their own dependencies
                             self._log(
-                                "[PIPELINE %s] WARNING: Analyzer containers could not be started after retry. "
+                                "ANAL", "WARNING: Analyzer containers could not be started after retry. "
                                 "Static analysis will continue. Dynamic/performance analysis "
                                 "will skip or fail for apps without running containers.",
-                                pipeline_id, level='warning'
+                                level='warning'
                             )
                             # Still mark as "attempted" to avoid retry on every poll
                             with _pipeline_state_lock:
@@ -885,10 +995,10 @@ class PipelineExecutionService:
                     if not self._check_analyzers_running():
                         # Log warning but continue - let tasks handle their own dependencies
                         self._log(
-                            "[PIPELINE %s] WARNING: Analyzer services not running and auto-start disabled. "
+                            "ANAL", "WARNING: Analyzer services not running and auto-start disabled. "
                             "Analysis tasks may partially succeed or skip dynamic/performance tests. "
                             "To enable all analysis types, start containers via: ./start.ps1 -Mode Start",
-                            pipeline_id, level='warning'
+                            level='warning'
                         )
         
         # STEP 2: Check completed in-flight tasks
@@ -908,62 +1018,77 @@ class PipelineExecutionService:
             app_number = job.get('app_number')
             job_key = f"{model_slug}:{app_number}"
             
-            # FIX: Advance job_index FIRST and commit to prevent race condition
-            # This ensures the next poll sees the updated index before we do the work
-            pipeline.advance_job_index()
-            db.session.commit()
-            
             # Skip if generation failed for this job
             if not job.get('success', False):
-                self._log(
-                    "Skipping analysis for %s app %s - generation failed",
-                    model_slug, app_number
-                )
+                # Advance job_index and mark skipped atomically
+                pipeline.advance_job_index()
                 pipeline.add_analysis_task_id('skipped:generation_failed', success=False,
                                               model_slug=model_slug, app_number=app_number)
                 db.session.commit()
+                self._log("ANAL", "Skipping analysis for %s app %s - generation failed", model_slug, app_number)
                 continue
             
             # FIX: Check if this model:app combo was already submitted (duplicate guard)
             progress = pipeline.progress
-            existing_task_ids = progress.get('analysis', {}).get('task_ids', [])
             submitted_apps = progress.get('analysis', {}).get('submitted_apps', [])
             
             if job_key in submitted_apps:
-                self._log(
-                    "Skipping duplicate analysis submission for %s app %d (already in submitted_apps)",
-                    model_slug, app_number
-                )
+                # Already submitted - just advance the index
+                pipeline.advance_job_index()
+                db.session.commit()
+                self._log("ANAL", "Skipping duplicate analysis submission for %s app %d (already in submitted_apps)",
+                         model_slug, app_number)
                 continue
             
-            # Double-check against existing tasks (belt-and-suspenders)
+            # Double-check against existing main_task_ids (belt-and-suspenders)
+            main_task_ids = progress.get('analysis', {}).get('main_task_ids', [])
             already_submitted = False
-            for task_id in existing_task_ids:
+            for task_id in main_task_ids:
                 if task_id.startswith('skipped') or task_id.startswith('error:'):
                     continue
                 existing_task = AnalysisTask.query.filter_by(task_id=task_id).first()
                 if (existing_task and 
                     existing_task.target_model == model_slug and 
                     existing_task.target_app_number == app_number):
-                    self._log(
-                        "Skipping duplicate analysis for %s app %d (already have task %s)",
-                        model_slug, app_number, task_id
-                    )
+                    self._log("ANAL", "Skipping duplicate analysis for %s app %d (already have task %s)",
+                             model_slug, app_number, task_id)
                     already_submitted = True
                     break
             
             if already_submitted:
+                pipeline.advance_job_index()
+                db.session.commit()
                 continue
             
-            # Submit analysis task
+            # FIX TRANSACTION BOUNDARY: Advance job_index AFTER successful task creation
+            # We'll use a savepoint pattern to rollback only the job_index if task creation fails
+            saved_job_index = pipeline.current_job_index
+            
+            # Submit analysis task (this creates the task in DB)
             task_id = self._submit_analysis_task(pipeline, job)
+            
+            # Only advance job_index if task was successfully created
             if task_id and not task_id.startswith('error:') and not task_id.startswith('skipped'):
+                pipeline.advance_job_index()
                 with _pipeline_state_lock:
                     self._in_flight_tasks[pipeline_id].add(task_id)
                 in_flight_count += 1
-            
-            # Commit after task submission to record the task_id
-            db.session.commit()
+                db.session.commit()
+            elif task_id and task_id.startswith('skipped'):
+                # Skipped tasks still advance the index (they're "handled")
+                pipeline.advance_job_index()
+                db.session.commit()
+            else:
+                # Error creating task - still advance index to avoid infinite loop
+                # but mark as retryable in progress if it was a transient error
+                pipeline.advance_job_index()
+                # Check if this was a transient error that should allow retry
+                if task_id and 'transient' in task_id.lower():
+                    # Remove from submitted_apps to allow retry
+                    self._mark_job_retryable(pipeline, model_slug, app_number)
+                db.session.commit()
+                self._log("ANAL", "Task creation failed for %s app %d: %s",
+                         model_slug, app_number, task_id, level='warning')
         
         # STEP 4: Check if all analysis is complete
         if self._check_analysis_tasks_completion(pipeline):
@@ -973,6 +1098,21 @@ class PipelineExecutionService:
             self._cleanup_pipeline_containers(pipeline_id)
         
         self._emit_progress_update(pipeline)
+    
+    def _mark_job_retryable(self, pipeline: PipelineExecution, model_slug: str, app_number: int) -> None:
+        """Mark a job as retryable by removing it from submitted_apps.
+        
+        This allows the job to be retried on the next pipeline resume.
+        """
+        progress = pipeline.progress
+        job_key = f"{model_slug}:{app_number}"
+        submitted_apps = progress.get('analysis', {}).get('submitted_apps', [])
+        
+        if job_key in submitted_apps:
+            submitted_apps.remove(job_key)
+            progress['analysis']['submitted_apps'] = submitted_apps
+            pipeline.progress = progress
+            self._log("ANAL", "Marked %s as retryable (removed from submitted_apps)", job_key)
     
     def _submit_analysis_task(self, pipeline: PipelineExecution, job: Dict[str, Any]) -> str:
         """Create and submit a single analysis task.
@@ -1057,7 +1197,7 @@ class PipelineExecutionService:
                     level='warning'
                 )
         
-        self._log("Creating analysis task for %s app %d", model_slug, app_number)
+        self._log("ANAL", "Creating analysis task for %s app %d", model_slug, app_number)
         
         try:
             from app.services.task_service import AnalysisTaskService
@@ -1097,7 +1237,7 @@ class PipelineExecutionService:
                         service = tool_obj.container.value
                         tools_by_service.setdefault(service, []).append(tool_id)
                 else:
-                    self._log("Tool '%s' not found or unavailable", tool_name, level='warning')
+                    self._log("ANAL", "Tool '%s' not found or unavailable", tool_name, level='warning')
             
             if not tools_by_service or not valid_tool_names:
                 self._log(
@@ -1141,13 +1281,24 @@ class PipelineExecutionService:
             )
             # ========== END MATCHING CUSTOM WIZARD BEHAVIOR ==========
             
-            pipeline.add_analysis_task_id(task.task_id, success=True,
-                                          model_slug=model_slug, app_number=app_number)
+            # Query subtask IDs for proper tracking
+            subtasks = AnalysisTask.query.filter_by(parent_task_id=task.task_id).all()
+            subtask_ids = [st.task_id for st in subtasks]
+            
+            # Add main task with subtask IDs for proper tracking
+            pipeline.add_analysis_task_id(
+                task.task_id, 
+                success=True,
+                model_slug=model_slug, 
+                app_number=app_number,
+                is_main_task=True,
+                subtask_ids=subtask_ids
+            )
             
             self._log(
-                "Created analysis task %s for %s app %d (unified=%s, services=%d, tools=%d)",
+                "Created analysis task %s for %s app %d (unified=%s, services=%d, tools=%d, subtasks=%d)",
                 task.task_id, model_slug, app_number,
-                len(tools_by_service) > 1, len(tools_by_service), len(valid_tool_names)
+                len(tools_by_service) > 1, len(tools_by_service), len(valid_tool_names), len(subtask_ids)
             )
             return task.task_id
             
@@ -1245,7 +1396,7 @@ class PipelineExecutionService:
             ) if containers else False
             
         except Exception as e:
-            self._log("Error checking analyzer status: %s", e, level='error')
+            self._log("ANALYZER", "Error checking analyzer status: %s", e, level='error')
             return False
     
     def _cleanup_pipeline_containers(self, pipeline_id: str):
@@ -1266,11 +1417,11 @@ class PipelineExecutionService:
             from analyzer.analyzer_manager import AnalyzerManager
             manager = AnalyzerManager()
             
-            self._log("Stopping analyzer containers (auto-started for pipeline %s)", pipeline_id)
+            self._log("CONTAINER", "Stopping analyzer containers (auto-started for pipeline %s)", pipeline_id)
             manager.stop_services()
             
         except Exception as e:
-            self._log("Error stopping containers: %s", e, level='warning')
+            self._log("CONTAINER", "Error stopping containers: %s", e, level='warning')
         finally:
             with _pipeline_state_lock:
                 self._containers_started_for.discard(pipeline_id)
@@ -1410,10 +1561,10 @@ class PipelineExecutionService:
                                          analysis_config.get('options', {}).get('stopAfterAnalysis', True))
         
         if not stop_after:
-            self._log("stopAfterAnalysis disabled - keeping app containers running for pipeline %s", pipeline_id)
+            self._log("CONTAINER", "stopAfterAnalysis disabled - keeping app containers running for pipeline %s", pipeline_id)
             return
         
-        self._log("Stopping %d app container sets for pipeline %s", len(started_apps), pipeline_id)
+        self._log("CONTAINER", "Stopping %d app container sets for pipeline %s", len(started_apps), pipeline_id)
         
         for model_slug, app_number in started_apps:
             self._stop_app_containers(pipeline_id, model_slug, app_number)
@@ -1465,13 +1616,13 @@ class PipelineExecutionService:
                     pipeline.current_job_index = 0
                     progress['analysis']['status'] = 'running'
                     pipeline.progress = progress
-                    self._log("Pipeline %s (existing apps mode) transitioning to analysis stage", pipeline.pipeline_id)
+                    self._log("STAGE", "Pipeline %s (existing apps mode) transitioning to analysis stage", pipeline.pipeline_id)
                 else:
                     # No analysis - complete pipeline
                     pipeline.status = PipelineExecutionStatus.COMPLETED
                     pipeline.completed_at = datetime.now(timezone.utc)
                     pipeline.current_stage = 'done'
-                    self._log("Pipeline %s completed (existing apps, skipped analysis)", pipeline.pipeline_id)
+                    self._log("STAGE", "Pipeline %s completed (existing apps, skipped analysis)", pipeline.pipeline_id)
             elif gen.get('status') == 'completed':
                 # Generation complete - check if analysis is enabled
                 if progress.get('analysis', {}).get('status') != 'skipped':
@@ -1479,13 +1630,13 @@ class PipelineExecutionService:
                     pipeline.current_job_index = 0
                     progress['analysis']['status'] = 'running'
                     pipeline.progress = progress
-                    self._log("Pipeline %s transitioning to analysis stage", pipeline.pipeline_id)
+                    self._log("STAGE", "Pipeline %s transitioning to analysis stage", pipeline.pipeline_id)
                 else:
                     # No analysis - complete pipeline
                     pipeline.status = PipelineExecutionStatus.COMPLETED
                     pipeline.completed_at = datetime.now(timezone.utc)
                     pipeline.current_stage = 'done'
-                    self._log("Pipeline %s completed (skipped analysis)", pipeline.pipeline_id)
+                    self._log("STAGE", "Pipeline %s completed (skipped analysis)", pipeline.pipeline_id)
         
         elif pipeline.current_stage == 'analysis':
             # This shouldn't normally happen since _process_analysis_stage handles completion
@@ -1500,12 +1651,20 @@ class PipelineExecutionService:
         db.session.commit()
     
     def _check_analysis_tasks_completion(self, pipeline: PipelineExecution) -> bool:
-        """Check actual completion status of analysis tasks from DB.
+        """Check actual completion status of MAIN analysis tasks from DB.
         
-        Returns True if all tasks have reached a terminal state and marks pipeline complete.
+        Uses main_task_ids (not subtasks) for accurate job completion tracking.
+        Subtasks are handled by their parent main task.
+        
+        Returns True if all main tasks have reached a terminal state and marks pipeline complete.
         """
         progress = pipeline.progress
-        task_ids = progress.get('analysis', {}).get('task_ids', [])
+        
+        # Use main_task_ids for accurate counting (not subtasks)
+        # Fall back to legacy task_ids if main_task_ids not populated
+        main_task_ids = progress.get('analysis', {}).get('main_task_ids', [])
+        if not main_task_ids:
+            main_task_ids = progress.get('analysis', {}).get('task_ids', [])
         
         # Get expected number of analysis jobs
         config = pipeline.config
@@ -1518,7 +1677,7 @@ class PipelineExecutionService:
             gen_results = progress.get('generation', {}).get('results', [])
             expected_jobs = len(gen_results)
         
-        if not task_ids:
+        if not main_task_ids:
             # No tasks created yet - check if jobs remain
             if expected_jobs > 0 and pipeline.current_job_index < expected_jobs:
                 self._log(
@@ -1541,16 +1700,16 @@ class PipelineExecutionService:
         failed_count = 0
         pending_count = 0
         
-        for task_id in task_ids:
+        for task_id in main_task_ids:
             # Handle skipped/error markers
             if task_id.startswith('skipped') or task_id.startswith('error:'):
                 failed_count += 1
                 continue
             
-            # Query actual task status
+            # Query actual task status (main task only, not subtasks)
             task = AnalysisTask.query.filter_by(task_id=task_id).first()
             if not task:
-                self._log("Analysis task %s not found in database", task_id, level='warning')
+                self._log("ANAL", "Analysis task %s not found in database", task_id, level='warning')
                 failed_count += 1
                 continue
             
@@ -1563,15 +1722,15 @@ class PipelineExecutionService:
             else:
                 pending_count += 1
         
-        total_tasks = len(task_ids)
+        total_main_tasks = len(main_task_ids)
         terminal_count = completed_count + failed_count
         
         self._log(
-            "Pipeline %s analysis status: %d/%d terminal (completed=%d, failed=%d, pending=%d)",
-            pipeline.pipeline_id, terminal_count, total_tasks, completed_count, failed_count, pending_count
+            "Pipeline %s analysis status: %d/%d main tasks terminal (completed=%d, failed=%d, pending=%d)",
+            pipeline.pipeline_id, terminal_count, total_main_tasks, completed_count, failed_count, pending_count
         )
         
-        # Must wait for ALL tasks to reach terminal state
+        # Must wait for ALL main tasks to reach terminal state
         if pending_count > 0:
             return False
         
@@ -1579,8 +1738,8 @@ class PipelineExecutionService:
         pipeline.update_analysis_completion(completed_count, failed_count)
         
         self._log(
-            "Pipeline %s: All %d analysis tasks finished (%d success, %d failed)",
-            pipeline.pipeline_id, total_tasks, completed_count, failed_count
+            "Pipeline %s: All %d analysis main tasks finished (%d success, %d failed)",
+            pipeline.pipeline_id, total_main_tasks, completed_count, failed_count
         )
         return True
     
@@ -1781,7 +1940,7 @@ class PipelineExecutionService:
             
             # Log initial status
             self._log(
-                "[ANALYZER] Initial health check: %d/%d services available",
+                "ANALYZER", "Initial health check: %d/%d services available",
                 len(available), len(all_services)
             )
             
@@ -1789,27 +1948,27 @@ class PipelineExecutionService:
             if len(available) == len(all_services):
                 self._analyzer_healthy = True
                 self._analyzer_check_time = current_time
-                self._log("[ANALYZER] All analyzer containers healthy")
+                self._log("ANALYZER", "All analyzer containers healthy")
                 return True
             
             # If some services unavailable and auto_start disabled, use partial execution
             if not auto_start:
                 if available:
                     self._log(
-                        "[ANALYZER] Auto-start disabled. Partial execution with %d/%d services: %s",
+                        "ANALYZER", "Auto-start disabled. Partial execution with %d/%d services: %s",
                         len(available), len(all_services), ', '.join(available)
                     )
                     self._analyzer_healthy = True  # Partial is OK
                     self._analyzer_check_time = current_time
                     return True
                 else:
-                    self._log("[ANALYZER] Auto-start disabled and no services available", level='error')
+                    self._log("ANALYZER", "Auto-start disabled and no services available", level='error')
                     self._analyzer_healthy = False
                     self._analyzer_check_time = current_time
                     return False
             
             # Auto-start enabled - attempt to start containers with exponential backoff
-            self._log("[ANALYZER] Attempting to start analyzer containers...")
+            self._log("ANALYZER", "Attempting to start analyzer containers...")
             
             # Check container status via AnalyzerManager
             containers = manager.get_container_status()
@@ -1824,26 +1983,26 @@ class PipelineExecutionService:
                 if attempt > 0:
                     delay = self.BASE_RETRY_DELAY * (2 ** (attempt - 1))
                     self._log(
-                        "[ANALYZER] Retry attempt %d/%d after %.1fs delay",
+                        "ANALYZER", "Retry attempt %d/%d after %.1fs delay",
                         attempt + 1, self.MAX_STARTUP_RETRIES, delay
                     )
                     time.sleep(delay)
                 
                 # Start or restart containers
                 if all_running:
-                    self._log("[ANALYZER] Containers running but unhealthy, restarting...")
+                    self._log("ANALYZER", "Containers running but unhealthy, restarting...")
                     returncode, stdout, stderr = manager.run_command(
                         manager._compose_cmd + ['restart'], timeout=60
                     )
                 else:
-                    self._log("[ANALYZER] Starting analyzer containers...")
+                    self._log("ANALYZER", "Starting analyzer containers...")
                     returncode, stdout, stderr = manager.run_command(
                         manager._compose_cmd + ['up', '-d'], timeout=60
                     )
                 
                 if returncode != 0:
                     self._log(
-                        "[ANALYZER] Container command failed (attempt %d/%d): %s",
+                        "ANALYZER", "Container command failed (attempt %d/%d): %s",
                         attempt + 1, self.MAX_STARTUP_RETRIES, stderr[:200] if stderr else 'Unknown error',
                         level='warning'
                     )
@@ -1863,7 +2022,7 @@ class PipelineExecutionService:
                     
                     if len(available) == len(all_services):
                         # All services healthy
-                        self._log("[ANALYZER] All %d analyzer containers now healthy", len(all_services))
+                        self._log("ANALYZER", "All %d analyzer containers now healthy", len(all_services))
                         self._analyzer_healthy = True
                         self._analyzer_check_time = time.time()
                         return True
@@ -1872,7 +2031,7 @@ class PipelineExecutionService:
                         # At least half are healthy - good enough for partial execution
                         elapsed = time.time() - start_time
                         self._log(
-                            "[ANALYZER] %d/%d services available after %.1fs. "
+                            "ANALYZER", "%d/%d services available after %.1fs. "
                             "Proceeding with partial execution (unavailable: %s)",
                             len(available), len(all_services), elapsed, ', '.join(unavailable)
                         )
@@ -1893,7 +2052,7 @@ class PipelineExecutionService:
                 available, unavailable = self._get_available_services(all_services)
                 if available:
                     self._log(
-                        "[ANALYZER] Timeout on attempt %d/%d, but %d services available. "
+                        "ANALYZER", "Timeout on attempt %d/%d, but %d services available. "
                         "Proceeding with partial execution.",
                         attempt + 1, self.MAX_STARTUP_RETRIES, len(available),
                         level='warning'
@@ -1908,7 +2067,7 @@ class PipelineExecutionService:
             
             if available:
                 self._log(
-                    "[ANALYZER] All %d retry attempts exhausted. "
+                    "ANALYZER", "All %d retry attempts exhausted. "
                     "Partial execution with %d/%d services: %s",
                     self.MAX_STARTUP_RETRIES, len(available), len(all_services),
                     ', '.join(available),
@@ -1919,7 +2078,7 @@ class PipelineExecutionService:
                 return True
             
             self._log(
-                "[ANALYZER] Failed to start any analyzer containers after %d attempts",
+                "ANALYZER", "Failed to start any analyzer containers after %d attempts",
                 self.MAX_STARTUP_RETRIES,
                 level='error'
             )
@@ -1928,7 +2087,7 @@ class PipelineExecutionService:
             return False
             
         except Exception as e:
-            self._log("[ANALYZER] Error during health check: %s", e, level='error')
+            self._log("ANALYZER", "Error during health check: %s", e, level='error')
             self._analyzer_healthy = False
             self._analyzer_check_time = time.time()
             return False

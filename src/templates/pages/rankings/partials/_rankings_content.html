@@ -1,8 +1,48 @@
-{# Rankings table content - matches models page structure #}
+{# Rankings table content - Chapter 4 MSS (Model Selection Score) methodology #}
 {% set per_page_val = request.args.get('per_page','25') if request else '25' %}
 {% set search_term = request.args.get('search','') if request else '' %}
 
-{# External Benchmark Links Panel #}
+{# MSS Methodology Info Panel #}
+<div class="card card-sm mb-3 border-primary">
+	<div class="card-header bg-primary-lt py-2">
+		<h4 class="card-title mb-0 d-flex align-items-center gap-2">
+			<i class="fas fa-graduation-cap text-primary"></i>
+			<span>Model Selection Score (MSS)</span>
+			<span class="badge bg-primary ms-2">Chapter 4 Methodology</span>
+		</h4>
+	</div>
+	<div class="card-body py-2">
+		<div class="row g-3 align-items-center">
+			<div class="col-lg-8">
+				<p class="text-muted small mb-2">
+					<strong>MSS = 0.35×Adoption + 0.30×Benchmarks + 0.20×CostEfficiency + 0.15×Accessibility</strong>
+				</p>
+				<div class="d-flex flex-wrap gap-2">
+					<span class="badge bg-azure-lt" title="35% - OpenRouter rank, community usage"><i class="fas fa-users me-1"></i>Adoption (35%)</span>
+					<span class="badge bg-green-lt" title="30% - BFCL, WebDev Arena, ARC-AGI, SimpleBench, LiveBench, LiveCodeBench"><i class="fas fa-chart-bar me-1"></i>Benchmarks (30%)</span>
+					<span class="badge bg-yellow-lt" title="20% - Price per million tokens"><i class="fas fa-dollar-sign me-1"></i>Cost Efficiency (20%)</span>
+					<span class="badge bg-purple-lt" title="15% - API availability, free tier"><i class="fas fa-key me-1"></i>Accessibility (15%)</span>
+				</div>
+			</div>
+			<div class="col-lg-4 text-lg-end">
+				<div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+					<form action="{{ url_for('rankings.refresh_rankings') }}" method="POST" class="d-inline">
+						<button type="submit" class="btn btn-sm btn-outline-primary" title="Quick refresh using static curated data (instant)">
+							<i class="fas fa-sync-alt me-1"></i>Refresh (Static)
+						</button>
+					</form>
+					<form action="{{ url_for('rankings.refresh_rankings_live') }}" method="POST" class="d-inline">
+						<button type="submit" class="btn btn-sm btn-warning" title="Fetch from live API sources (10-30 seconds)">
+							<i class="fas fa-cloud-download-alt me-1"></i>Fetch Live
+						</button>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+{# External Benchmark Links Panel - Chapter 4 Sources #}
 <div class="card card-sm mb-3">
 	<div class="card-body py-2">
 		<div class="d-flex flex-column gap-2">
@@ -25,56 +65,39 @@
 			</div>
 			<div class="d-flex flex-wrap align-items-center gap-2">
 				<span class="text-muted small fw-bold">
-					<i class="fas fa-code me-1"></i>Coding:
+					<i class="fas fa-code me-1"></i>Coding (Ch. 4):
 				</span>
-				<a href="https://evalplus.github.io/leaderboard.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="EvalPlus - HumanEval+ & MBPP+">
-					<i class="fas fa-check-double me-1"></i>EvalPlus
+				<a href="https://gorilla.cs.berkeley.edu/leaderboard.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="BFCL - Berkeley Function Calling Leaderboard">
+					<i class="fas fa-phone me-1"></i>BFCL
 				</a>
-				<a href="https://www.swebench.com/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="SWE-bench - Software Engineering">
-					<i class="fas fa-bug me-1"></i>SWE-bench
-				</a>
-				<a href="https://bigcode-bench.github.io/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info" title="BigCodeBench">
-					<i class="fas fa-database me-1"></i>BigCodeBench
+				<a href="https://web.lmarena.ai/leaderboard" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="WebDev Arena - Web Development">
+					<i class="fas fa-globe me-1"></i>WebDev Arena
 				</a>
 				<a href="https://livecodebench.github.io/leaderboard.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-danger" title="LiveCodeBench">
 					<i class="fas fa-laptop-code me-1"></i>LiveCodeBench
 				</a>
-				<a href="https://aider.chat/docs/leaderboards/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Aider Coding Assistant Leaderboard">
-					<i class="fas fa-terminal me-1"></i>Aider
+				<a href="https://huggingface.co/spaces/canaicode/canaicode-leaderboard" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info" title="CanAiCode - Coding Assessment">
+					<i class="fas fa-file-code me-1"></i>CanAiCode
+				</a>
+				<a href="https://scale.com/leaderboard/seal_coding" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="SEAL Showdown - Coding">
+					<i class="fas fa-shield-alt me-1"></i>SEAL
 				</a>
 			</div>
 			<div class="d-flex flex-wrap align-items-center gap-2">
 				<span class="text-muted small fw-bold">
-					<i class="fas fa-brain me-1"></i>Reasoning:
+					<i class="fas fa-brain me-1"></i>Reasoning (Ch. 4):
 				</span>
 				<a href="https://livebench.ai/#/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-warning" title="LiveBench - Contamination-Free Benchmark">
 					<i class="fas fa-chart-line me-1"></i>LiveBench
 				</a>
-				<a href="https://arcprize.org/blog/openai-o1-results-arc-prize" target="_blank" rel="noopener" class="btn btn-sm btn-outline-purple" title="ARC Prize - Abstract Reasoning">
-					<i class="fas fa-lightbulb me-1"></i>ARC Prize
+				<a href="https://arcprize.org/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-purple" title="ARC-AGI - Abstract Reasoning">
+					<i class="fas fa-lightbulb me-1"></i>ARC-AGI
 				</a>
-				<a href="https://simple-bench.com" target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark" title="SimpleBench">
+				<a href="https://simple-bench.com" target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark" title="SimpleBench - Common Sense Reasoning">
 					<i class="fas fa-cube me-1"></i>SimpleBench
 				</a>
-				<a href="https://lmcouncil.ai/benchmarks" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="LM Council Benchmarks">
-					<i class="fas fa-users me-1"></i>LM Council
-				</a>
-			</div>
-			<div class="d-flex flex-wrap align-items-center gap-2">
-				<span class="text-muted small fw-bold">
-					<i class="fas fa-chart-bar me-1"></i>Analytics:
-				</span>
-				<a href="https://artificialanalysis.ai/leaderboards/providers" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="Artificial Analysis - Provider Comparison">
-					<i class="fas fa-microscope me-1"></i>Artificial Analysis
-				</a>
-				<a href="https://llm-stats.com" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="LLM Stats">
-					<i class="fas fa-chart-pie me-1"></i>LLM Stats
-				</a>
-				<a href="https://ai-stats.phaseo.app" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info" title="AI Stats by Phaseo">
-					<i class="fas fa-robot me-1"></i>AI Stats
-				</a>
-				<a href="https://www.vellum.ai/llm-leaderboard" target="_blank" rel="noopener" class="btn btn-sm btn-outline-warning" title="Vellum LLM Leaderboard">
-					<i class="fas fa-scroll me-1"></i>Vellum
+				<a href="https://huggingface.co/datasets/Idavidrein/gpqa" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="GPQA - Graduate-Level Q&A">
+					<i class="fas fa-graduation-cap me-1"></i>GPQA
 				</a>
 			</div>
 		</div>
@@ -86,7 +109,7 @@
 		<div class="d-flex flex-wrap align-items-center gap-2">
 			<h3 class="card-title d-flex align-items-center gap-2 mb-0">
 				<i class="fas fa-trophy text-warning"></i>
-				<span>Coding Rankings</span>
+				<span>MSS Rankings</span>
 			</h3>
 			<div class="d-flex flex-wrap align-items-center gap-2 status-indicators">
 				<span class="badge bg-primary-lt d-inline-flex align-items-center gap-2"><i class="fas fa-list-ol"></i><span id="total-models">{{ rankings|length if rankings else 0 }}</span></span>
@@ -107,11 +130,6 @@
 				<button class="btn btn-sm btn-primary" onclick="selectTopModels(10)" title="Select top 10 models" type="button">
 					<i class="fas fa-star me-1"></i>Select Top 10
 				</button>
-				<form action="{{ url_for('rankings.refresh_rankings') }}" method="POST" class="d-inline">
-					<button type="submit" class="btn btn-sm btn-warning" title="Refresh from OpenRouter">
-						<i class="fas fa-sync-alt me-1"></i>Refresh
-					</button>
-				</form>
 				<div class="btn-group btn-group-sm">
 					<button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
 						<i class="fas fa-download me-1"></i>Export
@@ -298,13 +316,14 @@
 					</th>
 					<th class="text-nowrap">#</th>
 					<th class="text-nowrap sortable" data-column="name" data-type="string">Model</th>
-					<th class="text-nowrap sortable active sort-desc" data-column="composite" data-type="number" title="Weighted Composite Score">Composite</th>
-					<th class="text-nowrap sortable" data-column="humaneval" data-type="number" title="HumanEval+ Pass@1">HE+</th>
-					<th class="text-nowrap sortable" data-column="swebench" data-type="number" title="SWE-bench Verified">SWE-V</th>
-					<th class="text-nowrap sortable" data-column="bigcode" data-type="number" title="BigCodeBench Hard">BCB-H</th>
+					<th class="text-nowrap sortable active sort-desc" data-column="mss" data-type="number" title="Model Selection Score (Chapter 4)">MSS</th>
+					<th class="text-nowrap sortable" data-column="adoption" data-type="number" title="Adoption Score (35%)">Adopt</th>
+					<th class="text-nowrap sortable" data-column="benchmark" data-type="number" title="Benchmark Score (30%)">Bench</th>
+					<th class="text-nowrap sortable" data-column="cost" data-type="number" title="Cost Efficiency (20%)">Cost</th>
+					<th class="text-nowrap sortable" data-column="access" data-type="number" title="Accessibility (15%)">Access</th>
+					<th class="text-nowrap sortable" data-column="bfcl" data-type="number" title="Berkeley Function Calling Leaderboard">BFCL</th>
+					<th class="text-nowrap sortable" data-column="webdev" data-type="number" title="WebDev Arena Elo">WebDev</th>
 					<th class="text-nowrap sortable" data-column="livebench" data-type="number" title="LiveBench Coding">Live</th>
-					<th class="text-nowrap sortable" data-column="mbpp" data-type="number" title="MBPP+">MBPP+</th>
-					<th class="text-nowrap sortable" data-column="livecodebench" data-type="number" title="LiveCodeBench">LCB</th>
 					<th class="text-nowrap sortable" data-column="context" data-type="number" title="Context Window">Context</th>
 					<th class="text-nowrap sortable" data-column="price" data-type="number" title="Price per 1M input tokens">$/1M In</th>
 					<th class="w-1 text-nowrap">Actions</th>

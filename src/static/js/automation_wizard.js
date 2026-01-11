@@ -26,7 +26,7 @@ window.AutomationWizard = {
         analysisTools: [],
         analysisOptions: {
             parallel: true,  // Default to parallel for batch efficiency
-            maxConcurrentTasks: 3,  // Default parallelism limit
+            maxConcurrentTasks: 2,  // Default parallelism limit (match generation)
             autoStartContainers: true,  // Auto-start containers by default
             stopAfterAnalysis: true  // Clean up containers after analysis
         },
@@ -494,7 +494,7 @@ function updateReviewSummary() {
     
     // Analysis options - show parallelism details
     const parallelMode = config.analysisOptions.parallel;
-    const maxConcurrent = config.analysisOptions.maxConcurrentTasks || 3;
+    const maxConcurrent = config.analysisOptions.maxConcurrentTasks || 2;
     const optionsText = parallelMode ? `Parallel (max ${maxConcurrent})` : 'Sequential';
     setText('summary-analysis-options', optionsText);
     
@@ -1584,10 +1584,14 @@ function resetWizard() {
         templates: [],
         models: [],
         existingApps: [],
+        generationOptions: {
+            parallel: true,  // Default to parallel for efficiency
+            maxConcurrentTasks: 2  // Default 2 concurrent (avoid rate limits)
+        },
         analysisTools: [],
         analysisOptions: {
             parallel: true,  // Default to parallel for batch efficiency
-            maxConcurrentTasks: 3,  // Default parallelism limit
+            maxConcurrentTasks: 2,  // Default parallelism limit (match generation)
             autoStartContainers: true,  // Auto-start containers by default
             stopAfterAnalysis: true  // Clean up containers after analysis
         },
@@ -2217,7 +2221,7 @@ function saveCurrentSettings() {
         analysisTools: wizard.config.analysisTools || [],
         analysisOptions: wizard.config.analysisOptions || {
             parallel: true,
-            maxConcurrentTasks: 3,
+            maxConcurrentTasks: 2,
             autoStartContainers: true,
             stopAfterAnalysis: true
         }
@@ -2323,7 +2327,7 @@ function applySettings(config) {
         const stopAfter = document.getElementById('analysis-container-stop');
         
         if (parallel) parallel.checked = opts.parallel ?? true;
-        if (maxConcurrent) maxConcurrent.value = opts.maxConcurrentTasks ?? 3;
+        if (maxConcurrent) maxConcurrent.value = opts.maxConcurrentTasks ?? 2;
         if (autoStart) autoStart.checked = opts.autoStartContainers ?? true;
         if (stopAfter) stopAfter.checked = opts.stopAfterAnalysis ?? true;
         

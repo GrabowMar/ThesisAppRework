@@ -30,6 +30,7 @@ generated/apps/{model}/app{N}/
 """
 
 import ast
+import asyncio
 import hashlib
 import json
 import logging
@@ -3299,13 +3300,13 @@ class GenerationService:
         batch_id: Optional[str] = None,
         parent_app_id: Optional[int] = None,
         version: int = 1,
-        generation_mode: str = 'guarded'
+        generation_mode: str = 'guarded',
+        max_retries: int = 3
     ) -> GeneratedApplication:
         """Atomically reserve an app number by creating DB record immediately.
         
-        This prevents race conditions where multiple concurrent generations
-        would get the same app number. The record is created in PENDING status
-        and updated to COMPLETED/FAILED after generation finishes.
+        Uses SELECT FOR UPDATE to lock the model's app number sequence during
+        allocation, preventing race conditions. Retries on conflict.
         
         Args:
             model_slug: Normalized model slug
@@ -3315,84 +3316,119 @@ class GenerationService:
             parent_app_id: Optional parent app ID for regenerations
             version: Version number (default 1)
             generation_mode: 'guarded' or 'unguarded'
+            max_retries: Number of retry attempts on conflict (default 3)
             
         Returns:
             GeneratedApplication record in PENDING status
             
         Raises:
-            RuntimeError: If app number already reserved (race condition detected)
+            RuntimeError: If app number already reserved after all retries
         """
+        from sqlalchemy import select, func
         from ..models.core import GeneratedApplication, ModelCapability
         from ..constants import AnalysisStatus, GenerationMode
         
-        # Auto-allocate app number if not provided
-        if app_num is None:
-            # Get next available app number for this model
-            max_app = db.session.query(
-                db.func.max(GeneratedApplication.app_number)
-            ).filter_by(model_slug=model_slug).scalar()
-            
-            app_num = (max_app or 0) + 1
-            logger.info(f"Auto-allocated app number {app_num} for {model_slug}")
-        
-        # Ensure app_num is not None for type checking (narrowing assertion)
-        assert app_num is not None, "app_num should be allocated by this point"
-        
-        # Get provider from model capability if available
+        # Get provider from model capability if available (outside retry loop)
         model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
         provider = model.provider if model else 'unknown'
         
-        # Check if this exact app already exists
-        existing = GeneratedApplication.query.filter_by(
-            model_slug=model_slug,
-            app_number=app_num,
-            version=version
-        ).first()
-        
-        if existing:
-            # App already reserved/exists - this is a race condition
-            raise RuntimeError(
-                f"App {model_slug}/app{app_num} v{version} already exists (ID={existing.id}). "
-                f"This indicates a race condition in app number allocation."
-            )
-        
-        # Convert string mode to enum
+        # Convert string mode to enum (outside retry loop)
         mode_enum = GenerationMode.UNGUARDED if generation_mode == 'unguarded' else GenerationMode.GUARDED
         
-        # Create new record in PENDING status
-        app_record = GeneratedApplication(
-            model_slug=model_slug,
-            app_number=app_num,
-            version=version,
-            parent_app_id=parent_app_id,
-            batch_id=batch_id,
-            app_type='web_application',
-            provider=provider,
-            template_slug=template_slug,
-            generation_mode=mode_enum,
-            generation_status=AnalysisStatus.PENDING,
-            container_status='unknown',
-            has_backend=False,
-            has_frontend=False,
-            has_docker_compose=False
+        last_error: Optional[Exception] = None
+        
+        for attempt in range(max_retries):
+            try:
+                # Auto-allocate app number if not provided
+                if app_num is None:
+                    # Use SELECT FOR UPDATE to lock all rows for this model during allocation
+                    # This prevents concurrent transactions from getting the same max
+                    stmt = select(func.max(GeneratedApplication.app_number)).filter_by(
+                        model_slug=model_slug
+                    ).with_for_update()
+                    result = db.session.execute(stmt)
+                    max_app = result.scalar()
+                    
+                    allocated_num = (max_app or 0) + 1
+                    logger.info(f"Auto-allocated app number {allocated_num} for {model_slug} (attempt {attempt + 1})")
+                else:
+                    allocated_num = app_num
+                
+                # Check if this exact app already exists (within the lock)
+                existing = GeneratedApplication.query.filter_by(
+                    model_slug=model_slug,
+                    app_number=allocated_num,
+                    version=version
+                ).with_for_update().first()
+                
+                if existing:
+                    # App already reserved - try next number if auto-allocating
+                    if app_num is None:
+                        logger.warning(
+                            f"App {model_slug}/app{allocated_num} v{version} already exists, retrying..."
+                        )
+                        db.session.rollback()  # Release lock
+                        continue
+                    else:
+                        # Explicit app_num requested but exists - fail
+                        db.session.rollback()
+                        raise RuntimeError(
+                            f"App {model_slug}/app{allocated_num} v{version} already exists (ID={existing.id}). "
+                            f"Cannot reserve explicit app number."
+                        )
+                
+                # Create new record in PENDING status
+                app_record = GeneratedApplication(
+                    model_slug=model_slug,
+                    app_number=allocated_num,
+                    version=version,
+                    parent_app_id=parent_app_id,
+                    batch_id=batch_id,
+                    app_type='web_application',
+                    provider=provider,
+                    template_slug=template_slug,
+                    generation_mode=mode_enum,
+                    generation_status=AnalysisStatus.PENDING,
+                    container_status='unknown',
+                    has_backend=False,
+                    has_frontend=False,
+                    has_docker_compose=False
+                )
+                
+                db.session.add(app_record)
+                db.session.commit()
+                
+                logger.info(
+                    f"Reserved app number: {model_slug}/app{allocated_num} v{version} "
+                    f"(ID={app_record.id}, template={template_slug}, batch={batch_id})"
+                )
+                return app_record
+                
+            except SQLAlchemyError as exc:
+                last_error = exc
+                db.session.rollback()
+                
+                # Check if it's a unique constraint violation (race condition)
+                if 'UNIQUE constraint' in str(exc) or 'IntegrityError' in type(exc).__name__:
+                    if attempt < max_retries - 1 and app_num is None:
+                        logger.warning(
+                            f"Race condition detected for {model_slug} (attempt {attempt + 1}/{max_retries}), retrying..."
+                        )
+                        import time
+                        time.sleep(0.1 * (attempt + 1))  # Small backoff
+                        continue
+                
+                # Non-retryable error or out of retries
+                raise RuntimeError(
+                    f"Failed to reserve app {model_slug}/app{app_num or 'auto'} v{version}: {exc}. "
+                    f"This may indicate a race condition or database error."
+                )
+        
+        # All retries exhausted
+        raise RuntimeError(
+            f"Failed to reserve app number for {model_slug} after {max_retries} attempts. "
+            f"Last error: {last_error}"
         )
-        
-        db.session.add(app_record)
-        
-        try:
-            db.session.commit()
-            logger.info(
-                f"Reserved app number: {model_slug}/app{app_num} v{version} "
-                f"(ID={app_record.id}, template={template_slug}, batch={batch_id})"
-            )
-            return app_record
-        except SQLAlchemyError as exc:
-            db.session.rollback()
-            # Likely a unique constraint violation (race condition)
-            raise RuntimeError(
-                f"Failed to reserve app {model_slug}/app{app_num} v{version}: {exc}. "
-                f"This may indicate a race condition or database error."
-            )
     
     async def generate_full_app(
         self,
