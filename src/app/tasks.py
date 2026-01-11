@@ -108,12 +108,20 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
         with database_write_lock(f"subtask_{subtask_id}_start"):
             subtask.status = AnalysisStatus.RUNNING
             subtask.started_at = datetime.now(timezone.utc)
+            subtask.current_step = f"Starting {service_name} analysis..."
+            subtask.progress_percentage = 10.0
             db.session.commit()
-        
+
         # Execute via WebSocket (reusing logic from TaskExecutionService, but adapted)
         # We can't easily reuse the instance method, so we'll duplicate the WS logic here
         # or extract it to a shared utility. For now, let's implement the WS call here.
-        
+
+        # Update progress before execution
+        with database_write_lock(f"subtask_{subtask_id}_progress"):
+            subtask.current_step = f"Running {service_name} analyzer with {len(tools)} tools..."
+            subtask.progress_percentage = 30.0
+            db.session.commit()
+
         result = _run_websocket_sync(service_name, model_slug, app_number, tools)
         
         # Store result (with distributed lock to prevent SQLite I/O errors)
@@ -125,6 +133,14 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
             subtask.status = AnalysisStatus.PARTIAL_SUCCESS if is_partial else (AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED)
             subtask.completed_at = datetime.now(timezone.utc)
             subtask.progress_percentage = 100.0
+
+            # Set completion message
+            if success:
+                subtask.current_step = f"✓ {service_name} analysis completed successfully"
+            elif is_partial:
+                subtask.current_step = f"⚠ {service_name} analysis completed with warnings"
+            else:
+                subtask.current_step = f"✗ {service_name} analysis failed"
 
             if result.get('payload'):
                 subtask.set_result_summary(result['payload'])
@@ -402,6 +418,26 @@ def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, too
     if not port:
         return {'status': 'error', 'error': f'Unknown service: {service_name}'}
     
+    # Resolve target URLs for dynamic/performance analysis
+    target_urls = []
+    if service_name in ('dynamic-analyzer', 'performance-tester'):
+        try:
+            from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
+            analyzer_mgr = get_analyzer_wrapper().manager
+            ports = analyzer_mgr._resolve_app_ports(model_slug, app_number)
+            if ports:
+                backend_port, frontend_port = ports
+                # Use host.docker.internal for container-to-container communication
+                target_urls = [
+                    f"http://host.docker.internal:{backend_port}",
+                    f"http://host.docker.internal:{frontend_port}"
+                ]
+                logger.info(f"[CELERY] Resolved target URLs for {service_name}: {target_urls}")
+            else:
+                logger.warning(f"[CELERY] Could not resolve ports for {model_slug}/app{app_number}")
+        except Exception as e:
+            logger.warning(f"[CELERY] Error resolving ports: {e}")
+
     # Resolve AI config for ai-analyzer (template_slug, ports)
     ai_config = None
     if service_name == 'ai-analyzer':
@@ -439,6 +475,14 @@ def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, too
             'id': f"{model_slug}_app{app_number}_{service_name}_celery",
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
+        
+        # Add target_urls for dynamic/performance analysis
+        if target_urls:
+            req['target_urls'] = target_urls
+            # Legacy support for performance-tester
+            if service_name == 'performance-tester':
+                req['target_url'] = target_urls[0]
+            logger.info(f"[CELERY] Added target_urls to {service_name} request: {target_urls}")
         
         # Add AI analyzer config (template_slug, ports, etc.)
         if service_name == 'ai-analyzer' and ai_config:

@@ -224,6 +224,8 @@ services:
       - RUNNING_IN_DOCKER=true
     volumes:
       - ../generated/apps:/app/generated/apps
+      - ../generated/raw:/app/generated/raw
+      - ../generated/metadata:/app/generated/metadata
       - ../results:/app/results
       - ../logs:/app/logs
       - ../src/data:/app/src/data

@@ -551,6 +551,14 @@ def create_app(config_name: str = 'default') -> Flask:
         import time
         from flask import request, g
 
+        # High-frequency endpoints to skip logging
+        _SKIP_LOGGING_ENDPOINTS = (
+            '/health',
+            '/status',
+            '/detailed-status',
+            '/fragments/status',
+        )
+
         @app.before_request  # type: ignore[misc]
         def _req_start_timer():
             g._req_start = time.perf_counter()
@@ -558,23 +566,29 @@ def create_app(config_name: str = 'default') -> Flask:
         @app.after_request  # type: ignore[misc]
         def _log_response(resp):
             try:
+                # Skip logging for high-frequency polling endpoints
+                path = request.path
+                if any(path.endswith(ep) for ep in _SKIP_LOGGING_ENDPOINTS):
+                    return resp
+                
                 duration_ms = None
                 if hasattr(g, '_req_start'):
                     duration_ms = (time.perf_counter() - g._req_start) * 1000.0
-                req_id = getattr(g, 'request_id', None)
-                size = resp.calculate_content_length() or len(resp.get_data() or b'')
-                logger.info(
-                    "request", extra={
-                        'event': 'http_request',
-                        'request_id': req_id,
-                        'method': request.method,
-                        'path': request.path,
-                        'status': resp.status_code,
-                        'duration_ms': round(duration_ms, 2) if duration_ms is not None else None,
-                        'size': size,
-                        'content_type': resp.content_type,
-                    }
+                
+                # Only log slow requests (>100ms) or non-200 responses in production
+                # In debug mode, log everything except high-frequency endpoints
+                should_log = (
+                    app.debug or 
+                    resp.status_code >= 400 or 
+                    (duration_ms is not None and duration_ms > 100)
                 )
+                
+                if should_log:
+                    status_emoji = "✓" if resp.status_code < 400 else "✗"
+                    duration_str = f"{duration_ms:.0f}ms" if duration_ms is not None else "?"
+                    logger.info(
+                        f"{status_emoji} {request.method} {path} → {resp.status_code} ({duration_str})"
+                    )
             except Exception as _log_err:  # pragma: no cover
                 logger.debug(f"Request logging failed: {_log_err}")
             

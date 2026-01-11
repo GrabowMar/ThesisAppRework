@@ -8,6 +8,7 @@ Provides container lifecycle management, health monitoring, and log retrieval.
 import logging
 import shutil
 import time
+import threading
 import docker
 from docker.errors import NotFound as DockerNotFound
 from pathlib import Path
@@ -36,6 +37,11 @@ class DockerStatus:
             'message': self.message,
             'timestamp': self.timestamp.isoformat()
         }
+
+
+# Global lock for managing per-app build locks
+_build_locks: Dict[str, threading.Lock] = {}
+_build_locks_lock = threading.Lock()  # Protects access to _build_locks dict
 
 
 class DockerManager:
@@ -340,10 +346,72 @@ class DockerManager:
         stop_result = self.stop_containers(model, app_num)
         if not stop_result.get('success', False):
             return stop_result
-        
+
         # Then start
         return self.start_containers(model, app_num)
-    
+
+    def get_container_health(self, model: str, app_num: int) -> Dict[str, Any]:
+        """Get current health status of containers without waiting.
+
+        Public wrapper for getting immediate health status of app containers.
+
+        Args:
+            model: Model slug
+            app_num: Application number
+
+        Returns:
+            Dictionary with health status information:
+            - all_healthy: bool - True if all containers are healthy
+            - containers: dict - Per-container health info
+            - container_count: int - Number of containers found
+        """
+        try:
+            project_name = self._get_project_name(model, app_num)
+            containers = self.client.containers.list(
+                filters={'label': f'com.docker.compose.project={project_name}'}
+            )
+
+            if not containers:
+                return {
+                    'all_healthy': False,
+                    'containers': {},
+                    'message': 'No containers found'
+                }
+
+            container_status = {}
+            all_healthy = True
+
+            for container in containers:
+                health_status = container.attrs.get('State', {}).get('Health', {}).get('Status')
+                state = container.attrs.get('State', {})
+                status = state.get('Status', 'unknown')
+
+                container_status[container.name] = {
+                    'health': health_status or 'no_healthcheck',
+                    'status': status,
+                    'running': status == 'running'
+                }
+
+                # Check if this container counts as "healthy"
+                if health_status not in ['healthy', None]:  # None means no healthcheck
+                    all_healthy = False
+                elif status != 'running':
+                    all_healthy = False
+
+            return {
+                'all_healthy': all_healthy,
+                'containers': container_status,
+                'container_count': len(containers)
+            }
+
+        except Exception as e:
+            self.logger.warning("Error getting container health for %s/app%s: %s", model, app_num, e)
+            return {
+                'all_healthy': False,
+                'containers': {},
+                'error': str(e)
+            }
+
     def _check_for_crash_loop(self, model: str, app_num: int) -> Dict[str, Any]:
         """Check if any containers are in a crash/restart loop.
         
@@ -562,7 +630,34 @@ class DockerManager:
         bring containers online so UI reflects a running state immediately.
         
         Includes automatic image cleanup before build to prevent conflicts.
+        Uses per-app locks to prevent race conditions during parallel builds.
         """
+        # Acquire per-app build lock to prevent parallel builds for same model/app
+        lock_key = f"{model}:app{app_num}"
+        with _build_locks_lock:
+            if lock_key not in _build_locks:
+                _build_locks[lock_key] = threading.Lock()
+            build_lock = _build_locks[lock_key]
+        
+        # Try to acquire lock with timeout to avoid indefinite blocking
+        lock_acquired = build_lock.acquire(timeout=600)  # 10 minute timeout
+        if not lock_acquired:
+            self.logger.warning(
+                "Build lock timeout for %s/app%s - another build may be stuck",
+                model, app_num
+            )
+            return {
+                'success': False,
+                'error': f'Could not acquire build lock for {model}/app{app_num} (timeout after 600s)'
+            }
+        
+        try:
+            return self._build_containers_impl(model, app_num, no_cache, start_after)
+        finally:
+            build_lock.release()
+    
+    def _build_containers_impl(self, model: str, app_num: int, no_cache: bool, start_after: bool) -> Dict[str, Any]:
+        """Internal implementation of build_containers (called with lock held)."""
         compose_path = self._get_compose_path(model, app_num)
         if not compose_path.exists():
             return {

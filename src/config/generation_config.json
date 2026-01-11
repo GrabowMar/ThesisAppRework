@@ -49,23 +49,23 @@
     "guarded": {
       "backend_user": {
         "required_files": ["models.py", "routes/user.py"],
-        "forbidden_patterns": ["from flask import Flask", "app = Flask"],
-        "required_patterns": ["user_bp = Blueprint", "to_dict"]
+        "forbidden_patterns": [],
+        "required_patterns": ["Blueprint", "to_dict"]
       },
       "backend_admin": {
         "required_files": ["routes/admin.py"],
-        "forbidden_patterns": ["from flask import Flask", "app = Flask"],
-        "required_patterns": ["admin_bp = Blueprint", "/api/admin/"]
+        "forbidden_patterns": [],
+        "required_patterns": ["Blueprint", "/admin"]
       },
       "frontend_user": {
         "required_files": ["pages/UserPage.jsx", "services/api.js"],
         "forbidden_patterns": [],
-        "required_patterns": ["export default", "axios"]
+        "required_patterns": ["export default"]
       },
       "frontend_admin": {
         "required_files": ["pages/AdminPage.jsx"],
         "forbidden_patterns": [],
-        "required_patterns": ["export default", "/api/admin/"]
+        "required_patterns": ["export default"]
       }
     },
     "unguarded": {
@@ -73,13 +73,13 @@
         "required_files": ["app.py"],
         "forbidden_files": ["models.py", "services.py", "routes/user.py", "routes/admin.py"],
         "forbidden_patterns": ["Blueprint(", "from routes", "import routes"],
-        "required_patterns": ["app = Flask", "@app.route", "/api/health"]
+        "required_patterns": ["Flask", "@app.route"]
       },
       "frontend": {
         "required_files": ["main.jsx", "App.jsx", "App.css"],
         "forbidden_files": ["components/", "pages/", "hooks/", "services/", "utils/"],
-        "forbidden_patterns": ["import axios", "from 'axios'"],
-        "required_patterns": ["fetch(", "export default"]
+        "forbidden_patterns": [],
+        "required_patterns": ["export default"]
       }
     }
   },

@@ -174,7 +174,16 @@ class AnalyzerConfiguration(db.Model):
 class AnalysisTask(db.Model):
     """Individual analysis task tracking and management."""
     __tablename__ = 'analysis_tasks'
-    __table_args__ = {'extend_existing': True}
+    # NOTE: Unique constraint on (target_model, target_app_number, batch_id) prevents duplicate tasks
+    # for the same app within a pipeline. For SQLite (which doesn't support row-level locking),
+    # this is a critical safety net to prevent race condition duplicates.
+    __table_args__ = (
+        db.UniqueConstraint(
+            'target_model', 'target_app_number', 'batch_id',
+            name='uq_analysis_task_model_app_pipeline'
+        ),
+        {'extend_existing': True}
+    )
     
     id = db.Column(db.Integer, primary_key=True)
     task_id = db.Column(db.String(100), unique=True, nullable=False, index=True)

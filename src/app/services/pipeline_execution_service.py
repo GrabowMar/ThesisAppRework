@@ -45,7 +45,9 @@ _pipeline_state_lock = threading.RLock()
 # =============================================================================
 
 # Parallelism limits
-DEFAULT_MAX_CONCURRENT_TASKS: int = 3  # Default parallel analysis tasks
+# NOTE: Lower concurrency reduces race condition window for duplicate task creation
+# The trade-off is slower pipeline execution, but safer operation
+DEFAULT_MAX_CONCURRENT_TASKS: int = 2  # Default parallel analysis tasks (reduced from 3)
 DEFAULT_MAX_CONCURRENT_GENERATION: int = 2  # Default parallel generation jobs
 MAX_ANALYSIS_WORKERS: int = 8  # ThreadPool size for analysis
 MAX_GENERATION_WORKERS: int = 4  # ThreadPool size for generation
@@ -56,6 +58,8 @@ CONTAINER_STABILIZATION_DELAY: float = 5.0  # Wait after container startup
 CONTAINER_RETRY_DELAY: float = 30.0  # Wait before retrying container startup
 GRACEFUL_SHUTDOWN_TIMEOUT: float = 10.0  # Max wait for in-flight tasks on shutdown
 THREAD_JOIN_TIMEOUT: float = 5.0  # Max wait for thread join
+APP_CONTAINER_HEALTH_TIMEOUT: int = 60  # Max wait for app container health check (1 minute)
+APP_CONTAINER_START_TIMEOUT: int = 120  # Max wait for app container startup (2 minutes)
 
 # Service port mapping
 ANALYZER_SERVICE_PORTS: Dict[str, int] = {
@@ -559,12 +563,13 @@ class PipelineExecutionService:
     
     def _process_pipeline(self, pipeline: PipelineExecution):
         """Process a single pipeline - execute its next job or check completion."""
-        # Debug: Log current state before getting next job
+        # Debug: Log current state before getting next job (at debug level to reduce noise)
         status_val = pipeline.status.value if hasattr(pipeline.status, 'value') else str(pipeline.status)  # type: ignore[union-attr]
         self._log(
             "DEBUG", "Pipeline %s: stage=%s, job_index=%d, status=%s",
             pipeline.pipeline_id, pipeline.current_stage, 
-            pipeline.current_job_index, status_val
+            pipeline.current_job_index, status_val,
+            level='debug'  # Use debug level to prevent spam
         )
         
         # Handle analysis stage with parallel execution
@@ -591,6 +596,15 @@ class PipelineExecutionService:
         pipeline_id = pipeline.pipeline_id
         progress = pipeline.progress
         config = pipeline.config
+        
+        # Log entry to this method for debugging
+        total = progress.get('generation', {}).get('total', 0)
+        completed = progress.get('generation', {}).get('completed', 0)
+        failed = progress.get('generation', {}).get('failed', 0)
+        self._log(
+            "GEN", "Processing generation stage: job_index=%d, total=%d, completed=%d, failed=%d",
+            pipeline.current_job_index, total, completed, failed
+        )
         
         # Get parallelism settings from config (default: 2 concurrent for generation)
         gen_config = config.get('generation', {})
@@ -681,8 +695,8 @@ class PipelineExecutionService:
         if done >= total and in_flight_count == 0:
             # All generation complete - transition to analysis
             self._log(
-                "GEN", "Generation complete for %s: %d/%d succeeded, %d failed",
-                pipeline_id, completed, total, failed
+                "GEN", "Generation complete for %s: %d/%d succeeded, %d failed (total results: %d)",
+                pipeline_id, completed, total, failed, len(progress.get('generation', {}).get('results', []))
             )
             progress['generation']['status'] = 'completed'
             pipeline.progress = progress
@@ -694,6 +708,13 @@ class PipelineExecutionService:
             with _pipeline_state_lock:
                 self._in_flight_generation.pop(pipeline_id, None)
                 self._generation_futures.pop(pipeline_id, None)
+        else:
+            # Log detailed state to help debug early completion issues
+            self._log(
+                "GEN", "Generation progress for %s: done=%d/%d, in_flight=%d, results=%d",
+                pipeline_id, done, total, in_flight_count, len(progress.get('generation', {}).get('results', [])),
+                level='debug'
+            )
         
         if submitted_any or done > 0:
             self._emit_progress_update(pipeline)
@@ -1118,10 +1139,34 @@ class PipelineExecutionService:
         """Create and submit a single analysis task.
 
         Returns task_id on success, or error/skipped marker on failure.
+        
+        Uses task registry for cross-service coordination to prevent race conditions.
         """
+        from app.services.task_registry import get_task_registry
+        
         model_slug = job['model_slug']
         app_number = job['app_number']
         pipeline_id = pipeline.pipeline_id
+        
+        task_registry = get_task_registry()
+        
+        # STEP 0: Check task registry for existing claim or task
+        existing_task_id = task_registry.get_existing_task_id(model_slug, app_number, pipeline_id)
+        if existing_task_id:
+            self._log(
+                "ANAL", "Task already exists in registry for %s app %d: %s",
+                model_slug, app_number, existing_task_id
+            )
+            return existing_task_id
+        
+        # Try to claim the task slot
+        if not task_registry.try_claim_task(model_slug, app_number, pipeline_id, caller="PipelineExecutionService"):
+            self._log(
+                "ANAL", "Could not claim task slot for %s app %d - another service is creating it",
+                model_slug, app_number, level='warning'
+            )
+            # Return a marker indicating we should skip (another service handling it)
+            return f'skipped:claimed_by_other_service:{model_slug}:{app_number}'
 
         # CRITICAL: Use SELECT FOR UPDATE to prevent race conditions
         # This locks the pipeline row until transaction commits, preventing concurrent duplicate creation
@@ -1171,6 +1216,9 @@ class PipelineExecutionService:
         # STEP 1: Validate app exists before attempting analysis
         exists, app_path, validation_msg = self._validate_app_exists(model_slug, app_number)
         if not exists:
+            # Release registry claim before returning
+            task_registry.release_claim(model_slug, app_number, pipeline_id)
+            
             self._log(
                 "Skipping analysis for %s app %d: %s",
                 model_slug, app_number, validation_msg,
@@ -1184,10 +1232,11 @@ class PipelineExecutionService:
         # STEP 2: Start app containers if autoStartContainers is enabled
         config = pipeline.config
         analysis_config = config.get('analysis', {})
-        auto_start = analysis_config.get('autoStartContainers', 
+        auto_start = analysis_config.get('autoStartContainers',
                                          analysis_config.get('options', {}).get('autoStartContainers', True))
-        
+
         if auto_start:
+            self._log("ANAL", "Starting containers for %s app %d...", model_slug, app_number)
             start_result = self._start_app_containers(pipeline_id, model_slug, app_number)
             if not start_result.get('success'):
                 # Log warning but continue - analysis might still work (e.g., static analysis)
@@ -1196,7 +1245,21 @@ class PipelineExecutionService:
                     model_slug, app_number, start_result.get('error', 'Unknown'),
                     level='warning'
                 )
-        
+            else:
+                # SUCCESS: Containers started - wait for them to be healthy
+                self._log("ANAL", "Containers started for %s app %d, waiting for health check...", model_slug, app_number)
+                health_result = self._wait_for_app_containers_healthy(model_slug, app_number, timeout=APP_CONTAINER_HEALTH_TIMEOUT)
+                if health_result.get('healthy'):
+                    self._log("ANAL", "Containers healthy for %s app %d (took %.1fs)",
+                             model_slug, app_number, health_result.get('elapsed_time', 0))
+                else:
+                    self._log(
+                        "ANAL", "Container health check timed out for %s app %d after %.1fs, continuing anyway: %s",
+                        model_slug, app_number, health_result.get('elapsed_time', 0),
+                        health_result.get('message', 'Unknown'),
+                        level='warning'
+                    )
+
         self._log("ANAL", "Creating analysis task for %s app %d", model_slug, app_number)
         
         try:
@@ -1240,6 +1303,9 @@ class PipelineExecutionService:
                     self._log("ANAL", "Tool '%s' not found or unavailable", tool_name, level='warning')
             
             if not tools_by_service or not valid_tool_names:
+                # Release registry claim before returning
+                task_registry.release_claim(model_slug, app_number, pipeline_id)
+                
                 self._log(
                     "No valid tools found for %s app %d",
                     model_slug, app_number, level='error'
@@ -1281,6 +1347,9 @@ class PipelineExecutionService:
             )
             # ========== END MATCHING CUSTOM WIZARD BEHAVIOR ==========
             
+            # Register task in task registry (cross-service coordination)
+            task_registry.mark_task_created(model_slug, app_number, pipeline_id, task.task_id)
+            
             # Query subtask IDs for proper tracking
             subtasks = AnalysisTask.query.filter_by(parent_task_id=task.task_id).all()
             subtask_ids = [st.task_id for st in subtasks]
@@ -1303,6 +1372,9 @@ class PipelineExecutionService:
             return task.task_id
             
         except Exception as e:
+            # Release registry claim on error
+            task_registry.release_claim(model_slug, app_number, pipeline_id)
+            
             self._log(
                 "Analysis task creation failed for %s app %d: %s",
                 model_slug, app_number, e,
@@ -1400,7 +1472,20 @@ class PipelineExecutionService:
             return False
     
     def _cleanup_pipeline_containers(self, pipeline_id: str):
-        """Stop containers if they were auto-started for this pipeline (thread-safe)."""
+        """Stop containers if they were auto-started for this pipeline (thread-safe).
+        
+        Also clears task registry entries for this pipeline.
+        """
+        # Clean up task registry entries for this pipeline
+        try:
+            from app.services.task_registry import get_task_registry
+            task_registry = get_task_registry()
+            cleared = task_registry.clear_pipeline(pipeline_id)
+            if cleared > 0:
+                self._log("CLEANUP", "Cleared %d task registry entries for pipeline %s", cleared, pipeline_id)
+        except Exception as e:
+            self._log("CLEANUP", "Error clearing task registry: %s", e, level='warning')
+        
         with _pipeline_state_lock:
             if pipeline_id not in self._containers_started_for:
                 return
@@ -1431,60 +1516,139 @@ class PipelineExecutionService:
                 self._app_containers_started.pop(pipeline_id, None)
     
     def _start_app_containers(
-        self, 
-        pipeline_id: str, 
-        model_slug: str, 
+        self,
+        pipeline_id: str,
+        model_slug: str,
         app_number: int
     ) -> Dict[str, Any]:
         """Start containers for a generated app before analysis.
-        
+
         Args:
             pipeline_id: Pipeline ID for tracking
             model_slug: The model slug (e.g., 'openai_gpt-4')
             app_number: The app number
-            
+
         Returns:
             Dict with 'success' and optional 'error' or 'message' fields
         """
         try:
             from app.services.docker_manager import DockerManager
-            
+
             manager = DockerManager()
-            
+
             self._log(
-                "Starting containers for %s app %d (pipeline %s)",
+                "CONTAINER", "Starting containers for %s app %d (pipeline %s)",
                 model_slug, app_number, pipeline_id
             )
-            
+
             result = manager.start_containers(model_slug, app_number)
-            
+
             if result.get('success'):
                 # Track that we started these containers (thread-safe)
                 with _pipeline_state_lock:
                     if pipeline_id not in self._app_containers_started:
                         self._app_containers_started[pipeline_id] = set()
                     self._app_containers_started[pipeline_id].add((model_slug, app_number))
-                
+
                 self._log(
-                    "Successfully started containers for %s app %d",
+                    "CONTAINER", "Successfully started containers for %s app %d",
                     model_slug, app_number
                 )
             else:
                 self._log(
-                    "Failed to start containers for %s app %d: %s",
+                    "CONTAINER", "Failed to start containers for %s app %d: %s",
                     model_slug, app_number, result.get('error', 'Unknown error'),
                     level='warning'
                 )
-            
+
             return result
-            
+
         except Exception as e:
             self._log(
-                "Error starting app containers for %s app %d: %s",
+                "CONTAINER", "Error starting app containers for %s app %d: %s",
                 model_slug, app_number, e,
                 level='error'
             )
             return {'success': False, 'error': str(e)}
+
+    def _wait_for_app_containers_healthy(
+        self,
+        model_slug: str,
+        app_number: int,
+        timeout: int = 60
+    ) -> Dict[str, Any]:
+        """Wait for app containers to become healthy after startup.
+
+        This prevents the race condition where tasks are created before containers are ready.
+
+        Args:
+            model_slug: The model slug
+            app_number: The app number
+            timeout: Max seconds to wait for healthy status
+
+        Returns:
+            Dict with 'healthy': bool, 'elapsed_time': float, 'message': str
+        """
+        try:
+            from app.services.docker_manager import DockerManager
+            import time
+
+            manager = DockerManager()
+            start_time = time.time()
+            poll_interval = 2.0  # Check every 2 seconds
+
+            while time.time() - start_time < timeout:
+                # Get container status
+                status = manager.get_container_health(model_slug, app_number)
+
+                # Check if all containers are healthy
+                all_healthy = status.get('all_healthy', False)
+
+                if all_healthy:
+                    elapsed = time.time() - start_time
+                    return {
+                        'healthy': True,
+                        'elapsed_time': elapsed,
+                        'message': f'All containers healthy after {elapsed:.1f}s'
+                    }
+
+                # Log progress every 10 seconds
+                elapsed = time.time() - start_time
+                if int(elapsed) % 10 == 0 and elapsed > 0:
+                    containers = status.get('containers', {})
+                    healthy_count = sum(1 for c in containers.values() if c.get('health') == 'healthy')
+                    total_count = len(containers)
+                    self._log(
+                        "CONTAINER", "Waiting for containers %s app %d: %d/%d healthy (%.1fs elapsed)",
+                        model_slug, app_number, healthy_count, total_count, elapsed,
+                        level='debug'
+                    )
+
+                time.sleep(poll_interval)
+
+            # Timeout reached
+            elapsed = time.time() - start_time
+            status = manager.get_container_health(model_slug, app_number)
+            containers = status.get('containers', {})
+            healthy_count = sum(1 for c in containers.values() if c.get('health') == 'healthy')
+            total_count = len(containers)
+
+            return {
+                'healthy': False,
+                'elapsed_time': elapsed,
+                'message': f'Timeout: {healthy_count}/{total_count} containers healthy after {elapsed:.1f}s'
+            }
+
+        except Exception as e:
+            self._log(
+                "CONTAINER", "Error waiting for container health: %s", e,
+                level='error'
+            )
+            return {
+                'healthy': False,
+                'elapsed_time': 0.0,
+                'message': f'Error checking health: {str(e)}'
+            }
     
     def _stop_app_containers(
         self, 

@@ -336,3 +336,126 @@ class TestAnalysisStageDuplicateGuardOrder:
         # if job_key in submitted_apps:
         #     self._log("Skipping duplicate...")
         #     continue  # Don't even query database
+
+
+class TestGenerationResultDuplicateCounting:
+    """Test that duplicate generation results don't double-count completion."""
+    
+    def test_duplicate_generation_result_does_not_increment_counter(self, app):
+        """Verify that adding the same generation result twice doesn't double-count."""
+        from app.models.pipeline import PipelineExecution
+        from app.extensions import db
+        
+        with app.app_context():
+            # Create a pipeline with 4 total generation jobs
+            config = {
+                'generation': {
+                    'mode': 'generate',
+                    'models': ['model_a'],
+                    'templates': ['t1', 't2', 't3', 't4'],
+                },
+                'analysis': {'enabled': False}
+            }
+            
+            pipeline = PipelineExecution(
+                user_id=1,
+                config=config,
+                name='Test Duplicate Counter'
+            )
+            # Add to session so defaults are applied
+            db.session.add(pipeline)
+            db.session.flush()
+            
+            # Verify initial state
+            progress = pipeline.progress
+            assert progress['generation']['total'] == 4
+            assert progress['generation']['completed'] == 0
+            assert progress['generation']['failed'] == 0
+            
+            # Add first result for job 0
+            result_1 = {
+                'job_index': 0,
+                'model_slug': 'model_a',
+                'template_slug': 't1',
+                'app_number': 1,
+                'success': True
+            }
+            pipeline.add_generation_result(result_1)
+            
+            # Verify counter incremented
+            progress = pipeline.progress
+            assert progress['generation']['completed'] == 1
+            assert progress['generation']['failed'] == 0
+            
+            # Try to add duplicate result for same job
+            result_duplicate = {
+                'job_index': 0,  # Same job_index
+                'model_slug': 'model_a',
+                'template_slug': 't1',
+                'app_number': 1,
+                'success': True
+            }
+            pipeline.add_generation_result(result_duplicate)
+            
+            # Verify counter NOT incremented (should still be 1)
+            progress = pipeline.progress
+            assert progress['generation']['completed'] == 1, \
+                "Duplicate result should not increment completed counter"
+            assert progress['generation']['failed'] == 0
+            
+            # Verify we're not at stage transition (done=1 < total=4)
+            assert pipeline.current_stage == 'generation'
+            
+            # Cleanup
+            db.session.rollback()
+    
+    def test_duplicate_failed_result_does_not_increment_counter(self, app):
+        """Verify that adding the same failed result twice doesn't double-count."""
+        from app.models.pipeline import PipelineExecution
+        from app.extensions import db
+        
+        with app.app_context():
+            config = {
+                'generation': {
+                    'mode': 'generate',
+                    'models': ['model_a'],
+                    'templates': ['t1', 't2'],
+                },
+                'analysis': {'enabled': False}
+            }
+            
+            pipeline = PipelineExecution(
+                user_id=1,
+                config=config,
+                name='Test Failed Duplicate'
+            )
+            # Add to session so defaults are applied
+            db.session.add(pipeline)
+            db.session.flush()
+            
+            # Add failed result
+            result = {
+                'job_index': 0,
+                'model_slug': 'model_a',
+                'template_slug': 't1',
+                'app_number': None,
+                'success': False,
+                'error': 'API error'
+            }
+            pipeline.add_generation_result(result)
+            
+            progress = pipeline.progress
+            assert progress['generation']['completed'] == 0
+            assert progress['generation']['failed'] == 1
+            
+            # Add duplicate failed result
+            pipeline.add_generation_result(result)
+            
+            # Failed counter should NOT increment
+            progress = pipeline.progress
+            assert progress['generation']['completed'] == 0
+            assert progress['generation']['failed'] == 1, \
+                "Duplicate failed result should not increment failed counter"
+            
+            # Cleanup
+            db.session.rollback()

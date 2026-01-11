@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 from typing import Dict, Any, Tuple
 
 logger = logging.getLogger(__name__)
@@ -91,12 +92,14 @@ class OpenRouterChatService:
         headers = self._get_headers()
         payload = self._build_payload(model, messages, temperature, max_tokens)
 
-        logger.info(f"Sending chat completion request to model: {model}")
+        # Compact logging: model + max_tokens for context
+        short_model = model.split('/')[-1] if '/' in model else model
+        logger.info(f"🤖 API call → {short_model} (max_tokens={max_tokens})")
         logger.debug(f"Request URL: {self.api_url}")
         logger.debug(f"Payload model field: {payload.get('model')}")
-        logger.debug(f"Full payload: {json.dumps(payload, indent=2)}")
 
         last_error = None
+        request_start = time.time()
         for attempt in range(max_retries + 1):
             try:
                 async with aiohttp.ClientSession() as session:
@@ -137,7 +140,17 @@ class OpenRouterChatService:
                                 logger.error(f"Malformed 200 response: {response_data}")
                                 return False, {"error": {"message": error_msg}}, status_code
                             
-                            logger.info(f"Successfully received chat completion from {model}.")
+                            # Calculate timing and extract usage info
+                            elapsed = time.time() - request_start
+                            usage = response_data.get('usage', {})
+                            prompt_tokens = usage.get('prompt_tokens', 0)
+                            completion_tokens = usage.get('completion_tokens', 0)
+                            total_tokens = usage.get('total_tokens', prompt_tokens + completion_tokens)
+                            
+                            logger.info(
+                                f"✅ {short_model} responded in {elapsed:.1f}s "
+                                f"({prompt_tokens}→{completion_tokens} tokens, total={total_tokens})"
+                            )
                             return True, response_data, status_code
                         else:
                             # Handle error responses - extract message safely

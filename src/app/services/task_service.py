@@ -48,7 +48,42 @@ class AnalysisTaskService:
             task_name: Optional override for task name.
             description: Optional description.
             dispatch: When False, skip immediate Celery dispatch (caller handles).
+            
+        Raises:
+            DuplicateTaskError: If a task for this model/app/batch already exists.
         """
+        from sqlalchemy.exc import IntegrityError
+        
+        # Resolve batch_id string for duplicate checking
+        batch_id_str = None
+        if batch_id is not None:
+            batch_obj = BatchAnalysis.query.get(batch_id)
+            if batch_obj:
+                batch_id_str = batch_obj.batch_id
+        
+        # Extract pipeline_id from custom_options if present (for pipeline-created tasks)
+        options = dict(custom_options or {})
+        pipeline_id = options.get('pipeline_id')
+        if pipeline_id and not batch_id_str:
+            batch_id_str = pipeline_id
+        
+        # PRE-CHECK: Query for existing task with same model/app/batch to fail fast
+        # This is a defense-in-depth check before the unique constraint
+        existing = AnalysisTask.query.filter_by(
+            target_model=model_slug,
+            target_app_number=app_number,
+            batch_id=batch_id_str,
+            is_main_task=True  # Only check main tasks, not subtasks
+        ).first()
+        
+        if existing:
+            logger.warning(
+                "Duplicate task prevented (pre-check): %s app %s already has task %s in batch %s",
+                model_slug, app_number, existing.task_id, batch_id_str
+            )
+            # Return existing task instead of creating duplicate
+            return existing
+        
         task_uuid = f"task_{uuid.uuid4().hex[:12]}"
 
         # Resolve analyzer configuration (less relevant now, but kept for structure)
@@ -83,12 +118,15 @@ class AnalysisTaskService:
         task.task_name = task_name or f"custom:{model_slug}:{app_number}"
         task.description = description
         task.is_main_task = True  # Mark as main task so daemon will pick it up
+        task.current_step = "Task created, waiting for execution..."  # Initial progress message
         
-        # Store tools in metadata
-        options: Dict[str, Any] = dict(custom_options or {})
+        # Store tools in metadata - use already-computed options dict
         options['tools'] = tools
         
-        if batch_id is not None:
+        # Set batch_id from computed batch_id_str (for unique constraint)
+        if batch_id_str:
+            task.batch_id = batch_id_str
+        elif batch_id is not None:
             batch_obj = BatchAnalysis.query.get(batch_id)
             if batch_obj:
                 task.batch_id = batch_obj.batch_id
@@ -97,9 +135,31 @@ class AnalysisTaskService:
             task.set_metadata({'custom_options': options})
         except Exception:
             pass
+        
+        # Try to add task, handle IntegrityError from unique constraint (race condition)
+        try:
+            db.session.add(task)
+            db.session.commit()
+        except IntegrityError as e:
+            db.session.rollback()
+            # Race condition: another process created the task between our check and commit
+            # Try to find and return the existing task
+            existing = AnalysisTask.query.filter_by(
+                target_model=model_slug,
+                target_app_number=app_number,
+                batch_id=batch_id_str,
+                is_main_task=True
+            ).first()
+            if existing:
+                logger.warning(
+                    "Duplicate task prevented (constraint): %s app %s already has task %s (race condition)",
+                    model_slug, app_number, existing.task_id
+                )
+                return existing
+            # If we can't find the existing task, re-raise the error
+            logger.error("IntegrityError but no existing task found: %s", e)
+            raise
             
-        db.session.add(task)
-        db.session.commit()
         logger.info(
             "Created analysis task %s for %s app %s with tools: %s",
             task.task_id,
@@ -163,13 +223,8 @@ class AnalysisTaskService:
             description: Optional task description
             
         Returns:
-            Main AnalysisTask with subtasks created
+            Main AnalysisTask with subtasks created, or existing task if duplicate
         """
-        # DEBUG: Print arguments received
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"create_main_task_with_subtasks called with: {locals()}")
-        
         # Group tools by their service container
         from app.engines.container_tool_registry import get_container_tool_registry
         
@@ -200,6 +255,27 @@ class AnalysisTaskService:
             description=description,
             dispatch=False,
         )
+        
+        # DUPLICATE HANDLING: If create_task returned an existing task (due to unique constraint),
+        # return it as-is without creating subtasks. The existing task already has its subtasks.
+        # This prevents race condition duplicates in pipelines.
+        if main_task.status not in (AnalysisStatus.PENDING, AnalysisStatus.CREATED):
+            # Task already exists and is beyond initial state - return it as-is
+            logger.warning(
+                "Returning existing task %s (status=%s) for %s app %s - duplicate prevented",
+                main_task.task_id, main_task.status.value if main_task.status else 'unknown',
+                model_slug, app_number
+            )
+            return main_task
+        
+        # Also check if this task already has subtasks (was returned from duplicate check)
+        existing_subtasks = AnalysisTask.query.filter_by(parent_task_id=main_task.task_id).count()
+        if existing_subtasks > 0:
+            logger.warning(
+                "Returning existing task %s with %d subtasks for %s app %s - duplicate prevented",
+                main_task.task_id, existing_subtasks, model_slug, app_number
+            )
+            return main_task
 
         main_task.is_main_task = True
         main_task.total_steps = len(tools_by_service)
@@ -288,6 +364,18 @@ class AnalysisTaskService:
     
     @staticmethod
     def _estimate_task_duration(analysis_type: str, config: Dict[str, Any]) -> int:
+        """Estimate task duration in seconds based on analysis type.
+
+        Provides reasonable time estimates for different analysis types.
+        Respects timeout configuration from analyzer config if provided.
+
+        Args:
+            analysis_type: Type of analysis to estimate
+            config: Analyzer configuration with optional timeout settings
+
+        Returns:
+            Estimated duration in seconds (defaults to 300s if unknown)
+        """
         mapping = {
             'security_backend': 300,
             'security_frontend': 300,

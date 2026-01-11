@@ -33,6 +33,8 @@ services:
       - SESSION_LIFETIME=${SESSION_LIFETIME:-86400}
     volumes:
       - ./generated/apps:/app/generated/apps
+      - ./generated/raw:/app/generated/raw
+      - ./generated/metadata:/app/generated/metadata
       - ./results:/app/results
       - ./logs:/app/logs
       - ./src/data:/app/src/data
@@ -103,6 +105,8 @@ services:
       - IN_DOCKER=true
     volumes:
       - ./generated/apps:/app/generated/apps
+      - ./generated/raw:/app/generated/raw
+      - ./generated/metadata:/app/generated/metadata
       - ./results:/app/results
       - ./logs:/app/logs
       - ./src/data:/app/src/data

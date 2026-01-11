@@ -195,25 +195,38 @@ class PipelineExecution(db.Model):
             False otherwise. Caller should NOT call advance_job_index() when True.
         """
         progress = self.progress
-        progress['generation']['results'].append(result)
         
         # Track submitted job indices for duplicate prevention
         # Use job_index to allow multiple apps with same model:template
         job_index = result.get('job_index')
         model_slug = result.get('model_slug')
         template_slug = result.get('template_slug')
+        
+        # Check for duplicate result BEFORE incrementing counters
+        is_duplicate = False
         if job_index is not None and model_slug and template_slug:
             if 'submitted_jobs' not in progress['generation']:
                 progress['generation']['submitted_jobs'] = []
             # Include job_index in key to allow multiple apps with same model:template
             job_key = f"{job_index}:{model_slug}:{template_slug}"
-            if job_key not in progress['generation']['submitted_jobs']:
+            if job_key in progress['generation']['submitted_jobs']:
+                # Duplicate result - don't increment counters
+                is_duplicate = True
+                logger.warning(
+                    f"[add_generation_result] Duplicate result for job {job_index} "
+                    f"({model_slug}:{template_slug}) - ignoring"
+                )
+            else:
                 progress['generation']['submitted_jobs'].append(job_key)
         
-        if result.get('success', False):
-            progress['generation']['completed'] += 1
-        else:
-            progress['generation']['failed'] += 1
+        # Always append to results for debugging, but only increment counters for new results
+        progress['generation']['results'].append(result)
+        
+        if not is_duplicate:
+            if result.get('success', False):
+                progress['generation']['completed'] += 1
+            else:
+                progress['generation']['failed'] += 1
         
         # Check if generation is complete
         total = progress['generation']['total']

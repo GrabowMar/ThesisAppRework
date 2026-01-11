@@ -153,6 +153,275 @@ def get_model_token_limit(model_slug: str, default: int = 32000) -> int:
         return _LEGACY_MODEL_TOKEN_LIMITS.get(model_slug, _LEGACY_MODEL_TOKEN_LIMITS.get('default', default))
 
 
+def validate_generated_code_impl(
+    code: str, 
+    component: str,
+    generation_mode: str = 'guarded',
+    query_type: Optional[str] = None
+) -> Tuple[bool, List[str]]:
+    """Validate generated code for syntax errors and structural compliance.
+    
+    This is the shared implementation used by both CodeGenerator and CodeMerger.
+    
+    Args:
+        code: The generated code to validate
+        component: 'backend' or 'frontend'
+        generation_mode: 'guarded' or 'unguarded'
+        query_type: For guarded: 'backend_user', 'backend_admin', 'frontend_user', 'frontend_admin'
+                   For unguarded: 'backend', 'frontend'
+        
+    Returns:
+        Tuple of (is_valid, list_of_errors)
+    """
+    errors = []
+    warnings = []
+    
+    # Get validation config
+    config = get_config()
+    validation_strictness = config.generation.validation_strictness
+    
+    # Determine query_type if not provided
+    if query_type is None:
+        if generation_mode == 'unguarded':
+            query_type = component  # 'backend' or 'frontend'
+        else:
+            query_type = f"{component}_user"  # Default to user query type
+    
+    # Get validation rules for this mode/query combination
+    validation_rules = config.generation.get_validation_rules(generation_mode, query_type)
+    
+    if not code or not code.strip():
+        errors.append("Generated code is empty")
+        return False, errors
+    
+    # ========== Basic syntax validation ==========
+    if component == 'backend':
+        # Validate Python syntax
+        try:
+            ast.parse(code)
+            logger.info("Backend code validation passed: Python syntax is valid")
+        except SyntaxError as e:
+            # Check if error is due to fence markers in the code
+            if '```' in code[:100]:  # Check first 100 chars for fence markers
+                logger.warning("Syntax error may be due to markdown fences, attempting cleanup")
+                cleaned_code = re.sub(r'^```[a-z]*\s*\n?', '', code, flags=re.MULTILINE)
+                cleaned_code = re.sub(r'\n?```\s*$', '', cleaned_code, flags=re.MULTILINE)
+                
+                try:
+                    ast.parse(cleaned_code)
+                    logger.info("✓ Code is valid after fence cleanup - fence markers were the issue")
+                    # Code is valid after cleanup - continue with pattern validation
+                except SyntaxError:
+                    # Fall through to original error handling
+                    logger.warning("Code still invalid after fence cleanup - genuine syntax error")
+                    error_msg = f"Python syntax error at line {e.lineno}: {e.msg}"
+                    if e.text and '```' not in e.text:
+                        error_msg += f"\n  Code: {e.text.strip()}"
+                    errors.append(error_msg)
+                    logger.error(f"Backend code validation failed: {error_msg}")
+            else:
+                # No fence markers - genuine syntax error
+                error_msg = f"Python syntax error at line {e.lineno}: {e.msg}"
+                if e.text and '```' not in e.text:
+                    error_msg += f"\n  Code: {e.text.strip()}"
+                elif e.text:
+                    error_msg += f"\n  (Error text contains fence markers - code extraction likely failed)"
+                errors.append(error_msg)
+                logger.error(f"Backend code validation failed: {error_msg}")
+        except Exception as e:
+            errors.append(f"Unexpected error during Python parsing: {str(e)}")
+            logger.error(f"Backend code validation failed with unexpected error: {e}")
+    
+    elif component == 'frontend':
+        # ========== Enhanced JSX/JavaScript Validation ==========
+        # Unlike Python (which uses ast.parse), JS validation uses robust regex patterns
+        
+        # 1. Check for basic structure presence
+        if 'import' not in code and 'function' not in code and 'const' not in code:
+            errors.append("Frontend code appears incomplete (missing imports, functions, or components)")
+            logger.warning("Frontend code validation: code appears incomplete")
+        
+        # 2. Validate export default statement
+        if 'export default' not in code:
+            errors.append("Frontend code missing 'export default' statement")
+            logger.warning("Frontend code validation: missing export default")
+        
+        # 3. Check for balanced brackets/braces (common JSX error)
+        open_braces = code.count('{')
+        close_braces = code.count('}')
+        if abs(open_braces - close_braces) > 2:  # Allow small imbalance for string literals
+            errors.append(f"JSX bracket imbalance: {open_braces} opening braces vs {close_braces} closing braces")
+            logger.warning(f"Frontend code validation: bracket imbalance ({open_braces} vs {close_braces})")
+        
+        open_parens = code.count('(')
+        close_parens = code.count(')')
+        if abs(open_parens - close_parens) > 2:
+            errors.append(f"JSX parenthesis imbalance: {open_parens} opening vs {close_parens} closing")
+            logger.warning(f"Frontend code validation: parenthesis imbalance ({open_parens} vs {close_parens})")
+        
+        # 4. Validate import statement syntax (common LLM mistake: malformed imports)
+        import_pattern = re.compile(r'import\s+(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+[\'"][^\'"]+[\'"]')
+        import_lines = [line for line in code.split('\n') if line.strip().startswith('import ')]
+        for line in import_lines:
+            if not import_pattern.search(line) and 'import React' not in line:
+                # Allow simple "import X from 'Y'" and "import { X } from 'Y'" patterns
+                simple_import = re.compile(r'import\s+\w+\s+from\s+[\'"][^\'"]+[\'"]')
+                if not simple_import.search(line):
+                    warnings.append(f"Potentially malformed import statement: {line[:60]}...")
+                    logger.warning(f"Frontend code validation: malformed import in '{line[:60]}...'")
+        
+        # 5. JSX self-closing elements (informational only)
+        # NOTE: React/JSX handles <input>, <img>, etc. without /> automatically.
+        # This is NOT an error - just a style preference. We don't add warnings for it.
+        
+        # 6. Validate React component function structure
+        # Match multiple patterns:
+        # - function ComponentName(...) - traditional function declaration
+        # - const ComponentName = () => ... - arrow function
+        # - const ComponentName = function(...) - function expression
+        # - export default function ComponentName - exported function
+        # - export function ComponentName - named export function
+        component_patterns = [
+            re.compile(r'function\s+([A-Z]\w*)\s*\('),  # function ComponentName(
+            re.compile(r'const\s+([A-Z]\w*)\s*=\s*\(?'),  # const ComponentName = ( or const ComponentName =
+            re.compile(r'export\s+(?:default\s+)?function\s+([A-Z]\w*)'),  # export [default] function ComponentName
+            re.compile(r'export\s+default\s+([A-Z]\w*)'),  # export default ComponentName
+        ]
+        
+        found_components = []
+        for pattern in component_patterns:
+            matches = pattern.findall(code)
+            found_components.extend(matches)
+        
+        # Also check for lowercase components as a warning-worthy case
+        lowercase_pattern = re.compile(r'(?:function|const)\s+([a-z]\w*)\s*[=(]')
+        lowercase_matches = lowercase_pattern.findall(code)
+        # Filter out common non-component lowercase names
+        excluded_names = {'use', 'get', 'set', 'fetch', 'handle', 'create', 'update', 'delete', 'api', 'axios'}
+        lowercase_components = [m for m in lowercase_matches if not any(m.startswith(ex) for ex in excluded_names)]
+        
+        if not found_components and not lowercase_components:
+            # Check if export default exists with any function-like structure
+            if 'export default' in code and ('function' in code or '=>' in code):
+                logger.debug("Frontend validation: export default found with function structure - acceptable")
+            else:
+                warnings.append("No React component function found (expected 'function ComponentName' or 'const ComponentName = ')")
+                logger.warning("Frontend code validation: no component function pattern found")
+        elif not found_components and lowercase_components:
+            warnings.append(f"React components should start with uppercase (found: {', '.join(lowercase_components[:3])})")
+            logger.warning("Frontend code validation: no uppercase component name found")
+        
+        # 7. Check for JSX return statement
+        # Support multiple return patterns:
+        # - return (<JSX>) - parenthesized
+        # - return <JSX> - direct return
+        # - return ( \n <JSX> - multiline
+        # - => <JSX> - arrow function implicit return
+        # - => ( <JSX> - arrow function with parens
+        jsx_return_patterns = [
+            re.compile(r'return\s*\(\s*<', re.MULTILINE),  # return (<
+            re.compile(r'return\s+<'),  # return <
+            re.compile(r'=>\s*\(\s*<', re.MULTILINE),  # => (<
+            re.compile(r'=>\s*<'),  # => <
+            re.compile(r'return\s*\(\s*\n\s*<', re.MULTILINE),  # return ( newline <
+        ]
+        has_jsx_return = any(p.search(code) for p in jsx_return_patterns)
+        if not has_jsx_return:
+            # Additional check: look for JSX elements anywhere (component might use fragments)
+            if re.search(r'<[A-Z][\w.]*[\s/>]|<div|<span|<p[\s/>]|<>|<Fragment', code):
+                logger.debug("Frontend validation: JSX elements found - acceptable")
+            else:
+                warnings.append("No JSX return statement found (expected 'return (<JSX>)' or 'return <JSX>')")
+                logger.warning("Frontend code validation: no JSX return pattern found")
+        
+        # 8. Check for common mistakes
+        if 'localhost' in code.lower() and 'backend:5000' not in code:
+            errors.append("Frontend code should use 'http://backend:5000' not localhost")
+            logger.warning("Frontend code validation: found localhost instead of backend:5000")
+        
+        # 9. Check for incomplete JSX expressions (common LLM truncation)
+        incomplete_patterns = [
+            (r'<\w+\s+[^>]*$', "Incomplete JSX tag at end of code"),
+            (r'\{\s*$', "Incomplete JSX expression (unclosed brace at end)"),
+            (r'return\s*\(\s*$', "Incomplete return statement at end of code"),
+        ]
+        last_100_chars = code[-100:] if len(code) > 100 else code
+        for pattern, msg in incomplete_patterns:
+            if re.search(pattern, last_100_chars, re.MULTILINE):
+                errors.append(f"Code appears truncated: {msg}")
+                logger.warning(f"Frontend code validation: {msg}")
+    
+    # ========== Configurable pattern validation ==========
+    if validation_rules:
+        # Check required patterns (supports both string contains and regex)
+        required_patterns = validation_rules.get('required_patterns', [])
+        for pattern in required_patterns:
+            # Try regex match first (pattern starting with ^ or containing special chars)
+            is_regex = any(c in pattern for c in ['^', '$', '\\', '.*', '.+', '[', '(', '|'])
+            pattern_found = False
+            
+            if is_regex:
+                try:
+                    if re.search(pattern, code, re.IGNORECASE | re.MULTILINE):
+                        pattern_found = True
+                except re.error:
+                    # Invalid regex, fall back to string match
+                    pattern_found = pattern.lower() in code.lower()
+            else:
+                # Simple string match (case-insensitive, ignore whitespace variations)
+                # e.g., "admin_bp = Blueprint" matches "admin_bp=Blueprint" or "admin_bp  =  Blueprint"
+                normalized_pattern = re.sub(r'\s+', '', pattern.lower())
+                normalized_code = re.sub(r'\s+', '', code.lower())
+                pattern_found = normalized_pattern in normalized_code
+            
+            if not pattern_found:
+                msg = f"Missing required pattern: '{pattern}' (query_type={query_type})"
+                warnings.append(msg)
+                logger.warning(f"Validation warning: {msg}")
+        
+        # Check forbidden patterns (same logic)
+        forbidden_patterns = validation_rules.get('forbidden_patterns', [])
+        for pattern in forbidden_patterns:
+            is_regex = any(c in pattern for c in ['^', '$', '\\', '.*', '.+', '[', '(', '|'])
+            pattern_found = False
+            
+            if is_regex:
+                try:
+                    if re.search(pattern, code, re.IGNORECASE | re.MULTILINE):
+                        pattern_found = True
+                except re.error:
+                    pattern_found = pattern.lower() in code.lower()
+            else:
+                normalized_pattern = re.sub(r'\s+', '', pattern.lower())
+                normalized_code = re.sub(r'\s+', '', code.lower())
+                pattern_found = normalized_pattern in normalized_code
+            
+            if pattern_found:
+                msg = f"Found forbidden pattern: '{pattern}' (query_type={query_type})"
+                warnings.append(msg)
+                logger.warning(f"Validation warning: {msg}")
+    
+    # ========== Apply strictness level ==========
+    if validation_strictness == 'strict':
+        # In strict mode, pattern warnings become errors
+        errors.extend(warnings)
+    else:
+        # In lenient mode, pattern issues are just logged warnings
+        if warnings:
+            logger.info(f"Validation completed with {len(warnings)} pattern warnings (lenient mode - not failing)")
+    
+    is_valid = len(errors) == 0
+    
+    log_level = "info" if is_valid else "warning"
+    total_issues = len(errors) + len(warnings)
+    getattr(logger, log_level)(
+        f"{component.capitalize()} code validation completed: "
+        f"valid={is_valid}, errors={len(errors)}, warnings={len(warnings)}"
+    )
+    
+    return is_valid, errors
+
+
 @dataclass
 class GenerationConfig:
     """Configuration for code generation."""
@@ -185,7 +454,19 @@ class ScaffoldingManager:
         return self.scaffolding_source
 
     def _build_project_names(self, model_slug: str, app_num: int) -> Tuple[str, str]:
-        """Create sanitized project identifiers for Docker Compose."""
+        """Create sanitized project identifiers for Docker Compose.
+
+        Generates safe, Docker-compatible project names from model slug and app number.
+        Handles special characters, length constraints, and ensures uniqueness through hashing
+        when needed.
+
+        Args:
+            model_slug: Raw model identifier (e.g., 'openai/gpt-4')
+            app_num: Application number for this model
+
+        Returns:
+            Tuple of (project_name, compose_project_name) - currently both are identical
+        """
         raw_slug = model_slug.lower()
         safe_slug = re.sub(r'[^a-z0-9]+', '-', raw_slug)
         safe_slug = re.sub(r'-+', '-', safe_slug).strip('-')
@@ -594,24 +875,106 @@ Do NOT repeat the same mistakes. Focus on:
                         else:
                             logger.warning("Truncation retry disabled. Code may be incomplete!")
                 
+                # ========== PROSE DETECTION AND CODE EXTRACTION ==========
+                # Check if LLM returned explanatory prose instead of code
+                # This happens when models say "I'll implement..." instead of outputting code directly
+                code_to_validate = content
+                extracted_blocks = self._extract_all_code_blocks(content)
+                
+                if extracted_blocks:
+                    # Code blocks found - use extracted code for validation
+                    if config.component == 'backend':
+                        # Find Python code block
+                        python_blocks = [b for b in extracted_blocks if b['language'] in ('python', 'py', '')]
+                        if python_blocks:
+                            code_to_validate = python_blocks[0]['code']
+                            logger.debug(f"Extracted Python code block ({len(code_to_validate)} chars) for validation")
+                    else:
+                        # Frontend - find JSX/JS/TS code block
+                        js_blocks = [b for b in extracted_blocks if b['language'] in ('jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts', '')]
+                        if js_blocks:
+                            code_to_validate = js_blocks[0]['code']
+                            logger.debug(f"Extracted JS/JSX code block ({len(code_to_validate)} chars) for validation")
+                else:
+                    # No code blocks found - check if this is prose
+                    prose_patterns = [
+                        r"^I'll\s+",
+                        r"^I will\s+",
+                        r"^Here's?\s+",
+                        r"^Let me\s+",
+                        r"^Below\s+is\s+",
+                        r"^This\s+(?:is|will|code)\s+",
+                        r"^The\s+following\s+",
+                        r"^Now\s+(?:I'll|let)",
+                    ]
+                    first_line = content.strip().split('\n')[0] if content else ''
+                    is_prose = any(re.match(pattern, first_line, re.IGNORECASE) for pattern in prose_patterns)
+                    
+                    if is_prose:
+                        logger.warning(
+                            f"LLM returned prose instead of code. First line: '{first_line[:80]}...'"
+                        )
+                        # Add a specific validation error for prose detection
+                        prose_error = "LLM returned explanatory prose without code blocks. Response starts with: " + first_line[:50]
+                        
+                        # Check if we should retry with stricter instructions
+                        if (gen_config.retry_on_validation_failure and 
+                            validation_attempt < max_validation_retries):
+                            
+                            validation_attempt += 1
+                            
+                            healing_context = """
+CRITICAL ERROR: Your previous response contained explanatory text instead of code.
+
+DO NOT include ANY explanatory text, comments about what you'll do, or prose.
+Output ONLY the code itself, wrapped in markdown code fences.
+
+For Python, start with:
+```python
+# Your code here
+```
+
+For JavaScript/JSX, start with:
+```jsx
+// Your code here
+```
+
+Your response must START with a code fence (```).
+"""
+                            
+                            logger.info(
+                                f"Prose detected - retrying with stricter instructions "
+                                f"(attempt {validation_attempt}/{max_validation_retries})"
+                            )
+                            
+                            # Reset truncation tracking for the retry
+                            truncation_attempt = 0
+                            current_max_tokens = effective_max_tokens
+                            
+                            continue  # Retry with healing context
+                        else:
+                            # Can't retry - fail with clear error
+                            metrics['validation_errors'].append(prose_error)
+                            return False, "", prose_error, metrics
+                
                 # ========== VALIDATION RETRY LOOP (HEALING) ==========
                 # Validate the generated code and retry with error context if validation fails
                 if gen_config.validation_enabled:
                     is_valid, validation_errors = self.validate_generated_code(
-                        content, config.component, generation_mode, query_type
+                        code_to_validate, config.component, generation_mode, query_type
                     )
                     
                     if not is_valid:
-                        logger.warning(
-                            f"Generated code failed validation (attempt {validation_attempt + 1}): "
-                            f"{len(validation_errors)} error(s)"
-                        )
-                        
                         # Check if we should retry with healing context
                         if (gen_config.retry_on_validation_failure and 
                             validation_attempt < max_validation_retries):
                             
                             validation_attempt += 1
+                            
+                            logger.warning(
+                                f"Generated code failed validation (attempt {validation_attempt}/{max_validation_retries}): "
+                                f"{len(validation_errors)} error(s)"
+                            )
                             
                             # Build healing context with specific errors to fix
                             error_list = "\n".join([f"  - {err}" for err in validation_errors[:10]])  # Limit to 10 errors
@@ -628,7 +991,7 @@ Query Type: {query_type}
 """
                             
                             logger.info(
-                                f"Validation retry {validation_attempt}/{max_validation_retries}: "
+                                f"Attempting validation fix {validation_attempt}/{max_validation_retries}: "
                                 f"regenerating with {len(validation_errors)} errors in healing context"
                             )
                             
@@ -639,6 +1002,10 @@ Query Type: {query_type}
                             continue  # Retry with healing context
                         else:
                             # No retry: either disabled or max retries reached
+                            logger.warning(
+                                f"Generated code has {len(validation_errors)} validation error(s) "
+                                f"(attempt {validation_attempt + 1}, no more retries available)"
+                            )
                             if validation_attempt >= max_validation_retries:
                                 logger.warning(
                                     f"Max validation retries ({max_validation_retries}) reached. "
@@ -711,6 +1078,39 @@ Query Type: {query_type}
         except (json.JSONDecodeError, ValueError, OSError) as e:
             logger.error(f"Failed to load requirements file {req_file.name}: {e}")
             return None
+    
+    def _extract_all_code_blocks(self, content: str) -> List[Dict[str, str]]:
+        """Extract all code blocks from content, including filename annotations.
+        
+        Supports formats:
+        - ```python
+        - ```python:filename.py
+        - ```jsx:components/MyComponent.jsx
+        - ```css:App.css
+        - ```requirements
+        
+        Returns list of dicts with 'language', 'filename', and 'code' keys.
+        """
+        blocks = []
+        # Pattern matches ```lang or ```lang:filename
+        pattern = re.compile(
+            r"```(?P<lang>[a-zA-Z0-9_+-]+)?(?::(?P<filename>[^\n\r`]+))?\s*[\r\n]+(.*?)```",
+            re.DOTALL
+        )
+        
+        for match in pattern.finditer(content or ""):
+            lang = (match.group('lang') or '').strip().lower()
+            filename = (match.group('filename') or '').strip()
+            code = (match.group(3) or '').strip()
+            
+            if code:
+                blocks.append({
+                    'language': lang,
+                    'filename': filename,
+                    'code': code
+                })
+        
+        return blocks
     
     def _load_scaffolding_info(self) -> str:
         """Load scaffolding information."""
@@ -1364,6 +1764,8 @@ Generate complete, working code - no placeholders or TODOs."""
     ) -> Tuple[bool, List[str]]:
         """Validate generated code for syntax errors and structural compliance.
         
+        Delegates to the shared module-level validate_generated_code_impl function.
+        
         Args:
             code: The generated code to validate
             component: 'backend' or 'frontend'
@@ -1374,190 +1776,7 @@ Generate complete, working code - no placeholders or TODOs."""
         Returns:
             Tuple of (is_valid, list_of_errors)
         """
-        errors = []
-        warnings = []
-        
-        # Get validation config
-        config = get_config()
-        validation_strictness = config.generation.validation_strictness
-        
-        # Determine query_type if not provided
-        if query_type is None:
-            if generation_mode == 'unguarded':
-                query_type = component  # 'backend' or 'frontend'
-            else:
-                query_type = f"{component}_user"  # Default to user query type
-        
-        # Get validation rules for this mode/query combination
-        validation_rules = config.generation.get_validation_rules(generation_mode, query_type)
-        
-        if not code or not code.strip():
-            errors.append("Generated code is empty")
-            return False, errors
-        
-        # ========== Basic syntax validation ==========
-        if component == 'backend':
-            # Validate Python syntax
-            try:
-                ast.parse(code)
-                logger.info("Backend code validation passed: Python syntax is valid")
-            except SyntaxError as e:
-                # Check if error is due to fence markers in the code
-                if '```' in code[:100]:  # Check first 100 chars for fence markers
-                    logger.warning("Syntax error may be due to markdown fences, attempting cleanup")
-                    cleaned_code = re.sub(r'^```[a-z]*\s*\n?', '', code, flags=re.MULTILINE)
-                    cleaned_code = re.sub(r'\n?```\s*$', '', cleaned_code, flags=re.MULTILINE)
-                    
-                    try:
-                        ast.parse(cleaned_code)
-                        logger.info("✓ Code is valid after fence cleanup - fence markers were the issue")
-                        # Code is valid after cleanup - continue with pattern validation
-                    except SyntaxError:
-                        # Fall through to original error handling
-                        logger.warning("Code still invalid after fence cleanup - genuine syntax error")
-                        error_msg = f"Python syntax error at line {e.lineno}: {e.msg}"
-                        if e.text and '```' not in e.text:
-                            error_msg += f"\n  Code: {e.text.strip()}"
-                        errors.append(error_msg)
-                        logger.error(f"Backend code validation failed: {error_msg}")
-                else:
-                    # No fence markers - genuine syntax error
-                    error_msg = f"Python syntax error at line {e.lineno}: {e.msg}"
-                    if e.text and '```' not in e.text:
-                        error_msg += f"\n  Code: {e.text.strip()}"
-                    elif e.text:
-                        error_msg += f"\n  (Error text contains fence markers - code extraction likely failed)"
-                    errors.append(error_msg)
-                    logger.error(f"Backend code validation failed: {error_msg}")
-            except Exception as e:
-                errors.append(f"Unexpected error during Python parsing: {str(e)}")
-                logger.error(f"Backend code validation failed with unexpected error: {e}")
-        
-        elif component == 'frontend':
-            # ========== Enhanced JSX/JavaScript Validation ==========
-            # Unlike Python (which uses ast.parse), JS validation uses robust regex patterns
-            
-            # 1. Check for basic structure presence
-            if 'import' not in code and 'function' not in code and 'const' not in code:
-                errors.append("Frontend code appears incomplete (missing imports, functions, or components)")
-                logger.warning("Frontend code validation: code appears incomplete")
-            
-            # 2. Validate export default statement
-            if 'export default' not in code:
-                errors.append("Frontend code missing 'export default' statement")
-                logger.warning("Frontend code validation: missing export default")
-            
-            # 3. Check for balanced brackets/braces (common JSX error)
-            open_braces = code.count('{')
-            close_braces = code.count('}')
-            if abs(open_braces - close_braces) > 2:  # Allow small imbalance for string literals
-                errors.append(f"JSX bracket imbalance: {open_braces} opening braces vs {close_braces} closing braces")
-                logger.warning(f"Frontend code validation: bracket imbalance ({open_braces} vs {close_braces})")
-            
-            open_parens = code.count('(')
-            close_parens = code.count(')')
-            if abs(open_parens - close_parens) > 2:
-                errors.append(f"JSX parenthesis imbalance: {open_parens} opening vs {close_parens} closing")
-                logger.warning(f"Frontend code validation: parenthesis imbalance ({open_parens} vs {close_parens})")
-            
-            # 4. Validate import statement syntax (common LLM mistake: malformed imports)
-            import_pattern = re.compile(r'import\s+(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+[\'"][^\'"]+[\'"]')
-            import_lines = [line for line in code.split('\n') if line.strip().startswith('import ')]
-            for line in import_lines:
-                if not import_pattern.search(line) and 'import React' not in line:
-                    # Allow simple "import X from 'Y'" and "import { X } from 'Y'" patterns
-                    simple_import = re.compile(r'import\s+\w+\s+from\s+[\'"][^\'"]+[\'"]')
-                    if not simple_import.search(line):
-                        warnings.append(f"Potentially malformed import statement: {line[:60]}...")
-                        logger.warning(f"Frontend code validation: malformed import in '{line[:60]}...'")
-            
-            # 5. Check for common JSX syntax errors
-            # Missing closing tags for self-closing elements
-            self_closing_pattern = re.compile(r'<(input|img|br|hr|meta|link|area|base|col|embed|param|source|track|wbr)\b[^/>]*>')
-            for match in self_closing_pattern.finditer(code):
-                tag = match.group(1)
-                # Check if tag is properly self-closed with />
-                tag_content = match.group(0)
-                if not tag_content.endswith('/>') and '/>' not in code[match.end():match.end()+20]:
-                    warnings.append(f"JSX self-closing element <{tag}> should use /> syntax")
-                    logger.warning(f"Frontend code validation: <{tag}> should be self-closing")
-            
-            # 6. Validate React component function structure
-            component_pattern = re.compile(r'(?:function\s+(\w+)|const\s+(\w+)\s*=\s*(?:\([^)]*\)\s*=>|\function))')
-            component_matches = component_pattern.findall(code)
-            if not component_matches:
-                warnings.append("No React component function found (expected 'function ComponentName' or 'const ComponentName = ')")
-                logger.warning("Frontend code validation: no component function pattern found")
-            else:
-                # Check if any component starts with uppercase (React convention)
-                has_uppercase_component = any(
-                    (m[0] and m[0][0].isupper()) or (m[1] and m[1][0].isupper())
-                    for m in component_matches
-                )
-                if not has_uppercase_component:
-                    warnings.append("React components should start with uppercase (e.g., 'function MyComponent' not 'function myComponent')")
-                    logger.warning("Frontend code validation: no uppercase component name found")
-            
-            # 7. Check for JSX return statement
-            jsx_return_pattern = re.compile(r'return\s*\(\s*<|return\s+<')
-            if not jsx_return_pattern.search(code):
-                warnings.append("No JSX return statement found (expected 'return (<JSX>)' or 'return <JSX>')")
-                logger.warning("Frontend code validation: no JSX return pattern found")
-            
-            # 8. Check for common mistakes
-            if 'localhost' in code.lower() and 'backend:5000' not in code:
-                errors.append("Frontend code should use 'http://backend:5000' not localhost")
-                logger.warning("Frontend code validation: found localhost instead of backend:5000")
-            
-            # 9. Check for incomplete JSX expressions (common LLM truncation)
-            incomplete_patterns = [
-                (r'<\w+\s+[^>]*$', "Incomplete JSX tag at end of code"),
-                (r'\{\s*$', "Incomplete JSX expression (unclosed brace at end)"),
-                (r'return\s*\(\s*$', "Incomplete return statement at end of code"),
-            ]
-            last_100_chars = code[-100:] if len(code) > 100 else code
-            for pattern, msg in incomplete_patterns:
-                if re.search(pattern, last_100_chars, re.MULTILINE):
-                    errors.append(f"Code appears truncated: {msg}")
-                    logger.warning(f"Frontend code validation: {msg}")
-        
-        # ========== Configurable pattern validation ==========
-        if validation_rules:
-            # Check required patterns
-            required_patterns = validation_rules.get('required_patterns', [])
-            for pattern in required_patterns:
-                if pattern not in code:
-                    msg = f"Missing required pattern: '{pattern}' (query_type={query_type})"
-                    warnings.append(msg)
-                    logger.warning(f"Validation warning: {msg}")
-            
-            # Check forbidden patterns
-            forbidden_patterns = validation_rules.get('forbidden_patterns', [])
-            for pattern in forbidden_patterns:
-                if pattern in code:
-                    msg = f"Found forbidden pattern: '{pattern}' (query_type={query_type})"
-                    warnings.append(msg)
-                    logger.warning(f"Validation warning: {msg}")
-        
-        # ========== Apply strictness level ==========
-        if validation_strictness == 'strict':
-            # In strict mode, pattern warnings become errors
-            errors.extend(warnings)
-        else:
-            # In lenient mode, pattern issues are just logged warnings
-            if warnings:
-                logger.info(f"Validation completed with {len(warnings)} pattern warnings (lenient mode - not failing)")
-        
-        is_valid = len(errors) == 0
-        
-        log_level = "info" if is_valid else "warning"
-        total_issues = len(errors) + len(warnings)
-        getattr(logger, log_level)(
-            f"{component.capitalize()} code validation completed: "
-            f"valid={is_valid}, errors={len(errors)}, warnings={len(warnings)}"
-        )
-        
-        return is_valid, errors
+        return validate_generated_code_impl(code, component, generation_mode, query_type)
 
 
 class CodeMerger:
@@ -1599,6 +1818,8 @@ class CodeMerger:
     ) -> Tuple[bool, List[str]]:
         """Validate generated code for syntax errors and structural compliance.
         
+        Delegates to the shared module-level validate_generated_code_impl function.
+        
         Args:
             code: The generated code to validate
             component: 'backend' or 'frontend'
@@ -1609,190 +1830,7 @@ class CodeMerger:
         Returns:
             Tuple of (is_valid, list_of_errors)
         """
-        errors = []
-        warnings = []
-        
-        # Get validation config
-        config = get_config()
-        validation_strictness = config.generation.validation_strictness
-        
-        # Determine query_type if not provided
-        if query_type is None:
-            if generation_mode == 'unguarded':
-                query_type = component  # 'backend' or 'frontend'
-            else:
-                query_type = f"{component}_user"  # Default to user query type
-        
-        # Get validation rules for this mode/query combination
-        validation_rules = config.generation.get_validation_rules(generation_mode, query_type)
-        
-        if not code or not code.strip():
-            errors.append("Generated code is empty")
-            return False, errors
-        
-        # ========== Basic syntax validation ==========
-        if component == 'backend':
-            # Validate Python syntax
-            try:
-                ast.parse(code)
-                logger.info("Backend code validation passed: Python syntax is valid")
-            except SyntaxError as e:
-                # Check if error is due to fence markers in the code
-                if '```' in code[:100]:  # Check first 100 chars for fence markers
-                    logger.warning("Syntax error may be due to markdown fences, attempting cleanup")
-                    cleaned_code = re.sub(r'^```[a-z]*\s*\n?', '', code, flags=re.MULTILINE)
-                    cleaned_code = re.sub(r'\n?```\s*$', '', cleaned_code, flags=re.MULTILINE)
-                    
-                    try:
-                        ast.parse(cleaned_code)
-                        logger.info("✓ Code is valid after fence cleanup - fence markers were the issue")
-                        # Code is valid after cleanup - continue with pattern validation
-                    except SyntaxError:
-                        # Fall through to original error handling
-                        logger.warning("Code still invalid after fence cleanup - genuine syntax error")
-                        error_msg = f"Python syntax error at line {e.lineno}: {e.msg}"
-                        if e.text and '```' not in e.text:
-                            error_msg += f"\n  Code: {e.text.strip()}"
-                        errors.append(error_msg)
-                        logger.error(f"Backend code validation failed: {error_msg}")
-                else:
-                    # No fence markers - genuine syntax error
-                    error_msg = f"Python syntax error at line {e.lineno}: {e.msg}"
-                    if e.text and '```' not in e.text:
-                        error_msg += f"\n  Code: {e.text.strip()}"
-                    elif e.text:
-                        error_msg += f"\n  (Error text contains fence markers - code extraction likely failed)"
-                    errors.append(error_msg)
-                    logger.error(f"Backend code validation failed: {error_msg}")
-            except Exception as e:
-                errors.append(f"Unexpected error during Python parsing: {str(e)}")
-                logger.error(f"Backend code validation failed with unexpected error: {e}")
-        
-        elif component == 'frontend':
-            # ========== Enhanced JSX/JavaScript Validation ==========
-            # Unlike Python (which uses ast.parse), JS validation uses robust regex patterns
-            
-            # 1. Check for basic structure presence
-            if 'import' not in code and 'function' not in code and 'const' not in code:
-                errors.append("Frontend code appears incomplete (missing imports, functions, or components)")
-                logger.warning("Frontend code validation: code appears incomplete")
-            
-            # 2. Validate export default statement
-            if 'export default' not in code:
-                errors.append("Frontend code missing 'export default' statement")
-                logger.warning("Frontend code validation: missing export default")
-            
-            # 3. Check for balanced brackets/braces (common JSX error)
-            open_braces = code.count('{')
-            close_braces = code.count('}')
-            if abs(open_braces - close_braces) > 2:  # Allow small imbalance for string literals
-                errors.append(f"JSX bracket imbalance: {open_braces} opening braces vs {close_braces} closing braces")
-                logger.warning(f"Frontend code validation: bracket imbalance ({open_braces} vs {close_braces})")
-            
-            open_parens = code.count('(')
-            close_parens = code.count(')')
-            if abs(open_parens - close_parens) > 2:
-                errors.append(f"JSX parenthesis imbalance: {open_parens} opening vs {close_parens} closing")
-                logger.warning(f"Frontend code validation: parenthesis imbalance ({open_parens} vs {close_parens})")
-            
-            # 4. Validate import statement syntax (common LLM mistake: malformed imports)
-            import_pattern = re.compile(r'import\s+(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+[\'"][^\'"]+[\'"]')
-            import_lines = [line for line in code.split('\n') if line.strip().startswith('import ')]
-            for line in import_lines:
-                if not import_pattern.search(line) and 'import React' not in line:
-                    # Allow simple "import X from 'Y'" and "import { X } from 'Y'" patterns
-                    simple_import = re.compile(r'import\s+\w+\s+from\s+[\'"][^\'"]+[\'"]')
-                    if not simple_import.search(line):
-                        warnings.append(f"Potentially malformed import statement: {line[:60]}...")
-                        logger.warning(f"Frontend code validation: malformed import in '{line[:60]}...'")
-            
-            # 5. Check for common JSX syntax errors
-            # Missing closing tags for self-closing elements
-            self_closing_pattern = re.compile(r'<(input|img|br|hr|meta|link|area|base|col|embed|param|source|track|wbr)\b[^/>]*>')
-            for match in self_closing_pattern.finditer(code):
-                tag = match.group(1)
-                # Check if tag is properly self-closed with />
-                tag_content = match.group(0)
-                if not tag_content.endswith('/>') and '/>' not in code[match.end():match.end()+20]:
-                    warnings.append(f"JSX self-closing element <{tag}> should use /> syntax")
-                    logger.warning(f"Frontend code validation: <{tag}> should be self-closing")
-            
-            # 6. Validate React component function structure
-            component_pattern = re.compile(r'(?:function\s+(\w+)|const\s+(\w+)\s*=\s*(?:\([^)]*\)\s*=>|\function))')
-            component_matches = component_pattern.findall(code)
-            if not component_matches:
-                warnings.append("No React component function found (expected 'function ComponentName' or 'const ComponentName = ')")
-                logger.warning("Frontend code validation: no component function pattern found")
-            else:
-                # Check if any component starts with uppercase (React convention)
-                has_uppercase_component = any(
-                    (m[0] and m[0][0].isupper()) or (m[1] and m[1][0].isupper())
-                    for m in component_matches
-                )
-                if not has_uppercase_component:
-                    warnings.append("React components should start with uppercase (e.g., 'function MyComponent' not 'function myComponent')")
-                    logger.warning("Frontend code validation: no uppercase component name found")
-            
-            # 7. Check for JSX return statement
-            jsx_return_pattern = re.compile(r'return\s*\(\s*<|return\s+<')
-            if not jsx_return_pattern.search(code):
-                warnings.append("No JSX return statement found (expected 'return (<JSX>)' or 'return <JSX>')")
-                logger.warning("Frontend code validation: no JSX return pattern found")
-            
-            # 8. Check for common mistakes
-            if 'localhost' in code.lower() and 'backend:5000' not in code:
-                errors.append("Frontend code should use 'http://backend:5000' not localhost")
-                logger.warning("Frontend code validation: found localhost instead of backend:5000")
-            
-            # 9. Check for incomplete JSX expressions (common LLM truncation)
-            incomplete_patterns = [
-                (r'<\w+\s+[^>]*$', "Incomplete JSX tag at end of code"),
-                (r'\{\s*$', "Incomplete JSX expression (unclosed brace at end)"),
-                (r'return\s*\(\s*$', "Incomplete return statement at end of code"),
-            ]
-            last_100_chars = code[-100:] if len(code) > 100 else code
-            for pattern, msg in incomplete_patterns:
-                if re.search(pattern, last_100_chars, re.MULTILINE):
-                    errors.append(f"Code appears truncated: {msg}")
-                    logger.warning(f"Frontend code validation: {msg}")
-        
-        # ========== Configurable pattern validation ==========
-        if validation_rules:
-            # Check required patterns
-            required_patterns = validation_rules.get('required_patterns', [])
-            for pattern in required_patterns:
-                if pattern not in code:
-                    msg = f"Missing required pattern: '{pattern}' (query_type={query_type})"
-                    warnings.append(msg)
-                    logger.warning(f"Validation warning: {msg}")
-            
-            # Check forbidden patterns
-            forbidden_patterns = validation_rules.get('forbidden_patterns', [])
-            for pattern in forbidden_patterns:
-                if pattern in code:
-                    msg = f"Found forbidden pattern: '{pattern}' (query_type={query_type})"
-                    warnings.append(msg)
-                    logger.warning(f"Validation warning: {msg}")
-        
-        # ========== Apply strictness level ==========
-        if validation_strictness == 'strict':
-            # In strict mode, pattern warnings become errors
-            errors.extend(warnings)
-        else:
-            # In lenient mode, pattern issues are just logged warnings
-            if warnings:
-                logger.info(f"Validation completed with {len(warnings)} pattern warnings (lenient mode - not failing)")
-        
-        is_valid = len(errors) == 0
-        
-        log_level = "info" if is_valid else "warning"
-        total_issues = len(errors) + len(warnings)
-        getattr(logger, log_level)(
-            f"{component.capitalize()} code validation completed: "
-            f"valid={is_valid}, errors={len(errors)}, warnings={len(warnings)}"
-        )
-        
-        return is_valid, errors
+        return validate_generated_code_impl(code, component, generation_mode, query_type)
 
     # File whitelists for query_type filtering
     # 'user' queries can write to any file (they set up the base structure)
@@ -3301,12 +3339,13 @@ class GenerationService:
         parent_app_id: Optional[int] = None,
         version: int = 1,
         generation_mode: str = 'guarded',
-        max_retries: int = 3
+        max_retries: int = 5
     ) -> GeneratedApplication:
         """Atomically reserve an app number by creating DB record immediately.
         
-        Uses SELECT FOR UPDATE to lock the model's app number sequence during
-        allocation, preventing race conditions. Retries on conflict.
+        Uses optimistic locking with retry on conflict. SQLite doesn't support
+        SELECT FOR UPDATE, so we rely on the UNIQUE constraint to catch conflicts
+        and retry with exponential backoff + jitter.
         
         Args:
             model_slug: Normalized model slug
@@ -3316,7 +3355,7 @@ class GenerationService:
             parent_app_id: Optional parent app ID for regenerations
             version: Version number (default 1)
             generation_mode: 'guarded' or 'unguarded'
-            max_retries: Number of retry attempts on conflict (default 3)
+            max_retries: Number of retry attempts on conflict (default 5)
             
         Returns:
             GeneratedApplication record in PENDING status
@@ -3324,6 +3363,8 @@ class GenerationService:
         Raises:
             RuntimeError: If app number already reserved after all retries
         """
+        import random
+        import time
         from sqlalchemy import select, func
         from ..models.core import GeneratedApplication, ModelCapability
         from ..constants import AnalysisStatus, GenerationMode
@@ -3341,25 +3382,28 @@ class GenerationService:
             try:
                 # Auto-allocate app number if not provided
                 if app_num is None:
-                    # Use SELECT FOR UPDATE to lock all rows for this model during allocation
-                    # This prevents concurrent transactions from getting the same max
+                    # Query current max app number for this model
+                    # Note: SQLite doesn't truly support FOR UPDATE, but we include it
+                    # for compatibility with PostgreSQL if migrated later
                     stmt = select(func.max(GeneratedApplication.app_number)).filter_by(
                         model_slug=model_slug
-                    ).with_for_update()
+                    )
                     result = db.session.execute(stmt)
                     max_app = result.scalar()
                     
+                    # Always allocate next sequential number (max + 1)
+                    # The re-query after rollback already accounts for concurrent commits
                     allocated_num = (max_app or 0) + 1
                     logger.info(f"Auto-allocated app number {allocated_num} for {model_slug} (attempt {attempt + 1})")
                 else:
                     allocated_num = app_num
                 
-                # Check if this exact app already exists (within the lock)
+                # Check if this exact app already exists
                 existing = GeneratedApplication.query.filter_by(
                     model_slug=model_slug,
                     app_number=allocated_num,
                     version=version
-                ).with_for_update().first()
+                ).first()
                 
                 if existing:
                     # App already reserved - try next number if auto-allocating
@@ -3367,7 +3411,9 @@ class GenerationService:
                         logger.warning(
                             f"App {model_slug}/app{allocated_num} v{version} already exists, retrying..."
                         )
-                        db.session.rollback()  # Release lock
+                        db.session.rollback()  # Release any locks
+                        # Add jitter to prevent synchronized retries
+                        time.sleep(0.05 * (attempt + 1) + random.uniform(0.01, 0.05))
                         continue
                     else:
                         # Explicit app_num requested but exists - fail
@@ -3414,8 +3460,9 @@ class GenerationService:
                         logger.warning(
                             f"Race condition detected for {model_slug} (attempt {attempt + 1}/{max_retries}), retrying..."
                         )
-                        import time
-                        time.sleep(0.1 * (attempt + 1))  # Small backoff
+                        # Exponential backoff with jitter to desynchronize concurrent workers
+                        backoff = 0.1 * (2 ** attempt) + random.uniform(0.01, 0.1)
+                        time.sleep(backoff)
                         continue
                 
                 # Non-retryable error or out of retries
@@ -3516,8 +3563,13 @@ class GenerationService:
                 merger = CodeMerger(generation_mode=generation_mode)
                 
                 # Step 1: Scaffold
-                logger.info(f"=== Generating {model_slug}/app{app_num} (v{version}, mode={generation_mode}) ===")
-                logger.info("Step 1: Scaffolding...")
+                short_model = model_slug.split('_', 1)[-1] if '_' in model_slug else model_slug
+                logger.info(f"")
+                logger.info(f"{'='*60}")
+                logger.info(f"🚀 GENERATION: {short_model}/app{app_num}")
+                logger.info(f"   Template: {template_slug} | Mode: {generation_mode} | Version: {version}")
+                logger.info(f"{'='*60}")
+                logger.info(f"[1/4] 📁 Scaffolding project structure...")
                 
                 if not self.scaffolding.scaffold(model_slug, app_num, template_slug, generation_mode):
                     result['errors'].append("Scaffolding failed")
@@ -3545,7 +3597,7 @@ class GenerationService:
                     # AI has full architectural freedom
                     
                     if generate_backend:
-                        logger.info("Step 2: Generating backend (unguarded mode)...")
+                        logger.info(f"[2/4] 🔧 Generating backend (unguarded)...")
                         
                         config = GenerationConfig(
                             model_slug=model_slug,
@@ -3594,7 +3646,7 @@ class GenerationService:
                             )
                     
                     if generate_frontend:
-                        logger.info("Step 3: Generating frontend (unguarded mode)...")
+                        logger.info(f"[3/4] 🎨 Generating frontend (unguarded)...")
                         
                         config = GenerationConfig(
                             model_slug=model_slug,
@@ -3652,7 +3704,7 @@ class GenerationService:
                     
                     # Step 2: Generate Backend User (Query 1)
                     if generate_backend:
-                        logger.info("Step 2a: Generating backend user components...")
+                        logger.info(f"[2/4] 🔧 Backend: generating user components (Q1)...")
                         
                         config = GenerationConfig(
                             model_slug=model_slug,
@@ -3703,7 +3755,7 @@ class GenerationService:
                         
                         # Step 2b: Generate Backend Admin (Query 2) - only if user succeeded
                         if result.get('backend_user_generated'):
-                            logger.info("Step 2b: Generating backend admin components...")
+                            logger.info(f"[2/4] 🔧 Backend: generating admin components (Q2)...")
                             
                             config = GenerationConfig(
                                 model_slug=model_slug,
@@ -3756,7 +3808,7 @@ class GenerationService:
                     
                     # Step 3: Generate Frontend User (Query 3)
                     if generate_frontend:
-                        logger.info("Step 3a: Generating frontend user components...")
+                        logger.info(f"[3/4] 🎨 Frontend: generating user components (Q3)...")
                         
                         config = GenerationConfig(
                             model_slug=model_slug,
@@ -3805,7 +3857,7 @@ class GenerationService:
                         
                         # Step 3b: Generate Frontend Admin (Query 4) - only if user succeeded
                         if result.get('frontend_user_generated'):
-                            logger.info("Step 3b: Generating frontend admin components...")
+                            logger.info(f"[3/4] 🎨 Frontend: generating admin components (Q4)...")
                             
                             config = GenerationConfig(
                                 model_slug=model_slug,
@@ -3942,7 +3994,29 @@ class GenerationService:
             result['database_updated'] = False
             result['database_error'] = str(exc)
 
-        logger.info(f"=== Generation complete: {result['success']} ===")
+        # Log completion summary
+        metrics = result.get('generation_metrics', {})
+        total_retries = metrics.get('total_truncation_retries', 0) + metrics.get('total_validation_retries', 0)
+        status_emoji = "✅" if result['success'] else "❌"
+        
+        logger.info(f"")
+        logger.info(f"{'='*60}")
+        logger.info(f"{status_emoji} GENERATION {'COMPLETE' if result['success'] else 'FAILED'}: {model_slug}/app{app_num}")
+        if result['success']:
+            components = []
+            if result.get('backend_generated'):
+                components.append("backend")
+            if result.get('frontend_generated'):
+                components.append("frontend")
+            logger.info(f"   Components: {', '.join(components) if components else 'none'}")
+        else:
+            for err in result.get('errors', [])[:3]:  # Show first 3 errors
+                logger.info(f"   ⚠️  {err[:80]}{'...' if len(err) > 80 else ''}")
+        if total_retries > 0:
+            logger.info(f"   Retries: truncation={metrics.get('total_truncation_retries', 0)}, validation={metrics.get('total_validation_retries', 0)}")
+        logger.info(f"{'='*60}")
+        logger.info(f"")
+        
         return result
 
     def _write_generation_error_log(

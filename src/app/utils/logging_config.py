@@ -230,6 +230,37 @@ class StackTraceFilter(logging.Filter):
         return f"stack:{message[:50]}"
 
 
+class WerkzeugEndpointFilter(logging.Filter):
+    """Filter to suppress high-frequency werkzeug request logs.
+    
+    Suppresses logging for:
+    - Health check endpoints (/health)
+    - Pipeline status polling (/automation/api/pipeline/*/status)
+    - Fragment status (/automation/fragments/status)
+    
+    These endpoints are called every 2-3 seconds and create excessive noise.
+    """
+    
+    # Endpoints to suppress (substring matches)
+    _suppressed_endpoints = (
+        'GET /health ',
+        '/status HTTP',
+        '/detailed-status HTTP',
+        '/fragments/status HTTP',
+    )
+    
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Filter out high-frequency polling endpoints."""
+        message = _safe_get_message(record)
+        
+        # Check if this is a request log for a suppressed endpoint
+        for endpoint in self._suppressed_endpoints:
+            if endpoint in message:
+                return False
+        
+        return True
+
+
 class LogGrouper:
     """Groups similar log messages to reduce spam."""
     
@@ -305,6 +336,13 @@ class SmartLogFilter(logging.Filter):
             r'Connection closed by server\.',
             r'Error \d+ connecting to localhost:\d+\.',
             r'Redis is loading the dataset in memory\.',
+            # High-frequency polling endpoints (suppress completely)
+            r'GET /health HTTP',
+            r'GET /automation/api/pipeline/[^/]+/status HTTP',
+            r'GET /automation/api/pipeline/[^/]+/detailed-status HTTP',
+            r'GET /automation/fragments/status HTTP',
+            # Pipeline executor debug spam
+            r'\[PIPELINE:[^:]+:DEBUG\]',
         }
         
         self._rate_limited_messages = {}
@@ -661,6 +699,10 @@ class LoggingConfig:
         # WebSocket and analyzer services
         logging.getLogger('analyzer.websocket_gateway').setLevel(logging.INFO)
         logging.getLogger('app.services.analyzer_integration').setLevel(logging.INFO)
+        
+        # Add filter to werkzeug to suppress high-frequency polling endpoints
+        werkzeug_logger = logging.getLogger('werkzeug')
+        werkzeug_logger.addFilter(WerkzeugEndpointFilter())
     
     def create_service_logger(self, service_name: str) -> logging.Logger:
         """Create a logger for a specific service."""

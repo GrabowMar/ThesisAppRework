@@ -15,14 +15,17 @@ from app.utils.logging_config import setup_application_logging
 
 logger = setup_application_logging()
 
-# Clean up old logs at startup
+# Clean up old logs at startup (optional - only runs if scripts/ exists)
 try:
     scripts_dir = Path(__file__).parent.parent / "scripts"
-    sys.path.insert(0, str(scripts_dir))
-    from log_cleanup import cleanup_logs_startup  # type: ignore[import-not-found]
-    cleanup_logs_startup()
+    if scripts_dir.exists() and (scripts_dir / "log_cleanup.py").exists():
+        sys.path.insert(0, str(scripts_dir))
+        from log_cleanup import cleanup_logs_startup  # type: ignore[import-not-found]
+        cleanup_logs_startup()
+    # else: Skip silently in containerized environments where scripts/ isn't deployed
 except Exception as e:
-    logger.warning(f"Log cleanup at startup failed: {e}")
+    # Non-critical: just log at debug level and continue
+    logger.debug(f"Log cleanup at startup skipped: {e}")
 
 def main():
     """Main application entry point."""

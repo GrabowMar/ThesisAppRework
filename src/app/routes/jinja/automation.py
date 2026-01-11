@@ -427,24 +427,16 @@ def api_start_pipeline():
                 }), 400
         
         # Create pipeline execution in database
-        current_app.logger.info(f"[DEBUG] Creating pipeline for user_id={current_user.id}")
         pipeline = PipelineExecution(
             user_id=current_user.id,
             config=config,
             name=name or None,
         )
         db.session.add(pipeline)
-        current_app.logger.info(f"[DEBUG] Pipeline added to session: {pipeline.pipeline_id}")
         
         # Start the pipeline
         pipeline.start()
-        current_app.logger.info(f"[DEBUG] Pipeline started, calling commit...")
         db.session.commit()
-        current_app.logger.info(f"[DEBUG] Commit complete")
-        
-        # Verify immediately after commit
-        verify_pipeline = PipelineExecution.query.filter_by(pipeline_id=pipeline.pipeline_id).first()
-        current_app.logger.info(f"[DEBUG] Verify immediately after commit: found={verify_pipeline is not None}")
         
         current_app.logger.info(
             f"Started automation pipeline {pipeline.pipeline_id} with "
@@ -471,15 +463,7 @@ def api_start_pipeline():
 def api_pipeline_status(pipeline_id: str):
     """Get pipeline status from database."""
     try:
-        current_app.logger.info(f"[DEBUG] Status check for pipeline_id={pipeline_id}, user_id={current_user.id if not current_user.is_anonymous else 'anonymous'}")
-        
-        # First, check without user filter
-        any_pipeline = PipelineExecution.query.filter_by(pipeline_id=pipeline_id).first()
-        current_app.logger.info(f"[DEBUG] Pipeline without user filter: found={any_pipeline is not None}")
-        if any_pipeline:
-            current_app.logger.info(f"[DEBUG] Found pipeline belongs to user_id={any_pipeline.user_id}")
-        
-        # Get pipeline from database
+        # Get pipeline from database (no debug logging - this endpoint is polled frequently)
         pipeline = PipelineExecution.get_by_id(pipeline_id, user_id=current_user.id)
         
         if not pipeline:
@@ -688,7 +672,21 @@ def api_execute_stage(pipeline_id: str):
 
 
 def _execute_generation_job(pipeline_id: str, pipeline: Dict, config: Dict, job_index: int) -> Dict:
-    """Execute a single generation job."""
+    """Execute a single generation job within the pipeline.
+
+    Generates one model-template combination based on the job index.
+    Automatically determines the next available app number and creates
+    the application using the generation service.
+
+    Args:
+        pipeline_id: Unique identifier for the pipeline execution
+        pipeline: Pipeline state dict containing progress tracking
+        config: Pipeline configuration with generation settings
+        job_index: Job number to execute (determines model/template pair)
+
+    Returns:
+        Dict with success status, message, and generation result data
+    """
     gen_config = config.get('generation', {})
     models = gen_config.get('models', [])
     templates = gen_config.get('templates', [])
@@ -773,7 +771,21 @@ def _execute_generation_job(pipeline_id: str, pipeline: Dict, config: Dict, job_
 
 
 def _execute_analysis_job(pipeline_id: str, pipeline: Dict, config: Dict, job_index: int) -> Dict:
-    """Execute a single analysis job for a generated app."""
+    """Execute a single analysis job for a generated app.
+
+    Analyzes a previously generated application using the configured analyzers.
+    Automatically starts analyzer containers if configured to do so on the first job.
+    Skips analysis for applications that failed to generate.
+
+    Args:
+        pipeline_id: Unique identifier for the pipeline execution
+        pipeline: Pipeline state dict containing generation results and progress
+        config: Pipeline configuration with analysis settings
+        job_index: Job number to execute (corresponds to generation result index)
+
+    Returns:
+        Dict with success status, message, and analysis task information
+    """
     analysis_config = config.get('analysis', {})
     
     if not analysis_config.get('enabled', True):
