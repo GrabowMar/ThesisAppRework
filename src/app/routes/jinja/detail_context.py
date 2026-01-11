@@ -1,3 +1,23 @@
+"""
+Detail Context Builders
+=======================
+
+Context building utilities for model and application detail pages.
+
+This module provides comprehensive context builders for rendering detailed views
+of AI models and generated applications. It aggregates data from multiple sources
+including database records, filesystem artifacts, Docker containers, and analysis
+results to create rich, unified contexts for template rendering.
+
+Key Functions:
+- build_application_detail_context: Comprehensive application details with metrics
+- build_model_detail_context: Model details with usage analytics and comparisons
+- Helper functions for normalizing analysis records and collecting artifacts
+
+The module handles complex data aggregation, status resolution, and metric calculation
+to provide complete, presentation-ready contexts for the Jinja2 templates.
+"""
+
 from __future__ import annotations
 
 import json

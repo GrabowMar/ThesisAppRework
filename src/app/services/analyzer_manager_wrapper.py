@@ -5,12 +5,12 @@ Thin synchronous wrapper around analyzer_manager.py for use in Flask context.
 Delegates all analysis work to the proven CLI analyzer_manager implementation.
 """
 
-import asyncio
 import sys
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
 from app.utils.logging_config import get_logger
+from app.utils.async_utils import run_async_safely
 
 logger = get_logger('analyzer_wrapper')
 
@@ -72,9 +72,9 @@ class AnalyzerManagerWrapper:
         logger.info(f"Running comprehensive analysis: {model_slug} app {app_number}")
         
         try:
-            # Run the async method synchronously
+            # Run the async method synchronously using safe async execution
             # This internally calls save_task_results() which writes files to disk
-            service_results = asyncio.run(
+            service_results = run_async_safely(
                 self.manager.run_comprehensive_analysis(
                     model_slug=model_slug,
                     app_number=app_number,
@@ -195,7 +195,7 @@ class AnalyzerManagerWrapper:
         logger.info(f"Running security analysis: {model_slug} app {app_number}")
         
         try:
-            result = asyncio.run(
+            result = run_async_safely(
                 self.manager.run_security_analysis(
                     model_slug=model_slug,
                     app_number=app_number,
@@ -229,7 +229,7 @@ class AnalyzerManagerWrapper:
         logger.info(f"Running static analysis: {model_slug} app {app_number}")
         
         try:
-            result = asyncio.run(
+            result = run_async_safely(
                 self.manager.run_static_analysis(
                     model_slug=model_slug,
                     app_number=app_number,
@@ -265,7 +265,7 @@ class AnalyzerManagerWrapper:
         logger.info(f"Running dynamic analysis: {model_slug} app {app_number}")
         
         try:
-            result = asyncio.run(
+            result = run_async_safely(
                 self.manager.run_dynamic_analysis(
                     model_slug=model_slug,
                     app_number=app_number,
@@ -302,7 +302,7 @@ class AnalyzerManagerWrapper:
         logger.info(f"Running performance test: {model_slug} app {app_number}")
         
         try:
-            result = asyncio.run(
+            result = run_async_safely(
                 self.manager.run_performance_test(
                     model_slug=model_slug,
                     app_number=app_number,
@@ -339,7 +339,7 @@ class AnalyzerManagerWrapper:
         logger.info(f"Running AI analysis: {model_slug} app {app_number}")
         
         try:
-            result = asyncio.run(
+            result = run_async_safely(
                 self.manager.run_ai_analysis(
                     model_slug=model_slug,
                     app_number=app_number,

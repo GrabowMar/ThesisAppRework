@@ -36,42 +36,37 @@ class ModelValidator:
         self._catalog_by_canonical: Optional[Dict[str, Dict]] = None
         
     def _fetch_openrouter_catalog(self) -> Optional[List[Dict]]:
-        """Fetch live model catalog from OpenRouter API."""
+        """Fetch live model catalog from OpenRouter API.
+        
+        Uses synchronous requests library to avoid async event loop conflicts
+        when called from Celery workers or other async contexts.
+        """
         try:
-            import aiohttp
-            import asyncio
+            import requests
             
             api_key = os.getenv('OPENROUTER_API_KEY')
             if not api_key:
                 logger.warning("OPENROUTER_API_KEY not set, cannot validate model IDs")
                 return None
             
-            async def fetch():
-                async with aiohttp.ClientSession() as session:
-                    headers = {
-                        'Authorization': f'Bearer {api_key}',
-                        'HTTP-Referer': 'https://github.com/yourusername/yourrepo',
-                        'X-Title': 'ThesisAppRework'
-                    }
-                    async with session.get(
-                        'https://openrouter.ai/api/v1/models',
-                        headers=headers
-                    ) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            return data.get('data', [])
-                        else:
-                            logger.error(f"OpenRouter API returned {response.status}")
-                            return None
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'HTTP-Referer': 'https://github.com/yourusername/yourrepo',
+                'X-Title': 'ThesisAppRework'
+            }
             
-            # Handle both async and sync contexts
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+            response = requests.get(
+                'https://openrouter.ai/api/v1/models',
+                headers=headers,
+                timeout=30
+            )
             
-            return loop.run_until_complete(fetch())
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('data', [])
+            else:
+                logger.error(f"OpenRouter API returned {response.status_code}")
+                return None
             
         except Exception as e:
             logger.error(f"Failed to fetch OpenRouter catalog: {e}", exc_info=True)

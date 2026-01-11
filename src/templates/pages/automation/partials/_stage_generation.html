@@ -199,6 +199,42 @@
     </div>
   </div>
 
+  {# Generation Options #}
+  <div class="card mt-4">
+    <div class="card-header d-flex align-items-center py-2">
+      <h3 class="h6 mb-0"><i class="fas fa-cogs text-primary me-2"></i>Generation Options</h3>
+      <button type="button" class="btn btn-ghost-secondary btn-sm ms-auto" 
+              data-bs-toggle="collapse" data-bs-target="#generation-options-collapse">
+        <i class="fas fa-chevron-down"></i>
+      </button>
+    </div>
+    <div class="collapse show" id="generation-options-collapse">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="generation-parallel" checked>
+              <label class="form-check-label" for="generation-parallel">
+                Run generations in parallel
+              </label>
+            </div>
+            <div class="text-muted small mt-1">
+              Execute multiple generation jobs concurrently for faster completion.
+            </div>
+          </div>
+          <div class="col-md-6" id="generation-parallelism-limit-group">
+            <label for="generation-max-concurrent" class="form-label small mb-1">Max concurrent generations</label>
+            <input type="number" class="form-control form-control-sm" id="generation-max-concurrent" 
+                   min="1" max="4" value="2" style="width: 80px;">
+            <div class="text-muted small mt-1">
+              Limit concurrent API calls (2-3 recommended to avoid rate limits).
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   {# Help Alert for Generate New #}
   <div class="alert alert-info mt-4">
     <i class="fas fa-lightbulb me-2"></i>
@@ -359,3 +395,14 @@
 
 {# Note: Save Settings and Manage Settings modals have been moved to automation_main.html #}
 {# This ensures they're accessible from all wizard steps, not just Step 1 #}
+
+<script>
+// Toggle generation parallelism limit visibility based on parallel checkbox
+document.getElementById('generation-parallel')?.addEventListener('change', function() {
+    const limitGroup = document.getElementById('generation-parallelism-limit-group');
+    if (limitGroup) {
+        limitGroup.style.opacity = this.checked ? '1' : '0.5';
+        document.getElementById('generation-max-concurrent').disabled = !this.checked;
+    }
+});
+</script>

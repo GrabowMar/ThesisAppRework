@@ -17,7 +17,6 @@ Endpoints:
 - GET  /api/gen/apps/<model>/<num> - Get app details
 """
 
-import asyncio
 import logging
 
 from flask import Blueprint, request, jsonify
@@ -25,6 +24,7 @@ from flask_login import current_user
 
 from app.services.generation import get_generation_service
 from app.utils.helpers import create_success_response, create_error_response
+from app.utils.async_utils import run_async_safely
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +218,7 @@ def generate():
         
         # Run generation with atomic reservation
         service = get_generation_service()
-        result = asyncio.run(service.generate_full_app(
+        result = run_async_safely(service.generate_full_app(
             model_slug=model_slug,
             app_num=app_num,
             template_slug=template_slug,

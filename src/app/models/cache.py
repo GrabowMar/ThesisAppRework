@@ -44,7 +44,19 @@ class OpenRouterModelCache(db.Model):
     
     def is_expired(self) -> bool:
         """Check if cache entry is expired."""
-        return utc_now() > self.cache_expires_at
+        if self.cache_expires_at is None:
+            return True
+
+        now = utc_now()
+        expires_at = self.cache_expires_at
+
+        # SQLite stores datetimes as naive UTC, normalize both for comparison
+        if now.tzinfo is not None:
+            now = now.replace(tzinfo=None)
+        if expires_at.tzinfo is not None:
+            expires_at = expires_at.replace(tzinfo=None)
+
+        return now > expires_at
     
     def mark_accessed(self) -> None:
         """Update last accessed timestamp."""
@@ -193,7 +205,19 @@ class ModelBenchmarkCache(db.Model):
     
     def is_expired(self) -> bool:
         """Check if cache entry is expired."""
-        return utc_now() > self.cache_expires_at
+        if self.cache_expires_at is None:
+            return True
+
+        now = utc_now()
+        expires_at = self.cache_expires_at
+
+        # SQLite stores datetimes as naive UTC, normalize both for comparison
+        if now.tzinfo is not None:
+            now = now.replace(tzinfo=None)
+        if expires_at.tzinfo is not None:
+            expires_at = expires_at.replace(tzinfo=None)
+
+        return now > expires_at
     
     def compute_composite_score(self, weights: Optional[Dict[str, float]] = None) -> float:
         """

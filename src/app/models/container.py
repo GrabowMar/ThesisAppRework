@@ -1,3 +1,15 @@
+"""
+Container Models
+================
+
+Database models for tracking containerized test services and their lifecycle.
+
+This module defines the ContainerizedTest model which manages:
+- Docker container metadata and configuration
+- Service health monitoring
+- Container lifecycle tracking (start, stop, health checks)
+- Usage metrics and statistics
+"""
 from __future__ import annotations
 import json
 from typing import Dict, Any

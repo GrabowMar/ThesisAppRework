@@ -1,3 +1,17 @@
+"""
+Core Models
+===========
+
+Core database models for AI model capabilities, generated applications, and port configurations.
+
+This module contains the fundamental ORM models that power the application:
+- ModelCapability: AI model metadata, pricing, and capability tracking
+- GeneratedApplication: Full lifecycle tracking of AI-generated applications
+- PortConfiguration: Docker port allocation and management
+- GeneratedCodeResult: Code generation result persistence
+
+These models form the backbone of the research platform's data persistence layer.
+"""
 from __future__ import annotations
 import json
 from datetime import datetime

@@ -2,7 +2,7 @@
 Analysis-related database models.
 """
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from ..extensions import db
 from ..utils.time import utc_now
@@ -339,9 +339,16 @@ class AnalysisTask(db.Model):
             if error_message:
                 self.error_message = error_message
         
-        # Calculate actual duration
+        # Calculate actual duration (ensure both timestamps are timezone-aware)
         if self.started_at:
-            self.actual_duration = (self.completed_at - self.started_at).total_seconds()
+            started = self.started_at
+            completed = self.completed_at
+            # Normalize to UTC if one is naive
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=timezone.utc)
+            if completed.tzinfo is None:
+                completed = completed.replace(tzinfo=timezone.utc)
+            self.actual_duration = (completed - started).total_seconds()
 
     # --- Compatibility methods for analyzer_integration (legacy naming) ---
     def mark_completed(self, analysis_data: Dict[str, Any] | None = None) -> None:

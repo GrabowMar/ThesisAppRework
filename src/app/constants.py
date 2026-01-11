@@ -12,6 +12,9 @@ Notes:
 
 from enum import Enum
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # (Pruned legacy constants: AppDefaults, ServiceNames, ContainerNames)
@@ -216,5 +219,7 @@ class Paths:
 # Initialize directories on import (safe in containers)
 try:
     Paths.ensure_directories()
-except Exception:
-    pass  # Silently fail in read-only environments
+except Exception as e:
+    # Only log if not in a read-only environment (OSError with specific codes)
+    if not (isinstance(e, OSError) and e.errno in (30, 1)):  # Read-only filesystem
+        logger.warning(f"Failed to initialize directories: {e}")

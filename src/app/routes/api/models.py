@@ -1091,8 +1091,8 @@ def api_model_app_regenerate(model_slug, app_number):
         - generate_backend: bool (default: true)
     """
     try:
-        import asyncio
         from app.routes.api.generation import get_generation_service
+        from app.utils.async_utils import run_async_safely
         
         # Find the latest version of this app
         latest_app = GeneratedApplication.query.filter_by(
@@ -1128,7 +1128,7 @@ def api_model_app_regenerate(model_slug, app_number):
         
         # Run generation with new version
         service = get_generation_service()
-        result = asyncio.run(service.generate_full_app(
+        result = run_async_safely(service.generate_full_app(
             model_slug=model_slug,
             app_num=app_number,
             template_slug=template_slug,

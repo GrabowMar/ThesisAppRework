@@ -1,3 +1,16 @@
+"""
+Analysis Models
+===============
+
+Database models for storing various types of analysis results including security
+analysis, performance testing, ZAP scanning, and AI-powered code analysis.
+
+This module defines SQLAlchemy ORM models that track the execution and results of:
+- SecurityAnalysis: Comprehensive security tool configurations and findings
+- PerformanceTest: Load testing metrics and performance benchmarks
+- ZAPAnalysis: OWASP ZAP security scan results
+- OpenRouterAnalysis: AI-powered code quality assessments
+"""
 from __future__ import annotations
 
 import json

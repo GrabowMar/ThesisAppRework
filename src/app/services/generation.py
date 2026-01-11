@@ -30,7 +30,6 @@ generated/apps/{model}/app{N}/
 """
 
 import ast
-import asyncio
 import hashlib
 import json
 import logging
@@ -67,6 +66,7 @@ from app.config.config_manager import get_config
 from app.extensions import db
 from app.models import GeneratedApplication, ModelCapability, AnalysisStatus, GenerationMode
 from app.utils.time import utc_now
+from app.utils.async_utils import run_async_safely
 
 logger = logging.getLogger(__name__)
 
@@ -3057,7 +3057,7 @@ class GenerationService:
                 # Execute the task
                 func, args, kwargs, result_callback = task
                 try:
-                    result = asyncio.run(func(*args, **kwargs))
+                    result = run_async_safely(func(*args, **kwargs))
                     if result_callback:
                         result_callback(result)
                 except Exception as e:

@@ -19,6 +19,10 @@ window.AutomationWizard = {
         templates: [],
         models: [],
         existingApps: [], // for existing apps mode
+        generationOptions: {
+            parallel: true,  // Default to parallel for efficiency
+            maxConcurrentTasks: 2  // Default 2 concurrent (avoid rate limits)
+        },
         analysisTools: [],
         analysisOptions: {
             parallel: true,  // Default to parallel for batch efficiency
@@ -359,6 +363,15 @@ function collectGenerationConfig() {
         document.querySelectorAll('input[name="existing_app"]:checked')
     ).map(el => el.value);
     
+    // Get generation options (parallel execution settings)
+    const genParallelEnabled = document.getElementById('generation-parallel')?.checked ?? true;
+    const genMaxConcurrent = parseInt(document.getElementById('generation-max-concurrent')?.value || '2', 10);
+    
+    wizard.config.generationOptions = {
+        parallel: genParallelEnabled,
+        maxConcurrentTasks: genParallelEnabled ? Math.min(Math.max(genMaxConcurrent, 1), 4) : 1  // Clamp between 1-4
+    };
+    
     updateSelectionSummary();
 }
 
@@ -473,6 +486,12 @@ function updateReviewSummary() {
     // Analysis summary
     setText('summary-tools-count', config.analysisTools.length || 'None selected');
     
+    // Generation options - show parallelism details
+    const genParallelMode = config.generationOptions?.parallel ?? true;
+    const genMaxConcurrent = config.generationOptions?.maxConcurrentTasks || 2;
+    const genOptionsText = genParallelMode ? `Parallel (max ${genMaxConcurrent})` : 'Sequential';
+    setText('summary-gen-options', genOptionsText);
+    
     // Analysis options - show parallelism details
     const parallelMode = config.analysisOptions.parallel;
     const maxConcurrent = config.analysisOptions.maxConcurrentTasks || 3;
@@ -482,14 +501,22 @@ function updateReviewSummary() {
     // Job queue preview
     updateJobQueuePreview();
     
-    // Estimated time - adjust for parallelism
+    // Estimated time - adjust for parallelism (both generation and analysis)
     const totalJobs = config.templates.length * config.models.length;
-    const effectiveConcurrency = parallelMode ? Math.min(maxConcurrent, totalJobs) : 1;
-    const estMinutes = Math.ceil(totalJobs / effectiveConcurrency) * 3; // ~3 min per batch
+    const genConcurrency = genParallelMode ? Math.min(genMaxConcurrent, totalJobs) : 1;
+    const analysisConcurrency = parallelMode ? Math.min(maxConcurrent, totalJobs) : 1;
+    const genMinutes = Math.ceil(totalJobs / genConcurrency) * 2;  // ~2 min per batch for generation
+    const analysisMinutes = Math.ceil(totalJobs / analysisConcurrency) * 1;  // ~1 min per batch for analysis
+    const estMinutes = genMinutes + analysisMinutes;
     setText('est-duration', formatDuration(estMinutes * 60));
     setText('total-operations', totalJobs * 2); // gen + analysis
     setText('total-jobs-badge', `${totalJobs} jobs`);
-    setText('parallelism-mode', optionsText);
+    
+    // Combined parallelism mode display
+    const combinedParallelism = genParallelMode || parallelMode ? 
+        `Gen: ${genParallelMode ? genMaxConcurrent : 1}x / Analysis: ${parallelMode ? maxConcurrent : 1}x` :
+        'Sequential';
+    setText('parallelism-mode', combinedParallelism);
 }
 
 /**
@@ -565,7 +592,7 @@ async function launchPipeline() {
                 models: wizard.config.models,
                 templates: wizard.config.templates,
                 existingApps: wizard.config.existingApps || [],
-                options: {}
+                options: wizard.config.generationOptions || { parallel: true, maxConcurrentTasks: 2 }
             },
             analysis: {
                 enabled: true,

@@ -1400,12 +1400,10 @@ class ModelRankingsService:
             from ..utils.time import utc_now
 
             now = utc_now()
-            self.logger.debug(f"Cache check: now={now}, tzinfo={now.tzinfo}")
 
             # SQLite stores datetimes as naive UTC, so normalize for comparison
             if now.tzinfo is not None:
                 now = now.replace(tzinfo=None)
-                self.logger.debug(f"Stripped timezone: now={now}, tzinfo={now.tzinfo}")
 
             # Get all cache entries and filter in Python
             all_entries = ModelBenchmarkCache.query.all()

@@ -151,8 +151,8 @@ def create_app(config_name: str = 'default') -> Flask:
         _ork = os.getenv('OPENROUTER_API_KEY')
         if _ork and not app.config.get('OPENROUTER_API_KEY'):
             app.config['OPENROUTER_API_KEY'] = _ork
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Failed to set OPENROUTER_API_KEY in config: {e}")
     
     # Ensure Jinja picks up template changes without restarting the app
     try:
@@ -165,20 +165,19 @@ def create_app(config_name: str = 'default') -> Flask:
             app.jinja_env.filters['datetime'] = format_datetime
         except Exception as _reg_err:
             logger.warning(f"Could not register Jinja globals/filters: {_reg_err}")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to register Jinja environment customizations: {e}", exc_info=True)
 
     # In test runs, aggressively clear Jinja template bytecode/cache to avoid stale templates
     try:
-        import os as _os
-        if _os.environ.get('PYTEST_CURRENT_TEST') or app.config.get('TESTING'):
+        if os.environ.get('PYTEST_CURRENT_TEST') or app.config.get('TESTING'):
             # Clear cache dict if present
             cache_obj = getattr(app.jinja_env, 'cache', None)
             if cache_obj is not None and hasattr(cache_obj, 'clear'):
                 cache_obj.clear()
-    except Exception:
-        # Best-effort only; ignore any issues here
-        pass
+    except Exception as e:
+        # Best-effort only; log but ignore any issues here
+        logger.debug(f"Failed to clear Jinja cache in test mode: {e}")
 
     # Initialize extensions and get components manager
     components = init_extensions(app)
@@ -316,8 +315,8 @@ def create_app(config_name: str = 'default') -> Flask:
                 logger.warning(f"Failed to clean up old tasks: {cleanup_err}")
                 try:
                     db.session.rollback()
-                except Exception:
-                    pass
+                except Exception as rollback_err:
+                    logger.warning(f"Failed to rollback session after cleanup error: {rollback_err}")
             
             # Sync generated apps from filesystem to database
             try:
@@ -385,8 +384,8 @@ def create_app(config_name: str = 'default') -> Flask:
                 logger.warning(f"Failed to auto-sync generated apps: {sync_err}")
                 try:
                     db.session.rollback()
-                except Exception:
-                    pass
+                except Exception as rollback_err:
+                    logger.warning(f"Failed to rollback session after sync error: {rollback_err}")
                     
         except Exception as e:
             logger.exception(f"Failed to initialize database: {e}")

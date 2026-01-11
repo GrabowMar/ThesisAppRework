@@ -15,10 +15,81 @@ from typing import Dict, Any, List, Optional
 from app.celery_worker import celery
 from app.extensions import db
 from app.models import AnalysisTask, AnalysisStatus
-from app.services.result_summary_utils import summarise_findings
 from app.utils.distributed_lock import database_write_lock
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_total_issues(payload: Dict[str, Any]) -> int:
+    """Extract total issue count from various result payload formats.
+    
+    Handles multiple result structures:
+    1. Direct summary: {'summary': {'total_findings': N}}
+    2. Comprehensive nested: {'results': {'summary': {...}, 'services': {...}}}
+    3. Service-specific: {'services': {'static': {'analysis': {'results': {...}}}}}
+    
+    If the summary shows 0 but services contain actual findings, 
+    we compute the real count from service results.
+    """
+    total_issues = 0
+    
+    # Try to get from summary first
+    summary_issues = 0
+    if 'summary' in payload:
+        summary_issues = payload['summary'].get('total_findings', 0)
+    elif 'results' in payload and isinstance(payload.get('results'), dict):
+        results = payload['results']
+        if 'summary' in results:
+            summary_issues = results['summary'].get('total_findings', 0)
+    
+    # If summary shows issues, trust it
+    if summary_issues > 0:
+        return summary_issues
+    
+    # Otherwise, compute from service results (summary might be buggy)
+    services_to_scan = {}
+    
+    # Check for services at different nesting levels
+    if 'services' in payload:
+        services_to_scan = payload['services']
+    elif 'results' in payload and isinstance(payload.get('results'), dict):
+        results = payload['results']
+        if 'services' in results:
+            services_to_scan = results['services']
+    
+    # Also check top-level service keys (static, dynamic, etc.)
+    for key in ('static', 'dynamic', 'performance', 'ai', 'security'):
+        if key in payload and isinstance(payload[key], dict):
+            services_to_scan[key] = payload[key]
+    
+    # Extract issues from each service
+    for svc_name, svc_result in services_to_scan.items():
+        if not isinstance(svc_result, dict):
+            continue
+        
+        # Try to get from service-level summary first
+        svc_analysis = svc_result.get('analysis', {})
+        if isinstance(svc_analysis, dict):
+            svc_summary = svc_analysis.get('summary', {})
+            if isinstance(svc_summary, dict):
+                svc_total = svc_summary.get('total_issues_found', 0) or svc_summary.get('total_findings', 0)
+                if svc_total > 0:
+                    total_issues += svc_total
+                    continue
+            
+            # Dive into tool results: analysis.results.{language}.{tool}.total_issues
+            results_data = svc_analysis.get('results', {})
+            if isinstance(results_data, dict):
+                for lang_results in results_data.values():
+                    if isinstance(lang_results, dict):
+                        for tool_result in lang_results.values():
+                            if isinstance(tool_result, dict):
+                                # Use total_issues OR issue_count, not both (they're the same)
+                                tool_issues = tool_result.get('total_issues', 0) or tool_result.get('issue_count', 0)
+                                total_issues += tool_issues
+    
+    return total_issues
+
 
 @celery.task(bind=True)
 def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, tools: List[str], service_name: str) -> Dict[str, Any]:
@@ -26,11 +97,7 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
     Execute a single analysis subtask via WebSocket.
     """
     logger.info(f"[CELERY] Starting subtask {subtask_id} for {service_name}")
-    
-    # We need to import here to avoid circular imports at module level
-    # if these modules import celery/tasks
-    from app.models import AnalysisTask, AnalysisStatus
-    
+
     try:
         # Get fresh subtask from DB
         subtask = AnalysisTask.query.get(subtask_id)
@@ -85,8 +152,8 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
                     subtask.error_message = str(e)
                     subtask.completed_at = datetime.now(timezone.utc)
                     db.session.commit()
-        except Exception:
-            pass
+        except Exception as db_err:
+            logger.warning(f"Failed to update subtask {subtask_id} status in DB: {db_err}", exc_info=True)
         return {'status': 'error', 'error': str(e), 'service_name': service_name}
 
 @celery.task(bind=True)
@@ -95,10 +162,9 @@ def execute_analysis(self, task_id: int) -> Dict[str, Any]:
     Execute a full analysis task (comprehensive or specific type).
     """
     logger.info(f"[CELERY] Starting analysis task {task_id}")
-    
-    from app.models import AnalysisTask, AnalysisStatus
+
     from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
-    
+
     try:
         # Get fresh task from DB
         task = AnalysisTask.query.get(task_id)
@@ -198,13 +264,11 @@ def execute_analysis(self, task_id: int) -> Dict[str, Any]:
         with database_write_lock(f"task_{task_id}_complete"):
             task.set_result_summary(payload)
 
-            # Update issues count if available
-            if 'summary' in payload: # Direct payload
-                 summary = payload['summary']
-                 task.issues_found = summary.get('total_findings', 0)
-            elif 'results' in payload and 'summary' in payload['results']: # Nested
-                 summary = payload['results']['summary']
-                 task.issues_found = summary.get('total_findings', 0)
+            # Update issues count - extract from various result formats
+            total_issues = _extract_total_issues(payload)
+            
+            task.issues_found = total_issues
+            logger.info(f"[CELERY] Task {task.task_id} completed with {total_issues} issues found")
 
             db.session.commit()
         
@@ -220,8 +284,8 @@ def execute_analysis(self, task_id: int) -> Dict[str, Any]:
                     task.error_message = str(e)
                     task.completed_at = datetime.now(timezone.utc)
                     db.session.commit()
-        except Exception:
-            pass
+        except Exception as db_err:
+            logger.warning(f"Failed to update task {task_id} status in DB: {db_err}", exc_info=True)
         return {'status': 'error', 'error': str(e)}
 
 @celery.task(bind=True)

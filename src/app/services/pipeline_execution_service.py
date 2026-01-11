@@ -90,6 +90,11 @@ class PipelineExecutionService:
         self._analysis_futures: Dict[str, Dict[str, Future]] = {}  # pipeline_id -> {task_id -> Future}
         self._in_flight_tasks: Dict[str, Set[str]] = {}  # pipeline_id -> set of task_ids
         
+        # Parallel generation execution
+        self._generation_executor: Optional[ThreadPoolExecutor] = None
+        self._generation_futures: Dict[str, Dict[str, Future]] = {}  # pipeline_id -> {job_key -> Future}
+        self._in_flight_generation: Dict[str, Set[str]] = {}  # pipeline_id -> set of job_keys
+        
         # Analyzer health cache (per-service)
         self._analyzer_healthy: Optional[bool] = None
         self._analyzer_check_time: float = 0.0
@@ -108,7 +113,7 @@ class PipelineExecutionService:
         
         self._log("PipelineExecutionService initialized (poll_interval=%s)", poll_interval)
     
-    def _log(self, msg: str, *args, level: str = 'info', **kwargs):
+    def _log(self, msg: str, *args, level: str = 'info', **kwargs) -> None:
         """Log with consistent formatting."""
         formatted = msg % args if args else msg
         log_func = getattr(logger, level, logger.info)
@@ -358,6 +363,12 @@ class PipelineExecutionService:
             thread_name_prefix="pipeline_analysis"
         )
         
+        # Initialize thread pool for parallel generation
+        self._generation_executor = ThreadPoolExecutor(
+            max_workers=4,  # Generation is more resource-intensive (LLM API calls)
+            thread_name_prefix="pipeline_generation"
+        )
+        
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
         self._log("PipelineExecutionService started")
@@ -366,10 +377,14 @@ class PipelineExecutionService:
         """Stop the background execution thread."""
         self._running = False
         
-        # Shutdown thread pool
+        # Shutdown thread pools
         if self._analysis_executor:
             self._analysis_executor.shutdown(wait=True, cancel_futures=False)
             self._analysis_executor = None
+        
+        if self._generation_executor:
+            self._generation_executor.shutdown(wait=True, cancel_futures=False)
+            self._generation_executor = None
         
         if self._thread:
             self._thread.join(timeout=5)
@@ -410,6 +425,8 @@ class PipelineExecutionService:
                                 # Clean up containers on failure
                                 self._stop_all_app_containers_for_pipeline(pipeline)
                                 self._cleanup_pipeline_containers(pipeline.pipeline_id)
+                                # Clean up generation tracking
+                                self._cleanup_generation_tracking(pipeline.pipeline_id)
                             except Exception as cleanup_error:
                                 self._log("Failed to cleanup after pipeline error: %s", cleanup_error, level='error')
                                 try:
@@ -450,40 +467,335 @@ class PipelineExecutionService:
             self._process_analysis_stage(pipeline)
             return
         
-        # Get next job to execute (generation stage)
-        job = pipeline.get_next_job()
-        
-        if job is None:
-            self._log(
-                "[DEBUG] Pipeline %s: get_next_job returned None, checking stage transition",
-                pipeline.pipeline_id
-            )
-            # No more jobs - check if we need to transition stages
-            self._check_stage_transition(pipeline)
+        # Handle generation stage with parallel execution
+        if pipeline.current_stage == 'generation':
+            self._process_generation_stage(pipeline)
             return
         
-        self._log(
-            "Processing pipeline %s: stage=%s, job=%s",
-            pipeline.pipeline_id, job['stage'], job.get('job_index', 0)
-        )
+        # Unknown stage - check completion
+        self._check_stage_transition(pipeline)
+    
+    def _process_generation_stage(self, pipeline: PipelineExecution):
+        """Process generation stage with parallel execution.
         
-        # Execute generation job
-        if job['stage'] == 'generation':
-            # FIX: Advance job_index FIRST and commit to prevent race condition
-            # This ensures the next poll sees the updated index before we execute
-            # The duplicate detection in _execute_generation_job handles edge cases
-            # Note: advance_job_index() before add_generation_result() is safe because:
-            #   1. add_generation_result() resets job_index=0 on stage transition anyway
-            #   2. Duplicate detection in _execute_generation_job handles concurrent executions
+        This method:
+        1. Submits generation jobs up to parallelism limit
+        2. Tracks in-flight jobs and polls for completion
+        3. Transitions to analysis stage when all jobs complete
+        """
+        pipeline_id = pipeline.pipeline_id
+        progress = pipeline.progress
+        config = pipeline.config
+        
+        # Get parallelism settings from config (default: 2 concurrent for generation)
+        gen_config = config.get('generation', {})
+        gen_options = gen_config.get('options', {})
+        use_parallel = gen_options.get('parallel', True)  # Default to parallel
+        max_concurrent = gen_options.get('maxConcurrentTasks', 2) if use_parallel else 1
+        
+        # Initialize tracking for this pipeline (thread-safe)
+        with _pipeline_state_lock:
+            if pipeline_id not in self._in_flight_generation:
+                self._in_flight_generation[pipeline_id] = set()
+            if pipeline_id not in self._generation_futures:
+                self._generation_futures[pipeline_id] = {}
+        
+        # STEP 1: Check completed in-flight generation jobs
+        self._check_completed_generation_jobs(pipeline)
+        
+        # STEP 2: Submit new jobs up to parallelism limit
+        with _pipeline_state_lock:
+            in_flight_count = len(self._in_flight_generation.get(pipeline_id, set()))
+        
+        submitted_any = False
+        while in_flight_count < max_concurrent:
+            job = pipeline.get_next_job()
+            if job is None:
+                break  # No more jobs to submit
+            
+            if job['stage'] != 'generation':
+                # Shouldn't happen but safety check
+                break
+            
+            # Get job key for duplicate tracking
+            job_index = job.get('job_index', 0)
+            model_slug = job.get('model_slug')
+            template_slug = job.get('template_slug')
+            job_key = f"{job_index}:{model_slug}:{template_slug}"
+            
+            # Check if already in-flight (thread-safe)
+            with _pipeline_state_lock:
+                if job_key in self._in_flight_generation.get(pipeline_id, set()):
+                    self._log(
+                        "Skipping duplicate generation job %s (already in-flight)",
+                        job_key, level='debug'
+                    )
+                    # Advance index to avoid infinite loop
+                    pipeline.advance_job_index()
+                    db.session.commit()
+                    continue
+            
+            # Check if already completed (in results)
+            existing_results = progress.get('generation', {}).get('results', [])
+            already_done = any(
+                r.get('job_index') == job_index for r in existing_results
+            )
+            if already_done:
+                self._log(
+                    "Skipping generation job %d (already completed)",
+                    job_index, level='debug'
+                )
+                pipeline.advance_job_index()
+                db.session.commit()
+                continue
+            
+            # Advance job_index FIRST and commit to prevent race condition
             pipeline.advance_job_index()
             db.session.commit()
             
-            # Execute generation - may cause stage transition
-            stage_transitioned = self._execute_generation_job(pipeline, job)
+            # Submit generation job to thread pool
+            self._submit_generation_job(pipeline_id, job)
+            submitted_any = True
             
-            # Commit the generation results (and possibly stage transition)
+            with _pipeline_state_lock:
+                in_flight_count = len(self._in_flight_generation.get(pipeline_id, set()))
+        
+        # STEP 3: Check if all generation is complete
+        with _pipeline_state_lock:
+            in_flight_count = len(self._in_flight_generation.get(pipeline_id, set()))
+        
+        # Refresh progress from DB
+        db.session.refresh(pipeline)
+        progress = pipeline.progress
+        
+        total = progress.get('generation', {}).get('total', 0)
+        completed = progress.get('generation', {}).get('completed', 0)
+        failed = progress.get('generation', {}).get('failed', 0)
+        done = completed + failed
+        
+        if done >= total and in_flight_count == 0:
+            # All generation complete - transition to analysis
+            self._log(
+                "[PIPELINE %s] Generation complete: %d/%d succeeded, %d failed",
+                pipeline_id, completed, total, failed
+            )
+            progress['generation']['status'] = 'completed'
+            pipeline.progress = progress
+            pipeline.current_stage = 'analysis'
+            pipeline.current_job_index = 0
             db.session.commit()
+            
+            # Clean up generation tracking
+            with _pipeline_state_lock:
+                self._in_flight_generation.pop(pipeline_id, None)
+                self._generation_futures.pop(pipeline_id, None)
+        
+        if submitted_any or done > 0:
             self._emit_progress_update(pipeline)
+    
+    def _submit_generation_job(self, pipeline_id: str, job: Dict[str, Any]) -> None:
+        """Submit a generation job to the thread pool."""
+        job_index = job.get('job_index', 0)
+        model_slug = job.get('model_slug')
+        template_slug = job.get('template_slug')
+        job_key = f"{job_index}:{model_slug}:{template_slug}"
+        
+        self._log(
+            "[PIPELINE %s] Submitting generation job %d: %s + %s",
+            pipeline_id, job_index, model_slug, template_slug
+        )
+        
+        # Add to in-flight tracking
+        with _pipeline_state_lock:
+            self._in_flight_generation[pipeline_id].add(job_key)
+        
+        # Submit to thread pool
+        if self._generation_executor:
+            future = self._generation_executor.submit(
+                self._execute_generation_job_async,
+                pipeline_id,
+                job
+            )
+            with _pipeline_state_lock:
+                self._generation_futures[pipeline_id][job_key] = future
+        else:
+            # Fallback to synchronous execution
+            self._log(
+                "[PIPELINE %s] No executor, running generation synchronously",
+                pipeline_id, level='warning'
+            )
+            self._execute_generation_job_sync(pipeline_id, job)
+    
+    def _execute_generation_job_async(self, pipeline_id: str, job: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a generation job in a thread pool worker.
+        
+        This runs in a background thread and must handle its own Flask context.
+        """
+        job_index = job.get('job_index', 0)
+        model_slug: str = job.get('model_slug') or 'unknown'
+        template_slug: str = job.get('template_slug') or 'unknown'
+        job_key = f"{job_index}:{model_slug}:{template_slug}"
+        
+        result: Dict[str, Any] = {
+            'job_index': job_index,
+            'model_slug': model_slug,
+            'template_slug': template_slug,
+            'success': False,
+            'error': None,
+            'app_number': None,
+        }
+        
+        try:
+            # Push Flask app context for this thread
+            with (self._app.app_context() if self._app else _nullcontext()):
+                self._log(
+                    "[GEN WORKER] Starting job %d: %s + %s",
+                    job_index, model_slug, template_slug
+                )
+                
+                # Validate required parameters
+                if model_slug == 'unknown' or template_slug == 'unknown':
+                    result['error'] = "Missing model_slug or template_slug in job"
+                    return result
+                
+                # Get generation service
+                from app.services.generation import get_generation_service
+                svc = get_generation_service()
+                
+                # Get pipeline for batch_id
+                pipeline = PipelineExecution.query.filter_by(pipeline_id=pipeline_id).first()
+                if not pipeline:
+                    result['error'] = f"Pipeline {pipeline_id} not found"
+                    return result
+                
+                batch_id = pipeline.pipeline_id
+                gen_config = pipeline.config.get('generation', {})
+                use_auto_fix = gen_config.get('use_auto_fix', False)
+                
+                # Run generation
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    gen_result = loop.run_until_complete(
+                        svc.generate_full_app(
+                            model_slug=model_slug,
+                            app_num=None,  # Let service handle atomic allocation
+                            template_slug=template_slug,
+                            generate_frontend=True,
+                            generate_backend=True,
+                            batch_id=batch_id,
+                            parent_app_id=None,
+                            version=1,
+                            generation_mode='guarded',
+                            use_auto_fix=use_auto_fix,
+                        )
+                    )
+                finally:
+                    loop.close()
+                
+                # Extract results
+                app_number = gen_result.get('app_number') or gen_result.get('app_id') or gen_result.get('app_num')
+                result['success'] = gen_result.get('success', True)
+                result['app_number'] = app_number
+                
+                if not result['success']:
+                    result['error'] = '; '.join(gen_result.get('errors', ['Unknown error']))
+                
+                self._log(
+                    "[GEN WORKER] Completed job %d: %s app %s (success=%s)",
+                    job_index, model_slug, app_number, result['success']
+                )
+                
+        except Exception as e:
+            self._log(
+                "[GEN WORKER] Job %d failed: %s",
+                job_index, str(e), level='error'
+            )
+            result['error'] = str(e)
+        
+        return result
+    
+    def _execute_generation_job_sync(self, pipeline_id: str, job: Dict[str, Any]) -> None:
+        """Execute generation job synchronously (fallback)."""
+        result = self._execute_generation_job_async(pipeline_id, job)
+        self._record_generation_result(pipeline_id, job, result)
+    
+    def _check_completed_generation_jobs(self, pipeline: PipelineExecution) -> None:
+        """Check which in-flight generation jobs have completed and record results."""
+        pipeline_id = pipeline.pipeline_id
+        
+        with _pipeline_state_lock:
+            futures = dict(self._generation_futures.get(pipeline_id, {}))
+        
+        for job_key, future in futures.items():
+            if future.done():
+                try:
+                    result = future.result(timeout=0.1)
+                except Exception as e:
+                    result = {
+                        'job_index': int(job_key.split(':')[0]) if ':' in job_key else 0,
+                        'model_slug': job_key.split(':')[1] if ':' in job_key else 'unknown',
+                        'template_slug': job_key.split(':')[2] if ':' in job_key else 'unknown',
+                        'success': False,
+                        'error': str(e),
+                    }
+                
+                # Record result in pipeline
+                self._record_generation_result(pipeline_id, {'job_key': job_key}, result)
+                
+                # Remove from tracking
+                with _pipeline_state_lock:
+                    self._in_flight_generation.get(pipeline_id, set()).discard(job_key)
+                    self._generation_futures.get(pipeline_id, {}).pop(job_key, None)
+    
+    def _record_generation_result(self, pipeline_id: str, job: Dict[str, Any], result: Dict[str, Any]) -> None:
+        """Record a generation result in the pipeline progress."""
+        # Re-fetch pipeline with fresh DB session
+        pipeline = PipelineExecution.query.filter_by(pipeline_id=pipeline_id).first()
+        if not pipeline:
+            self._log("Cannot record result - pipeline %s not found", pipeline_id, level='error')
+            return
+        
+        record = {
+            'job_index': result.get('job_index'),
+            'model_slug': result.get('model_slug'),
+            'template_slug': result.get('template_slug'),
+            'app_number': result.get('app_number'),
+            'success': result.get('success', False),
+        }
+        if result.get('error'):
+            record['error'] = result['error']
+        
+        # Use pipeline method to add result (handles stage transition)
+        stage_transitioned = pipeline.add_generation_result(record)
+        
+        self._log(
+            "[PIPELINE %s] Recorded generation result for job %d: success=%s, stage_transitioned=%s",
+            pipeline_id, record.get('job_index', -1), record['success'], stage_transitioned
+        )
+        
+        db.session.commit()
+    
+    def _cleanup_generation_tracking(self, pipeline_id: str) -> None:
+        """Clean up generation tracking state for a pipeline.
+        
+        Called when a pipeline completes, fails, or is cancelled.
+        """
+        with _pipeline_state_lock:
+            # Cancel any pending generation futures
+            futures = self._generation_futures.pop(pipeline_id, {})
+            for job_key, future in futures.items():
+                if not future.done():
+                    future.cancel()
+                    self._log(
+                        "[CLEANUP] Cancelled generation job %s for pipeline %s",
+                        job_key, pipeline_id, level='debug'
+                    )
+            
+            # Clear in-flight tracking
+            self._in_flight_generation.pop(pipeline_id, None)
+        
+        self._log("[CLEANUP] Cleaned up generation tracking for pipeline %s", pipeline_id, level='debug')
     
     def _process_analysis_stage(self, pipeline: PipelineExecution):
         """Process analysis stage with parallel execution.
@@ -1643,6 +1955,12 @@ class PipelineExecutionService:
 
 # Null context manager for when app is None
 class _nullcontext:
+    """Null context manager for compatibility with Python 3.7-3.9.
+
+    Provides a no-op context manager that can be used as a substitute
+    for contextlib.nullcontext (which was added in Python 3.10).
+    Used when app_context is not needed.
+    """
     def __enter__(self):
         return None
     def __exit__(self, *args):

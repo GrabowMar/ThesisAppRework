@@ -1,3 +1,18 @@
+"""
+Dashboard Service
+=================
+
+Service layer for aggregating dashboard metrics, system health status, and recent activity.
+
+This module provides functions to build dashboard payloads including:
+- Summary statistics with temporal deltas (24h, 7d)
+- System component health checks (database, Redis, Celery, analyzers)
+- Recent activity feeds across multiple analysis types
+- Application and analysis summaries
+
+The service performs lightweight health checks with configurable timeouts to avoid
+blocking the dashboard UI on slow or unavailable components.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass

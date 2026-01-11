@@ -119,7 +119,12 @@ class PipelineExecution(db.Model):
         analysis_enabled = config.get('analysis', {}).get('enabled', True)
         analysis_options = config.get('analysis', {}).get('options', {})
         
-        # Parallelism configuration (default: 3 concurrent tasks)
+        # Generation parallelism configuration (default: 2 concurrent to avoid overwhelming LLM APIs)
+        gen_options = gen_config.get('options', {})
+        gen_use_parallel = gen_options.get('parallel', True)  # Default to parallel for efficiency
+        gen_max_concurrent = gen_options.get('maxConcurrentTasks', 2) if gen_use_parallel else 1
+        
+        # Analysis parallelism configuration (default: 3 concurrent tasks)
         max_concurrent = analysis_options.get('maxConcurrentTasks', 3)
         use_parallel = analysis_options.get('parallel', True)  # Default to parallel for batch efficiency
         
@@ -130,6 +135,9 @@ class PipelineExecution(db.Model):
                 'failed': 0,
                 'status': 'pending',
                 'results': [],
+                # Parallelism tracking for batch generation
+                'max_concurrent': gen_max_concurrent,
+                'in_flight': 0,  # Currently running jobs
             },
             'analysis': {
                 'total': total_generation_jobs if analysis_enabled else 0,

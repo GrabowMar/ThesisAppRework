@@ -1,3 +1,19 @@
+"""
+Documentation Service
+=====================
+
+Service for aggregating and organizing Markdown documentation files into a knowledge base.
+
+This module provides the DocsService class which:
+- Scans the docs/ directory for Markdown files
+- Categorizes documentation using pattern-based rules
+- Builds hierarchical documentation sections
+- Provides search functionality across documentation
+- Filters and organizes docs for UI presentation
+
+The service supports nested directory structures and automatically infers categories
+based on filename patterns.
+"""
 import os
 import re
 from dataclasses import dataclass

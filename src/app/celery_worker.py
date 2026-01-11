@@ -35,6 +35,9 @@ def make_celery(app):
             
     celery.conf.update(celery_config)
     
+    # Fix Celery 6.x deprecation warning for broker connection retry
+    celery.conf.broker_connection_retry_on_startup = True
+    
     # Ensure tasks are discovered
     celery.conf.imports = ('app.tasks',)
 

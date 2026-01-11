@@ -1,0 +1,20 @@
+[
+  {
+    "model": "test_model",
+    "app_number": 1,
+    "backend_port": 5100,
+    "frontend_port": 8100
+  },
+  {
+    "model": "test_model",
+    "app_number": 2,
+    "backend_port": 5101,
+    "frontend_port": 8101
+  },
+  {
+    "model": "test_model",
+    "app_number": 3,
+    "backend_port": 5102,
+    "frontend_port": 8102
+  }
+]

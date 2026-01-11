@@ -9,6 +9,16 @@ Handles WebSocket connections, task execution, and result processing.
 from app.utils.logging_config import get_logger
 from app.config.config_manager import get_config
 from app.services.service_locator import ServiceLocator
+from app.utils.circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerOpenError,
+    retry_with_backoff,
+    STATIC_ANALYZER_BREAKER,
+    DYNAMIC_ANALYZER_BREAKER,
+    PERFORMANCE_TESTER_BREAKER,
+    AI_ANALYZER_BREAKER,
+)
 import asyncio
 from copy import deepcopy
 import json
@@ -26,6 +36,16 @@ from ..constants import AnalysisType
 
 logger = get_logger('analyzer_integration')
 
+# Map analysis types to their circuit breakers
+_ANALYSIS_TYPE_BREAKERS: Dict[str, CircuitBreaker] = {
+    'static': STATIC_ANALYZER_BREAKER,
+    'security': STATIC_ANALYZER_BREAKER,  # Security uses static analyzer
+    'dynamic': DYNAMIC_ANALYZER_BREAKER,
+    'performance': PERFORMANCE_TESTER_BREAKER,
+    'ai': AI_ANALYZER_BREAKER,
+    'ai_review': AI_ANALYZER_BREAKER,
+}
+
 
 class AnalyzerServiceType(Enum):
     """Types of analyzer services."""
@@ -37,7 +57,12 @@ class AnalyzerServiceType(Enum):
 
 
 class ConnectionManager:
-    """Manages WebSocket connections to analyzer services."""
+    """Manages WebSocket connections to analyzer services with retry logic."""
+    
+    # Connection retry configuration
+    MAX_CONNECTION_RETRIES = 3
+    BASE_RETRY_DELAY = 1.0  # seconds
+    MAX_RETRY_DELAY = 10.0  # seconds
     
     def __init__(self):
         self.connections: Dict[str, Any] = {}
@@ -77,8 +102,43 @@ class ConnectionManager:
                 logger.debug(f"Removing stale or invalid connection for {service_key}")
                 del self.connections[service_key]
         
-        # Create new connection
-        return await self._create_connection(service_type)
+        # Create new connection with retry logic
+        return await self._create_connection_with_retry(service_type)
+    
+    async def _create_connection_with_retry(self, service_type: AnalyzerServiceType) -> Optional[Any]:
+        """Create WebSocket connection with exponential backoff retry."""
+        import time
+        
+        service_key = service_type.value
+        last_error = None
+        
+        for attempt in range(self.MAX_CONNECTION_RETRIES):
+            try:
+                connection = await self._create_connection(service_type)
+                if connection:
+                    if attempt > 0:
+                        logger.info(f"Successfully connected to {service_key} after {attempt + 1} attempts")
+                    return connection
+            except Exception as e:
+                last_error = e
+                
+            # Calculate exponential backoff delay
+            if attempt < self.MAX_CONNECTION_RETRIES - 1:
+                delay = min(
+                    self.BASE_RETRY_DELAY * (2 ** attempt),
+                    self.MAX_RETRY_DELAY
+                )
+                logger.warning(
+                    f"Connection attempt {attempt + 1}/{self.MAX_CONNECTION_RETRIES} to {service_key} failed. "
+                    f"Retrying in {delay:.1f}s..."
+                )
+                await asyncio.sleep(delay)
+        
+        logger.error(
+            f"Failed to connect to {service_key} analyzer after {self.MAX_CONNECTION_RETRIES} attempts. "
+            f"Last error: {last_error}"
+        )
+        return None
     
     async def _create_connection(self, service_type: AnalyzerServiceType) -> Optional[Any]:
         """Create new WebSocket connection."""
@@ -1203,7 +1263,49 @@ class AnalysisExecutor:
         return transformed
 
     def _run_analyzer_subprocess(self, analysis_type: str, model_slug: str, app_number: int, **kwargs) -> Dict[str, Any]:
-        """Run analyzer_manager.py via subprocess with proper UTF-8 handling."""
+        """Run analyzer_manager.py via subprocess with circuit breaker protection.
+        
+        Uses circuit breaker pattern to prevent cascading failures when analyzer
+        services are unavailable or experiencing issues.
+        """
+        # Get the appropriate circuit breaker for this analysis type
+        breaker = _ANALYSIS_TYPE_BREAKERS.get(analysis_type.lower())
+        
+        if breaker and not breaker.allow_request():
+            logger.warning(
+                f"Circuit breaker OPEN for {analysis_type} analyzer - rejecting request"
+            )
+            return {
+                'status': 'error',
+                'error': f'Circuit breaker open for {analysis_type} analyzer. Service may be unavailable.',
+                'error_type': 'circuit_breaker_open',
+                'circuit_breaker': breaker.get_status()
+            }
+        
+        try:
+            result = self._execute_analyzer_subprocess(analysis_type, model_slug, app_number, **kwargs)
+            
+            # Check if result indicates success
+            if result.get('status') != 'error':
+                if breaker:
+                    breaker.record_success()
+            else:
+                # Record failure if it's a service-level error (not just tool findings)
+                error_type = result.get('error_type', '')
+                if error_type in ('connection_error', 'timeout', 'subprocess_failed'):
+                    if breaker:
+                        breaker.record_failure()
+            
+            return result
+            
+        except Exception as e:
+            if breaker:
+                breaker.record_failure(e)
+            logger.error(f"Analyzer subprocess error (recorded in circuit breaker): {e}")
+            raise
+
+    def _execute_analyzer_subprocess(self, analysis_type: str, model_slug: str, app_number: int, **kwargs) -> Dict[str, Any]:
+        """Execute analyzer_manager.py subprocess with proper UTF-8 handling."""
         import subprocess
         import os
         import json
@@ -1283,6 +1385,7 @@ class AnalysisExecutor:
                 return {
                     'status': 'error',
                     'error': f"Analyzer process failed: {result.stderr}",
+                    'error_type': 'subprocess_failed',
                     'stdout': result.stdout,
                     'stderr': result.stderr
                 }
@@ -1511,8 +1614,24 @@ def get_available_toolsets(timeout_seconds: float = 3.0) -> Dict[str, list]:
             async def _check_all():
                 return await health_monitor.check_all_services()
 
-            # Run with overall timeout cap
-            results: Dict[str, Dict[str, Any]] = asyncio.run(asyncio.wait_for(_check_all(), timeout=timeout_seconds))  # type: ignore[arg-type]
+            # Handle running in both sync and async contexts (e.g., Celery workers)
+            results: Dict[str, Dict[str, Any]] = {}
+            try:
+                # Check if there's already a running event loop
+                loop = asyncio.get_running_loop()
+                # We're in an async context - can't use asyncio.run()
+                # Use cached values instead to avoid blocking
+                results = cached
+            except RuntimeError:
+                # No running loop - safe to create one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    results = loop.run_until_complete(
+                        asyncio.wait_for(_check_all(), timeout=timeout_seconds)
+                    )
+                finally:
+                    loop.close()
         except Exception:
             # Fall back to cached if async fails or times out
             results = cached

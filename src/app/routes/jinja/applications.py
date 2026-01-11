@@ -525,8 +525,8 @@ def generate_application():
     4. Creates the database record
     """
     try:
-        import asyncio
         from app.services.generation import get_generation_service
+        from app.utils.async_utils import run_async_safely
 
         model_slug = (request.form.get('model_slug') or '').strip()
         # app_number is now OPTIONAL - service will auto-allocate atomically
@@ -571,7 +571,7 @@ def generate_application():
 
         # Run actual generation (scaffolding + AI code generation)
         service = get_generation_service()
-        result = asyncio.run(service.generate_full_app(
+        result = run_async_safely(service.generate_full_app(
             model_slug=model_slug,
             app_num=app_number,  # None = auto-allocate atomically
             template_slug=template_slug,

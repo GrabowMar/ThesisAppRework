@@ -94,19 +94,14 @@ def isolated_app(app, isolation_id):
 
 @pytest.fixture(scope='function')
 def db_session(app, isolation_id):
-    """Create a fresh database session for a test with isolation."""
+    """Create a fresh database session for a test with isolation.
+    
+    Uses the Flask-SQLAlchemy session within an app context,
+    with transaction rollback for test isolation.
+    """
     with app.app_context():
-        connection = _db.engine.connect()
-        transaction = connection.begin()
-
-        # Bind session to isolated transaction
-        options = dict(bind=connection, binds={})
-        session = _db.create_scoped_session(options=options)
-        _db.session = session
-
-        yield session
-
-        # Rollback and cleanup
-        transaction.rollback()
-        connection.close()
-        session.remove()
+        # Use the existing session from Flask-SQLAlchemy
+        yield _db.session
+        
+        # Rollback any uncommitted changes
+        _db.session.rollback()

@@ -4,6 +4,9 @@ All code should import from here instead of hardcoding paths.
 """
 from __future__ import annotations
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]  # .../src/app -> project root
 SRC_DIR = PROJECT_ROOT / 'src'
@@ -72,8 +75,8 @@ _GENERATED_DIRS = [
 for _p in _GENERATED_DIRS:
     try:
         _p.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to create directory {_p}: {e}")
 
 __all__ = [
     'PROJECT_ROOT', 'SRC_DIR', 'MISC_DIR', 'REPORTS_DIR', 'RESULTS_DIR', 'PORT_CONFIG_JSON', 'MODELS_SUMMARY_JSON',

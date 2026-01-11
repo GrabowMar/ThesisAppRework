@@ -1,3 +1,15 @@
+"""
+Process Tracking Models
+=======================
+
+Database model for tracking running processes as a replacement for traditional PID files.
+
+This module provides the ProcessTracking model which manages:
+- Service process identification and lifecycle
+- Resource usage monitoring and heartbeat tracking
+- Process metadata and environment information
+- Service health and status tracking
+"""
 from __future__ import annotations
 import json
 from typing import Dict, Any

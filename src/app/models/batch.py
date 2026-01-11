@@ -1,3 +1,16 @@
+"""
+Batch Analysis Models
+=====================
+
+Database models for tracking batch analysis jobs that process multiple applications
+or analysis types in parallel.
+
+This module provides the BatchAnalysis model which manages:
+- Batch job status and progress tracking
+- Task completion and failure metrics
+- Model and application filtering
+- Configuration and metadata persistence
+"""
 from __future__ import annotations
 import json
 from typing import List

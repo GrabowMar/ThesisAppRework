@@ -78,7 +78,19 @@ services:
     # Grant access to Docker socket (socket is owned by root:root on most hosts)
     group_add:
       - "0"  # root group for Docker socket access
-    command: celery -A app.celery_worker.celery worker --loglevel=info
+    command: >
+      bash -c "
+        echo 'Waiting for database initialization...';
+        for i in {1..30}; do
+          if [ -f /app/src/data/thesis_app.db ]; then
+            echo 'Database found, starting Celery worker...';
+            break;
+          fi;
+          echo 'Waiting for DB file... ($$i/30)';
+          sleep 2;
+        done;
+        exec celery -A app.celery_worker.celery worker --loglevel=info
+      "
     environment:
       - FLASK_ENV=${FLASK_ENV:-production}
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
@@ -97,8 +109,16 @@ services:
       # Docker socket for celery worker (rw required for analysis tasks)
       - /var/run/docker.sock:/var/run/docker.sock:rw
     depends_on:
-      - redis
-      - web
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.celery_worker.celery inspect ping --timeout 10 | grep -q 'pong'"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 60s
     restart: unless-stopped
     networks:
       - thesis-network
