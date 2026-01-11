@@ -10,7 +10,7 @@ Run this script to verify:
 3. Proper task completion tracking
 
 Usage:
-    python test_reliability_fixes.py
+    python scripts/reliability/test_reliability_fixes.py
 """
 
 import requests

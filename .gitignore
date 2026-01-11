@@ -260,5 +260,4 @@ yarn.lock
 # NOTE: Don't use 'models/' as it conflicts with src/app/models/
 /models/
 nul
-nul
 .claude/
