@@ -8,6 +8,7 @@ from flask import Blueprint, jsonify, request, current_app
 from app.routes.api.common import api_error
 from app.engines.container_tool_registry import get_container_tool_registry
 from app.paths import PROJECT_ROOT
+from app.utils.analysis_utils import extract_issues_from_sarif
 from app.utils.tool_parsers import extract_tool_findings
 import logging
 import json
@@ -18,76 +19,6 @@ logger = logging.getLogger(__name__)
 
 # Create analysis blueprint
 analysis_bp = Blueprint('api_analysis', __name__)
-
-
-def _extract_issues_from_sarif(sarif_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Normalize SARIF run data into the issue format expected by the UI."""
-    extracted_issues = []
-    if not isinstance(sarif_data, dict):
-        return extracted_issues
-
-    level_map = {
-        'error': 'HIGH',
-        'warning': 'MEDIUM',
-        'note': 'LOW',
-        'none': 'INFO'
-    }
-
-    for run in sarif_data.get('runs', []):
-        rules_index = {}
-        driver = (run.get('tool') or {}).get('driver') or {}
-        for rule in driver.get('rules', []) or []:
-            if isinstance(rule, dict) and rule.get('id'):
-                rules_index[rule['id']] = rule
-
-        for result_item in run.get('results', []) or []:
-            if not isinstance(result_item, dict):
-                continue
-
-            rule_id = result_item.get('ruleId') or result_item.get('rule', {}).get('id')
-            message = (result_item.get('message') or {}).get('text') or ''
-            level = (result_item.get('level') or 'warning').lower()
-            severity = level_map.get(level, 'MEDIUM')
-
-            issue: Dict[str, Any] = {
-                'rule': rule_id,
-                'rule_id': rule_id,
-                'level': level,
-                'severity': severity,
-                'issue_severity': (result_item.get('properties', {}).get('issue_severity') or severity).upper(),
-                'message': message,
-                'tool': driver.get('name') or 'SARIF tool'
-            }
-
-            locations = result_item.get('locations') or []
-            if locations:
-                physical_loc = (locations[0] or {}).get('physicalLocation') or {}
-                artifact_loc = physical_loc.get('artifactLocation') or {}
-                region = physical_loc.get('region') or {}
-
-                uri = artifact_loc.get('uri') or ''
-                issue['file'] = uri.replace('file://', '')
-                issue['line'] = region.get('startLine')
-                issue['column'] = region.get('startColumn')
-
-            properties = result_item.get('properties') or {}
-            if 'issue_confidence' in properties:
-                issue['confidence'] = properties['issue_confidence']
-            if 'issue_severity' in properties:
-                issue['issue_severity'] = properties['issue_severity'].upper()
-            if 'cwe' in properties:
-                issue['cwe'] = properties['cwe']
-
-            if rule_id and rule_id in rules_index:
-                rule_meta = rules_index[rule_id]
-                if rule_meta.get('helpUri'):
-                    issue['help_url'] = rule_meta['helpUri']
-                if rule_meta.get('name'):
-                    issue['rule_name'] = rule_meta['name']
-
-            extracted_issues.append(issue)
-
-    return extracted_issues
 
 
 def _derive_tool_issues_from_service(service_type: Optional[str], tool_name: str, analysis_block: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -628,7 +559,7 @@ def get_tool_details(result_id: str, tool_name: str):
                     logger.warning(f"Failed to load SARIF file for {tool_name}: {e}")
 
             if sarif_data:
-                extracted_issues = _extract_issues_from_sarif(sarif_data)
+                extracted_issues = extract_issues_from_sarif(sarif_data)
                 tool_data['issues'] = extracted_issues
                 tool_data['total_issues'] = len(extracted_issues)
                 logger.info(f"Loaded {len(extracted_issues)} issues from SARIF data for {tool_name}")

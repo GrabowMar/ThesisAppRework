@@ -1398,21 +1398,28 @@ class ModelRankingsService:
         try:
             from ..models import ModelBenchmarkCache, db
             from ..utils.time import utc_now
-            from datetime import timezone
-            
+
             now = utc_now()
-            
-            # Get all cache entries and filter in Python to handle timezone inconsistencies
+            self.logger.debug(f"Cache check: now={now}, tzinfo={now.tzinfo}")
+
+            # SQLite stores datetimes as naive UTC, so normalize for comparison
+            if now.tzinfo is not None:
+                now = now.replace(tzinfo=None)
+                self.logger.debug(f"Stripped timezone: now={now}, tzinfo={now.tzinfo}")
+
+            # Get all cache entries and filter in Python
             all_entries = ModelBenchmarkCache.query.all()
-            
+
             valid_entries = []
             for entry in all_entries:
                 cache_expires = entry.cache_expires_at
                 if cache_expires is None:
                     continue
-                # Make cache_expires timezone-aware if it's naive
-                if cache_expires.tzinfo is None:
-                    cache_expires = cache_expires.replace(tzinfo=timezone.utc)
+
+                # Both should be naive UTC now
+                if cache_expires.tzinfo is not None:
+                    cache_expires = cache_expires.replace(tzinfo=None)
+
                 if cache_expires > now:
                     valid_entries.append(entry)
             
@@ -1421,13 +1428,15 @@ class ModelRankingsService:
                 key=lambda e: (e.coding_composite is not None, e.coding_composite or 0),
                 reverse=True
             )
-            
+
             if valid_entries:
-                self.logger.info(f"Retrieved {len(valid_entries)} models from cache")
+                self.logger.info(f"✓ Retrieved {len(valid_entries)} models from cache (expires after {self.cache_duration_hours}h)")
                 return [e.to_dict() for e in valid_entries]
-            
+            else:
+                self.logger.info(f"No valid cache entries found (total in DB: {len(all_entries)})")
+
         except Exception as e:
-            self.logger.warning(f"Error reading cache: {e}")
+            self.logger.error(f"Error reading cache: {e}", exc_info=True)
         
         return None
     
@@ -1436,8 +1445,12 @@ class ModelRankingsService:
         try:
             from ..models import ModelBenchmarkCache, db
             from ..utils.time import utc_now
-            
+
+            # Get expiry time and strip timezone for SQLite compatibility
             cache_expiry = utc_now() + timedelta(hours=self.cache_duration_hours)
+            # SQLite doesn't preserve timezone info, so store as naive UTC
+            if cache_expiry.tzinfo is not None:
+                cache_expiry = cache_expiry.replace(tzinfo=None)
             
             for entry in rankings:
                 model_id = entry.get('model_id')

@@ -36,7 +36,7 @@ import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any, List
-from concurrent.futures import ThreadPoolExecutor, as_completed, Future
+from concurrent.futures import ThreadPoolExecutor, Future
 
 from app.utils.logging_config import get_logger
 from app.config.config_manager import get_config
@@ -45,7 +45,7 @@ from app.models import AnalysisTask
 from app.constants import AnalysisStatus
 from app.services.result_summary_utils import summarise_findings
 from app.services.service_locator import ServiceLocator
-from app.utils.redis_isolation import get_redis_db_number, prefix_key, get_isolation_aware_redis_url
+from app.utils.redis_isolation import get_redis_db_number, get_isolation_aware_redis_url
 
 # Import shared utilities for consistent result handling
 from app.utils.sarif_utils import (

@@ -220,15 +220,13 @@ class PipelineExecution(db.Model):
         self.progress = progress
         return stage_transitioned
     
-    def add_analysis_task_id(self, task_id: str, success: bool = True, created_only: bool = True,
+    def add_analysis_task_id(self, task_id: str, success: bool = True,
                              model_slug: Optional[str] = None, app_number: Optional[int] = None) -> None:
         """Record an analysis task.
         
         Args:
             task_id: The task ID or error/skip marker
             success: Whether task creation succeeded (not execution)
-            created_only: If True, task was just created and not yet executed.
-                         Don't increment completed - let poll loop handle it.
             model_slug: Model slug for duplicate tracking
             app_number: App number for duplicate tracking
         """

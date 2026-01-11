@@ -19,10 +19,6 @@ from typing import Any, Dict, Optional, Tuple
 
 import websockets
 from websockets import serve
-try:
-    from websockets.server import WebSocketServerProtocol  # type: ignore
-except Exception:  # pragma: no cover
-    WebSocketServerProtocol = object  # fallback for type hints
 
 # Shared protocol utilities
 from shared.protocol import (

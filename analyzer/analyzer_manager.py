@@ -82,10 +82,6 @@ try:
         categorize_services as shared_categorize_services,
         determine_overall_status as shared_determine_status,
     )
-    from app.utils.result_builder import (
-        save_result_to_filesystem as shared_save_result,
-        build_universal_format as shared_build_universal,
-    )
     SHARED_UTILS_AVAILABLE = True
 except ImportError:
     SHARED_UTILS_AVAILABLE = False

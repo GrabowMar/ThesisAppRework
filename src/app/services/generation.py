@@ -67,7 +67,6 @@ from app.config.config_manager import get_config
 from app.extensions import db
 from app.models import GeneratedApplication, ModelCapability, AnalysisStatus, GenerationMode
 from app.utils.time import utc_now
-from app.utils.slug_utils import auto_correct_model_id
 
 logger = logging.getLogger(__name__)
 

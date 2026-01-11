@@ -25,7 +25,7 @@ import threading
 import time
 import logging
 import asyncio
-from concurrent.futures import ThreadPoolExecutor, Future, as_completed
+from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List, Set
 

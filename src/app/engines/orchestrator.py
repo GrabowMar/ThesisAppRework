@@ -562,9 +562,6 @@ class AnalysisOrchestrator:
             
             return result
             
-            
-            return result
-            
         except Exception as e:
             logger.exception(f"[ORCH] Error executing {service_name}: {e}")
             return {

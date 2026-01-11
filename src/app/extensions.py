@@ -203,7 +203,7 @@ def get_session():
                 logging.getLogger(__name__).warning(f"get_session could not push app context: {e}")
             return db.session
 
-        def __exit__(self, exc_type, exc_val, exc_tb):
+        def __exit__(self, exc_type, _exc_val, _exc_tb):
             try:
                 if exc_type:
                     db.session.rollback()

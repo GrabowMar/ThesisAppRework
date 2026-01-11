@@ -476,7 +476,7 @@ class Timer:
         self.start_time = datetime.now()
         return self
     
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, _exc_val, _exc_tb):
         self.end_time = datetime.now()
         if self.start_time:
             duration = (self.end_time - self.start_time).total_seconds()

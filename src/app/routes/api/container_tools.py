@@ -11,7 +11,11 @@ import logging
 import socket
 from typing import Dict
 
-from ...engines.container_tool_registry import get_container_tool_registry, AnalyzerContainer
+from ...engines.container_tool_registry import (
+    get_container_tool_registry,
+    AnalyzerContainer,
+    container_tool_detail_dict,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,40 +65,7 @@ def get_all_tools():
         # Convert to serializable format
         tools_data = []
         for tool_name, tool in all_tools.items():
-            tool_data = {
-                'name': tool.name,
-                'display_name': tool.display_name,
-                'description': tool.description,
-                'container': tool.container.value,
-                'tags': list(tool.tags),
-                'supported_languages': list(tool.supported_languages),
-                'available': tool.available,
-                'version': tool.version,
-                'cli_flags': tool.cli_flags,
-                'output_formats': tool.output_formats
-            }
-            
-            # Include config schema if available
-            if tool.config_schema:
-                tool_data['config_schema'] = {
-                    'parameters': [
-                        {
-                            'name': p.name,
-                            'type': p.type,
-                            'description': p.description,
-                            'default': p.default,
-                            'required': p.required,
-                            'options': p.options,
-                            'min_value': p.min_value,
-                            'max_value': p.max_value,
-                            'pattern': p.pattern
-                        }
-                        for p in tool.config_schema.parameters
-                    ],
-                    'examples': tool.config_schema.examples,
-                    'documentation_url': tool.config_schema.documentation_url
-                }
-            
+            tool_data = container_tool_detail_dict(tool, schema_as_dict=True)
             tools_data.append(tool_data)
         
         return jsonify({

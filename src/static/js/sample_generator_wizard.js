@@ -9,7 +9,8 @@
 
 // If already loaded, just re-initialize without adding more listeners
 if (window._sampleGeneratorWizardLoaded) {
-  if (document.getElementById('wizard-progress-bar')) {
+  // Only re-init if we're on the sample generator page (check for unique element)
+  if (document.getElementById('sample-generator-wizard')) {
     window.initSampleGeneratorWizard();
   }
   return;
@@ -41,8 +42,8 @@ let isGenerating = false;
 // ============================================================================
 
 function initSampleGeneratorWizard() {
-  // Only run if wizard elements exist
-  if (!document.getElementById('wizard-progress-bar')) return;
+  // Only run if we're on the sample generator page (check for unique container)
+  if (!document.getElementById('sample-generator-wizard')) return;
   
   console.log('[Wizard] Sample Generator Wizard initialized');
   
@@ -68,15 +69,15 @@ if (document.readyState === 'loading') {
 }
 
 document.body.addEventListener('htmx:afterSwap', function(evt) {
-  // Re-initialize if wizard content was swapped in
-  if (document.getElementById('wizard-progress-bar')) {
+  // Re-initialize if sample generator wizard content was swapped in
+  if (document.getElementById('sample-generator-wizard')) {
     initSampleGeneratorWizard();
   }
 });
 
 document.body.addEventListener('htmx:historyRestore', function(evt) {
-  // Re-initialize if wizard content was restored from history
-  if (document.getElementById('wizard-progress-bar')) {
+  // Re-initialize if sample generator wizard content was restored from history
+  if (document.getElementById('sample-generator-wizard')) {
     console.log('[Wizard] History restore detected, re-initializing...');
     initSampleGeneratorWizard();
   }

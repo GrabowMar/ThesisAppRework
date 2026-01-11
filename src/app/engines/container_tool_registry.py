@@ -60,6 +60,67 @@ class ContainerTool:
     output_formats: List[str] = field(default_factory=list)
 
 
+def tool_config_schema_to_dict(schema: ToolConfigSchema) -> Dict[str, Any]:
+    """Convert a ToolConfigSchema to a JSON-serializable dict."""
+    return {
+        'parameters': [
+            {
+                'name': p.name,
+                'type': p.type,
+                'description': p.description,
+                'default': p.default,
+                'required': p.required,
+                'options': p.options,
+                'min_value': p.min_value,
+                'max_value': p.max_value,
+                'pattern': p.pattern,
+            }
+            for p in (schema.parameters or [])
+        ],
+        'examples': schema.examples,
+        'documentation_url': schema.documentation_url,
+    }
+
+
+def container_tool_summary_dict(tool: ContainerTool) -> Dict[str, Any]:
+    """Serialize tool metadata for list-style views (no container/CLI/output fields)."""
+    return {
+        'name': tool.name,
+        'display_name': tool.display_name,
+        'description': tool.description,
+        'tags': list(tool.tags),
+        'supported_languages': list(tool.supported_languages),
+        'available': tool.available,
+        'version': tool.version,
+        'config_schema': tool.config_schema,
+    }
+
+
+def container_tool_detail_dict(tool: ContainerTool, *, schema_as_dict: bool = False) -> Dict[str, Any]:
+    """Serialize tool metadata for detail/API responses."""
+    data: Dict[str, Any] = {
+        'name': tool.name,
+        'display_name': tool.display_name,
+        'description': tool.description,
+        'container': tool.container.value,
+        'tags': list(tool.tags),
+        'supported_languages': list(tool.supported_languages),
+        'available': tool.available,
+        'version': tool.version,
+        'cli_flags': tool.cli_flags,
+        'output_formats': tool.output_formats,
+    }
+
+    if tool.config_schema:
+        data['config_schema'] = (
+            tool_config_schema_to_dict(tool.config_schema)
+            if schema_as_dict
+            else tool.config_schema
+        )
+
+    return data
+
+
 class ContainerToolRegistry:
     """Enhanced tool registry grouped by analyzer containers."""
     

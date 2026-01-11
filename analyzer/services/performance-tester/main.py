@@ -100,18 +100,24 @@ class PerformanceTester(BaseWSService):
             last_error = None
             
             for test_url in test_urls:
-                try:
-                    # Use shorter timeout for faster failure detection
-                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
-                        async with session.get(test_url) as response:
-                            if response.status < 500:  # Accept anything that's not a server error
-                                successful_url = test_url
-                                self.log.info(f"✓ Successfully connected to {test_url} (status: {response.status})")
-                                break
-                except Exception as e:
-                    last_error = str(e)
-                    self.log.debug(f"Failed to connect to {test_url}: {e}")
-                    continue
+                for attempt in range(max(1, int(num_requests))):
+                    try:
+                        # Use shorter timeout for faster failure detection
+                        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+                            async with session.get(test_url) as response:
+                                if response.status < 500:  # Accept anything that's not a server error
+                                    successful_url = test_url
+                                    self.log.info(
+                                        f"✓ Successfully connected to {test_url} (status: {response.status})"
+                                    )
+                                    break
+                    except Exception as e:
+                        last_error = str(e)
+                        self.log.debug(f"Failed to connect to {test_url} (attempt {attempt + 1}): {e}")
+                        continue
+
+                if successful_url:
+                    break
             
             if successful_url:
                 await self.send_progress('connected', f'Connected to: {successful_url}')

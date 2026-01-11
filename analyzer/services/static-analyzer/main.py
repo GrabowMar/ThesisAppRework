@@ -23,11 +23,11 @@ from analyzer.shared.path_utils import resolve_app_source_path
 from analyzer.shared.service_base import BaseWSService
 from analyzer.shared.tool_logger import ToolExecutionLogger
 from parsers import parse_tool_output
-from sarif_parsers import parse_tool_output_to_sarif, build_sarif_document, get_available_sarif_parsers, remap_ruff_sarif_severity
+from sarif_parsers import parse_tool_output_to_sarif, build_sarif_document, remap_ruff_sarif_severity
 
 # Import configuration loader
 try:
-    from analyzer.config_loader import get_config_loader, load_tool_config
+    from analyzer.config_loader import get_config_loader
     CONFIG_LOADER_AVAILABLE = True
 except ImportError:
     CONFIG_LOADER_AVAILABLE = False

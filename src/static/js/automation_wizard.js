@@ -224,7 +224,7 @@ function updateWizardProgress(step) {
     const totalConfigSteps = 3;
     const progress = Math.round((Math.min(step, totalConfigSteps) / totalConfigSteps) * 100);
     
-    const progressBar = document.getElementById('wizard-progress-bar');
+    const progressBar = document.getElementById('automation-wizard-progress-bar');
     const progressPercentage = document.getElementById('progress-percentage');
     
     if (progressBar) {
