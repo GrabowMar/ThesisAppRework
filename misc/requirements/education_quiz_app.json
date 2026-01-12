@@ -99,17 +99,17 @@
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total count, active count, etc.)",
-    "2. Table listing ALL items including inactive/deleted with status badges",
-    "3. Toggle button to activate/deactivate items",
-    "4. Checkbox selection for bulk operations (delete, status change)",
-    "5. Search and filter functionality"
+    "1. Admin dashboard summarizing the question bank (total questions, active, inactive)",
+    "2. Table listing ALL questions including inactive/soft-deleted with status badges",
+    "3. Toggle button to activate/deactivate questions",
+    "4. Bulk delete action for selected questions",
+    "5. Search and filter questions by text"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/admin/quizzes",
-      "description": "List ALL quizzes including inactive",
+      "path": "/api/admin/questions",
+      "description": "List ALL quiz questions including inactive",
       "request": null,
       "response": {
         "items": [],
@@ -118,8 +118,8 @@
     },
     {
       "method": "POST",
-      "path": "/api/admin/quizzes/:id/toggle",
-      "description": "Toggle quizze active status",
+      "path": "/api/admin/questions/:id/toggle",
+      "description": "Toggle question active status",
       "request": null,
       "response": {
         "id": 1,
@@ -128,8 +128,8 @@
     },
     {
       "method": "POST",
-      "path": "/api/admin/quizzes/bulk-delete",
-      "description": "Delete multiple quizzes",
+      "path": "/api/admin/questions/bulk-delete",
+      "description": "Delete multiple questions",
       "request": {
         "ids": [
           1,
@@ -144,7 +144,7 @@
     {
       "method": "GET",
       "path": "/api/admin/stats",
-      "description": "Get dashboard statistics",
+      "description": "Get question bank dashboard statistics",
       "request": null,
       "response": {
         "total": 0,

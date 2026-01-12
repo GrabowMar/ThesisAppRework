@@ -4,11 +4,11 @@
   "category": "API Integration",
   "description": "Get current weather for any city",
   "backend_requirements": [
-    "1. GET /api/weather?city=name - proxy to OpenWeatherMap API with your API key",
+    "1. GET /api/weather?city=name - proxy to OpenWeatherMap API using a configured API key",
     "2. Return JSON: {city, temperature, condition, humidity, feels_like, icon}",
-    "3. Cache results for 15 minutes per city to avoid API rate limits",
-    "4. Handle errors: 404 for city not found, 503 for API down, 400 for missing city param",
-    "5. Validate city parameter is not empty, sanitize input"
+    "3. Cache results for 15 minutes per city in SQLite (WeatherCacheEntry) to avoid API rate limits",
+    "4. Cache behavior: return cached result if not expired; otherwise refresh and update the cache row",
+    "5. Handle errors: 404 for city not found, 503 for API down, 400 for missing/blank city param"
   ],
   "frontend_requirements": [
     "1. City input field with search button",
@@ -43,29 +43,54 @@
       }
     }
   ],
-  "data_model": null,
+  "data_model": {
+    "name": "WeatherCacheEntry",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "city": "string (required, normalized)",
+      "temperature": "decimal",
+      "condition": "string",
+      "humidity": "integer",
+      "feels_like": "decimal",
+      "icon": "string",
+      "fetched_at": "datetime (when data was fetched)",
+      "expires_at": "datetime (fetched_at + 15 minutes)",
+      "is_active": "boolean (default: true, for soft delete)"
+    }
+  },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total count, active count, etc.)",
-    "2. Table listing ALL items including inactive/deleted with status badges",
-    "3. Toggle button to activate/deactivate items",
-    "4. Checkbox selection for bulk operations (delete, status change)",
-    "5. Search and filter functionality"
+    "1. Admin dashboard summarizing cache usage (total entries, active entries, expired entries)",
+    "2. Table listing cached cities with fetched_at/expires_at and an 'expired' badge",
+    "3. Toggle button to activate/deactivate cache entries",
+    "4. Bulk delete action to remove selected cache entries",
+    "5. Search/filter by city name and expired status"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/admin/locations",
-      "description": "List ALL locations including inactive",
+      "path": "/api/admin/weather-cache",
+      "description": "List ALL cached weather entries (including inactive)",
       "request": null,
       "response": {
-        "items": [],
-        "total": 0
+        "items": [
+          {
+            "id": 1,
+            "city": "string",
+            "temperature": 20.5,
+            "condition": "string",
+            "humidity": 65,
+            "fetched_at": "ISO8601",
+            "expires_at": "ISO8601",
+            "is_active": true
+          }
+        ],
+        "total": 1
       }
     },
     {
       "method": "POST",
-      "path": "/api/admin/locations/:id/toggle",
-      "description": "Toggle location active status",
+      "path": "/api/admin/weather-cache/:id/toggle",
+      "description": "Toggle cache entry active status",
       "request": null,
       "response": {
         "id": 1,
@@ -74,8 +99,8 @@
     },
     {
       "method": "POST",
-      "path": "/api/admin/locations/bulk-delete",
-      "description": "Delete multiple locations",
+      "path": "/api/admin/weather-cache/bulk-delete",
+      "description": "Delete multiple cache entries",
       "request": {
         "ids": [
           1,
@@ -90,12 +115,13 @@
     {
       "method": "GET",
       "path": "/api/admin/stats",
-      "description": "Get dashboard statistics",
+      "description": "Get cache dashboard statistics",
       "request": null,
       "response": {
-        "total": 0,
-        "active": 0,
-        "inactive": 0
+        "total": 10,
+        "active": 8,
+        "inactive": 2,
+        "expired": 3
       }
     }
   ]

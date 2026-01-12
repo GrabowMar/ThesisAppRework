@@ -8,7 +8,7 @@
     "2. Parse XML using Python's xml.etree or lxml",
     "3. Return {valid: true} or {valid: false, error: message, line: number}",
     "4. Handle syntax errors with helpful messages",
-    "5. Support large XML input (up to 1MB) with appropriate timeout"
+    "5. Store each validation attempt in SQLite (XmlValidation) with valid/error/line and an xml_preview (first 200 chars)"
   ],
   "frontend_requirements": [
     "1. Large textarea for XML input with monospace font",
@@ -26,8 +26,10 @@
         "xml": "string"
       },
       "response": {
+        "id": 1,
         "valid": true,
-        "errors": []
+        "error": null,
+        "line": null
       }
     },
     {
@@ -41,12 +43,23 @@
       }
     }
   ],
-  "data_model": null,
+  "data_model": {
+    "name": "XmlValidation",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "xml_preview": "text (required, first 200 chars)",
+      "valid": "boolean (required)",
+      "error": "text (nullable)",
+      "line": "integer (nullable)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)",
+      "is_active": "boolean (default: true, for soft delete)"
+    }
+  },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total count, active count, etc.)",
-    "2. Table listing ALL items including inactive/deleted with status badges",
-    "3. Toggle button to activate/deactivate items",
-    "4. Checkbox selection for bulk operations (delete, status change)",
+    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
+    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
+    "3. Toggle button to activate/deactivate entries",
+    "4. Bulk actions for selected entries (delete, status change)",
     "5. Search and filter functionality"
   ],
   "admin_api_endpoints": [

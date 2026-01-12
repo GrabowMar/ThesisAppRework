@@ -8,7 +8,7 @@
     "2. POST /api/base64/decode - accept {encoded: string}, return {text: string}",
     "3. Handle decode errors for invalid base64",
     "4. Support UTF-8 encoding",
-    "5. Return appropriate error messages with 400 status for invalid input"
+    "5. Store each conversion in SQLite (Conversion) with direction, input_preview, output_preview, created_at, is_active"
   ],
   "frontend_requirements": [
     "1. Two textareas: input and output",
@@ -51,12 +51,22 @@
       }
     }
   ],
-  "data_model": null,
+  "data_model": {
+    "name": "Conversion",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "direction": "string (required: 'encode' or 'decode')",
+      "input_preview": "text (required, first 200 chars)",
+      "output_preview": "text (required, first 200 chars)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)",
+      "is_active": "boolean (default: true, for soft delete)"
+    }
+  },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total count, active count, etc.)",
-    "2. Table listing ALL items including inactive/deleted with status badges",
-    "3. Toggle button to activate/deactivate items",
-    "4. Checkbox selection for bulk operations (delete, status change)",
+    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
+    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
+    "3. Toggle button to activate/deactivate entries",
+    "4. Bulk actions for selected entries (delete, status change)",
     "5. Search and filter functionality"
   ],
   "admin_api_endpoints": [

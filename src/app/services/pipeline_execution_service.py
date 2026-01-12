@@ -606,8 +606,18 @@ class PipelineExecutionService:
         # STEP 2: Submit new jobs up to parallelism limit
         with _pipeline_state_lock:
             in_flight_count = len(self._in_flight_generation.get(pipeline_id, set()))
+            in_flight_jobs = list(self._in_flight_generation.get(pipeline_id, set()))
         
         submitted_any = False
+        jobs_remaining = total - (completed + failed) - in_flight_count
+        
+        # Log when at capacity with jobs waiting
+        if in_flight_count >= max_concurrent and jobs_remaining > 0:
+            self._log(
+                "GEN", f"At capacity ({in_flight_count}/{max_concurrent}), waiting for in-flight jobs to complete. {jobs_remaining} jobs remaining to submit. In-flight: {in_flight_jobs}",
+                level='debug'
+            )
+        
         while in_flight_count < max_concurrent:
             job = pipeline.get_next_job()
             if job is None:
@@ -635,8 +645,10 @@ class PipelineExecutionService:
                     db.session.commit()
                     continue
             
-            # Check if already completed (in results)
-            existing_results = progress.get('generation', {}).get('results', [])
+            # Check if already completed (in results) - refresh from DB to get latest state
+            db.session.refresh(pipeline)
+            fresh_progress = pipeline.progress
+            existing_results = fresh_progress.get('generation', {}).get('results', [])
             already_done = any(
                 r.get('job_index') == job_index for r in existing_results
             )
@@ -649,13 +661,19 @@ class PipelineExecutionService:
                 db.session.commit()
                 continue
             
-            # Advance job_index FIRST and commit to prevent race condition
+            # Submit generation job to thread pool FIRST
+            # This adds to _in_flight_generation before we advance the index
+            self._submit_generation_job(pipeline_id, job)
+            
+            # Only advance job_index AFTER job is successfully added to in-flight tracking
+            # This prevents the index from advancing without the job being tracked
             pipeline.advance_job_index()
             db.session.commit()
-            
-            # Submit generation job to thread pool
-            self._submit_generation_job(pipeline_id, job)
             submitted_any = True
+            
+            self._log(
+                "GEN", f"Job {job_index} ({model_slug} + {template_slug}) submitted successfully, job_index now {pipeline.current_job_index}"
+            )
             
             with _pipeline_state_lock:
                 in_flight_count = len(self._in_flight_generation.get(pipeline_id, set()))

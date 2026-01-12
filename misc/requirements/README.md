@@ -5,8 +5,9 @@ This directory contains 30 **simple, single-feature application templates** for 
 ## Philosophy
 
 Templates are intentionally minimal:
-- **Backend**: 2 requirements max (API + storage)
-- **Frontend**: 3 requirements max (display + interaction + basic UX)
+- **Backend**: ~4-5 requirements (model + endpoints + validation + behavior)
+- **Frontend**: ~4-5 requirements (display + interaction + basic UX + states)
+- **Admin**: optional but recommended for guarded 4-query (list-all, toggle, bulk ops, stats)
 - **Single Purpose**: Each app does ONE thing well
 
 Examples:

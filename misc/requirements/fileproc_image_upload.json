@@ -6,7 +6,7 @@
   "backend_requirements": [
     "1. POST /api/images/upload - accept multipart/form-data image files",
     "2. Save images to /uploads directory with unique filenames",
-    "3. Image model: id, filename, original_name, upload_date, file_size",
+    "3. Image model: id, stored_filename, original_filename, size_bytes, uploaded_at, is_active",
     "4. GET /api/images - return list of images with URLs",
     "5. Validate file type (jpg, png, gif) and size (<5MB)"
   ],
@@ -76,25 +76,26 @@
     "name": "Image",
     "fields": {
       "id": "integer (primary key)",
-      "filename": "string (required, original name)",
-      "filepath": "string (server path)",
-      "size": "integer (bytes)",
+      "stored_filename": "string (required, unique filename on disk)",
+      "original_filename": "string (required, original upload filename)",
+      "filepath": "string (server filesystem path)",
+      "size_bytes": "integer (bytes)",
       "uploaded_at": "datetime (auto, ISO 8601 format in JSON)",
       "is_active": "boolean (default: true, for soft delete)"
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total count, active count, etc.)",
-    "2. Table listing ALL items including inactive/deleted with status badges",
-    "3. Toggle button to activate/deactivate items",
-    "4. Checkbox selection for bulk operations (delete, status change)",
+    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
+    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
+    "3. Toggle button to activate/deactivate entries",
+    "4. Bulk actions for selected entries (delete, status change)",
     "5. Search and filter functionality"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/admin/files",
-      "description": "List ALL files including inactive",
+      "path": "/api/admin/images",
+      "description": "List ALL images including inactive",
       "request": null,
       "response": {
         "items": [],
@@ -103,8 +104,8 @@
     },
     {
       "method": "POST",
-      "path": "/api/admin/files/:id/toggle",
-      "description": "Toggle file active status",
+      "path": "/api/admin/images/:id/toggle",
+      "description": "Toggle image active status",
       "request": null,
       "response": {
         "id": 1,
@@ -113,8 +114,8 @@
     },
     {
       "method": "POST",
-      "path": "/api/admin/files/bulk-delete",
-      "description": "Delete multiple files",
+      "path": "/api/admin/images/bulk-delete",
+      "description": "Delete multiple images",
       "request": {
         "ids": [
           1,

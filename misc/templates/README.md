@@ -46,11 +46,14 @@ The 2-query templates remain as a backward-compatible fallback.
 Templates have access to these variables from requirements JSON files:
 
 ### From Requirements
-- `app_id` - Unique identifier (e.g., "xsd_verifier")
+- `slug` - Unique identifier matching the requirements filename (e.g., "crud_todo_list")
 - `name` - Display name (e.g., "XSD Validator")
 - `description` - App description
 - `backend_requirements` - List of backend feature requirements
 - `frontend_requirements` - List of frontend UI requirements
+- `admin_requirements` - List of admin feature requirements (guarded Query 2/4)
+- `api_endpoints` - Pre-formatted endpoint list text for user endpoints
+- `admin_api_endpoints` - Pre-formatted endpoint list text for admin endpoints
 
 ### From Scaffolding
 - `scaffolding_app_py` - Backend app.py content

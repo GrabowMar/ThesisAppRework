@@ -772,8 +772,14 @@ Do NOT repeat the same mistakes. Focus on:
 
                 if not success:
                     error_obj = response_data.get("error", {})
-                    error_message = error_obj.get("message", "Unknown API error")
-                    error_code = error_obj.get("code", status_code)
+                    # Handle both dict errors (OpenRouter format) and string errors (internal errors)
+                    if isinstance(error_obj, dict):
+                        error_message = error_obj.get("message", "Unknown API error")
+                        error_code = error_obj.get("code", status_code)
+                    else:
+                        # error_obj is a string (e.g., from internal chat service errors)
+                        error_message = str(error_obj) if error_obj else "Unknown API error"
+                        error_code = status_code
                     
                     # Log detailed error for debugging
                     logger.error(f"OpenRouter API error for {openrouter_model}: {error_code} - {error_message}")

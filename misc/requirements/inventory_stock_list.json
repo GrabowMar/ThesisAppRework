@@ -107,17 +107,17 @@
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total count, active count, etc.)",
-    "2. Table listing ALL items including inactive/deleted with status badges",
-    "3. Toggle button to activate/deactivate items",
-    "4. Checkbox selection for bulk operations (delete, status change)",
+    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
+    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
+    "3. Toggle button to activate/deactivate entries",
+    "4. Bulk actions for selected entries (delete, status change)",
     "5. Search and filter functionality"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/admin/items",
-      "description": "List ALL items including inactive",
+      "path": "/api/admin/inventory",
+      "description": "List ALL inventory items including inactive",
       "request": null,
       "response": {
         "items": [],
@@ -126,8 +126,8 @@
     },
     {
       "method": "POST",
-      "path": "/api/admin/items/:id/toggle",
-      "description": "Toggle item active status",
+      "path": "/api/admin/inventory/:id/toggle",
+      "description": "Toggle inventory item active status",
       "request": null,
       "response": {
         "id": 1,
@@ -136,8 +136,8 @@
     },
     {
       "method": "POST",
-      "path": "/api/admin/items/bulk-delete",
-      "description": "Delete multiple items",
+      "path": "/api/admin/inventory/bulk-delete",
+      "description": "Delete multiple inventory items",
       "request": {
         "ids": [
           1,
