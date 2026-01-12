@@ -44,11 +44,15 @@ _pipeline_state_lock = threading.RLock()
 # CONFIGURATION CONSTANTS (formerly magic numbers)
 # =============================================================================
 
+# Feature flag for new generation system
+# Set USE_GENERATION_V2=true to use simplified generation_v2 package
+USE_GENERATION_V2: bool = os.environ.get('USE_GENERATION_V2', 'true').lower() in ('true', '1', 'yes')
+
 # Parallelism limits
-# NOTE: Lower concurrency reduces race condition window for duplicate task creation
-# The trade-off is slower pipeline execution, but safer operation
-DEFAULT_MAX_CONCURRENT_TASKS: int = 2  # Default parallel analysis tasks (reduced from 3)
-DEFAULT_MAX_CONCURRENT_GENERATION: int = 2  # Default parallel generation jobs
+# NOTE: Pipeline generation uses parallel execution like the original working implementation
+# The circuit breaker in rate_limiter.py protects against cascading API failures
+DEFAULT_MAX_CONCURRENT_TASKS: int = 2  # Default parallel analysis tasks
+DEFAULT_MAX_CONCURRENT_GENERATION: int = 2  # Parallel generation (original working config)
 MAX_ANALYSIS_WORKERS: int = 8  # ThreadPool size for analysis
 MAX_GENERATION_WORKERS: int = 4  # ThreadPool size for generation
 
@@ -60,6 +64,10 @@ GRACEFUL_SHUTDOWN_TIMEOUT: float = 10.0  # Max wait for in-flight tasks on shutd
 THREAD_JOIN_TIMEOUT: float = 5.0  # Max wait for thread join
 APP_CONTAINER_HEALTH_TIMEOUT: int = 60  # Max wait for app container health check (1 minute)
 APP_CONTAINER_START_TIMEOUT: int = 120  # Max wait for app container startup (2 minutes)
+
+# Generation orchestration delays
+GENERATION_BATCH_COOLDOWN: float = 5.0  # Seconds between generation batches (reduced)
+HEALING_RETRY_DELAY: float = 10.0  # Delay between healing retries
 
 # Service port mapping
 ANALYZER_SERVICE_PORTS: Dict[str, int] = {
@@ -587,11 +595,12 @@ class PipelineExecutionService:
             "GEN", f"Processing generation stage: job_index={pipeline.current_job_index}, total={total}, completed={completed}, failed={failed}"
         )
         
-        # Get parallelism settings from config (default: 2 concurrent for generation)
+        # Get parallelism settings from config
+        # NOTE: Parallel generation works fine - circuit breaker protects against API failures
         gen_config = config.get('generation', {})
         gen_options = gen_config.get('options', {})
-        use_parallel = gen_options.get('parallel', True)  # Default to parallel
-        max_concurrent = gen_options.get('maxConcurrentTasks', 2) if use_parallel else 1
+        use_parallel = gen_options.get('parallel', True)  # Default to parallel (original working config)
+        max_concurrent = gen_options.get('maxConcurrentTasks', DEFAULT_MAX_CONCURRENT_GENERATION) if use_parallel else 1
         
         # Initialize tracking for this pipeline (thread-safe)
         with _pipeline_state_lock:
@@ -618,6 +627,7 @@ class PipelineExecutionService:
                 level='debug'
             )
         
+        # Submit jobs up to max_concurrent limit
         while in_flight_count < max_concurrent:
             job = pipeline.get_next_job()
             if job is None:
@@ -696,6 +706,16 @@ class PipelineExecutionService:
             self._log(
                 "GEN", f"Generation complete for {pipeline_id}: {completed}/{total} succeeded, {failed} failed (total results: {len(progress.get('generation', {}).get('results', []))})"
             )
+            
+            # NEW: Apply batch cooldown before transitioning to analysis
+            # This gives the API time to stabilize after heavy generation workload
+            batch_cooldown = gen_options.get('batchCooldown', GENERATION_BATCH_COOLDOWN)
+            if batch_cooldown > 0:
+                self._log(
+                    "GEN", f"Applying {batch_cooldown}s cooldown before analysis stage"
+                )
+                time.sleep(batch_cooldown)
+            
             progress['generation']['status'] = 'completed'
             pipeline.progress = progress
             pipeline.current_stage = 'analysis'
@@ -717,7 +737,11 @@ class PipelineExecutionService:
             self._emit_progress_update(pipeline)
     
     def _submit_generation_job(self, pipeline_id: str, job: Dict[str, Any]) -> None:
-        """Submit a generation job to the thread pool."""
+        """Submit a generation job to the thread pool.
+        
+        Handles executor shutdown gracefully by recording failures and cleaning up
+        in-flight tracking if submission fails.
+        """
         job_index = job.get('job_index', 0)
         model_slug = job.get('model_slug')
         template_slug = job.get('template_slug')
@@ -727,19 +751,53 @@ class PipelineExecutionService:
             "GEN", f"Submitting generation job {job_index} for {pipeline_id}: {model_slug} + {template_slug}"
         )
         
-        # Add to in-flight tracking
+        # Check if service is shutting down before attempting submission
+        if self._shutting_down:
+            self._log(
+                "GEN", f"Service shutting down - skipping job {job_index} for {pipeline_id}",
+                level='warning'
+            )
+            # Record as failed due to shutdown
+            self._record_generation_result(pipeline_id, job, {
+                'job_index': job_index,
+                'model_slug': model_slug,
+                'template_slug': template_slug,
+                'success': False,
+                'error': 'Service shutdown in progress',
+            })
+            return
+        
+        # Add to in-flight tracking FIRST (before attempting submit)
         with _pipeline_state_lock:
             self._in_flight_generation[pipeline_id].add(job_key)
         
-        # Submit to thread pool
+        # Submit to thread pool with proper error handling
         if self._generation_executor:
-            future = self._generation_executor.submit(
-                self._execute_generation_job_async,
-                pipeline_id,
-                job
-            )
-            with _pipeline_state_lock:
-                self._generation_futures[pipeline_id][job_key] = future
+            try:
+                future = self._generation_executor.submit(
+                    self._execute_generation_job_async,
+                    pipeline_id,
+                    job
+                )
+                with _pipeline_state_lock:
+                    self._generation_futures[pipeline_id][job_key] = future
+            except RuntimeError as e:
+                # Handle "cannot schedule new futures after shutdown" error
+                self._log(
+                    "GEN", f"Failed to submit job {job_index} to executor: {e}",
+                    level='error'
+                )
+                # Clean up in-flight tracking since job wasn't actually submitted
+                with _pipeline_state_lock:
+                    self._in_flight_generation.get(pipeline_id, set()).discard(job_key)
+                # Record as failed
+                self._record_generation_result(pipeline_id, job, {
+                    'job_index': job_index,
+                    'model_slug': model_slug,
+                    'template_slug': template_slug,
+                    'success': False,
+                    'error': f'Executor submission failed: {e}',
+                })
         else:
             # Fallback to synchronous execution
             self._log(
@@ -752,6 +810,7 @@ class PipelineExecutionService:
         """Execute a generation job in a thread pool worker.
         
         This runs in a background thread and must handle its own Flask context.
+        Uses generation_v2 package when USE_GENERATION_V2=true (default).
         """
         job_index = job.get('job_index', 0)
         model_slug: str = job.get('model_slug') or 'unknown'
@@ -779,51 +838,27 @@ class PipelineExecutionService:
                     result['error'] = "Missing model_slug or template_slug in job"
                     return result
                 
-                # Get generation service
-                from app.services.generation import get_generation_service
-                svc = get_generation_service()
-                
-                # Get pipeline for batch_id
+                # Get pipeline for configuration
                 pipeline = PipelineExecution.query.filter_by(pipeline_id=pipeline_id).first()
                 if not pipeline:
                     result['error'] = f"Pipeline {pipeline_id} not found"
                     return result
                 
-                batch_id = pipeline.pipeline_id
                 gen_config = pipeline.config.get('generation', {})
-                use_auto_fix = gen_config.get('use_auto_fix', False)
+                gen_options = gen_config.get('options', {})
                 
-                # Run generation
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    gen_result = loop.run_until_complete(
-                        svc.generate_full_app(
-                            model_slug=model_slug,
-                            app_num=None,  # Let service handle atomic allocation
-                            template_slug=template_slug,
-                            generate_frontend=True,
-                            generate_backend=True,
-                            batch_id=batch_id,
-                            parent_app_id=None,
-                            version=1,
-                            generation_mode='guarded',
-                            use_auto_fix=use_auto_fix,
-                        )
+                # Use generation_v2 if enabled (default: true)
+                if USE_GENERATION_V2:
+                    result = self._execute_generation_v2(
+                        pipeline_id, job_index, model_slug, template_slug, gen_options, result
                     )
-                finally:
-                    loop.close()
-                
-                # Extract results
-                app_number = gen_result.get('app_number') or gen_result.get('app_id') or gen_result.get('app_num')
-                result['success'] = gen_result.get('success', True)
-                result['app_number'] = app_number
-                
-                if not result['success']:
-                    result['error'] = '; '.join(gen_result.get('errors', ['Unknown error']))
+                else:
+                    result = self._execute_generation_legacy(
+                        pipeline_id, job_index, model_slug, template_slug, pipeline, result
+                    )
                 
                 self._log(
-                    "GEN", f"Worker completed job {job_index}: {model_slug} app {app_number} (success={result['success']})"
+                    "GEN", f"Worker completed job {job_index}: {model_slug} app {result.get('app_number')} (success={result['success']})"
                 )
                 
         except Exception as e:
@@ -831,6 +866,100 @@ class PipelineExecutionService:
                 "GEN", f"Worker job {job_index} failed: {str(e)}", level='error'
             )
             result['error'] = str(e)
+        
+        return result
+    
+    def _execute_generation_v2(
+        self, 
+        pipeline_id: str, 
+        job_index: int, 
+        model_slug: str, 
+        template_slug: str,
+        gen_options: Dict[str, Any],
+        result: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute generation using the simplified generation_v2 package."""
+        from app.services.generation_v2 import (
+            GenerationConfig, GenerationMode, get_generation_service
+        )
+        
+        self._log("GEN", f"Using generation_v2 for job {job_index}")
+        
+        # Get generation service
+        svc = get_generation_service()
+        
+        # Build config
+        mode_str = gen_options.get('mode', 'guarded')
+        app_num = job_index + 1  # App numbers are 1-based
+        
+        config = GenerationConfig(
+            model_slug=model_slug,
+            template_slug=template_slug,
+            app_num=app_num,
+            mode=GenerationMode.GUARDED if mode_str == 'guarded' else GenerationMode.UNGUARDED,
+            max_tokens=gen_options.get('maxTokens', 32000),
+            temperature=gen_options.get('temperature', 0.3),
+        )
+        
+        # Run synchronous generation
+        gen_result = svc.generate(config)
+        
+        # Map result
+        result['success'] = gen_result.success
+        result['app_number'] = app_num
+        
+        if not gen_result.success:
+            result['error'] = gen_result.error_message
+        
+        return result
+    
+    def _execute_generation_legacy(
+        self, 
+        pipeline_id: str, 
+        job_index: int, 
+        model_slug: str, 
+        template_slug: str,
+        pipeline: PipelineExecution,
+        result: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute generation using the legacy generation.py service."""
+        from app.services.generation import get_generation_service
+        
+        self._log("GEN", f"Using legacy generation for job {job_index}")
+        
+        svc = get_generation_service()
+        batch_id = pipeline.pipeline_id
+        gen_config = pipeline.config.get('generation', {})
+        use_auto_fix = gen_config.get('use_auto_fix', False)
+        
+        # Run generation
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            gen_result = loop.run_until_complete(
+                svc.generate_full_app(
+                    model_slug=model_slug,
+                    app_num=None,  # Let service handle atomic allocation
+                    template_slug=template_slug,
+                    generate_frontend=True,
+                    generate_backend=True,
+                    batch_id=batch_id,
+                    parent_app_id=None,
+                    version=1,
+                    generation_mode='guarded',
+                    use_auto_fix=use_auto_fix,
+                )
+            )
+        finally:
+            loop.close()
+        
+        # Extract results
+        app_number = gen_result.get('app_number') or gen_result.get('app_id') or gen_result.get('app_num')
+        result['success'] = gen_result.get('success', True)
+        result['app_number'] = app_number
+        
+        if not result['success']:
+            result['error'] = '; '.join(gen_result.get('errors', ['Unknown error']))
         
         return result
     
@@ -866,6 +995,10 @@ class PipelineExecutionService:
                 with _pipeline_state_lock:
                     self._in_flight_generation.get(pipeline_id, set()).discard(job_key)
                     self._generation_futures.get(pipeline_id, {}).pop(job_key, None)
+                
+                self._log(
+                    "GEN", f"Completed job {job_key} removed from in-flight tracking. Success={result.get('success', False)}"
+                )
     
     def _record_generation_result(self, pipeline_id: str, job: Dict[str, Any], result: Dict[str, Any]) -> None:
         """Record a generation result in the pipeline progress."""

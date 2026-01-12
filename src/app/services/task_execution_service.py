@@ -1549,86 +1549,124 @@ class TaskExecutionService:
                 
             except (ImportError, OSError) as e:
                 self._log(f"Celery dispatch failed ({e}), falling back to ThreadPoolExecutor", level='warning')
+            except RuntimeError as e:
+                # Handle "cannot schedule new futures after shutdown" gracefully
+                error_str = str(e).lower()
+                if 'cannot schedule new futures' in error_str or 'interpreter shutdown' in error_str:
+                    self._log(
+                        f"Celery dispatch failed due to executor shutdown: {e}. Task will be retried.",
+                        level='warning'
+                    )
+                    # Return a retry status instead of failing the task
+                    return {
+                        'status': 'retry_scheduled',
+                        'error': str(e),
+                        'retry_count': 1,
+                        'retry_delay': 30,
+                        'payload': {'message': 'Executor shutdown detected, task will be retried'}
+                    }
+                raise  # Re-raise other RuntimeErrors
         
         # Fallback to ThreadPoolExecutor implementation
         # This runs if use_celery is False OR if Celery dispatch failed
         futures = []
         subtask_info = []
         
-        for subtask in subtasks:
-            service_name = subtask.service_name
+        try:
+            for subtask in subtasks:
+                service_name = subtask.service_name
+                
+                # Get tool names and tool_config from subtask metadata
+                metadata = subtask.get_metadata() if hasattr(subtask, 'get_metadata') else {}
+                custom_options = metadata.get('custom_options', {})
+                tool_names = custom_options.get('tool_names', [])
+                # Extract per-tool configuration from UI (tool_config) or standard path (tools_config)
+                tool_config = custom_options.get('tool_config') or custom_options.get('tools_config') or {}
+                
+                if not tool_names:
+                    continue
+                
+                if tool_config:
+                    self._log(f"Queuing parallel subtask for {service_name} with tools: {tool_names}, config keys: {list(tool_config.keys())}")
+                else:
+                    self._log(f"Queuing parallel subtask for {service_name} with tools: {tool_names}")
+                
+                # Submit subtask to thread pool
+                future = self.executor.submit(
+                    self._execute_subtask_in_thread,
+                    subtask.id,
+                    main_task.target_model,
+                    main_task.target_app_number,
+                    tool_names,
+                    service_name,
+                    tool_config
+                )
+                futures.append(future)
+                subtask_info.append({
+                    'service': service_name,
+                    'subtask_id': subtask.id,
+                    'subtask_task_id': subtask.task_id,
+                    'tools': tool_names
+                })
             
-            # Get tool names and tool_config from subtask metadata
-            metadata = subtask.get_metadata() if hasattr(subtask, 'get_metadata') else {}
-            custom_options = metadata.get('custom_options', {})
-            tool_names = custom_options.get('tool_names', [])
-            # Extract per-tool configuration from UI (tool_config) or standard path (tools_config)
-            tool_config = custom_options.get('tool_config') or custom_options.get('tools_config') or {}
+            if not futures:
+                error_msg = f"No parallel subtasks created for unified analysis of task {main_task_id}"
+                self._log(error_msg, level='error')
+                raise RuntimeError(error_msg)
             
-            if not tool_names:
-                continue
-            
-            if tool_config:
-                self._log(f"Queuing parallel subtask for {service_name} with tools: {tool_names}, config keys: {list(tool_config.keys())}")
-            else:
-                self._log(f"Queuing parallel subtask for {service_name} with tools: {tool_names}")
-            
-            # Submit subtask to thread pool
-            future = self.executor.submit(
-                self._execute_subtask_in_thread,
-                subtask.id,
-                main_task.target_model,
-                main_task.target_app_number,
-                tool_names,
-                service_name,
-                tool_config
+            self._log(
+                f"✅ Submitted {len(futures)} subtasks to ThreadPoolExecutor for task {main_task_id}. "
+                f"Services: {', '.join([info['service'] for info in subtask_info])}"
             )
-            futures.append(future)
-            subtask_info.append({
-                'service': service_name,
-                'subtask_id': subtask.id,
-                'subtask_task_id': subtask.task_id,
-                'tools': tool_names
-            })
-        
-        if not futures:
-            error_msg = f"No parallel subtasks created for unified analysis of task {main_task_id}"
-            self._log(error_msg, level='error')
-            raise RuntimeError(error_msg)
-        
-        self._log(
-            f"✅ Submitted {len(futures)} subtasks to ThreadPoolExecutor for task {main_task_id}. "
-            f"Services: {', '.join([info['service'] for info in subtask_info])}"
-        )
-        
-        # Mark main task as RUNNING and spawn aggregation thread
-        main_task.status = AnalysisStatus.RUNNING
-        main_task.progress_percentage = 30.0  # Subtasks started
-        db.session.commit()
-        
-        # Submit aggregation task that waits for all subtasks
-        aggregation_future = self.executor.submit(
-            self._aggregate_subtask_results_in_thread,
-            main_task_id,
-            futures,
-            subtask_info
-        )
-        
-        # Track the aggregation future
-        with self._futures_lock:
-            self._active_futures[main_task_id] = aggregation_future
-        
-        return {
-            'status': 'running',
-            'engine': 'unified',
-            'model_slug': main_task.target_model,
-            'app_number': main_task.target_app_number,
-            'payload': {
-                'message': 'Subtasks executing in parallel via ThreadPoolExecutor',
-                'services': [info['service'] for info in subtask_info],
-                'subtask_count': len(futures)
+            
+            # Mark main task as RUNNING and spawn aggregation thread
+            main_task.status = AnalysisStatus.RUNNING
+            main_task.progress_percentage = 30.0  # Subtasks started
+            db.session.commit()
+            
+            # Submit aggregation task that waits for all subtasks
+            aggregation_future = self.executor.submit(
+                self._aggregate_subtask_results_in_thread,
+                main_task_id,
+                futures,
+                subtask_info
+            )
+            
+            # Track the aggregation future
+            with self._futures_lock:
+                self._active_futures[main_task_id] = aggregation_future
+            
+            return {
+                'status': 'running',
+                'engine': 'unified',
+                'model_slug': main_task.target_model,
+                'app_number': main_task.target_app_number,
+                'payload': {
+                    'message': 'Subtasks executing in parallel via ThreadPoolExecutor',
+                    'services': [info['service'] for info in subtask_info],
+                    'subtask_count': len(futures)
+                }
             }
-        }
+        except RuntimeError as e:
+            # Handle "cannot schedule new futures after shutdown" gracefully
+            error_str = str(e).lower()
+            if 'cannot schedule new futures' in error_str or 'interpreter shutdown' in error_str:
+                self._log(
+                    f"ThreadPoolExecutor shutdown detected during subtask submission: {e}. Task will be retried.",
+                    level='warning'
+                )
+                # Reset task to PENDING for retry
+                main_task.status = AnalysisStatus.PENDING
+                main_task.progress_percentage = 0.0
+                db.session.commit()
+                return {
+                    'status': 'retry_scheduled',
+                    'error': str(e),
+                    'retry_count': 1,
+                    'retry_delay': 30,
+                    'payload': {'message': 'Executor shutdown detected, task will be retried'}
+                }
+            raise  # Re-raise other RuntimeErrors
     
     # ==========================================================================
     # TARGET APP CONTAINER MANAGEMENT (for dynamic/performance analysis)
@@ -2066,8 +2104,13 @@ class TaskExecutionService:
                 if raw_payload:
                     subtask.set_result_summary(raw_payload)
                 
+                # CRITICAL FIX: Ensure failed subtasks ALWAYS have an error message
                 if result.get('error'):
                     subtask.error_message = result['error']
+                elif not success and not subtask.error_message:
+                    # If task failed but no error message set, generate one from status
+                    error_reason = result.get('status', 'unknown')
+                    subtask.error_message = f'Analysis failed with status: {error_reason}'
                 
                 db.session.commit()
                 

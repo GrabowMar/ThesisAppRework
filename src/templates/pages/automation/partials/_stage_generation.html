@@ -115,7 +115,7 @@
                   <th class="w-1"></th>
                   <th class="text-nowrap">Model</th>
                   <th class="text-nowrap">Provider</th>
-                  <th>Display Name</th>
+                  <th>Price</th>
                 </tr>
               </thead>
               <tbody id="model-selection-tbody">
@@ -137,7 +137,7 @@
                     </td>
                     <td class="fw-semibold text-nowrap">{{ model.name }}</td>
                     <td><span class="badge bg-azure-lt text-azure">{{ model.provider|upper }}</span></td>
-                    <td class="small text-muted">{{ model.display_name }}</td>
+                    <td class="small text-muted">${{ "%.4f"|format(model.input_price * 1000000) }}/${{ "%.4f"|format(model.output_price * 1000000) }}/M</td>
                   </tr>
                 {% endfor %}
               </tbody>

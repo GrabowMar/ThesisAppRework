@@ -982,6 +982,40 @@ Your response must START with a code fence (```).
                                 f"{len(validation_errors)} error(s)"
                             )
                             
+                            # ========== CIRCUIT BREAKER CHECK ==========
+                            # Before attempting healing retry, check if API is healthy
+                            # This prevents wasting retries on an overloaded/unstable API
+                            try:
+                                from app.services.rate_limiter import get_openrouter_rate_limiter
+                                rate_limiter = get_openrouter_rate_limiter()
+                                stats = rate_limiter.get_stats()
+                                circuit_state = stats.get('circuit', {}).get('state', 'closed')
+                                
+                                if circuit_state == 'open':
+                                    retry_in = stats.get('circuit', {}).get('time_until_retry', 0)
+                                    logger.warning(
+                                        f"Circuit breaker OPEN - skipping healing retry {validation_attempt}. "
+                                        f"API unstable, will recover in {retry_in:.0f}s"
+                                    )
+                                    # Return what we have - don't waste more API calls
+                                    metrics['circuit_breaker_triggered'] = True
+                                    break  # Exit retry loop
+                                
+                                # Add extra delay between healing retries to reduce API load
+                                healing_delay = 10.0 + (validation_attempt * 5)  # 10s, 15s, 20s...
+                                logger.info(
+                                    f"Applying {healing_delay}s delay before healing retry "
+                                    f"(attempt {validation_attempt}/{max_validation_retries})"
+                                )
+                                await asyncio.sleep(healing_delay)
+                                
+                            except ImportError:
+                                # Rate limiter not available - continue without check
+                                pass
+                            except Exception as e:
+                                logger.debug(f"Circuit breaker check failed: {e}")
+                            # ========== END CIRCUIT BREAKER CHECK ==========
+                            
                             # Build healing context with specific errors to fix
                             error_list = "\n".join([f"  - {err}" for err in validation_errors[:10]])  # Limit to 10 errors
                             if len(validation_errors) > 10:

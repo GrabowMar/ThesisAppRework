@@ -210,3 +210,100 @@ class TestPipelineExecutionService:
         # Verify cleanup
         assert pipeline_id not in svc._in_flight_generation
         assert pipeline_id not in svc._generation_futures
+    
+    def test_submit_generation_job_during_shutdown(self, app):
+        """Verify jobs submitted during shutdown are recorded as failed."""
+        from app.services.pipeline_execution_service import PipelineExecutionService
+        
+        with app.app_context():
+            svc = PipelineExecutionService(poll_interval=1.0, app=app)
+            svc.start()
+            
+            # Set up tracking for a pipeline
+            pipeline_id = 'test_pipeline_shutdown'
+            svc._in_flight_generation[pipeline_id] = set()
+            svc._generation_futures[pipeline_id] = {}
+            
+            # Simulate shutdown in progress
+            svc._shutting_down = True
+            
+            job = {
+                'job_index': 0,
+                'model_slug': 'test_model',
+                'template_slug': 'test_template',
+            }
+            
+            # Mock _record_generation_result to track what was recorded
+            recorded_results = []
+            original_record = svc._record_generation_result
+            def mock_record(pipeline_id: str, job, result):
+                recorded_results.append(result)
+            svc._record_generation_result = mock_record  # type: ignore[method-assign]
+            
+            try:
+                # Submit job during shutdown
+                svc._submit_generation_job(pipeline_id, job)
+                
+                # Verify failure was recorded
+                assert len(recorded_results) == 1
+                assert recorded_results[0]['success'] is False
+                assert 'shutdown' in recorded_results[0]['error'].lower()
+                
+                # Verify job was NOT added to in-flight tracking
+                assert '0:test_model:test_template' not in svc._in_flight_generation.get(pipeline_id, set())
+            finally:
+                svc._shutting_down = False
+                svc._record_generation_result = original_record
+                svc.stop()
+    
+    def test_submit_generation_job_executor_error_cleanup(self, app):
+        """Verify in-flight tracking is cleaned up on executor submission error."""
+        from app.services.pipeline_execution_service import PipelineExecutionService
+        from unittest.mock import MagicMock
+        
+        with app.app_context():
+            svc = PipelineExecutionService(poll_interval=1.0, app=app)
+            svc.start()
+            
+            # Set up tracking for a pipeline
+            pipeline_id = 'test_pipeline_error'
+            svc._in_flight_generation[pipeline_id] = set()
+            svc._generation_futures[pipeline_id] = {}
+            
+            # Mock executor to raise RuntimeError
+            original_executor = svc._generation_executor
+            mock_executor = MagicMock()
+            mock_executor.submit.side_effect = RuntimeError("cannot schedule new futures after shutdown")
+            svc._generation_executor = mock_executor
+            
+            job = {
+                'job_index': 0,
+                'model_slug': 'test_model',
+                'template_slug': 'test_template',
+            }
+            
+            # Mock _record_generation_result
+            recorded_results = []
+            original_record = svc._record_generation_result
+            def mock_record(pipeline_id: str, job, result):
+                recorded_results.append(result)
+            svc._record_generation_result = mock_record  # type: ignore[method-assign]
+            
+            try:
+                # Submit job with failing executor
+                svc._submit_generation_job(pipeline_id, job)
+                
+                # Verify failure was recorded
+                assert len(recorded_results) == 1
+                assert recorded_results[0]['success'] is False
+                assert 'shutdown' in recorded_results[0]['error'].lower()
+                
+                # Verify job was cleaned up from in-flight tracking
+                assert '0:test_model:test_template' not in svc._in_flight_generation.get(pipeline_id, set())
+                
+                # Verify job was NOT added to futures (since submit failed)
+                assert '0:test_model:test_template' not in svc._generation_futures.get(pipeline_id, {})
+            finally:
+                svc._generation_executor = original_executor
+                svc._record_generation_result = original_record
+                svc.stop()

@@ -154,6 +154,8 @@ def _load_available_models() -> List[Dict[str, Any]]:
                 'name': m.model_name,
                 'provider': m.provider,
                 'display_name': f"{m.provider}/{m.model_name}",
+                'input_price': m.input_price_per_token or 0,
+                'output_price': m.output_price_per_token or 0,
             }
             for m in models
         ]
