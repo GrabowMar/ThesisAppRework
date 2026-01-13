@@ -90,8 +90,8 @@ def init_worker_process(**kwargs):
     Daemon threads (like PipelineExecutionService) don't survive fork, so we
     must start them AFTER fork in each worker process.
     
-    We use a simple file-based lock to ensure only ONE worker process runs
-    the pipeline service across all forked workers.
+    We use atomic file creation (O_CREAT|O_EXCL) to ensure only ONE worker 
+    starts the pipeline service. This is race-condition safe.
     """
     global _pipeline_service_started
     
@@ -105,25 +105,48 @@ def init_worker_process(**kwargs):
             return
         
         try:
-            import tempfile
-            import fcntl
+            import time
             
-            # Use file-based locking - more reliable than Redis for this use case
+            # Use atomic file creation - O_CREAT|O_EXCL fails if file exists
             lock_file_path = '/tmp/thesis_pipeline_service.lock'
             
-            # Try to acquire exclusive lock (non-blocking)
-            lock_file = open(lock_file_path, 'w')
+            # First, cleanup stale lock file (from previous container restart)
+            # Check if the PID in the lock file is still alive
             try:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except (IOError, OSError):
-                # Another worker has the lock
-                lock_file.close()
+                with open(lock_file_path, 'r') as f:
+                    old_pid = int(f.read().strip())
+                # Check if process is alive
+                try:
+                    os.kill(old_pid, 0)  # Signal 0 = just check existence
+                    # Process exists - lock is valid, we should not start
+                    return
+                except OSError:
+                    # Process dead - remove stale lock
+                    os.unlink(lock_file_path)
+            except (FileNotFoundError, ValueError):
+                # No lock file or invalid content - proceed
+                pass
+            
+            # Try to atomically create the lock file
+            try:
+                fd = os.open(lock_file_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+                os.write(fd, str(os.getpid()).encode())
+                os.close(fd)
+            except FileExistsError:
+                # Another worker beat us to it
                 return
             
-            # We got the lock - write our PID and start the pipeline service
-            lock_file.write(str(os.getpid()))
-            lock_file.flush()
-            # Don't close the file - keep lock held while process is alive
+            # Small delay to ensure we won the race (other workers check the PID)
+            time.sleep(0.1)
+            
+            # Verify we still own the lock
+            try:
+                with open(lock_file_path, 'r') as f:
+                    lock_pid = int(f.read().strip())
+                if lock_pid != os.getpid():
+                    return  # Someone else owns it now
+            except:
+                return  # Something went wrong, don't start
             
             # Start the pipeline service
             with flask_app.app_context():
