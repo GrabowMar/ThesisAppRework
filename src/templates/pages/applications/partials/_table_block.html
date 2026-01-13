@@ -358,7 +358,7 @@
 								{# Visit App Button - shown when running with ports (use frontend port) #}
 								{% if app.ports %}
 								{% set frontend_port = app.ports[1].host_port if app.ports|length > 1 else app.ports[0].host_port %}
-								<a href="http://localhost:{{ frontend_port }}" 
+								<a href="http://{{ request.host.split(':')[0] }}:{{ frontend_port }}" 
 									target="_blank" 
 									rel="noopener" 
 									class="btn btn-ghost-success" 

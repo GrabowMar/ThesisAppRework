@@ -43,7 +43,7 @@
           </a>
           {% if app.status == 'running' and app.ports %}
             {% set frontend_port = app.ports[1].host_port if app.ports|length > 1 else app.ports[0].host_port %}
-            <a href="http://localhost:{{ frontend_port }}" target="_blank" class="btn btn-sm btn-icon btn-ghost-success py-0" title="Open">
+            <a href="http://{{ request.host.split(':')[0] }}:{{ frontend_port }}" target="_blank" class="btn btn-sm btn-icon btn-ghost-success py-0" title="Open">
               <i class="fas fa-external-link-alt" style="font-size: 0.75rem;"></i>
             </a>
           {% endif %}

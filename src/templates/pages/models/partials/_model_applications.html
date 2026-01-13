@@ -61,7 +61,7 @@
                   <div class="btn-list flex-nowrap justify-content-end gap-1">
                     <a href="/applications/{{ model_slug }}/{{ app.app_number }}" class="btn btn-sm btn-ghost-primary py-0" title="View"><i class="fas fa-eye"></i></a>
                     {% if app.container_status == 'running' %}
-                      <button class="btn btn-sm btn-ghost-success py-0" onclick="window.open('http://localhost:{{ app.frontend_port or '3000' }}', '_blank')" title="Open"><i class="fas fa-external-link-alt"></i></button>
+                      <button class="btn btn-sm btn-ghost-success py-0" onclick="window.open('http://{{ request.host.split(':')[0] }}:{{ app.frontend_port or '3000' }}', '_blank')" title="Open"><i class="fas fa-external-link-alt"></i></button>
                     {% endif %}
                     <button class="btn btn-sm btn-ghost-cyan py-0" onclick="regenerateApplication('{{ model_slug }}', {{ app.app_number }})" title="Regenerate"><i class="fas fa-sync"></i></button>
                   </div>

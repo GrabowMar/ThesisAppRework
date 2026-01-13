@@ -31,7 +31,7 @@
                 <td class="text-end">
                   <div class="btn-list justify-content-end gap-1">
                     <button class="btn btn-sm btn-icon btn-ghost-primary py-0" data-port-action="copy" data-port="{{ port.host_port }}" title="Copy"><i class="fas fa-copy"></i></button>
-                    <a href="http://localhost:{{ port.host_port }}" target="_blank" class="btn btn-sm btn-icon btn-ghost-info py-0" title="Open"><i class="fas fa-external-link-alt"></i></a>
+                    <a href="http://{{ request.host.split(':')[0] }}:{{ port.host_port }}" target="_blank" class="btn btn-sm btn-icon btn-ghost-info py-0" title="Open"><i class="fas fa-external-link-alt"></i></a>
                   </div>
                 </td>
               </tr>
@@ -48,13 +48,14 @@
 (function(){
   const section = document.querySelector('[data-research-section="ports"]');
   if (!section) return;
+  const hostName = window.location.hostname;
   section.addEventListener('click', evt => {
     const btn = evt.target.closest('[data-port-action]');
     if (!btn) return;
     const action = btn.dataset.portAction;
     const port = btn.dataset.port;
     if (action === 'copy' && port) {
-      navigator.clipboard.writeText(`http://localhost:${port}`).then(() => showToast('Copied', 'success'));
+      navigator.clipboard.writeText(`http://${hostName}:${port}`).then(() => showToast('Copied', 'success'));
     }
     if (action === 'refresh') {
       htmx.ajax('GET', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/ports', { target: '#section-ports', swap: 'innerHTML' });
