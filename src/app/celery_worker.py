@@ -111,21 +111,41 @@ def init_worker_process(**kwargs):
             lock_file_path = '/tmp/thesis_pipeline_service.lock'
             
             # First, cleanup stale lock file (from previous container restart)
-            # Check if the PID in the lock file is still alive
+            # A lock is stale if:
+            # 1. The PID in the file is dead, OR
+            # 2. The lock file is older than 60 seconds (covers container restart where PIDs recycle)
             try:
+                lock_stat = os.stat(lock_file_path)
+                lock_age = time.time() - lock_stat.st_mtime
+                
                 with open(lock_file_path, 'r') as f:
                     old_pid = int(f.read().strip())
-                # Check if process is alive
-                try:
-                    os.kill(old_pid, 0)  # Signal 0 = just check existence
-                    # Process exists - lock is valid, we should not start
-                    return
-                except OSError:
-                    # Process dead - remove stale lock
+                
+                # If lock is very old (>60s), it's definitely stale (container restarted)
+                if lock_age > 60:
+                    print(f"[WORKER PID {os.getpid()}] Removing stale lock (age={lock_age:.1f}s)")
                     os.unlink(lock_file_path)
+                else:
+                    # Lock is recent - check if process is alive
+                    try:
+                        os.kill(old_pid, 0)  # Signal 0 = just check existence
+                        # Process exists and lock is recent - lock is valid
+                        return
+                    except OSError:
+                        # Process dead - remove stale lock
+                        print(f"[WORKER PID {os.getpid()}] Removing stale lock (PID {old_pid} dead)")
+                        os.unlink(lock_file_path)
+                        
             except (FileNotFoundError, ValueError):
                 # No lock file or invalid content - proceed
                 pass
+            except Exception as e:
+                # Error checking lock - try to remove it
+                print(f"[WORKER PID {os.getpid()}] Error checking lock file, attempting removal: {e}")
+                try:
+                    os.unlink(lock_file_path)
+                except:
+                    pass
             
             # Try to atomically create the lock file
             try:
