@@ -1274,10 +1274,13 @@ class AnalyzerManager:
                 }
             
             backend_port, frontend_port = ports
-            # Use host.docker.internal for container-to-container communication from analyzer containers
+            # Use Docker container names for container-to-container communication
+            # Container names follow pattern: {model_slug}-app{N}_backend/frontend
+            # The containers are on thesis-apps-network, same as analyzers
+            container_prefix = f"{normalized_slug}-app{app_number}"
             resolved_urls = [
-                f"http://host.docker.internal:{backend_port}", 
-                f"http://host.docker.internal:{frontend_port}"
+                f"http://{container_prefix}_backend:{backend_port}",
+                f"http://{container_prefix}_frontend:80"  # nginx serves on port 80 inside container
             ]
             logger.info(f"Target URLs for dynamic analysis: {resolved_urls}")
         
@@ -1321,10 +1324,13 @@ class AnalyzerManager:
                 }
             
             backend_port, frontend_port = ports
-            # Use host.docker.internal for container-to-container communication from analyzer containers
+            # Use Docker container names for container-to-container communication
+            # Container names follow pattern: {model_slug}-app{N}_backend/frontend
+            # The containers are on thesis-apps-network, same as analyzers
+            container_prefix = f"{normalized_slug}-app{app_number}"
             urls = [
-                f"http://host.docker.internal:{backend_port}", 
-                f"http://host.docker.internal:{frontend_port}"
+                f"http://{container_prefix}_backend:{backend_port}",
+                f"http://{container_prefix}_frontend:80"  # nginx serves on port 80 inside container
             ]
             logger.info(f"Target URLs for performance test: {urls}")
         

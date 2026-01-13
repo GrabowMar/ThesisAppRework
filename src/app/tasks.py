@@ -427,10 +427,13 @@ def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, too
             ports = analyzer_mgr._resolve_app_ports(model_slug, app_number)
             if ports:
                 backend_port, frontend_port = ports
-                # Use host.docker.internal for container-to-container communication
+                # Use Docker container names for container-to-container communication
+                # Container names follow pattern: {model_slug}-app{N}_backend/frontend
+                # The containers are on thesis-apps-network, same as analyzers
+                container_prefix = f"{model_slug}-app{app_number}"
                 target_urls = [
-                    f"http://host.docker.internal:{backend_port}",
-                    f"http://host.docker.internal:{frontend_port}"
+                    f"http://{container_prefix}_backend:{backend_port}",
+                    f"http://{container_prefix}_frontend:80"  # nginx serves on port 80 inside container
                 ]
                 logger.info(f"[CELERY] Resolved target URLs for {service_name}: {target_urls}")
             else:
