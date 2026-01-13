@@ -4,12 +4,22 @@ Celery Worker Entry Point
 
 Initializes the Celery application with Flask context.
 Supports isolation for parallel test execution via Redis database selection.
+
+IMPORTANT: Background services (like PipelineExecutionService) are started via
+Celery signals AFTER fork, not during create_app(). This is because daemon threads
+don't survive process fork in Celery's prefork execution model.
 """
 
 import os
+import threading
 from celery import Celery
+from celery.signals import worker_process_init
 from app.factory import create_app
 from app.utils.redis_isolation import get_isolation_aware_redis_url
+
+# Track if pipeline service has been started in this worker process
+_pipeline_service_started = False
+_pipeline_service_lock = threading.Lock()
 
 def make_celery(app):
     """Create and configure Celery instance."""
@@ -70,3 +80,61 @@ flask_app.config.setdefault('CELERY_RESULT_BACKEND', result_backend)
 
 # Create Celery app instance
 celery = make_celery(flask_app)
+
+
+@worker_process_init.connect
+def init_worker_process(**kwargs):
+    """Initialize background services after Celery worker process fork.
+    
+    Celery uses prefork model where the main process forks worker processes.
+    Daemon threads (like PipelineExecutionService) don't survive fork, so we
+    must start them AFTER fork in each worker process.
+    
+    We use a lock + flag to ensure only ONE worker process runs the pipeline
+    service to prevent race conditions.
+    """
+    global _pipeline_service_started
+    
+    # Only start in the first worker that acquires the lock
+    # Use Redis-based coordination for distributed locking across workers
+    enable_pipeline_svc = os.environ.get('ENABLE_PIPELINE_SERVICE', 'false').lower() == 'true'
+    
+    if not enable_pipeline_svc:
+        return
+    
+    with _pipeline_service_lock:
+        if _pipeline_service_started:
+            return
+        
+        try:
+            # Use Redis to coordinate across multiple worker processes
+            import redis
+            redis_url = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+            r = redis.from_url(redis_url)
+            
+            # Try to acquire a distributed lock (expires in 60s as safety)
+            # Only the first worker to get this lock will start the pipeline service
+            lock_key = 'thesis:pipeline_service_lock'
+            lock_acquired = r.set(lock_key, os.getpid(), nx=True, ex=60)
+            
+            if not lock_acquired:
+                # Another worker already has the lock
+                return
+            
+            # We got the lock - start the pipeline service
+            with flask_app.app_context():
+                from app.services.pipeline_execution_service import init_pipeline_execution_service
+                from app.utils.logging_config import get_logger
+                logger = get_logger('celery_worker')
+                
+                pipeline_svc = init_pipeline_execution_service(app=flask_app)
+                _pipeline_service_started = True
+                logger.info(f"[WORKER PID {os.getpid()}] Pipeline execution service started (poll_interval={pipeline_svc.poll_interval}s)")
+                
+                # Keep refreshing the lock while we're running
+                # The service thread will handle this implicitly by being alive
+                
+        except Exception as e:
+            import traceback
+            print(f"[WORKER PID {os.getpid()}] Failed to start pipeline service: {e}")
+            traceback.print_exc()

@@ -509,17 +509,31 @@ def create_app(config_name: str = 'default') -> Flask:
             logger.warning("Web app analyses will NOT generate result files until service is started")
         
         # Initialize pipeline execution service for automation pipelines
-        # CRITICAL: Only ONE container should run this service to prevent race conditions
-        # In Docker: celery-worker runs pipeline processing, web container only serves HTTP
-        # Set ENABLE_PIPELINE_SERVICE=false in web container to disable
+        # CRITICAL: Only ONE process should run this service to prevent race conditions
+        # 
+        # When running under Celery (prefork mode), the pipeline service is started
+        # via Celery signals AFTER fork, not here. This is because daemon threads
+        # don't survive process fork.
+        #
+        # When running standalone (dev mode, gunicorn without Celery), start here.
+        # 
+        # Detection: IN_DOCKER + celery in command line = defer to Celery signal
         enable_pipeline_svc = os.environ.get('ENABLE_PIPELINE_SERVICE', 'true').lower() == 'true'
-        if enable_pipeline_svc:
+        in_celery_worker = 'celery' in ' '.join(sys.argv).lower() if 'sys' in dir() else False
+        
+        # Import sys if needed
+        import sys
+        in_celery_worker = 'celery' in ' '.join(sys.argv).lower()
+        
+        if enable_pipeline_svc and not in_celery_worker:
             try:  # pragma: no cover - wiring
                 from app.services.pipeline_execution_service import init_pipeline_execution_service
                 pipeline_svc = init_pipeline_execution_service(app=app)
                 logger.info(f"Pipeline execution service initialized (poll_interval={pipeline_svc.poll_interval}s)")
             except Exception as _pipeline_err:  # pragma: no cover
                 logger.warning(f"Pipeline execution service not started: {_pipeline_err}")
+        elif in_celery_worker:
+            logger.info("Pipeline service deferred to Celery worker_process_init signal (prefork mode)")
         else:
             logger.info("Pipeline execution service disabled (ENABLE_PIPELINE_SERVICE=false)")
         
