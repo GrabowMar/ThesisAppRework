@@ -51,9 +51,11 @@ USE_GENERATION_V2: bool = os.environ.get('USE_GENERATION_V2', 'true').lower() in
 # Parallelism limits
 # NOTE: Pipeline generation uses parallel execution like the original working implementation
 # The circuit breaker in rate_limiter.py protects against cascading API failures
-DEFAULT_MAX_CONCURRENT_TASKS: int = 2  # Default parallel analysis tasks
+# IMPORTANT: Analysis is sequential (1 at a time) because each app needs containers built/started
+# and running multiple container builds in parallel can overwhelm the server
+DEFAULT_MAX_CONCURRENT_TASKS: int = 1  # Sequential analysis (container builds are heavy)
 DEFAULT_MAX_CONCURRENT_GENERATION: int = 2  # Parallel generation (original working config)
-MAX_ANALYSIS_WORKERS: int = 8  # ThreadPool size for analysis
+MAX_ANALYSIS_WORKERS: int = 4  # ThreadPool size for analysis
 MAX_GENERATION_WORKERS: int = 4  # ThreadPool size for generation
 
 # Timing constants (seconds)
@@ -62,8 +64,8 @@ CONTAINER_STABILIZATION_DELAY: float = 5.0  # Wait after container startup
 CONTAINER_RETRY_DELAY: float = 30.0  # Wait before retrying container startup
 GRACEFUL_SHUTDOWN_TIMEOUT: float = 10.0  # Max wait for in-flight tasks on shutdown
 THREAD_JOIN_TIMEOUT: float = 5.0  # Max wait for thread join
-APP_CONTAINER_HEALTH_TIMEOUT: int = 60  # Max wait for app container health check (1 minute)
-APP_CONTAINER_START_TIMEOUT: int = 120  # Max wait for app container startup (2 minutes)
+APP_CONTAINER_HEALTH_TIMEOUT: int = 180  # Max wait for app container health check (3 minutes for slow builds)
+APP_CONTAINER_START_TIMEOUT: int = 300  # Max wait for app container startup (5 minutes)
 
 # Generation orchestration delays
 GENERATION_BATCH_COOLDOWN: float = 5.0  # Seconds between generation batches (reduced)
@@ -1052,8 +1054,11 @@ class PipelineExecutionService:
         
         This method:
         1. Clears health cache for new pipelines (prevents stale health data)
-        2. Starts containers if needed (first time in analysis stage)
-        3. Submits analysis tasks up to parallelism limit
+        2. Starts analyzer containers if needed (first time in analysis stage)
+        3. Submits analysis tasks SEQUENTIALLY (one at a time) because:
+           - Each app needs its Docker containers built and started
+           - Parallel builds can overwhelm the server
+           - Apps may have port conflicts if started simultaneously
         4. Tracks in-flight tasks and polls for completion
         5. Transitions to done stage when all tasks complete
         """
@@ -1062,8 +1067,12 @@ class PipelineExecutionService:
         config = pipeline.config
         
         # Get parallelism settings
+        # IMPORTANT: Analysis runs sequentially (max_concurrent=1) because each app needs
+        # container builds which are resource-intensive. User config is capped at 1.
         analysis_opts = config.get('analysis', {}).get('options', {})
-        max_concurrent = progress.get('analysis', {}).get('max_concurrent', DEFAULT_MAX_CONCURRENT_TASKS)
+        user_max_concurrent = progress.get('analysis', {}).get('max_concurrent', DEFAULT_MAX_CONCURRENT_TASKS)
+        # Force sequential for analysis (container builds are heavy)
+        max_concurrent = min(user_max_concurrent, 1)
         
         # Initialize tracking for this pipeline (thread-safe)
         with _pipeline_state_lock:
@@ -1072,9 +1081,9 @@ class PipelineExecutionService:
                 # FIX: Clear health cache when starting a new pipeline's analysis
                 # This prevents stale health data from previous pipelines affecting this one
                 self._invalidate_health_cache()
-                self._log("ANAL", "Cleared health cache for new pipeline analysis stage")
+                self._log("ANAL", f"Cleared health cache for new pipeline analysis stage (max_concurrent={max_concurrent})")
         
-        # STEP 1: Start containers if this is the first analysis job
+        # STEP 1: Start analyzer containers if this is the first analysis job
         # NOTE: Analyzer container startup is a "soft requirement" - we warn but continue
         # Individual tasks will naturally succeed (static analysis) or skip (dynamic/perf)
         # based on container availability. This prevents pipeline abort on transient failures.
