@@ -27,6 +27,9 @@ services:
       - USE_CELERY_ANALYSIS=true
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      # Disable pipeline service in web container - celery-worker handles pipelines
+      # This prevents race conditions from two processes polling the same pipeline
+      - ENABLE_PIPELINE_SERVICE=false
       # Authentication & Security
       - REGISTRATION_ENABLED=${REGISTRATION_ENABLED:-false}
       - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}
@@ -103,6 +106,8 @@ services:
       - PYTHONUNBUFFERED=1
       # Docker environment flag for inter-container communication
       - IN_DOCKER=true
+      # Enable pipeline service in celery-worker - this is the ONLY container that should process pipelines
+      - ENABLE_PIPELINE_SERVICE=true
     volumes:
       - ./generated/apps:/app/generated/apps
       - ./generated/raw:/app/generated/raw

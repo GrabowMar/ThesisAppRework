@@ -509,12 +509,19 @@ def create_app(config_name: str = 'default') -> Flask:
             logger.warning("Web app analyses will NOT generate result files until service is started")
         
         # Initialize pipeline execution service for automation pipelines
-        try:  # pragma: no cover - wiring
-            from app.services.pipeline_execution_service import init_pipeline_execution_service
-            pipeline_svc = init_pipeline_execution_service(app=app)
-            logger.info(f"Pipeline execution service initialized (poll_interval={pipeline_svc.poll_interval}s)")
-        except Exception as _pipeline_err:  # pragma: no cover
-            logger.warning(f"Pipeline execution service not started: {_pipeline_err}")
+        # CRITICAL: Only ONE container should run this service to prevent race conditions
+        # In Docker: celery-worker runs pipeline processing, web container only serves HTTP
+        # Set ENABLE_PIPELINE_SERVICE=false in web container to disable
+        enable_pipeline_svc = os.environ.get('ENABLE_PIPELINE_SERVICE', 'true').lower() == 'true'
+        if enable_pipeline_svc:
+            try:  # pragma: no cover - wiring
+                from app.services.pipeline_execution_service import init_pipeline_execution_service
+                pipeline_svc = init_pipeline_execution_service(app=app)
+                logger.info(f"Pipeline execution service initialized (poll_interval={pipeline_svc.poll_interval}s)")
+            except Exception as _pipeline_err:  # pragma: no cover
+                logger.warning(f"Pipeline execution service not started: {_pipeline_err}")
+        else:
+            logger.info("Pipeline execution service disabled (ENABLE_PIPELINE_SERVICE=false)")
         
         # Validate and fix model IDs on startup (provider namespace normalization, case fixes)
         try:  # pragma: no cover - maintenance task
