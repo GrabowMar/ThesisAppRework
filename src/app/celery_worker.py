@@ -90,13 +90,11 @@ def init_worker_process(**kwargs):
     Daemon threads (like PipelineExecutionService) don't survive fork, so we
     must start them AFTER fork in each worker process.
     
-    We use a lock + flag to ensure only ONE worker process runs the pipeline
-    service to prevent race conditions.
+    We use a simple file-based lock to ensure only ONE worker process runs
+    the pipeline service across all forked workers.
     """
     global _pipeline_service_started
     
-    # Only start in the first worker that acquires the lock
-    # Use Redis-based coordination for distributed locking across workers
     enable_pipeline_svc = os.environ.get('ENABLE_PIPELINE_SERVICE', 'false').lower() == 'true'
     
     if not enable_pipeline_svc:
@@ -107,21 +105,27 @@ def init_worker_process(**kwargs):
             return
         
         try:
-            # Use Redis to coordinate across multiple worker processes
-            import redis
-            redis_url = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-            r = redis.from_url(redis_url)
+            import tempfile
+            import fcntl
             
-            # Try to acquire a distributed lock (expires in 60s as safety)
-            # Only the first worker to get this lock will start the pipeline service
-            lock_key = 'thesis:pipeline_service_lock'
-            lock_acquired = r.set(lock_key, os.getpid(), nx=True, ex=60)
+            # Use file-based locking - more reliable than Redis for this use case
+            lock_file_path = '/tmp/thesis_pipeline_service.lock'
             
-            if not lock_acquired:
-                # Another worker already has the lock
+            # Try to acquire exclusive lock (non-blocking)
+            lock_file = open(lock_file_path, 'w')
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except (IOError, OSError):
+                # Another worker has the lock
+                lock_file.close()
                 return
             
-            # We got the lock - start the pipeline service
+            # We got the lock - write our PID and start the pipeline service
+            lock_file.write(str(os.getpid()))
+            lock_file.flush()
+            # Don't close the file - keep lock held while process is alive
+            
+            # Start the pipeline service
             with flask_app.app_context():
                 from app.services.pipeline_execution_service import init_pipeline_execution_service
                 from app.utils.logging_config import get_logger
@@ -130,9 +134,6 @@ def init_worker_process(**kwargs):
                 pipeline_svc = init_pipeline_execution_service(app=flask_app)
                 _pipeline_service_started = True
                 logger.info(f"[WORKER PID {os.getpid()}] Pipeline execution service started (poll_interval={pipeline_svc.poll_interval}s)")
-                
-                # Keep refreshing the lock while we're running
-                # The service thread will handle this implicitly by being alive
                 
         except Exception as e:
             import traceback
