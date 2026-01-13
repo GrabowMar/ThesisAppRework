@@ -1628,7 +1628,12 @@ class PipelineExecutionService:
         model_slug: str,
         app_number: int
     ) -> Dict[str, Any]:
-        """Start containers for a generated app before analysis.
+        """Build and start containers for a generated app before analysis.
+
+        This method:
+        1. Checks if containers already exist and are running
+        2. If not, builds the Docker images first (required for dynamic/performance analysis)
+        3. Then starts the containers
 
         Args:
             pipeline_id: Pipeline ID for tracking
@@ -1644,9 +1649,62 @@ class PipelineExecutionService:
             manager = DockerManager()
 
             self._log(
-                "CONTAINER", f"Starting containers for {model_slug} app {app_number} (pipeline {pipeline_id})"
+                "CONTAINER", f"Preparing containers for {model_slug} app {app_number} (pipeline {pipeline_id})"
             )
 
+            # Check if containers already exist
+            container_status = manager.get_container_status(model_slug, app_number)
+            containers_exist = bool(container_status)
+            containers_running = all(
+                c.get('state') == 'running' 
+                for c in container_status.values()
+            ) if containers_exist else False
+
+            if containers_running:
+                self._log(
+                    "CONTAINER", f"Containers already running for {model_slug} app {app_number}"
+                )
+                # Track that containers are running (even though we didn't start them)
+                with _pipeline_state_lock:
+                    if pipeline_id not in self._app_containers_started:
+                        self._app_containers_started[pipeline_id] = set()
+                    self._app_containers_started[pipeline_id].add((model_slug, app_number))
+                return {'success': True, 'message': 'Containers already running'}
+
+            # Build containers first if they don't exist (images need to be built)
+            if not containers_exist:
+                self._log(
+                    "CONTAINER", f"Building containers for {model_slug} app {app_number} (no existing containers found)"
+                )
+                build_result = manager.build_containers(
+                    model_slug, 
+                    app_number,
+                    no_cache=False,  # Use cache for faster builds
+                    start_after=True  # Start containers after build
+                )
+                
+                if build_result.get('success'):
+                    # Track that we started these containers (thread-safe)
+                    with _pipeline_state_lock:
+                        if pipeline_id not in self._app_containers_started:
+                            self._app_containers_started[pipeline_id] = set()
+                        self._app_containers_started[pipeline_id].add((model_slug, app_number))
+                    
+                    self._log(
+                        "CONTAINER", f"Successfully built and started containers for {model_slug} app {app_number}"
+                    )
+                    return build_result
+                else:
+                    self._log(
+                        "CONTAINER", f"Failed to build containers for {model_slug} app {app_number}: {build_result.get('error', 'Unknown error')}",
+                        level='warning'
+                    )
+                    return build_result
+
+            # Containers exist but not running - just start them
+            self._log(
+                "CONTAINER", f"Starting existing containers for {model_slug} app {app_number}"
+            )
             result = manager.start_containers(model_slug, app_number)
 
             if result.get('success'):
