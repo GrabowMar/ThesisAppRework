@@ -1345,34 +1345,58 @@ class PipelineExecutionService:
                                           model_slug=model_slug, app_number=app_number)
             return skip_marker
         
-        # STEP 2: Start app containers if autoStartContainers is enabled
+        # STEP 2: Build and start app containers if autoStartContainers is enabled
         config = pipeline.config
         analysis_config = config.get('analysis', {})
         auto_start = analysis_config.get('autoStartContainers',
                                          analysis_config.get('options', {}).get('autoStartContainers', True))
 
+        containers_ready = False
+        container_failed = False
+        
         if auto_start:
-            self._log("ANAL", f"Starting containers for {model_slug} app {app_number}...")
+            self._log("ANAL", f"Building/starting containers for {model_slug} app {app_number}...")
             start_result = self._start_app_containers(pipeline_id, model_slug, app_number)
+            
             if not start_result.get('success'):
-                # Log warning but continue - analysis might still work (e.g., static analysis)
+                # Container build/start failed
+                error_msg = start_result.get('error', 'Unknown')
                 self._log(
-                    "ANAL", f"App container startup failed for {model_slug} app {app_number}, continuing with analysis anyway: {start_result.get('error', 'Unknown')}",
+                    "ANAL", f"App container startup failed for {model_slug} app {app_number}: {error_msg}",
                     level='warning'
                 )
+                # Static analysis can still proceed, dynamic/performance will be skipped
+                container_failed = True
             else:
-                # SUCCESS: Containers started - wait for them to be healthy
+                # SUCCESS: Containers built/started - wait for them to be healthy or fail
                 self._log("ANAL", f"Containers started for {model_slug} app {app_number}, waiting for health check...")
-                health_result = self._wait_for_app_containers_healthy(model_slug, app_number, timeout=APP_CONTAINER_HEALTH_TIMEOUT)
+                health_result = self._wait_for_app_containers_healthy(
+                    model_slug, app_number, timeout=APP_CONTAINER_HEALTH_TIMEOUT
+                )
+                
                 if health_result.get('healthy'):
-                    self._log("ANAL", f"Containers healthy for {model_slug} app {app_number} (took {health_result.get('elapsed_time', 0):.1f}s)")
-                else:
+                    containers_ready = True
                     self._log(
-                        "ANAL", f"Container health check timed out for {model_slug} app {app_number} after {health_result.get('elapsed_time', 0):.1f}s, continuing anyway: {health_result.get('message', 'Unknown')}",
+                        "ANAL", f"Containers ready for {model_slug} app {app_number} (took {health_result.get('elapsed_time', 0):.1f}s)"
+                    )
+                elif health_result.get('failed'):
+                    # Container crashed/exited with error - this is a permanent failure
+                    container_failed = True
+                    crash_info = health_result.get('crash_containers', [])
+                    self._log(
+                        "ANAL", f"Container FAILED for {model_slug} app {app_number}: {crash_info}. "
+                        "Static analysis will proceed, dynamic/performance analysis will be skipped.",
+                        level='error'
+                    )
+                else:
+                    # Timeout but not crashed - containers may still be starting
+                    self._log(
+                        "ANAL", f"Container health check timed out for {model_slug} app {app_number} after "
+                        f"{health_result.get('elapsed_time', 0):.1f}s. Proceeding with analysis anyway.",
                         level='warning'
                     )
 
-        self._log("ANAL", f"Creating analysis task for {model_slug} app {app_number}")
+        self._log("ANAL", f"Creating analysis task for {model_slug} app {app_number} (containers_ready={containers_ready}, container_failed={container_failed})")
         
         try:
             from app.services.task_service import AnalysisTaskService
@@ -1736,19 +1760,25 @@ class PipelineExecutionService:
         self,
         model_slug: str,
         app_number: int,
-        timeout: int = 60
+        timeout: int = 120
     ) -> Dict[str, Any]:
-        """Wait for app containers to become healthy after startup.
+        """Wait for app containers to become healthy or fail with an error.
 
-        This prevents the race condition where tasks are created before containers are ready.
+        This prevents the race condition where analysis starts before containers are ready.
+        Also detects container crashes/failures early to fail fast.
 
         Args:
             model_slug: The model slug
             app_number: The app number
-            timeout: Max seconds to wait for healthy status
+            timeout: Max seconds to wait for healthy status (default 120s)
 
         Returns:
-            Dict with 'healthy': bool, 'elapsed_time': float, 'message': str
+            Dict with:
+            - 'healthy': bool - True if containers are ready
+            - 'failed': bool - True if containers crashed/failed (permanent failure)
+            - 'elapsed_time': float
+            - 'message': str
+            - 'crash_containers': list (if failed)
         """
         try:
             from app.services.docker_manager import DockerManager
@@ -1756,45 +1786,115 @@ class PipelineExecutionService:
 
             manager = DockerManager()
             start_time = time.time()
-            poll_interval = 2.0  # Check every 2 seconds
+            poll_interval = 3.0  # Check every 3 seconds
+            last_log_time = 0
+
+            self._log(
+                "CONTAINER", f"Waiting for containers {model_slug} app {app_number} to become healthy (timeout={timeout}s)"
+            )
 
             while time.time() - start_time < timeout:
-                # Get container status
-                status = manager.get_container_health(model_slug, app_number)
+                elapsed = time.time() - start_time
+                
+                # First check for crash loops (fail fast on permanent errors)
+                crash_check = manager._check_for_crash_loop(model_slug, app_number)
+                if crash_check.get('has_crash_loop'):
+                    crash_containers = crash_check.get('crash_containers', [])
+                    self._log(
+                        "CONTAINER", f"Container failure detected for {model_slug} app {app_number}: {crash_containers}",
+                        level='error'
+                    )
+                    return {
+                        'healthy': False,
+                        'failed': True,
+                        'elapsed_time': elapsed,
+                        'message': f'Container crash/failure detected after {elapsed:.1f}s',
+                        'crash_containers': crash_containers
+                    }
 
+                # Get container health status
+                status = manager.get_container_health(model_slug, app_number)
+                containers = status.get('containers', {})
+                
                 # Check if all containers are healthy
                 all_healthy = status.get('all_healthy', False)
 
                 if all_healthy:
-                    elapsed = time.time() - start_time
+                    self._log(
+                        "CONTAINER", f"All containers healthy for {model_slug} app {app_number} after {elapsed:.1f}s"
+                    )
                     return {
                         'healthy': True,
+                        'failed': False,
                         'elapsed_time': elapsed,
                         'message': f'All containers healthy after {elapsed:.1f}s'
                     }
 
-                # Log progress every 10 seconds
-                elapsed = time.time() - start_time
-                if int(elapsed) % 10 == 0 and elapsed > 0:
-                    containers = status.get('containers', {})
+                # Check for exited containers (might be a build/startup failure)
+                exited_containers = [
+                    name for name, info in containers.items() 
+                    if info.get('status') == 'exited'
+                ]
+                if exited_containers:
+                    # Check if they exited with error codes
+                    exit_errors = []
+                    for name in exited_containers:
+                        container_info = containers.get(name, {})
+                        exit_code = container_info.get('exit_code', 0)
+                        if exit_code != 0:
+                            exit_errors.append({'name': name, 'exit_code': exit_code})
+                    
+                    if exit_errors:
+                        self._log(
+                            "CONTAINER", f"Container exit errors for {model_slug} app {app_number}: {exit_errors}",
+                            level='error'
+                        )
+                        return {
+                            'healthy': False,
+                            'failed': True,
+                            'elapsed_time': elapsed,
+                            'message': f'Containers exited with errors after {elapsed:.1f}s',
+                            'crash_containers': exit_errors
+                        }
+
+                # Log progress every 15 seconds
+                if elapsed - last_log_time >= 15:
                     healthy_count = sum(1 for c in containers.values() if c.get('health') == 'healthy')
                     total_count = len(containers)
+                    container_states = {name: info.get('status', 'unknown') for name, info in containers.items()}
                     self._log(
-                        "CONTAINER", f"Waiting for containers {model_slug} app {app_number}: {healthy_count}/{total_count} healthy ({elapsed:.1f}s elapsed)",
-                        level='debug'
+                        "CONTAINER", f"Waiting for {model_slug} app {app_number}: {healthy_count}/{total_count} healthy, states={container_states} ({elapsed:.1f}s elapsed)"
                     )
+                    last_log_time = elapsed
 
                 time.sleep(poll_interval)
 
-            # Timeout reached
+            # Timeout reached - do final crash check
             elapsed = time.time() - start_time
+            crash_check = manager._check_for_crash_loop(model_slug, app_number)
+            
+            if crash_check.get('has_crash_loop'):
+                return {
+                    'healthy': False,
+                    'failed': True,
+                    'elapsed_time': elapsed,
+                    'message': f'Container crash detected at timeout after {elapsed:.1f}s',
+                    'crash_containers': crash_check.get('crash_containers', [])
+                }
+            
             status = manager.get_container_health(model_slug, app_number)
             containers = status.get('containers', {})
             healthy_count = sum(1 for c in containers.values() if c.get('health') == 'healthy')
             total_count = len(containers)
 
+            self._log(
+                "CONTAINER", f"Timeout waiting for {model_slug} app {app_number}: {healthy_count}/{total_count} healthy after {elapsed:.1f}s",
+                level='warning'
+            )
+
             return {
                 'healthy': False,
+                'failed': False,  # Timeout is not a permanent failure
                 'elapsed_time': elapsed,
                 'message': f'Timeout: {healthy_count}/{total_count} containers healthy after {elapsed:.1f}s'
             }
@@ -1806,6 +1906,7 @@ class PipelineExecutionService:
             )
             return {
                 'healthy': False,
+                'failed': True,
                 'elapsed_time': 0.0,
                 'message': f'Error checking health: {str(e)}'
             }
