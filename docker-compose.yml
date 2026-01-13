@@ -217,6 +217,8 @@ services:
       - WEBSOCKET_PORT=2002
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./results:/app/results
     healthcheck:
@@ -228,6 +230,7 @@ services:
     restart: unless-stopped
     networks:
       - thesis-network
+      - thesis-apps-network
     deploy:
       resources:
         limits:
@@ -247,6 +250,8 @@ services:
       - WEBSOCKET_PORT=2003
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./results:/app/reports
     healthcheck:
@@ -258,6 +263,7 @@ services:
     restart: unless-stopped
     networks:
       - thesis-network
+      - thesis-apps-network
     deploy:
       resources:
         limits:
