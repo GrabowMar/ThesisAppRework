@@ -97,11 +97,45 @@
             </div>
           </div>
           <div class="card-body border-top p-0">
+            <!-- Single model application list -->
             <div id="application-selection-list" class="table-responsive w-100">
               <div class="text-center text-muted py-4">
                 <i class="fas fa-info-circle fa-2x mb-2"></i>
                 <p class="fw-bold mb-1">Select a model first</p>
                 <p class="small mb-0">Please select a model in Step 1 to see available applications.</p>
+              </div>
+            </div>
+
+            <!-- Batch application selection (shown when in batch mode with multiple models) -->
+            <div id="batch-app-aggregate" class="p-3" style="display: none;">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <div>
+                  <h5 class="mb-1">
+                    <i class="fas fa-layer-group text-primary me-2"></i>
+                    Batch Application Selection
+                  </h5>
+                  <p class="text-muted small mb-0">
+                    Select applications across <span id="batch-selected-model-count" class="fw-bold">0</span> selected models
+                    <span id="batch-total-apps-label" class="ms-2" style="display: none;">
+                      — <span id="batch-total-apps" class="fw-bold">0</span> total applications available
+                    </span>
+                  </p>
+                </div>
+                <div class="d-flex gap-2">
+                  <input type="text" id="batch-app-search" class="form-control form-control-sm" placeholder="Search apps..." style="width: 200px;">
+                </div>
+              </div>
+              
+              <!-- Selected Models Grid -->
+              <div class="row g-2 mb-3" id="batch-selected-models-grid"></div>
+              
+              <!-- All Apps List -->
+              <div class="border rounded p-2 bg-light" style="max-height: 400px; overflow-y: auto;">
+                <div class="row g-2" id="batch-all-apps-list"></div>
+                <div id="batch-apps-empty" class="text-center text-muted py-4" style="display: none;">
+                  <i class="fas fa-folder-open fa-2x mb-2"></i>
+                  <p class="mb-0">No applications found for the selected models.</p>
+                </div>
               </div>
             </div>
 
@@ -1486,9 +1520,18 @@ function refreshAppSelectionsUI() {
 // Batch aggregate building (models + apps)
 function refreshBatchApplicationsAggregate() {
   const aggregateWrapper = document.getElementById('batch-app-aggregate');
+  const singleAppList = document.getElementById('application-selection-list');
   if (!aggregateWrapper) return;
-  const useBatchAggregate = (modelSelectionMode === 'batch' && selectedModels.length > 1) || (appSelectionMode === 'batch' && selectedModels.length > 0);
+  
+  // Show batch UI when app mode is batch and we have at least one model
+  const useBatchAggregate = appSelectionMode === 'batch' && selectedModels.length > 0;
+  
+  // Toggle visibility: show batch panel OR single app list, not both
   aggregateWrapper.style.display = useBatchAggregate ? 'block' : 'none';
+  if (singleAppList) {
+    singleAppList.style.display = useBatchAggregate ? 'none' : 'block';
+  }
+  
   if (!useBatchAggregate) return;
 
   const grid = document.getElementById('batch-selected-models-grid');
