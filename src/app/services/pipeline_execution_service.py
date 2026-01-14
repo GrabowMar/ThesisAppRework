@@ -1686,11 +1686,11 @@ class PipelineExecutionService:
             )
 
             # Check if containers already exist
-            container_status = manager.get_container_status(model_slug, app_number)
-            containers_exist = bool(container_status)
+            container_list = manager.get_project_containers(model_slug, app_number)
+            containers_exist = bool(container_list)
             containers_running = all(
-                c.get('state') == 'running' 
-                for c in container_status.values()
+                c.get('status') == 'running' 
+                for c in container_list
             ) if containers_exist else False
 
             if containers_running:
