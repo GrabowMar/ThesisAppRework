@@ -418,20 +418,19 @@ Frontend specifics:
 - Handle loading and error states"""
     
     def _extract_code(self, response: Dict, query_type) -> str:
-        """Extract code from API response."""
+        """Extract code from API response.
+        
+        Returns the raw content with code fences intact so the merger
+        can properly parse filenames from annotations like ```jsx:pages/UserPage.jsx
+        """
         choices = response.get('choices', [])
         if not choices:
             return ""
         
         content = choices[0].get('message', {}).get('content', '')
         
-        # Extract from code blocks if present
-        # Matches: ```python, ```python:filename.py, ```javascript, ```jsx, etc.
-        code_blocks = re.findall(r'```(?:[\w:./]+)?\n(.*?)```', content, re.DOTALL)
-        if code_blocks:
-            return '\n\n'.join(block.strip() for block in code_blocks)
-        
-        # Return raw content if no code blocks
+        # Return raw content with code fences intact
+        # The merger needs the annotations to know which file each block goes to
         return content.strip()
 
 

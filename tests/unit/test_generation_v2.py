@@ -123,7 +123,7 @@ def test_code_merger_extract_jsx(tmp_path):
     content = '''
 Here is the React component:
 
-```jsx
+```jsx:App.jsx
 function App() {
   return <div>Hello</div>;
 }
@@ -131,10 +131,12 @@ export default App;
 ```
 '''
     
-    jsx = merger._extract_jsx(content)
-    assert jsx is not None
-    assert "function App()" in jsx
-    assert "export default App" in jsx
+    blocks = merger._extract_all_code_blocks(content)
+    assert len(blocks) >= 1
+    jsx_block = next((b for b in blocks if b['language'] == 'jsx'), None)
+    assert jsx_block is not None
+    assert "function App()" in jsx_block['code']
+    assert "export default App" in jsx_block['code']
 
 
 @pytest.mark.unit
@@ -154,9 +156,10 @@ And the styles:
 ```
 '''
     
-    css = merger._extract_css(content)
-    assert css is not None
-    assert ".container" in css
+    blocks = merger._extract_all_code_blocks(content)
+    css_block = next((b for b in blocks if b['language'] == 'css'), None)
+    assert css_block is not None
+    assert ".container" in css_block['code']
 
 
 @pytest.mark.unit
