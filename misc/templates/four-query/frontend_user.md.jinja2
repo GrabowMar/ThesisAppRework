@@ -4,10 +4,34 @@
 
 ## Your Task
 Implement the **USER-FACING** frontend functionality. This includes:
+- **Login/Register page** in `pages/LoginPage.jsx`
+- **Auth context** in `hooks/useAuth.jsx`
 - Main user interface in `pages/UserPage.jsx`
 - API service functions in `services/api.js`
+- Auth service functions in `services/auth.js`
 - Custom hooks in `hooks/useData.js` (if needed)
 - Additional UI components (if needed)
+
+## Authentication Requirements (MANDATORY)
+
+You MUST implement complete auth UI:
+
+1. **LoginPage.jsx** with:
+   - Toggle between Login/Register forms
+   - Form validation (username, email, password)
+   - Call auth API, store token in localStorage
+   - Redirect to UserPage on success
+   - Show error toasts on failure
+
+2. **useAuth.jsx** hook with:
+   - AuthContext with user, token, login(), logout(), register()
+   - Auto-login from stored token on app load
+   - Protect routes (redirect to login if not authenticated)
+
+3. **services/auth.js** with:
+   - login(username, password), register(username, email, password)
+   - getToken(), setToken(), clearToken()
+   - getCurrentUser()
 
 ## User Requirements
 {% for req in frontend_requirements %}
@@ -68,6 +92,21 @@ Pre-built components available: `Spinner`, `ErrorBoundary` from `../components`
 ## Output Format
 Generate code in these markdown blocks with EXACT filenames:
 
+**Login Page (required):**
+```jsx:pages/LoginPage.jsx
+// Login/Register form with toggle, validation, and auth API calls
+```
+
+**Auth Hook (required):**
+```jsx:hooks/useAuth.jsx
+// AuthContext, AuthProvider with login/logout/register, token management
+```
+
+**Auth Service (required):**
+```jsx:services/auth.js
+// login(), register(), getToken(), setToken(), clearToken(), getCurrentUser()
+```
+
 **User Page (required):**
 ```jsx:pages/UserPage.jsx
 // Main user interface component
@@ -75,7 +114,7 @@ Generate code in these markdown blocks with EXACT filenames:
 
 **API Service (required):**
 ```jsx:services/api.js
-// API call functions for user features
+// API call functions for user features (include auth header interceptor)
 ```
 
 **Custom Hooks (if needed):**
@@ -86,11 +125,6 @@ Generate code in these markdown blocks with EXACT filenames:
 **Additional Components (if needed):**
 ```jsx:components/ItemList.jsx
 // Reusable UI component
-```
-
-**Styles (if needed):**
-```css
-/* Additional styles */
 ```
 
 Generate COMPLETE, WORKING code with:

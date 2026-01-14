@@ -7,17 +7,13 @@ class ErrorBoundary extends React.Component {
     return { hasError: true, error };
   }
   
-  componentDidCatch(error, errorInfo) {
-    console.error('ErrorBoundary caught:', error, errorInfo);
-  }
-  
   render() {
     if (this.state.hasError) {
       return (
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
           <h2 className="text-red-800 font-semibold">Something went wrong</h2>
           <p className="text-red-600 text-sm">{this.state.error?.message}</p>
-          <button onClick={() => this.setState({ hasError: false, error: null })}
+          <button onClick={() => this.setState({ hasError: false })}
             className="mt-2 text-sm text-blue-600 hover:underline">Try again</button>
         </div>
       );

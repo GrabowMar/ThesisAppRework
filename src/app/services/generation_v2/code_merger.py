@@ -80,7 +80,7 @@ class CodeMerger:
         """
         written_files = {}
         
-        # Backend user: models.py + routes/user.py
+        # Backend user: models.py + routes/user.py + routes/auth.py
         if 'backend_user' in code:
             backend_user = code['backend_user']
             all_blocks = self._extract_all_code_blocks(backend_user)
@@ -96,6 +96,12 @@ class CodeMerger:
             if routes_code:
                 path = self._write_backend_file('routes/user.py', routes_code)
                 written_files['user_routes'] = path
+            
+            # Extract and write auth routes (NEW)
+            auth_code = self._find_backend_file(all_blocks, backend_user, 'auth.py', 'routes')
+            if auth_code:
+                path = self._write_backend_file('routes/auth.py', auth_code)
+                written_files['auth_routes'] = path
             
             # Extract services if present
             services_code = self._find_backend_file(all_blocks, backend_user, 'services.py')
@@ -134,11 +140,71 @@ class CodeMerger:
     def _merge_frontend_user(self, all_blocks: List[Dict], raw_content: str) -> Dict[str, Path]:
         """Handle frontend merge for 'user' query.
         
-        Writes to pages/UserPage.jsx, services/api.js, hooks/, components/.
+        Writes to pages/UserPage.jsx, pages/LoginPage.jsx, services/api.js, 
+        services/auth.js, hooks/useAuth.jsx, hooks/, components/.
         Does NOT overwrite App.jsx - the scaffolding already has routing.
         """
         written = {}
         frontend_src_dir = self.frontend_dir / 'src'
+        
+        # Find LoginPage content (auth)
+        login_code = None
+        for block in all_blocks:
+            lang = block.get('language', '').lower()
+            filename = block.get('filename', '').lower()
+            if lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
+                if 'loginpage' in filename:
+                    login_code = block['code']
+                    logger.info("Found explicit LoginPage.jsx block")
+                    break
+        
+        if login_code:
+            login_code = self._fix_api_urls(login_code)
+            if 'export default' not in login_code:
+                login_code += "\n\nexport default LoginPage;"
+            login_page_path = frontend_src_dir / 'pages' / 'LoginPage.jsx'
+            login_page_path.parent.mkdir(parents=True, exist_ok=True)
+            login_page_path.write_text(login_code, encoding='utf-8')
+            logger.info(f"✓ Wrote {len(login_code)} chars to pages/LoginPage.jsx")
+            written['login_page'] = login_page_path
+        
+        # Find useAuth hook
+        auth_hook_code = None
+        for block in all_blocks:
+            lang = block.get('language', '').lower()
+            filename = block.get('filename', '').lower()
+            if lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
+                if 'useauth' in filename:
+                    auth_hook_code = block['code']
+                    logger.info("Found explicit useAuth.jsx block")
+                    break
+        
+        if auth_hook_code:
+            auth_hook_code = self._fix_api_urls(auth_hook_code)
+            auth_hook_path = frontend_src_dir / 'hooks' / 'useAuth.jsx'
+            auth_hook_path.parent.mkdir(parents=True, exist_ok=True)
+            auth_hook_path.write_text(auth_hook_code, encoding='utf-8')
+            logger.info(f"✓ Wrote {len(auth_hook_code)} chars to hooks/useAuth.jsx")
+            written['auth_hook'] = auth_hook_path
+        
+        # Find auth.js service
+        auth_service_code = None
+        for block in all_blocks:
+            lang = block.get('language', '').lower()
+            filename = block.get('filename', '').lower()
+            if lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
+                if 'auth.js' in filename or filename == 'services/auth.js':
+                    auth_service_code = block['code']
+                    logger.info("Found explicit auth.js block")
+                    break
+        
+        if auth_service_code:
+            auth_service_code = self._fix_api_urls(auth_service_code)
+            auth_service_path = frontend_src_dir / 'services' / 'auth.js'
+            auth_service_path.parent.mkdir(parents=True, exist_ok=True)
+            auth_service_path.write_text(auth_service_code, encoding='utf-8')
+            logger.info(f"✓ Wrote {len(auth_service_code)} chars to services/auth.js")
+            written['auth_service'] = auth_service_path
         
         # Find main JSX code (the user page content)
         # Priority: explicit pages/UserPage.jsx > UserPage.jsx > unnamed block

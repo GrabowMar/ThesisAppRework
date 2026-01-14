@@ -781,19 +781,41 @@ function Start-DockerStack {
     }
     
     Write-Status "Building and starting Docker production stack..." "Info"
+    Write-Host "  (This may take several minutes if images need to be rebuilt)" -ForegroundColor Gray
+    Write-Host ""
     
     Push-Location $Script:ROOT_DIR
     try {
-        # Build and start all services
-        $buildOutput = docker compose up -d --build 2>&1
+        # Build and start all services with live output for better feedback
+        # Using Start-Process to show real-time build progress
+        $logFile = Join-Path $Script:LOGS_DIR "docker-compose.log"
+        
+        # Run docker compose with visible output (not captured)
+        # This allows users to see build progress in real-time
+        Write-Host "━━━━━━━━━━━━ Docker Build Output ━━━━━━━━━━━━" -ForegroundColor DarkGray
+        docker compose up -d --build 2>&1 | Tee-Object -FilePath $logFile -Append | ForEach-Object {
+            # Color-code the output for better readability
+            $line = $_
+            if ($line -match "error|failed|fatal" -and $line -notmatch "errorhandler") {
+                Write-Host $line -ForegroundColor Red
+            } elseif ($line -match "warning") {
+                Write-Host $line -ForegroundColor Yellow
+            } elseif ($line -match "Started|Running|Created|Built|Pulled") {
+                Write-Host $line -ForegroundColor Green
+            } elseif ($line -match "Building|Downloading|Extracting") {
+                Write-Host $line -ForegroundColor Cyan
+            } else {
+                Write-Host $line -ForegroundColor Gray
+            }
+        }
+        Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
+        Write-Host ""
+        
         $buildExitCode = $LASTEXITCODE
         
-        # Log output
-        $buildOutput | Out-File -FilePath (Join-Path $Script:LOGS_DIR "docker-compose.log") -Append
-        
         if ($buildExitCode -ne 0) {
-            Write-Status "Failed to start Docker stack" "Error"
-            Write-Host ($buildOutput | Out-String) -ForegroundColor Red
+            Write-Status "Failed to start Docker stack (exit code: $buildExitCode)" "Error"
+            Write-Host "Check logs at: $logFile" -ForegroundColor Yellow
             return $false
         }
         

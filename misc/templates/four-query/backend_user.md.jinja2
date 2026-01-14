@@ -5,7 +5,8 @@
 ## Your Task
 
 Implement the **USER-FACING** backend functionality:
-- Database models in `models.py`
+- **User model** + **JWT authentication** in `models.py` and `routes/auth.py`
+- Domain models in `models.py`
 - User API routes in `routes/user.py`
 - Business logic in `services.py` (if needed)
 
@@ -14,6 +15,21 @@ Implement the **USER-FACING** backend functionality:
 {% for req in backend_requirements %}
 {{ loop.index }}. {{ req }}
 {% endfor %}
+
+## Authentication Requirements (MANDATORY)
+
+You MUST implement complete JWT authentication:
+
+1. **User Model** with: id, username (unique), email (unique), password_hash, role ('user'/'admin'), is_active, created_at
+2. **Auth Routes** in `routes/auth.py`:
+   - `POST /auth/register` - Create user, hash password with bcrypt, return JWT token
+   - `POST /auth/login` - Verify credentials, return JWT token  
+   - `GET /auth/me` - Return current user (requires @token_required)
+   - `POST /auth/logout` - Return success message
+3. **JWT Helpers**:
+   - `generate_token(user_id, role)` - Create JWT with exp=24h, SECRET_KEY from env
+   - `token_required(f)` decorator - Validate token, inject `current_user`
+   - `admin_required(f)` decorator - Check role='admin'
 
 {% if api_endpoints %}
 ## API Endpoints
@@ -114,14 +130,64 @@ The scaffolding provides:
 
 Generate complete, working code:
 
-### Models (required)
+### Models (required - include User model)
 ```python:models.py
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
 db = SQLAlchemy()
 
-# Your model definitions here
+class User(db.Model):
+    # id, username, email, password_hash, role, is_active, created_at
+    # Include to_dict() and check_password() methods
+    pass
+
+# Your domain model definitions here
+```
+
+### Auth Routes (required)
+```python:routes/auth.py
+import jwt
+import bcrypt
+from flask import jsonify, request
+from functools import wraps
+from routes import auth_bp
+from models import db, User
+import os
+
+SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key')
+
+def generate_token(user_id, role):
+    # Generate JWT with 24h expiration
+    pass
+
+def token_required(f):
+    # Decorator to validate JWT and inject current_user
+    pass
+
+def admin_required(f):
+    # Decorator to check role='admin'
+    pass
+
+@auth_bp.route('/register', methods=['POST'])
+def register():
+    # Create user, hash password, return token
+    pass
+
+@auth_bp.route('/login', methods=['POST'])
+def login():
+    # Verify credentials, return token
+    pass
+
+@auth_bp.route('/me', methods=['GET'])
+@token_required
+def get_me():
+    # Return current user
+    pass
+
+@auth_bp.route('/logout', methods=['POST'])
+def logout():
+    return jsonify({'message': 'Logged out'})
 ```
 
 ### User Routes (required)
