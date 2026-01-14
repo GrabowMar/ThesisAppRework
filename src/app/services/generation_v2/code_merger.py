@@ -222,6 +222,14 @@ class CodeMerger:
             # Handle JS/JSX files (api.js, hooks, components)
             elif lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
                 code = self._fix_api_urls(code)
+                
+                # Ensure api.js has default export (required by scaffold's auth.js)
+                if filename_lower in {'api.js', 'services/api.js'}:
+                    if 'export default' not in code:
+                        # Add default export for api instance
+                        code = code.rstrip() + '\n\nexport default api;'
+                        logger.info("Added 'export default api;' to api.js for scaffold compatibility")
+                
                 target_path = frontend_src_dir / filename
                 target_path.parent.mkdir(parents=True, exist_ok=True)
                 target_path.write_text(code, encoding='utf-8')
@@ -298,6 +306,13 @@ class CodeMerger:
                     written[f'admin_css_{filename}'] = target_path
                 elif lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
                     code = self._fix_api_urls(code)
+                    
+                    # Ensure api.js has default export (required by scaffold's auth.js)
+                    if filename_lower in {'api.js', 'services/api.js'}:
+                        if 'export default' not in code:
+                            code = code.rstrip() + '\n\nexport default api;'
+                            logger.info("Added 'export default api;' to api.js for scaffold compatibility")
+                    
                     target_path = frontend_src_dir / filename
                     target_path.parent.mkdir(parents=True, exist_ok=True)
                     target_path.write_text(code, encoding='utf-8')
