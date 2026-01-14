@@ -1712,7 +1712,7 @@ class PipelineExecutionService:
                 build_result = manager.build_containers(
                     model_slug, 
                     app_number,
-                    no_cache=False,  # Use cache for faster builds
+                    no_cache=True,  # Always rebuild to ensure latest code is used
                     start_after=True  # Start containers after build
                 )
                 

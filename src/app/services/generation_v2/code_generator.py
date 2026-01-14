@@ -413,9 +413,15 @@ Backend specifics:
 Frontend specifics:
 - React 18+ with Vite
 - Use functional components with hooks
-- Style with plain CSS (App.css)
-- Use fetch() for API calls to /api/...
-- Handle loading and error states"""
+- Style with Tailwind CSS (utility classes)
+- Use axios (preconfigured) for API calls to /api/...
+- Handle loading and error states
+- Use react-hot-toast for notifications
+
+ONLY USE THESE PACKAGES (already installed):
+react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, date-fns, clsx, uuid
+
+DO NOT USE: @chakra-ui, @mui/material, styled-components, emotion, or any other UI library not listed above."""
     
     def _extract_code(self, response: Dict, query_type) -> str:
         """Extract code from API response.

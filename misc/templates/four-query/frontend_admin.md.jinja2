@@ -29,6 +29,20 @@ Admin page should typically include:
 5. Bulk delete button
 6. Visual indicators for item status (active/inactive)
 
+## IMPORTANT: Available Packages ONLY
+You MUST only use these installed packages. DO NOT import anything else:
+- react, react-dom (core React)
+- react-router-dom (routing, already configured)
+- axios (HTTP client, preconfigured in services/api.js)
+- react-hot-toast (notifications: `import toast from 'react-hot-toast'`)
+- @heroicons/react (icons: `import { IconName } from '@heroicons/react/24/outline'`)
+- date-fns (date formatting)
+- clsx (conditional classnames)
+- uuid (ID generation)
+- Tailwind CSS (utility classes, no import needed)
+
+❌ DO NOT USE: @chakra-ui, @mui/material, styled-components, emotion, framer-motion, or any other UI library
+
 ## Common Mistakes to Avoid
 - ❌ Replacing existing user API functions → ✅ only ADD admin functions
 - ❌ Using user endpoints for admin actions → ✅ call `/api/admin/...`

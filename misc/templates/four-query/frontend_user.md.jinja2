@@ -25,6 +25,20 @@ Implement the **USER-FACING** frontend functionality. This includes:
 - Use `react-hot-toast` for user feedback (`toast.success`, `toast.error`)
 - Do NOT create/modify `App.jsx` (scaffolding owns routing/navigation)
 
+## IMPORTANT: Available Packages ONLY
+You MUST only use these installed packages. DO NOT import anything else:
+- react, react-dom (core React)
+- react-router-dom (routing, already configured)
+- axios (HTTP client, preconfigured in services/api.js)
+- react-hot-toast (notifications: `import toast from 'react-hot-toast'`)
+- @heroicons/react (icons: `import { IconName } from '@heroicons/react/24/outline'`)
+- date-fns (date formatting)
+- clsx (conditional classnames)
+- uuid (ID generation)
+- Tailwind CSS (utility classes, no import needed)
+
+❌ DO NOT USE: @chakra-ui, @mui/material, styled-components, emotion, framer-motion, or any other UI library
+
 ## Implementation Process (DO INTERNALLY)
 1. Translate requirements into page sections, state, and user flows.
 2. Map API endpoints → functions in `services/api.js` (use the axios instance).
