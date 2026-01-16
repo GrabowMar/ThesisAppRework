@@ -113,6 +113,17 @@ Generate EXACTLY these files:
 /* All your styles */
 ```
 
+```json:package.json
+{
+  "dependencies": {
+    "some-lib": "^1.2.3"
+  },
+  "devDependencies": {
+    "some-dev-lib": "^4.5.6"
+  }
+}
+```
+
 ## ❌ DO NOT CREATE THESE
 - src/components/ directory
 - src/hooks/ directory
@@ -122,16 +133,15 @@ Generate EXACTLY these files:
 - Any subdirectories
 - Any additional .jsx files
 
-## ❌ DO NOT USE
-- React Router (this is a single-page app)
-- Redux/Zustand/Jotai (use useState)
-- Material UI/Chakra/Ant Design (use plain CSS)
-- Axios (use native fetch)
+## Dependencies (Allowed)
+- You MAY choose any additional frontend dependencies.
+- If you import a package that is not already in the scaffolding, include a `package.json` block in your output.
+- The Dependency Healer will reconcile missing packages, but you should still list any new ones you use.
 
 ## ✅ REQUIRED
 - All components in ONE App.jsx file
 - Plain CSS in App.css
-- Native fetch() for API calls
+- Use fetch() or axios for API calls (if axios, include it in package.json)
 - API_BASE = '/api' (Vite proxy handles forwarding)
 - useState and useEffect for state
 

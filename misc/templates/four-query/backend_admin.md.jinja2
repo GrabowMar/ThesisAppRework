@@ -29,6 +29,11 @@ Admin routes should typically provide:
 3. Bulk delete operations
 4. Dashboard statistics (counts, aggregates)
 
+## Dependencies (Allowed)
+- You MAY choose any additional Python packages you need.
+- If you import a package that is not already in the scaffolding, include it in a `requirements` code block.
+- The Dependency Healer can reconcile missing packages, but you should still list any new ones you use.
+
 ## Common Mistakes to Avoid
 - ❌ Re-defining models → ✅ use the existing models from Query 1
 - ❌ Using user endpoints for admin features → ✅ use `/api/admin/...` via `admin_bp`

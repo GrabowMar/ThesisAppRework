@@ -19,6 +19,11 @@ The project uses a modular structure:
 - Flask-SQLAlchemy 3.1+ (SQLAlchemy 2.0 style)
 - SQLite at `sqlite:////app/data/app.db`
 
+## Dependencies (Allowed)
+- You MAY choose any additional Python packages.
+- If you import a package not already in the scaffolding, include it in a `requirements` block.
+- The Dependency Healer can reconcile missing packages, but you should still list any new ones you use.
+
 ## MUST FOLLOW
 - Output complete code; no placeholders, TODOs, or truncated code.
 - All user API routes must live under `/api/...` via the `user_bp` blueprint.

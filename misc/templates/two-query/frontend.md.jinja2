@@ -10,6 +10,11 @@ Generate **complete, runnable** React frontend code that satisfies ALL requireme
 - Axios (use the provided axios instance pattern)
 - Tailwind CSS + react-hot-toast
 
+## Dependencies (Allowed)
+- You MAY choose any additional frontend dependencies.
+- If you import a package that is not already in the scaffolding, include a `package.json` block in your output.
+- The Dependency Healer will reconcile missing packages, but you should still list any new ones you use.
+
 ## Requirements
 {% for req in frontend_requirements %}
 - {{ req }}
@@ -35,6 +40,7 @@ Wrap each file in markdown code blocks:
 - `jsx` → becomes App.jsx
 - `jsx:components/Name.jsx` → additional component
 - `css` → becomes App.css
+- `json:package.json` → optional dependencies to merge
 
 ## Success Criteria
 - ✅ All requirements implemented

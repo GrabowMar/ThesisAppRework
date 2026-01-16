@@ -45,8 +45,7 @@ _pipeline_state_lock = threading.RLock()
 # =============================================================================
 
 # Feature flag for new generation system
-# Set USE_GENERATION_V2=true to use simplified generation_v2 package
-USE_GENERATION_V2: bool = os.environ.get('USE_GENERATION_V2', 'true').lower() in ('true', '1', 'yes')
+USE_GENERATION_V2: bool = True
 
 # Parallelism limits
 # NOTE: Pipeline generation uses parallel execution like the original working implementation
@@ -812,7 +811,7 @@ class PipelineExecutionService:
         """Execute a generation job in a thread pool worker.
         
         This runs in a background thread and must handle its own Flask context.
-        Uses generation_v2 package when USE_GENERATION_V2=true (default).
+        Uses generation_v2 package.
         """
         job_index = job.get('job_index', 0)
         model_slug: str = job.get('model_slug') or 'unknown'
@@ -849,15 +848,9 @@ class PipelineExecutionService:
                 gen_config = pipeline.config.get('generation', {})
                 gen_options = gen_config.get('options', {})
                 
-                # Use generation_v2 if enabled (default: true)
-                if USE_GENERATION_V2:
-                    result = self._execute_generation_v2(
-                        pipeline_id, job_index, model_slug, template_slug, gen_options, result
-                    )
-                else:
-                    result = self._execute_generation_legacy(
-                        pipeline_id, job_index, model_slug, template_slug, pipeline, result
-                    )
+                result = self._execute_generation_v2(
+                    pipeline_id, job_index, model_slug, template_slug, gen_options, result
+                )
                 
                 self._log(
                     "GEN", f"Worker completed job {job_index}: {model_slug} app {result.get('app_number')} (success={result['success']})"
@@ -915,55 +908,6 @@ class PipelineExecutionService:
         
         return result
     
-    def _execute_generation_legacy(
-        self, 
-        pipeline_id: str, 
-        job_index: int, 
-        model_slug: str, 
-        template_slug: str,
-        pipeline: PipelineExecution,
-        result: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Execute generation using the legacy generation.py service."""
-        from app.services.generation import get_generation_service
-        
-        self._log("GEN", f"Using legacy generation for job {job_index}")
-        
-        svc = get_generation_service()
-        batch_id = pipeline.pipeline_id
-        gen_config = pipeline.config.get('generation', {})
-        use_auto_fix = gen_config.get('use_auto_fix', False)
-        
-        # Run generation
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            gen_result = loop.run_until_complete(
-                svc.generate_full_app(
-                    model_slug=model_slug,
-                    app_num=None,  # Let service handle atomic allocation
-                    template_slug=template_slug,
-                    generate_frontend=True,
-                    generate_backend=True,
-                    batch_id=batch_id,
-                    parent_app_id=None,
-                    version=1,
-                    generation_mode='guarded',
-                    use_auto_fix=use_auto_fix,
-                )
-            )
-        finally:
-            loop.close()
-        
-        # Extract results
-        app_number = gen_result.get('app_number') or gen_result.get('app_id') or gen_result.get('app_num')
-        result['success'] = gen_result.get('success', True)
-        result['app_number'] = app_number
-        
-        if not result['success']:
-            result['error'] = '; '.join(gen_result.get('errors', ['Unknown error']))
-        
-        return result
     
     def _execute_generation_job_sync(self, pipeline_id: str, job: Dict[str, Any]) -> None:
         """Execute generation job synchronously (fallback)."""
@@ -1234,7 +1178,7 @@ class PipelineExecutionService:
                 # but mark as retryable in progress if it was a transient error
                 pipeline.advance_job_index()
                 # Check if this was a transient error that should allow retry
-                if task_id and 'transient' in task_id.lower():
+                if task_id and 'transient' in task_id.lower() and model_slug is not None and app_number is not None:
                     # Remove from submitted_apps to allow retry
                     self._mark_job_retryable(pipeline, model_slug, app_number)
                 db.session.commit()

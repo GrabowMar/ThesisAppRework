@@ -6,6 +6,7 @@ Handles AST-based model merging and file organization.
 """
 
 import ast
+import json
 import logging
 import re
 from pathlib import Path
@@ -84,6 +85,13 @@ class CodeMerger:
         if 'backend_user' in code:
             backend_user = code['backend_user']
             all_blocks = self._extract_all_code_blocks(backend_user)
+
+            # Merge requirements.txt additions (optional)
+            for block in all_blocks:
+                lang = block.get('language', '').lower()
+                filename = block.get('filename', '').lower()
+                if lang == 'requirements' or filename.endswith('requirements.txt'):
+                    self._merge_backend_requirements(block.get('code', ''))
             
             # Extract and write models
             models_code = self._find_backend_file(all_blocks, backend_user, 'models.py')
@@ -113,6 +121,14 @@ class CodeMerger:
         if 'backend_admin' in code:
             backend_admin = code['backend_admin']
             all_blocks = self._extract_all_code_blocks(backend_admin)
+
+            # Merge requirements.txt additions (optional)
+            for block in all_blocks:
+                lang = block.get('language', '').lower()
+                filename = block.get('filename', '').lower()
+                if lang == 'requirements' or filename.endswith('requirements.txt'):
+                    self._merge_backend_requirements(block.get('code', ''))
+
             routes_code = self._find_backend_file(all_blocks, backend_admin, 'admin.py', 'routes')
             if routes_code:
                 path = self._write_backend_file('routes/admin.py', routes_code)
@@ -263,6 +279,10 @@ class CodeMerger:
                 continue
             
             filename_lower = filename.lower()
+
+            if filename_lower.endswith('package.json'):
+                self._merge_frontend_package_json(code)
+                continue
             
             # Skip if already handled as UserPage
             if 'userpage' in filename_lower:
@@ -358,6 +378,10 @@ class CodeMerger:
                 continue
             
             filename_lower = filename.lower()
+
+            if filename_lower.endswith('package.json'):
+                self._merge_frontend_package_json(code)
+                continue
             
             if 'adminpage' in filename_lower:
                 continue
@@ -434,6 +458,13 @@ class CodeMerger:
             # Write entire backend as app.py
             backend_code = code['backend']
             all_blocks = self._extract_all_code_blocks(backend_code)
+
+            # Merge requirements.txt additions (optional)
+            for block in all_blocks:
+                lang = block.get('language', '').lower()
+                filename = block.get('filename', '').lower()
+                if lang == 'requirements' or filename.endswith('requirements.txt'):
+                    self._merge_backend_requirements(block.get('code', ''))
             
             # Try to find app.py block, or use first Python block
             app_code = None
@@ -452,6 +483,12 @@ class CodeMerger:
         if 'frontend' in code and code['frontend'].strip():
             frontend = code['frontend']
             all_blocks = self._extract_all_code_blocks(frontend)
+
+            for block in all_blocks:
+                filename = block.get('filename', '').lower()
+                if filename.endswith('package.json'):
+                    self._merge_frontend_package_json(block.get('code', ''))
+                    break
             
             # Try to extract JSX from code fences first
             jsx_code = None
@@ -541,6 +578,80 @@ class CodeMerger:
         full_path.write_text(content, encoding='utf-8')
         logger.debug(f"Wrote frontend/{rel_path} ({len(content)} chars)")
         return full_path
+
+    def _merge_backend_requirements(self, requirements_content: str) -> None:
+        """Merge additional requirements into backend/requirements.txt."""
+        if not requirements_content.strip():
+            return
+
+        requirements_path = self.backend_dir / 'requirements.txt'
+        if not requirements_path.exists():
+            logger.warning(f"Backend requirements.txt missing at {requirements_path}")
+            return
+
+        try:
+            existing = requirements_path.read_text(encoding='utf-8')
+            existing_packages = {
+                re.split(r'[<>=]', line, 1)[0].strip().lower()
+                for line in existing.splitlines()
+                if line.strip() and not line.strip().startswith('#')
+            }
+
+            new_lines = []
+            for line in requirements_content.splitlines():
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                pkg_name = re.split(r'[<>=]', line, 1)[0].strip().lower()
+                if pkg_name and pkg_name not in existing_packages:
+                    new_lines.append(line)
+
+            if new_lines:
+                with requirements_path.open('a', encoding='utf-8') as f:
+                    if not existing.endswith('\n'):
+                        f.write('\n')
+                    f.write('\n'.join(new_lines) + '\n')
+                logger.info(f"Merged {len(new_lines)} requirements into backend/requirements.txt")
+        except Exception as e:
+            logger.warning(f"Failed to merge backend requirements: {e}")
+
+    def _merge_frontend_package_json(self, package_json_content: str) -> None:
+        """Merge dependencies into frontend/package.json without overwriting scaffold scripts."""
+        if not package_json_content.strip():
+            return
+
+        package_path = self.frontend_dir / 'package.json'
+        if not package_path.exists():
+            logger.warning(f"Frontend package.json missing at {package_path}")
+            return
+
+        try:
+            incoming = json.loads(package_json_content)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Invalid package.json block: {e}")
+            return
+
+        try:
+            existing = json.loads(package_path.read_text(encoding='utf-8'))
+        except json.JSONDecodeError as e:
+            logger.warning(f"Invalid existing package.json: {e}")
+            return
+
+        merged = dict(existing)
+
+        for dep_key in ['dependencies', 'devDependencies', 'peerDependencies']:
+            if isinstance(incoming.get(dep_key), dict):
+                merged.setdefault(dep_key, {})
+                merged[dep_key] = {**merged.get(dep_key, {}), **incoming.get(dep_key, {})}
+
+        if isinstance(incoming.get('scripts'), dict):
+            merged.setdefault('scripts', {})
+            for script_name, script_cmd in incoming['scripts'].items():
+                if script_name not in merged['scripts']:
+                    merged['scripts'][script_name] = script_cmd
+
+        package_path.write_text(json.dumps(merged, indent=2) + '\n', encoding='utf-8')
+        logger.info("Merged package.json dependencies into frontend/package.json")
     
     def _clean_python(self, code: str) -> str:
         """Clean Python code - remove duplicate imports, fix common issues."""

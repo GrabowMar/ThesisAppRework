@@ -69,6 +69,11 @@ api.interceptors.request.use(config => {
 ## Stack
 React 18, axios, react-router-dom, react-hot-toast, Tailwind CSS
 
+## Dependencies & Healing
+- You MAY add additional dependencies if needed.
+- If you introduce new packages, include a `package.json` block in your output so it can be merged.
+- The Dependency Healer will reconcile missing packages and common import/export issues, but you should still list any new packages you use.
+
 ## Patterns
 - Use `toast.success()` / `toast.error()` for notifications
 - Handle `err.response?.data?.error || err.message` for errors

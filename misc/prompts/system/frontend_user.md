@@ -23,6 +23,11 @@ The project uses a modular structure:
 React 18, Axios, Tailwind CSS, react-hot-toast, @heroicons/react
 Pre-built: `Spinner`, `ErrorBoundary` from `../components`
 
+## Dependencies (Allowed)
+- You MAY choose any additional dependencies.
+- If you import a package not already in the scaffolding, include a `package.json` block in your output.
+- The Dependency Healer will reconcile missing packages, but you should still list any new ones you use.
+
 
 ## Code Examples
 

@@ -67,3 +67,8 @@ def token_required(f):
 - DB: `sqlite:////app/data/app.db`
 - Port: `FLASK_RUN_PORT` env var
 - Secret: `SECRET_KEY` env var
+
+## Dependencies & Healing
+- You MAY add additional Python packages if needed.
+- If you introduce new packages, include them in a `requirements` block.
+- The Dependency Healer can reconcile missing packages, but you should still list any new ones you use.

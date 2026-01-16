@@ -29,19 +29,10 @@ Admin page should typically include:
 5. Bulk delete button
 6. Visual indicators for item status (active/inactive)
 
-## IMPORTANT: Available Packages ONLY
-You MUST only use these installed packages. DO NOT import anything else:
-- react, react-dom (core React)
-- react-router-dom (routing, already configured)
-- axios (HTTP client, preconfigured in services/api.js)
-- react-hot-toast (notifications: `import toast from 'react-hot-toast'`)
-- @heroicons/react (icons: `import { IconName } from '@heroicons/react/24/outline'`)
-- date-fns (date formatting)
-- clsx (conditional classnames)
-- uuid (ID generation)
-- Tailwind CSS (utility classes, no import needed)
-
-❌ DO NOT USE: @chakra-ui, @mui/material, styled-components, emotion, framer-motion, or any other UI library
+## Dependencies (Allowed)
+- You MAY choose any dependencies you need.
+- If you import a package that is not already in the scaffolding, include a `package.json` block in your output.
+- The Dependency Healer will reconcile missing packages, but you should still list any new ones you use.
 
 ## Common Mistakes to Avoid
 - ❌ Replacing existing user API functions → ✅ only ADD admin functions
@@ -63,6 +54,18 @@ Generate code in these markdown blocks with EXACT filenames:
 ```jsx:services/api.js
 // Add these admin functions to the existing api.js file
 // Keep the existing user functions, just add admin ones
+```
+
+**Dependencies (optional):**
+```json:package.json
+{
+	"dependencies": {
+		"some-lib": "^1.2.3"
+	},
+	"devDependencies": {
+		"some-dev-lib": "^4.5.6"
+	}
+}
 ```
 
 **Additional Admin Components (if needed):**

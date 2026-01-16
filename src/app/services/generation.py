@@ -1077,6 +1077,8 @@ Query Type: {query_type}
                 logger.error(f"Generation failed: {e}")
                 metrics['validation_errors'].append(f"Exception: {str(e)}")
                 return False, "", str(e), metrics
+
+        return False, "", "Generation failed without a response", metrics
     
     def _load_requirements(self, template_slug: str) -> Optional[Dict]:
         """Load requirements from JSON file using slug naming convention.
@@ -4461,12 +4463,280 @@ class GenerationService:
         return summary
 
 
+class _ScaffoldingProxy:
+    """Compatibility wrapper around generation_v2 scaffolding manager."""
+
+    def __init__(self):
+        from app.services.generation_v2 import get_scaffolding_manager
+
+        self._manager = get_scaffolding_manager()
+
+    def scaffold(
+        self,
+        model_slug: str,
+        app_num: int,
+        template_slug: str = 'crud_todo_list',
+        generation_mode: str = 'guarded'
+    ) -> bool:
+        from app.services.generation_v2 import GenerationConfig, GenerationMode
+
+        mode = GenerationMode.GUARDED if generation_mode == 'guarded' else GenerationMode.UNGUARDED
+        config = GenerationConfig(
+            model_slug=model_slug,
+            template_slug=template_slug,
+            app_num=app_num,
+            mode=mode,
+        )
+
+        self._manager.create_scaffolding(config)
+        return True
+
+    def get_app_dir(self, model_slug: str, app_num: int, template_slug: str | None = None) -> Path:
+        from app.paths import GENERATED_APPS_DIR
+
+        safe_model = re.sub(r'[^\w\-.]', '_', model_slug)
+        return GENERATED_APPS_DIR / safe_model / f"app{app_num}"
+
+    def get_ports(self, model_slug: str, app_num: int) -> tuple[int, int]:
+        return self._manager.allocate_ports(model_slug, app_num)
+
+
+class GenerationServiceShim:
+    """Compatibility shim backed by generation_v2.
+
+    Provides the legacy interfaces expected by routes and UI while delegating
+    execution to the simplified generation_v2 system.
+    """
+
+    def __init__(self):
+        from app.services.generation_v2 import get_generation_service as get_v2
+
+        self._v2 = get_v2()
+        self.scaffolding = _ScaffoldingProxy()
+
+    def get_template_catalog(self) -> list[dict[str, Any]]:
+        """Return available generation templates with metadata."""
+        catalog: list[dict[str, Any]] = []
+        seen_slugs = set()
+
+        if not REQUIREMENTS_DIR.exists():
+            logger.debug("Requirements directory missing: %s", REQUIREMENTS_DIR)
+            return catalog
+
+        for req_file in sorted(REQUIREMENTS_DIR.glob('*.json')):
+            try:
+                data = json.loads(req_file.read_text(encoding='utf-8'))
+            except json.JSONDecodeError as exc:
+                logger.warning("Skipping invalid JSON in %s: %s", req_file.name, exc)
+                continue
+            except OSError as exc:
+                logger.warning("Failed to read %s: %s", req_file.name, exc)
+                continue
+
+            template_slug = data.get('slug')
+            if template_slug is None:
+                logger.warning("Skipping %s: missing 'slug' field", req_file.name)
+                continue
+
+            name = data.get('name')
+            if not name:
+                logger.warning("Skipping %s: missing 'name' field", req_file.name)
+                continue
+
+            normalized_slug = template_slug.lower().replace('-', '_')
+            if req_file.stem.lower().replace('-', '_') != normalized_slug:
+                logger.warning(
+                    "Slug mismatch in %s: file has slug='%s', filename is %s",
+                    req_file.name, template_slug, req_file.stem
+                )
+                continue
+
+            if template_slug in seen_slugs:
+                logger.error("Duplicate template slug %s in %s", template_slug, req_file.name)
+                continue
+            seen_slugs.add(template_slug)
+
+            description = data.get('description', '')
+            category = data.get('category', 'general')
+            complexity = data.get('complexity') or data.get('difficulty') or 'medium'
+
+            features = data.get('features') or data.get('key_features') or []
+            if isinstance(features, str):
+                features = [features]
+
+            tech_stack = data.get('tech_stack') or data.get('stack') or {}
+            if not isinstance(tech_stack, dict):
+                tech_stack = {'value': tech_stack}
+
+            catalog.append({
+                'slug': template_slug,
+                'name': name,
+                'description': description,
+                'category': category,
+                'complexity': complexity,
+                'features': features,
+                'tech_stack': tech_stack,
+                'filename': req_file.name,
+            })
+
+        logger.info("Loaded %s valid templates from %s", len(catalog), REQUIREMENTS_DIR)
+        return catalog
+
+    def get_generation_status(self) -> dict[str, Any]:
+        """Return basic generation system status (compat stub)."""
+        from app.paths import SCAFFOLDING_DIR
+
+        return {
+            'in_flight_count': 0,
+            'available_slots': 0,
+            'max_concurrent': 0,
+            'in_flight_keys': [],
+            'system_healthy': SCAFFOLDING_DIR.exists(),
+        }
+
+    def get_summary_metrics(self) -> dict[str, Any]:
+        """Return summary metrics for UI dashboards (compat stub)."""
+        summary = {
+            'total_results': 0,
+            'total_templates': 0,
+            'total_models': 0,
+            'recent_results': 0,
+        }
+
+        try:
+            from sqlalchemy import func
+            from app.models import GeneratedApplication, ModelCapability
+
+            summary['total_results'] = GeneratedApplication.query.count()
+            summary['total_models'] = ModelCapability.query.count()
+
+            day_ago = utc_now() - timedelta(days=1)
+            summary['recent_results'] = (
+                GeneratedApplication.query
+                .filter(GeneratedApplication.created_at >= day_ago)
+                .count()
+            )
+        except Exception:  # pragma: no cover - metrics are advisory
+            pass
+
+        summary['total_templates'] = len(self.get_template_catalog())
+        return summary
+
+    async def generate_full_app(
+        self,
+        model_slug: str,
+        app_num: Optional[int],
+        template_slug: str,
+        generate_frontend: bool = True,
+        generate_backend: bool = True,
+        batch_id: Optional[str] = None,
+        parent_app_id: Optional[int] = None,
+        version: int = 1,
+        generation_mode: str = 'guarded',
+        use_auto_fix: bool = True,
+    ) -> dict:
+        """Generate complete app using generation_v2 while keeping legacy response shape."""
+        from app.services.generation_v2 import GenerationConfig, GenerationMode
+
+        mode = GenerationMode.GUARDED if generation_mode == 'guarded' else GenerationMode.UNGUARDED
+        app_number = app_num or self._get_next_app_number(model_slug)
+
+        config = GenerationConfig(
+            model_slug=model_slug,
+            template_slug=template_slug,
+            app_num=app_number,
+            mode=mode,
+        )
+
+        loop = asyncio.get_running_loop()
+        gen_result = await loop.run_in_executor(None, self._v2.generate, config)
+
+        if batch_id or parent_app_id or version:
+            self._update_generation_metadata(
+                model_slug=model_slug,
+                app_number=app_number,
+                batch_id=batch_id,
+                parent_app_id=parent_app_id,
+                version=version,
+            )
+
+        success = gen_result.success
+        errors = list(gen_result.errors) if gen_result.errors else ([] if success else [gen_result.error_message])
+
+        return {
+            'success': success,
+            'scaffolded': gen_result.app_dir is not None,
+            'backend_generated': bool(generate_backend) and success,
+            'frontend_generated': bool(generate_frontend) and success,
+            'generation_mode': generation_mode,
+            'errors': errors,
+            'app_number': app_number,
+            'app_num': app_number,
+            'app_dir': str(gen_result.app_dir) if gen_result.app_dir else None,
+            'metrics': gen_result.metrics,
+        }
+
+    def _get_next_app_number(self, model_slug: str) -> int:
+        """Compute next app number for a model slug."""
+        from sqlalchemy import func
+        from app.models import GeneratedApplication
+        from app.paths import GENERATED_APPS_DIR
+
+        try:
+            max_num = db.session.query(
+                func.max(GeneratedApplication.app_number)
+            ).filter_by(
+                model_slug=model_slug
+            ).scalar()
+            return (max_num or 0) + 1
+        except Exception as exc:
+            logger.warning("Error getting next app number for %s: %s", model_slug, exc)
+
+        safe_model = re.sub(r'[^\w\-.]', '_', model_slug)
+        model_dir = GENERATED_APPS_DIR / safe_model
+        if model_dir.exists():
+            existing = [d for d in model_dir.iterdir() if d.is_dir() and d.name.startswith('app')]
+            return len(existing) + 1
+        return 1
+
+    def _update_generation_metadata(
+        self,
+        model_slug: str,
+        app_number: int,
+        batch_id: Optional[str],
+        parent_app_id: Optional[int],
+        version: int,
+    ) -> None:
+        """Best-effort update of generation metadata for compatibility."""
+        try:
+            app_record = GeneratedApplication.query.filter_by(
+                model_slug=model_slug,
+                app_number=app_number,
+            ).order_by(GeneratedApplication.id.desc()).first()
+
+            if not app_record:
+                return
+
+            if batch_id:
+                app_record.batch_id = batch_id
+            if parent_app_id:
+                app_record.parent_app_id = parent_app_id
+            if version:
+                app_record.version = version
+            app_record.updated_at = utc_now()
+            db.session.commit()
+        except Exception as exc:  # pragma: no cover
+            db.session.rollback()
+            logger.warning("Failed to update generation metadata: %s", exc)
+
+
 # Singleton
 _service = None
 
-def get_generation_service() -> GenerationService:
-    """Get singleton instance."""
+
+def get_generation_service() -> GenerationServiceShim:
+    """Get singleton shim instance."""
     global _service
     if _service is None:
-        _service = GenerationService()
+        _service = GenerationServiceShim()
     return _service

@@ -74,6 +74,7 @@ Flask>=3.0.0
 flask-cors>=4.0.0
 Flask-SQLAlchemy>=3.1.0
 gunicorn>=21.0.0
+# Add any other dependencies you use
 ```
 
 ## ❌ DO NOT CREATE THESE FILES
@@ -90,6 +91,11 @@ gunicorn>=21.0.0
 - SQLite database at /app/data/app.db
 - CORS with origins=['*']
 - All requirements in requirements.txt
+
+## Dependencies (Allowed)
+- You MAY choose any additional Python packages.
+- If you import a package that is not already in the scaffolding, include it in `requirements.txt`.
+- The Dependency Healer can reconcile missing packages, but you should still list any new ones you use.
 
 ## 🔗 API Routing Rules
 - Define routes EXACTLY as specified in the API endpoints section above
