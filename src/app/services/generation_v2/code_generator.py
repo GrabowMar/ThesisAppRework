@@ -315,9 +315,18 @@ class CodeGenerator:
         # Add previous query results for context
         if query_type == 'backend_admin' and 'backend_user' in previous:
             context['models_context'] = self._extract_models_summary(previous['backend_user'])
+            # Pass full backend_user code for reference
+            context['backend_user_code'] = previous['backend_user']
         
         if query_type.startswith('frontend_') and 'backend_user' in previous:
             context['api_context'] = self._extract_api_summary(previous['backend_user'])
+            # Extract backend endpoints for frontend to use
+            context['backend_routes'] = self._extract_route_definitions(previous['backend_user'])
+        
+        # CRITICAL: Pass frontend_user api.js to frontend_admin so it knows what functions exist
+        if query_type == 'frontend_admin' and 'frontend_user' in previous:
+            context['existing_api_js'] = self._extract_file_content(previous['frontend_user'], 'services/api.js')
+            context['existing_auth_js'] = self._extract_file_content(previous['frontend_user'], 'services/auth.js')
         
         return template.render(**context)
     
@@ -389,14 +398,58 @@ Generate complete, working React components (App.jsx, App.css)."""
             return f"Backend endpoints: {', '.join(routes[:10])}"
         return ""
     
+    def _extract_route_definitions(self, backend_code: str) -> str:
+        """Extract complete route definitions with methods for frontend reference."""
+        # Match routes with their methods
+        pattern = r"@(\w+_bp)\.route\s*\(['\"]([^'\"]+)['\"](?:,\s*methods=\[([^\]]+)\])?\)"
+        matches = re.findall(pattern, backend_code)
+        if not matches:
+            return ""
+        
+        lines = []
+        for bp, path, methods in matches:
+            method_str = methods.replace("'", "").replace('"', '') if methods else 'GET'
+            lines.append(f"  {method_str.upper()} /api{path}")
+        
+        return "\n".join(lines[:20])  # Limit to 20 routes
+    
+    def _extract_file_content(self, code_response: str, filename: str) -> str:
+        """Extract content for a specific file from LLM response.
+        
+        Looks for code blocks like:
+        ```jsx:services/api.js
+        ... content ...
+        ```
+        """
+        # Try annotated format first: ```jsx:filename or ```javascript:filename
+        patterns = [
+            rf"```(?:jsx|javascript|js):{re.escape(filename)}\s*\n(.*?)```",
+            rf"```(?:jsx|javascript|js)\s*\n// {re.escape(filename)}\s*\n(.*?)```",
+            rf"\*\*{re.escape(filename)}\*\*[:\s]*\n```(?:jsx|javascript|js)?\s*\n(.*?)```",
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, code_response, re.DOTALL | re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        
+        return ""
+    
     def _get_system_prompt(self, query_type: str) -> str:
         """Get system prompt for query type."""
         base = """You are an expert full-stack developer generating production-quality code.
-Rules:
-- Generate ONLY code, no explanations
-- Use proper error handling
+
+CRITICAL RULES:
+- Generate ONLY complete, working code - no placeholders or TODOs
+- Every function you import MUST be exported from the source file
+- Every function you call MUST be defined or imported
+- Use proper error handling throughout
 - Follow best practices for the framework
-- Output complete, working code"""
+
+CONSISTENCY IS MANDATORY:
+- If you import a function, it MUST exist in the file you're importing from
+- If a previous file was provided, use EXACTLY the function names it exports
+- Never assume functions exist - only use what's explicitly available"""
         
         if 'backend' in query_type:
             return base + """
@@ -406,7 +459,8 @@ Backend specifics:
 - SQLite database at sqlite:////app/data/app.db
 - Use blueprints (user_bp, admin_bp) with @bp.route() decorator
 - Include proper to_dict() methods on models
-- Use db.session.rollback() in exception handlers"""
+- Use db.session.rollback() in exception handlers
+- Admin routes should use /admin/ prefix"""
         else:
             return base + """
 
@@ -421,7 +475,12 @@ Frontend specifics:
 ONLY USE THESE PACKAGES (already installed):
 react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, date-fns, clsx, uuid
 
-DO NOT USE: @chakra-ui, @mui/material, styled-components, emotion, or any other UI library not listed above."""
+DO NOT USE: @chakra-ui, @mui/material, styled-components, emotion, or any other UI library not listed above.
+
+IMPORT/EXPORT CONSISTENCY:
+- If adding to an existing api.js, include ALL existing functions plus your new ones
+- Every function you import in a component MUST be exported from api.js
+- Check that import names match export names exactly"""
     
     def _extract_code(self, response: Dict, query_type) -> str:
         """Extract code from API response.

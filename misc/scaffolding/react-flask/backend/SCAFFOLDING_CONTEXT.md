@@ -13,6 +13,10 @@ backend/
     └── admin.py    # LLM implements admin API
 ```
 
+### Blueprint Prefixes (IMPORTANT)
+- `user_bp` already has `/api` prefix → route paths should NOT start with `/api`
+- `admin_bp` already has `/api/admin` prefix → route paths should NOT start with `/api`
+
 ## What LLM Must Implement
 
 ### 1. User Model (models.py)

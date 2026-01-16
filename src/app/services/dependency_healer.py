@@ -18,7 +18,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -264,6 +264,7 @@ class DependencyHealer:
         """Heal frontend-specific issues."""
         src_dir = frontend_dir / 'src'
         package_json_path = frontend_dir / 'package.json'
+        api_js_path = frontend_dir / 'src' / 'services' / 'api.js'
         
         if not src_dir.exists():
             logger.warning(f"[DependencyHealer] Frontend src/ not found: {src_dir}")
@@ -298,6 +299,15 @@ class DependencyHealer:
             
             if self.auto_fix:
                 self._fix_frontend_exports(export_issues, result)
+
+        # 3. Ensure API exports referenced by pages exist (prevents Vite build failures)
+        api_fix = self._ensure_api_exports(src_dir, api_js_path, auto_fix=self.auto_fix)
+        for issue in api_fix['issues']:
+            result.frontend_issues.append(issue)
+            result.issues_found += 1
+        if api_fix['fixed_count'] > 0:
+            result.issues_fixed += api_fix['fixed_count']
+            result.changes_made.extend(api_fix['changes'])
 
     def _find_jsx_extension_issues(self, src_dir: Path) -> List[Dict]:
         """Find .js files that contain JSX syntax and should be .jsx.
@@ -669,6 +679,114 @@ class DependencyHealer:
             index_file.write_text(content, encoding='utf-8')
             logger.info(f"[DependencyHealer] Updated index.js export pattern for {export_name}")
 
+    def _ensure_api_exports(self, src_dir: Path, api_js_path: Path, auto_fix: bool) -> Dict[str, Any]:
+        """Ensure functions imported from services/api.js are exported there."""
+        issues: List[str] = []
+        changes: List[str] = []
+        fixed_count = 0
+
+        if not api_js_path.exists():
+            return {'issues': issues, 'changes': changes, 'fixed_count': fixed_count}
+
+        try:
+            api_content = api_js_path.read_text(encoding='utf-8')
+        except Exception as e:
+            return {'issues': [f"Failed to read api.js: {e}"], 'changes': [], 'fixed_count': 0}
+
+        exported = set()
+        for match in re.finditer(r'export\s+(?:const|function)\s+(\w+)', api_content):
+            exported.add(match.group(1))
+
+        def _collect_imports(file_path: Path) -> List[str]:
+            try:
+                content = file_path.read_text(encoding='utf-8')
+            except Exception:
+                return []
+            imports = []
+            for match in re.finditer(
+                r"import\s*\{([^}]+)\}\s*from\s*['\"](?:\.{1,2}/)*services/api['\"]",
+                content
+            ):
+                names = match.group(1)
+                for name in names.split(','):
+                    clean = name.strip().split(' as ')[0]
+                    if clean:
+                        imports.append(clean)
+            return imports
+
+        wanted_admin = set()
+        wanted_user = set()
+        admin_path = src_dir / 'pages' / 'AdminPage.jsx'
+        user_path = src_dir / 'pages' / 'UserPage.jsx'
+        if admin_path.exists():
+            wanted_admin.update(_collect_imports(admin_path))
+        if user_path.exists():
+            wanted_user.update(_collect_imports(user_path))
+
+        wanted = wanted_admin | wanted_user
+
+        missing = sorted(name for name in wanted if name not in exported)
+        if not missing:
+            return {'issues': issues, 'changes': changes, 'fixed_count': fixed_count}
+
+        for name in missing:
+            issues.append(f"api.js missing export for {name}")
+
+        if auto_fix:
+            additions = []
+            for name in missing:
+                is_admin = name in wanted_admin
+                endpoint = self._infer_endpoint(name, is_admin=is_admin)
+                additions.append(
+                    f"export const {name} = (payload) => api.{endpoint['method']}('{endpoint['path']}', payload);"
+                )
+            api_content = api_content.rstrip() + "\n\n// Auto-added admin API exports\n" + "\n".join(additions) + "\n"
+            try:
+                api_js_path.write_text(api_content, encoding='utf-8')
+                changes.append(f"Added {len(missing)} missing exports to api.js")
+                fixed_count += len(missing)
+            except Exception as e:
+                issues.append(f"Failed to write api.js: {e}")
+
+        return {'issues': issues, 'changes': changes, 'fixed_count': fixed_count}
+
+    def _infer_endpoint(self, function_name: str, is_admin: bool) -> Dict[str, str]:
+        """Infer a reasonable endpoint path for a missing API export."""
+        name = function_name
+        method = 'get'
+        path = '/admin' if is_admin else ''
+
+        # Determine method
+        if re.search(r'^(create|add|post)', name, re.IGNORECASE):
+            method = 'post'
+        elif re.search(r'^(update|edit|put)', name, re.IGNORECASE):
+            method = 'put'
+        elif re.search(r'^(delete|remove)', name, re.IGNORECASE):
+            method = 'delete'
+
+        # Determine resource
+        resource = None
+        for candidate in ['todos', 'validations', 'conversions', 'items', 'stats']:
+            if re.search(candidate, name, re.IGNORECASE):
+                resource = candidate
+                break
+
+        if 'stats' in name.lower():
+            path = '/admin/stats' if is_admin else '/stats'
+            method = 'get'
+        elif resource:
+            prefix = '/admin' if is_admin else ''
+            path = f"{prefix}/{resource}"
+
+        if 'toggle' in name.lower():
+            path = f"{path}/{{id}}/toggle"
+            method = 'post'
+        if 'bulk' in name.lower():
+            path = f"{path}/bulk-delete"
+            method = 'post'
+
+        return {'method': method, 'path': path}
+
     # =========================================================================
     # Backend Healing
     # =========================================================================
@@ -686,14 +804,163 @@ class DependencyHealer:
             
             if self.auto_fix:
                 self._add_python_dependencies(requirements_path, missing_deps, result)
+
+        # 2. Fix common backend route issues (imports, blueprint usage, model name mismatches)
+        route_fix_summary = self._fix_backend_route_issues(backend_dir, auto_fix=self.auto_fix)
+        for issue in route_fix_summary['issues']:
+            result.backend_issues.append(issue)
+            result.issues_found += 1
+        if route_fix_summary['fixed_count'] > 0:
+            result.issues_fixed += route_fix_summary['fixed_count']
+            result.changes_made.extend(route_fix_summary['changes'])
         
-        # 2. Check for Python syntax errors
+        # 3. Check for Python syntax errors
         syntax_issues = self._check_python_syntax(backend_dir)
         if syntax_issues:
             for issue in syntax_issues:
                 result.backend_issues.append(issue)
                 result.issues_found += 1
             # Syntax errors can't be auto-fixed
+
+    def _fix_backend_route_issues(self, backend_dir: Path, auto_fix: bool) -> Dict[str, Any]:
+        """Detect and optionally fix common backend route issues."""
+        issues: List[str] = []
+        changes: List[str] = []
+        fixed_count = 0
+
+        routes_dir = backend_dir / 'routes'
+        models_path = backend_dir / 'models.py'
+        model_classes = self._extract_model_class_names(models_path)
+
+        def maybe_write(path: Path, new_content: str, change_message: str) -> None:
+            nonlocal fixed_count
+            if not auto_fix:
+                return
+            try:
+                if new_content != path.read_text(encoding='utf-8'):
+                    path.write_text(new_content, encoding='utf-8')
+                    changes.append(change_message)
+                    fixed_count += 1
+            except Exception as e:
+                issues.append(f"Failed to update {path.name}: {e}")
+
+        def ensure_import(content: str, import_line: str) -> str:
+            if import_line in content:
+                return content
+            lines = content.splitlines()
+            insert_at = 0
+            for idx, line in enumerate(lines):
+                stripped = line.strip()
+                if stripped.startswith('#') or stripped == '':
+                    continue
+                if stripped.startswith('import ') or stripped.startswith('from '):
+                    insert_at = idx + 1
+                    continue
+                break
+            lines.insert(insert_at, import_line)
+            return "\n".join(lines) + ("\n" if content.endswith("\n") else "")
+
+        def has_imported_name(content: str, name: str) -> bool:
+            pattern = re.compile(rf'^\s*from\s+[\w.]+\s+import\s+.*\b{re.escape(name)}\b', re.MULTILINE)
+            if pattern.search(content):
+                return True
+            return bool(re.search(rf'^\s*import\s+.*\b{re.escape(name)}\b', content, flags=re.MULTILINE))
+
+        # -------------------- routes/user.py --------------------
+        user_path = routes_dir / 'user.py'
+        if user_path.exists():
+            try:
+                content = user_path.read_text(encoding='utf-8')
+                if ('@token_required' in content or 'token_required(' in content) and 'from routes.auth import token_required' not in content:
+                    issues.append("routes/user.py missing token_required import")
+                    content = ensure_import(content, 'from routes.auth import token_required')
+
+                if 'user_bp' in content and 'from routes import user_bp' not in content:
+                    issues.append("routes/user.py missing user_bp import")
+                    content = ensure_import(content, 'from routes import user_bp')
+
+                maybe_write(user_path, content, "Auto-fixed routes/user.py imports")
+            except Exception as e:
+                issues.append(f"Failed to inspect routes/user.py: {e}")
+
+        # -------------------- routes/admin.py --------------------
+        admin_path = routes_dir / 'admin.py'
+        if admin_path.exists():
+            try:
+                content = admin_path.read_text(encoding='utf-8')
+
+                if 'from .admin_bp import admin_bp' in content or 'from admin_bp import admin_bp' in content:
+                    issues.append("routes/admin.py uses incorrect admin_bp import")
+                    content = content.replace('from .admin_bp import admin_bp', 'from routes import admin_bp')
+                    content = content.replace('from admin_bp import admin_bp', 'from routes import admin_bp')
+
+                if ('@admin_required' in content or 'admin_required(' in content) and 'from routes.auth import admin_required' not in content:
+                    issues.append("routes/admin.py missing admin_required import")
+                    content = ensure_import(content, 'from routes.auth import admin_required')
+
+                if 'admin_bp' in content and 'from routes import admin_bp' not in content:
+                    issues.append("routes/admin.py missing admin_bp import")
+                    content = ensure_import(content, 'from routes import admin_bp')
+
+                if 'ShortUrl' in content and 'ShortUrl' not in model_classes and 'URL' in model_classes:
+                    issues.append("routes/admin.py references ShortUrl but models define URL")
+                    content = content.replace('ShortUrl', 'URL')
+
+                maybe_write(admin_path, content, "Auto-fixed routes/admin.py imports/model references")
+            except Exception as e:
+                issues.append(f"Failed to inspect routes/admin.py: {e}")
+
+        # -------------------- routes/auth.py --------------------
+        auth_path = routes_dir / 'auth.py'
+        if auth_path.exists():
+            try:
+                content = auth_path.read_text(encoding='utf-8')
+
+                if ('datetime.' in content or 'timedelta' in content) and 'from datetime import datetime, timedelta' not in content:
+                    issues.append("routes/auth.py missing datetime import")
+                    content = ensure_import(content, 'from datetime import datetime, timedelta')
+
+                if 'generate_password_hash' in content and 'from werkzeug.security import generate_password_hash' not in content:
+                    issues.append("routes/auth.py missing generate_password_hash import")
+                    content = ensure_import(content, 'from werkzeug.security import generate_password_hash')
+
+                if 'jwt.' in content and 'import jwt' not in content:
+                    issues.append("routes/auth.py missing jwt import")
+                    content = ensure_import(content, 'import jwt')
+
+                if 'User' in content and not has_imported_name(content, 'User'):
+                    issues.append("routes/auth.py missing User import")
+                    content = ensure_import(content, 'from models import User')
+
+                maybe_write(auth_path, content, "Auto-fixed routes/auth.py imports")
+            except Exception as e:
+                issues.append(f"Failed to inspect routes/auth.py: {e}")
+
+        return {
+            'issues': issues,
+            'changes': changes,
+            'fixed_count': fixed_count,
+        }
+
+    def _extract_model_class_names(self, models_path: Path) -> List[str]:
+        """Extract model class names from models.py."""
+        if not models_path.exists():
+            return []
+        try:
+            content = models_path.read_text(encoding='utf-8')
+            tree = ast.parse(content)
+            class_names = []
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef):
+                    class_names.append(node.name)
+            return class_names
+        except Exception:
+            # Fallback regex
+            try:
+                content = models_path.read_text(encoding='utf-8')
+                return re.findall(r'class\s+(\w+)\s*\(.*?\):', content)
+            except Exception:
+                return []
 
     def _find_missing_python_deps(self, backend_dir: Path, requirements_path: Path) -> Set[str]:
         """Find Python packages imported in code but not in requirements.txt."""

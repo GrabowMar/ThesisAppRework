@@ -20,6 +20,26 @@ The user API functions are ALREADY DEFINED in `services/api.js`. Add admin funct
 {{ admin_api_endpoints }}
 {% endif %}
 
+## CRITICAL: Existing API Service (DO NOT REPLACE - ADD TO THIS)
+{% if existing_api_js %}
+The following functions ALREADY EXIST in `services/api.js`. You MUST keep all of them and ADD your admin functions:
+
+```javascript
+{{ existing_api_js }}
+```
+
+**Your api.js output MUST include ALL the above functions PLUS your new admin functions.**
+{% else %}
+Add admin functions to the existing api.js file. Keep all existing user functions.
+{% endif %}
+
+{% if existing_auth_js %}
+## Existing Auth Service (reference only, do not modify)
+```javascript
+{{ existing_auth_js }}
+```
+{% endif %}
+
 ## Standard Admin Features
 Admin page should typically include:
 1. Dashboard with statistics cards

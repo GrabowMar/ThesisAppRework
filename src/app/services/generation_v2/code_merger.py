@@ -386,6 +386,24 @@ class CodeMerger:
             if 'adminpage' in filename_lower:
                 continue
             
+            # Always handle api.js if provided by admin output
+            if filename_lower in {'api.js', 'services/api.js'}:
+                code = self._fix_api_urls(code)
+                target_path = frontend_src_dir / 'services' / 'api.js'
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                existing_code = ''
+                if target_path.exists():
+                    try:
+                        existing_code = target_path.read_text(encoding='utf-8')
+                    except Exception:
+                        existing_code = ''
+
+                merged_code = self._merge_admin_api(existing_code, code)
+                target_path.write_text(merged_code, encoding='utf-8')
+                logger.info("✓ Merged admin API functions into services/api.js")
+                written['admin_api'] = target_path
+                continue
+
             # Only write admin-related files
             if 'admin' in filename_lower or filename_lower.startswith('components/'):
                 if lang == 'css' or filename.endswith('.css'):
@@ -397,11 +415,22 @@ class CodeMerger:
                 elif lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
                     code = self._fix_api_urls(code)
                     
-                    # Ensure api.js has default export (required by scaffold's auth.js)
+                    # Merge admin api.js content with existing api.js instead of overwriting
                     if filename_lower in {'api.js', 'services/api.js'}:
-                        if 'export default' not in code:
-                            code = code.rstrip() + '\n\nexport default api;'
-                            logger.info("Added 'export default api;' to api.js for scaffold compatibility")
+                        target_path = frontend_src_dir / 'services' / 'api.js'
+                        target_path.parent.mkdir(parents=True, exist_ok=True)
+                        existing_code = ''
+                        if target_path.exists():
+                            try:
+                                existing_code = target_path.read_text(encoding='utf-8')
+                            except Exception:
+                                existing_code = ''
+
+                        merged_code = self._merge_admin_api(existing_code, code)
+                        target_path.write_text(merged_code, encoding='utf-8')
+                        logger.info("✓ Merged admin API functions into services/api.js")
+                        written['admin_api'] = target_path
+                        continue
                     
                     target_path = frontend_src_dir / filename
                     target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -410,6 +439,68 @@ class CodeMerger:
                     written[f'admin_component_{filename}'] = target_path
         
         return written
+
+    def _merge_admin_api(self, existing_code: str, admin_code: str) -> str:
+        """Merge admin API functions into existing api.js.
+
+        Preserves existing user functions and appends new admin functions.
+        Avoids overwriting or removing existing exports.
+        """
+        existing = existing_code or ''
+        admin = admin_code or ''
+
+        # Remove duplicate default exports before merging
+        default_export_pattern = r'^\s*export\s+default\s+api\s*;?\s*$'
+        existing = re.sub(default_export_pattern, '', existing, flags=re.MULTILINE)
+        admin = re.sub(default_export_pattern, '', admin, flags=re.MULTILINE)
+
+        if not existing.strip():
+            merged = admin.strip()
+            if merged:
+                merged = merged.rstrip()
+            merged += '\n\nexport default api;'
+            return merged
+
+        existing_funcs = self._extract_exported_blocks(existing)
+        admin_funcs = self._extract_exported_blocks(admin)
+
+        new_blocks = []
+        for name, block in admin_funcs.items():
+            if name not in existing_funcs:
+                new_blocks.append(block)
+
+        merged = existing.rstrip()
+        if new_blocks:
+            merged += '\n\n' + '\n\n'.join(new_blocks).strip()
+
+        merged += '\n\nexport default api;'
+
+        return merged
+
+    def _extract_exported_blocks(self, code: str) -> Dict[str, str]:
+        """Extract exported function blocks from JS/TS code.
+
+        Supports:
+        - export const name = ...
+        - export async function name(...)
+        - export function name(...)
+        """
+        blocks: Dict[str, str] = {}
+        if not code:
+            return blocks
+
+        pattern = re.compile(
+            r'(export\s+(?:const|async\s+function|function)\s+(\w+)\b[\s\S]*?)(?=\nexport\s+(?:const|async\s+function|function)\s+|\Z)',
+            re.MULTILINE
+        )
+
+        for match in pattern.finditer(code):
+            block = match.group(1).strip()
+            name = match.group(2).strip()
+            if name and block:
+                blocks[name] = block
+
+        return blocks
     
     def _fix_api_urls(self, code: str) -> str:
         """Fix API URLs for Docker networking (localhost → relative path)."""

@@ -3556,6 +3556,24 @@ class GenerationService:
             generation_mode: 'guarded' (structured) or 'unguarded' (architectural freedom)
             use_auto_fix: Whether to run dependency healer after generation (default True - improves build success)
         """
+        try:
+            from app.services.misc_validator import validate_template_requirements
+
+            template_validation = validate_template_requirements(template_slug)
+            if not template_validation.get('ok', False):
+                return {
+                    'success': False,
+                    'scaffolded': False,
+                    'backend_generated': False,
+                    'frontend_generated': False,
+                    'errors': [
+                        'Template validation failed. Fix requirements before generation.'
+                    ],
+                    'template_validation': template_validation,
+                }
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Template validation failed unexpectedly: {exc}")
+
         # Step 0: Atomic app reservation - create DB record immediately
         app_record = await self._reserve_app_number(
             model_slug=model_slug,
@@ -3987,8 +4005,9 @@ class GenerationService:
         # Runs by default (use_auto_fix=True) to improve build success rate
         if result['success'] and use_auto_fix:
             try:
-                from app.services.dependency_healer import heal_generated_app
+                from app.services.dependency_healer import get_dependency_healer, heal_generated_app
                 logger.info("Step 6: Running dependency healer (auto-fix enabled)...")
+                pre_fix = get_dependency_healer(auto_fix=False).validate_app(app_dir)
                 healing_result = heal_generated_app(app_dir, auto_fix=True)
                 result['healing'] = {
                     'success': healing_result.success,
@@ -3998,6 +4017,13 @@ class GenerationService:
                     'frontend_issues': healing_result.frontend_issues,
                     'backend_issues': healing_result.backend_issues,
                     'errors': healing_result.errors
+                    ,
+                    'pre_fix': {
+                        'issues_found': pre_fix.issues_found,
+                        'frontend_issues': pre_fix.frontend_issues,
+                        'backend_issues': pre_fix.backend_issues,
+                        'errors': pre_fix.errors,
+                    }
                 }
                 if healing_result.issues_found > 0:
                     logger.info(
@@ -4310,6 +4336,9 @@ class GenerationService:
         generation_metrics = result_snapshot.get('generation_metrics')
         if generation_metrics:
             metadata['generation_metrics'] = generation_metrics
+        healing_info = result_snapshot.get('healing')
+        if healing_info:
+            metadata['healing'] = healing_info
         app_record.set_metadata(metadata)
 
         app_record.updated_at = utc_now()
@@ -4373,6 +4402,19 @@ class GenerationService:
             'active_tasks': 0,
             'system_healthy': self.scaffolding.scaffolding_source.exists(),
         }
+
+        try:
+            from app.services.misc_validator import validate_misc_inputs
+
+            misc_status = validate_misc_inputs()
+            status['misc_ok'] = misc_status.get('ok', False)
+            status['misc_issue_count'] = misc_status.get('issue_count', 0)
+            status['misc_issues'] = misc_status.get('issues', [])
+            status['system_healthy'] = status['system_healthy'] and status['misc_ok']
+        except Exception:  # pragma: no cover - best effort
+            status.setdefault('misc_ok', True)
+            status.setdefault('misc_issue_count', 0)
+            status.setdefault('misc_issues', [])
 
         try:
             from sqlalchemy import func
@@ -4454,9 +4496,7 @@ class GenerationService:
             if latest_model:
                 summary['latest_model'] = latest_model[0]
 
-            summary['total_templates'] = sum(
-                1 for path in self.scaffolding.scaffolding_source.rglob('*') if path.is_file()
-            )
+            summary['total_templates'] = len(self.get_template_catalog())
         except Exception:  # pragma: no cover - metrics are advisory
             pass
 

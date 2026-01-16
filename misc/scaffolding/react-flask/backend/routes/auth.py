@@ -9,7 +9,7 @@ from models import db
 
 
 # LLM: Implement JWT authentication
-# 1. Import: import jwt, from models import User
+# 1. Imports REQUIRED: import jwt, from models import User, from werkzeug.security import generate_password_hash
 # 2. Implement: generate_token(user_id), decode_token(token)
 # 3. Implement decorators: token_required(f), admin_required(f)
 # 4. Implement routes below:
