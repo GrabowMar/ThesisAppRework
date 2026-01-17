@@ -15,7 +15,6 @@ The actual route implementations are distributed across focused modules:
 - simple_generation.py: AI-powered code generation
 - generation_v2.py: V2 generation with scaffolding-first approach
 - container_tools.py: Container-based tool registry
-- tool_registry.py: Legacy tool registry (shims to container_tools)
 - statistics.py: Statistics dashboard API
 
 All routes have been migrated out of this file for better organization.
@@ -33,7 +32,6 @@ from .models import models_bp
 from .system import system_bp
 from .dashboard import dashboard_bp
 from .applications import applications_bp
-from .tool_registry import tool_registry_bp
 from .analysis import analysis_bp
 from .container_tools import container_tools_bp
 from .reports import reports_bp
@@ -86,7 +84,6 @@ api_bp.register_blueprint(system_bp)
 api_bp.register_blueprint(dashboard_bp, url_prefix='/dashboard')
 api_bp.register_blueprint(applications_bp)
 api_bp.register_blueprint(analysis_bp, url_prefix='/analysis')
-api_bp.register_blueprint(tool_registry_bp)
 api_bp.register_blueprint(container_tools_bp)
 api_bp.register_blueprint(reports_bp)
 api_bp.register_blueprint(statistics_bp)

@@ -9,7 +9,7 @@ import logging
 from flask import Blueprint, flash, redirect, url_for, request
 from flask_login import current_user
 
-from app.utils.template_paths import render_template_compat as render_template
+from flask import render_template
 from ...extensions import db
 from ...models import Report
 

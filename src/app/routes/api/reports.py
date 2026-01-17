@@ -333,7 +333,7 @@ def get_report_options():
     """
     try:
         from ...models import ModelCapability, GeneratedApplication
-        from ...services.tool_registry_service import get_tool_registry_service
+        from ...engines.container_tool_registry import get_container_tool_registry
         from ...services.generation import get_generation_service
         from ...utils.slug_utils import normalize_model_slug
         
@@ -396,7 +396,7 @@ def get_report_options():
             })
         
         # Get tools
-        tool_registry = get_tool_registry_service()
+        tool_registry = get_container_tool_registry()
         all_tools = tool_registry.get_all_tools()
         tools_data = [{
             'name': tool.name,

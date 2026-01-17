@@ -11,7 +11,7 @@ import traceback
 from flask import Blueprint, flash, current_app, abort, redirect, url_for, request
 from flask_login import current_user
 
-from app.utils.template_paths import render_template_compat as render_template
+from flask import render_template
 from app.services.docs_service import DocsService
 
 # Create blueprint

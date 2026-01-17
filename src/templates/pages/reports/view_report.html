@@ -335,21 +335,6 @@
       html += '</div>';
     }
     
-    // Legacy fallback for old format
-    if (perf.p50_response_time_ms || perf.p95_response_time_ms) {
-      html += '<div class="row g-3 mt-2">';
-      html += '<div class="col-md-4 col-6"><div class="text-center p-2">';
-      html += '<div class="h4 mb-0">' + (perf.p50_response_time_ms || 0).toFixed(0) + ' ms</div>';
-      html += '<div class="text-muted small">P50 Latency</div></div></div>';
-      html += '<div class="col-md-4 col-6"><div class="text-center p-2">';
-      html += '<div class="h4 mb-0">' + (perf.p95_response_time_ms || 0).toFixed(0) + ' ms</div>';
-      html += '<div class="text-muted small">P95 Latency</div></div></div>';
-      html += '<div class="col-md-4 col-6"><div class="text-center p-2">';
-      html += '<div class="h4 mb-0">' + (perf.p99_response_time_ms || 0).toFixed(0) + ' ms</div>';
-      html += '<div class="text-muted small">P99 Latency</div></div></div>';
-      html += '</div>';
-    }
-    
     html += '</div></div>';
     return html;
   }

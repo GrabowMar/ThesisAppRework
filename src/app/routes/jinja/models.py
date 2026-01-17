@@ -9,7 +9,7 @@ from typing import Any
 from flask import Blueprint, current_app, flash, request, Response, redirect, url_for
 from flask_login import current_user
 from werkzeug.exceptions import HTTPException
-from app.utils.template_paths import render_template_compat as render_template
+from flask import render_template
 from app.extensions import db
 from app.models import (
     ModelCapability,
@@ -97,17 +97,6 @@ def _enrich_model(m: ModelCapability) -> dict:
     return data
 
 
-@models_bp.route('/')
-def models_index():
-    """Legacy models index → redirect to main models overview page."""
-    return redirect(url_for('main.models_overview'))
-
-
-@models_bp.route('/models_overview')
-def models_overview():
-    """Compatibility endpoint name used by some templates; delegate to main."""
-    return redirect(url_for('main.models_overview'))
-
 
 @models_bp.route('/model_actions/<model_slug>')
 @models_bp.route('/model_actions')
@@ -142,25 +131,6 @@ def model_actions(model_slug=None):
         current_app.logger.error(f"Error loading model actions for {model_slug}: {e}")
         return f'<div class="alert alert-danger">Error loading model actions: {str(e)}</div>'
 
-
-@models_bp.route('/model_apps/<model_slug>')
-def model_apps(model_slug):
-    """View applications for a specific model."""
-    try:
-        # Route now serves as a compatibility alias. Redirect to Applications page
-        # with model filter applied so the UI reflects the requested model.
-        _ = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
-        return redirect(url_for('main.applications_index', model=model_slug))
-    except Exception as e:
-        current_app.logger.error(f"Error loading model apps for {model_slug}: {e}")
-        flash(f'Error loading applications: {str(e)}', 'error')
-        return render_template(
-            'pages/errors/errors_main.html',
-            error_code=500,
-            error_title='Model Applications Error',
-            error_message=str(e),
-            python_version='3.11'
-        )
 
 
 @models_bp.route('/import')

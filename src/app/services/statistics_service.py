@@ -341,83 +341,28 @@ def get_recent_activity(limit: int = 20) -> List[Dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Analyzer Health Status
-# ---------------------------------------------------------------------------
 
 def get_analyzer_health() -> Dict[str, Any]:
-    """Get analyzer service health indicators.
-    
-    Returns dict with:
-    - overall_status: healthy/degraded/critical
-    - services_up: count of healthy services
-    - services_total: total service count
-    - queue_depth: pending task count
-    """
+    """Get analyzer health status snapshot."""
     try:
-        now = datetime.now(timezone.utc)
-        one_hour_ago = now - timedelta(hours=1)
-        
-        # Recent task performance
-        recent_completed = db.session.query(func.count(AnalysisTask.id)).filter(
-            AnalysisTask.completed_at >= one_hour_ago,  # type: ignore[arg-type]
-            AnalysisTask.status == AnalysisStatus.COMPLETED  # type: ignore[arg-type]
-        ).scalar() or 0
-        
-        recent_failed = db.session.query(func.count(AnalysisTask.id)).filter(
-            AnalysisTask.completed_at >= one_hour_ago,  # type: ignore[arg-type]
-            AnalysisTask.status == AnalysisStatus.FAILED  # type: ignore[arg-type]
-        ).scalar() or 0
-        
-        # Stuck tasks (running for more than 1 hour)
-        stuck_tasks = db.session.query(func.count(AnalysisTask.id)).filter(
-            AnalysisTask.status == AnalysisStatus.RUNNING,  # type: ignore[arg-type]
-            AnalysisTask.started_at < one_hour_ago  # type: ignore[arg-type]
-        ).scalar() or 0
-        
-        # Queue depth (pending tasks)
-        queue_depth = db.session.query(func.count(AnalysisTask.id)).filter(
-            AnalysisTask.status == AnalysisStatus.PENDING  # type: ignore[arg-type]
-        ).scalar() or 0
-        
-        # Determine health status
-        overall_status = "healthy"
-        services_total = 4  # static, dynamic, performance, ai analyzers
-        services_up = 4  # Assume healthy unless we detect issues
-        
-        if stuck_tasks > 0:
-            overall_status = "degraded"
-            services_up = 3
-        
-        if queue_depth > 10:
-            overall_status = "degraded"
-        
-        if recent_failed > recent_completed and recent_completed + recent_failed > 0:
-            overall_status = "critical"
-            services_up = 2
-        
+        from app.services.service_locator import ServiceLocator
+        health_service = ServiceLocator.get_health_service()
+        if not health_service:
+            return {}
+        health = health_service.check_all()
         return {
-            "overall_status": overall_status,
-            "services_up": services_up,
-            "services_total": services_total,
-            "queue_depth": queue_depth,
-            "stuck_tasks": stuck_tasks,
-            "recent_completed": recent_completed,
-            "recent_failed": recent_failed,
+            key: value
+            for key, value in health.items()
+            if key in {
+                "static_analyzer",
+                "dynamic_analyzer",
+                "performance_tester",
+                "ai_analyzer",
+            }
         }
-        
-    except Exception as e:
-        logger.error(f"Error getting analyzer health: {e}")
-        return {
-            "overall_status": "unknown",
-            "services_up": 0,
-            "services_total": 4,
-            "queue_depth": 0,
-        }
-
-
-# ---------------------------------------------------------------------------
-# Tool Effectiveness Summary
-# ---------------------------------------------------------------------------
+    except Exception as exc:
+        logger.error(f"Error getting analyzer health: {exc}")
+        return {}
 
 def get_tool_effectiveness() -> List[Dict[str, Any]]:
     """Get summary of tool effectiveness across all analyses.
@@ -673,87 +618,6 @@ def get_filesystem_metrics() -> Dict[str, Any]:
 # These functions provide backward compatibility with the dashboard API
 # that expects the old statistics_service interface
 
-def get_application_statistics() -> Dict[str, Any]:
-    """Legacy: Get application statistics (maps to system_overview)."""
-    overview = get_system_overview()
-    return {
-        "total": overview.get("total_apps", 0),
-        "by_model": {},  # Simplified
-        "recent_count": overview.get("total_tasks", 0),
-    }
-
-def get_model_statistics() -> Dict[str, Any]:
-    """Legacy: Get model statistics (maps to model_comparison)."""
-    models = get_model_comparison()
-    return {
-        "total": len(models),
-        "models": models,
-    }
-
-def get_analysis_statistics() -> Dict[str, Any]:
-    """Legacy: Get analysis statistics."""
-    overview = get_system_overview()
-    severity = get_severity_distribution()
-    return {
-        "total_tasks": overview.get("total_tasks", 0),
-        "completed": overview.get("completed_count", 0),
-        "failed": overview.get("failed_count", 0),
-        "success_rate": overview.get("success_rate", 0.0),
-        "total_findings": severity.get("total", 0),
-    }
-
-def get_recent_statistics() -> Dict[str, Any]:
-    """Legacy: Get recent statistics."""
-    quick = get_quick_stats()
-    return {
-        "today": quick.get("today_count", 0),
-        "week": quick.get("week_count", 0),
-    }
-
-def get_model_distribution() -> Dict[str, Any]:
-    """Legacy: Get model distribution."""
-    models = get_model_comparison()
-    return {
-        "labels": [m.get("model", "") for m in models[:10]],
-        "values": [m.get("analysis_count", 0) for m in models[:10]],
-    }
-
-def get_generation_trends() -> Dict[str, Any]:
-    """Legacy: Get generation trends."""
-    trends = get_analysis_trends(days=14)
-    return trends
-
-def get_analysis_summary() -> Dict[str, Any]:
-    """Legacy: Get analysis summary."""
-    severity = get_severity_distribution()
-    return {
-        "severity": severity,
-        "total": severity.get("total", 0),
-    }
-
-def export_statistics() -> Dict[str, Any]:
-    """Legacy: Export all statistics as a single dict."""
-    return {
-        "overview": get_system_overview(),
-        "severity": get_severity_distribution(),
-        "health": get_analyzer_health(),
-        "models": get_model_comparison(),
-        "tools": get_tool_effectiveness(),
-        "quick_stats": get_quick_stats(),
-        "filesystem": get_filesystem_metrics(),
-    }
-
-def get_generation_statistics_by_models(model_slugs: List[str]) -> Dict[str, Any]:
-    """Legacy: Get generation statistics filtered by model slugs."""
-    all_models = get_model_comparison()
-    filtered = [m for m in all_models if m.get("model") in model_slugs]
-    return {
-        "models": filtered,
-        "total_apps": sum(m.get("app_count", 0) for m in filtered),
-        "total_analyses": sum(m.get("analysis_count", 0) for m in filtered),
-    }
-
-
 # ---------------------------------------------------------------------------
 # Exports
 # ---------------------------------------------------------------------------
@@ -769,14 +633,4 @@ __all__ = [
     'get_tool_effectiveness',
     'get_quick_stats',
     'get_filesystem_metrics',
-    # Legacy API (backward compatibility)
-    'get_application_statistics',
-    'get_model_statistics',
-    'get_analysis_statistics',
-    'get_recent_statistics',
-    'get_model_distribution',
-    'get_generation_trends',
-    'get_analysis_summary',
-    'export_statistics',
-    'get_generation_statistics_by_models',
 ]

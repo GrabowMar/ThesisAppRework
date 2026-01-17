@@ -32,7 +32,7 @@ def register_websocket_routes(app):
                 'Native WebSocket upgrade not supported by this server route',
                 status=426,
                 error='websocket_upgrade_required',
-                hint='Use Socket.IO client if enabled, or REST API at /api/websocket/* for polling'
+                hint='Use Socket.IO client if enabled, or REST API at /ws-api/* for polling'
             )), 426
         except Exception as e:
             logger.error(f"WebSocket analysis endpoint error: {e}")
@@ -59,7 +59,7 @@ def register_websocket_routes(app):
             'Socket.IO not available',
             status=404,
             error='socketio_not_available',
-            alternative='Use REST API at /api/websocket/ for WebSocket functionality'
+            alternative='Use REST API at /ws-api/ for WebSocket functionality'
         )), 404
 
 
@@ -102,7 +102,7 @@ def register_error_handlers(app):
                 message,
                 status=status,
                 error='websocket_mismatch',
-                hint='Use /api/websocket/* endpoints for polling when real-time is disabled'
+                hint='Use /ws-api/* endpoints for polling when real-time is disabled'
             )), status
         return render_template(
             'pages/errors/errors_main.html',

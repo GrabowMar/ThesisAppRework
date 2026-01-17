@@ -287,49 +287,7 @@ class JsonResultsManager:
                 )
 
     def _bootstrap_from_filesystem(self) -> None:
-        must_import = os.getenv("RESULTS_BOOTSTRAP_JSON", "1").lower() not in {"0", "false", "no"}
-        if not must_import:
-            return
-        try:
-            existing = self._existing_record_keys()
-            max_files = int(os.getenv("RESULTS_BOOTSTRAP_LIMIT", "500"))
-            delete_after = os.getenv("RESULTS_DELETE_IMPORTED_JSON", "0").lower() in {"1", "true", "yes"}
-            imported = 0
-            legacy_files = sorted(self.base_path.glob("**/analysis/*.json"))
-            for file_path in legacy_files:
-                if file_path.suffix.lower() != ".json":
-                    continue
-                record_key = file_path.name
-                if record_key in existing:
-                    continue
-                legacy_payload = self._extract_legacy_payload(file_path)
-                if legacy_payload is None:
-                    continue
-                model_slug, app_number, analysis_type, payload = legacy_payload
-                try:
-                    self.save_results(
-                        model_slug,
-                        app_number,
-                        payload,
-                        file_name=record_key,
-                        analysis_type=analysis_type,
-                    )
-                    existing.add(record_key)
-                    imported += 1
-                    if delete_after:
-                        try:
-                            file_path.unlink()
-                        except Exception as cleanup_exc:  # pragma: no cover - best effort
-                            logger.debug("Legacy file cleanup failed (%s): %s", file_path, cleanup_exc)
-                    if max_files > 0 and imported >= max_files:
-                        break
-                except Exception as import_exc:
-                    logger.debug("Skipping legacy import for %s: %s", file_path, import_exc)
-                    continue
-            if imported:
-                logger.info("Imported %s legacy result files into SQLite store", imported)
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.debug("Legacy results bootstrap skipped: %s", exc)
+        return
 
     def _existing_record_keys(self) -> Set[str]:
         with self._lock:
@@ -363,41 +321,6 @@ class JsonResultsManager:
         model_safe = self._normalize_model_name(model)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return f"{model_safe}_app{app_num}_{analysis_type}_{timestamp}.json"
-
-    def _extract_legacy_payload(self, file_path: Path) -> Optional[Tuple[str, int, str, Any]]:
-        try:
-            with open(file_path, "r", encoding="utf-8") as fh:
-                raw_data = json.load(fh)
-        except Exception as exc:
-            logger.debug("Failed to parse legacy results %s: %s", file_path, exc)
-            return None
-
-        if isinstance(raw_data, dict) and "results" in raw_data:
-            payload = raw_data["results"]
-        else:
-            payload = raw_data
-
-        metadata = raw_data.get("metadata") if isinstance(raw_data, dict) else None
-        model_slug = metadata.get("model_slug") if isinstance(metadata, dict) else None
-        if not model_slug and isinstance(metadata, dict) and metadata.get("model"):
-            model_slug = metadata.get("model")
-        if not model_slug:
-            model_slug = file_path.parents[2].name
-
-        app_number: Optional[int]
-        if isinstance(metadata, dict) and isinstance(metadata.get("app_number"), int):
-            app_number = metadata["app_number"]
-        else:
-            app_number = self._extract_app_number(file_path)
-
-        analysis_type: str
-        if isinstance(metadata, dict) and isinstance(metadata.get("analysis_type"), str):
-            analysis_type = metadata["analysis_type"].lower()
-        else:
-            analysis_type = self._infer_analysis_type(file_path.stem)
-
-        if app_number is None:
-            return None
 
         return str(model_slug), int(app_number), analysis_type, payload
 

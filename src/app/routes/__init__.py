@@ -20,7 +20,7 @@ from .jinja.rankings import rankings_bp
 from .api import (
     api_bp, core_bp, models_bp as api_models_bp, system_bp, dashboard_bp,
     applications_bp, analysis_bp as api_analysis_bp, gen_bp,
-    tasks_rt_bp, tool_registry_bp, container_tools_bp, export_bp, reports_bp as api_reports_bp
+    tasks_rt_bp, container_tools_bp, export_bp, reports_bp as api_reports_bp
 )
 
 # API Token management
@@ -62,7 +62,6 @@ __all__ = [
     'api_analysis_bp',
     'gen_bp',
     'tasks_rt_bp',
-    'tool_registry_bp',
     'container_tools_bp',
     'export_bp',
 
@@ -117,9 +116,8 @@ def register_blueprints(app):
     app.register_blueprint(results_api_bp)  # /analysis/api
     app.register_blueprint(export_bp)  # /api/export (unified export service)
 
-    # Register WebSocket API blueprint under both legacy (/api/websocket) and new (/ws-api) paths
-    # The tests expect /api/websocket/* endpoints.
-    app.register_blueprint(websocket_api_bp, url_prefix='/api/websocket')
+    # Register WebSocket API blueprint under the /ws-api prefix
+    app.register_blueprint(websocket_api_bp)
 
     # Register WebSocket routes and error handlers
     register_websocket_routes(app)

@@ -19,7 +19,7 @@ from typing import Dict, Any, List
 from flask import Blueprint, request, jsonify, session, flash, redirect, url_for
 from flask_login import current_user, login_required
 
-from app.utils.template_paths import render_template_compat as render_template
+from flask import render_template
 from app.services.model_rankings_service import get_rankings_service
 
 logger = logging.getLogger(__name__)

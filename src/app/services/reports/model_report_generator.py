@@ -389,7 +389,6 @@ class ModelReportGenerator(BaseReportGenerator):
         # AI Analysis
         'requirements-checker': {'category': 'ai', 'language': 'multi'},
         'code-quality-analyzer': {'category': 'ai', 'language': 'multi'},
-        'gpt4all-requirements': {'category': 'ai', 'language': 'multi'},
         'openrouter-requirements': {'category': 'ai', 'language': 'multi'},
     }
     

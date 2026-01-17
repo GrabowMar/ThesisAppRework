@@ -456,9 +456,8 @@ def _format_response_content(data: Dict[str, Any]) -> str:
 
 def _collect_app_prompts(app_number: int, model_slug: Optional[str] = None) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str], str]:
     """
-    Collect FULL prompts and responses from generated/raw/{payloads,responses}/{model_slug}/app{number}/*.json files
-    Supports the 4-query system: backend_user, backend_admin, frontend_user, frontend_admin
-    Falls back to misc/app_templates for legacy support
+    Collect FULL prompts and responses from generated/raw/{payloads,responses}/{model_slug}/app{number}/*.json files.
+    Supports the 4-query system: backend_user, backend_admin, frontend_user, frontend_admin.
     Returns: (prompts, responses, template_files, source_dir)
     
     Keys in prompts/responses dicts:
@@ -466,8 +465,6 @@ def _collect_app_prompts(app_number: int, model_slug: Optional[str] = None) -> T
     - backend_admin: Second backend query (admin functionality)
     - frontend_user: First frontend query (user pages)
     - frontend_admin: Second frontend query (admin pages)
-    - backend: Legacy key (same as backend_user for backwards compatibility)
-    - frontend: Legacy key (same as frontend_user for backwards compatibility)
     """
     prompts: Dict[str, str] = {}
     responses: Dict[str, str] = {}
@@ -517,14 +514,6 @@ def _collect_app_prompts(app_number: int, model_slug: Optional[str] = None) -> T
                     except Exception as err:
                         current_app.logger.warning(f"Failed to load {query_type} prompt: {err}")
                 
-                # Legacy keys for backwards compatibility
-                if 'backend_user' in prompts:
-                    prompts['backend'] = prompts['backend_user']
-                    template_files['backend_file'] = template_files.get('backend_user_file', '')
-                if 'frontend_user' in prompts:
-                    prompts['frontend'] = prompts['frontend_user']
-                    template_files['frontend_file'] = template_files.get('frontend_user_file', '')
-                    
             except Exception as err:
                 current_app.logger.warning("Failed to load prompts from raw payloads for %s/app%s: %s", model_slug, app_number, err)
         
@@ -557,37 +546,14 @@ def _collect_app_prompts(app_number: int, model_slug: Optional[str] = None) -> T
                     except Exception as err:
                         current_app.logger.warning(f"Failed to load {query_type} response: {err}")
                 
-                # Legacy keys for backwards compatibility
-                if 'backend_user' in responses:
-                    responses['backend'] = responses['backend_user']
-                if 'frontend_user' in responses:
-                    responses['frontend'] = responses['frontend_user']
-                
             except Exception as err:
                 current_app.logger.warning("Failed to load responses for %s/app%s: %s", model_slug, app_number, err)
         
         if prompts:
             current_app.logger.info(f"Returning prompts from raw payloads: {list(prompts.keys())}")
             return prompts, responses, template_files, str(payloads_dir)
-    
-    # Fallback to legacy location: misc/app_templates
-    tmpl_dir = _project_root() / 'misc' / 'app_templates'
-    if tmpl_dir.exists():
-        try:
-            backend_md = sorted(tmpl_dir.glob(f'app_{app_number}_backend_*.md'))
-            frontend_md = sorted(tmpl_dir.glob(f'app_{app_number}_frontend_*.md'))
-            if backend_md:
-                template_files['backend_file'] = backend_md[0].name
-                prompts['backend'] = backend_md[0].read_text(encoding='utf-8', errors='ignore')
-                prompts['backend_user'] = prompts['backend']  # For consistency
-            if frontend_md:
-                template_files['frontend_file'] = frontend_md[0].name
-                prompts['frontend'] = frontend_md[0].read_text(encoding='utf-8', errors='ignore')
-                prompts['frontend_user'] = prompts['frontend']  # For consistency
-        except Exception as err:
-            current_app.logger.warning("Failed to load prompts from templates for app %s: %s", app_number, err)
-    
-    return prompts, responses, template_files, str(tmpl_dir)
+
+    return prompts, responses, template_files, str(_project_root() / 'generated' / 'raw')
 
 
 def _collect_ports(model_slug: str, app_number: int, app: Optional[GeneratedApplication]) -> Tuple[Optional[Dict[str, int]], List[Dict[str, Any]]]:
@@ -651,7 +617,6 @@ def _collect_ports(model_slug: str, app_number: int, app: Optional[GeneratedAppl
                 'host_port': value,
                 'protocol': 'tcp',
                 'accessible': running,  # Used by template
-                'is_accessible': running,  # Legacy compatibility
                 'description': f"{role.replace('_', ' ').title()} service",
                 'is_exposed': True,
             })

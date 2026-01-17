@@ -8,7 +8,6 @@
     var current = ROOT.getAttribute('data-bs-theme');
   if(current === t){ return; }
     ROOT.setAttribute('data-bs-theme', t);
-    ROOT.setAttribute('data-theme', t); // legacy selector support
     if(persist) try { localStorage.setItem('app_theme', t); } catch(_){ }
     try {
       var btn = document.getElementById('theme-toggle');

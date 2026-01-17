@@ -23,7 +23,7 @@ from flask import (
 )
 from flask_login import current_user
 
-from app.utils.template_paths import render_template_compat as render_template
+from flask import render_template
 from app.services.task_service import AnalysisTaskService
 from app.services.unified_result_service import UnifiedResultService
 from app.models import AnalysisTask, GeneratedApplication

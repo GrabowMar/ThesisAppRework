@@ -87,15 +87,6 @@ def create_app(config_name: str = 'default') -> Flask:
                 template_folder=template_folder,
                 static_folder=static_folder)
 
-    # Attach legacy template mapping loader so Jinja {% include %} statements using
-    # pre-restructure paths resolve automatically. This must occur immediately
-    # after app creation so subsequent blueprint registration uses the wrapped loader.
-    try:  # pragma: no cover - simple wiring
-        from app.utils.template_paths import attach_legacy_mapping_loader
-        attach_legacy_mapping_loader(app)
-    except Exception as _loader_err:  # pragma: no cover
-        logger.warning(f"Legacy template mapping loader not attached: {_loader_err}")
-
     # Note: No /dist static route to avoid dependency on repo-level 'dist' folder
     
     # Configuration

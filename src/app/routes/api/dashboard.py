@@ -19,9 +19,9 @@ from app.models import (
     PerformanceTest
 )
 from app.services.statistics_service import (
-    get_application_statistics, get_model_statistics, get_analysis_statistics,
-    get_recent_statistics, get_model_distribution, get_generation_trends,
-    get_analysis_summary, export_statistics, get_generation_statistics_by_models
+    get_system_overview, get_severity_distribution, get_analysis_trends,
+    get_model_comparison, get_quick_stats, get_tool_effectiveness,
+    get_filesystem_metrics, get_analyzer_health
 )
 from app.services.dashboard_service import (
     build_summary_payload,
@@ -114,31 +114,54 @@ def api_dashboard_stats():
     try:
         # Route to specific stat type
         if stat_type == 'apps':
-            data = get_application_statistics()
+            data = get_system_overview()
             return api_success(data, message="Application statistics fetched")
             
         elif stat_type == 'models':
-            data = get_model_statistics()
+            overview = get_system_overview()
+            data = {
+                "models": get_model_comparison(),
+                "total_models": overview.get("total_models", 0),
+            }
             return api_success(data, message="Model statistics fetched")
             
         elif stat_type == 'analysis':
-            data = get_analysis_statistics()
+            overview = get_system_overview()
+            severity = get_severity_distribution()
+            data = {
+                "total": overview.get("total_analysis", 0),
+                "failed": overview.get("failed_count", 0),
+                "success_rate": overview.get("success_rate", 0.0),
+                "total_findings": severity.get("total", 0),
+            }
             return api_success(data, message="Analysis statistics fetched")
             
         elif stat_type == 'recent':
-            data = get_recent_statistics()
+            quick = get_quick_stats()
+            data = {
+                "today": quick.get("today_count", 0),
+                "week": quick.get("week_count", 0),
+            }
             return api_success(data, message="Recent statistics fetched")
             
         elif stat_type == 'distribution':
-            data = get_model_distribution()
+            models = get_model_comparison()
+            data = {
+                "labels": [m.get("model", "") for m in models[:10]],
+                "values": [m.get("analysis_count", 0) for m in models[:10]],
+            }
             return api_success(data, message="Model distribution fetched")
             
         elif stat_type == 'trends':
-            data = get_generation_trends()
+            data = get_analysis_trends(days=14)
             return api_success(data, message="Generation trends fetched")
             
         elif stat_type == 'summary':
-            data = get_analysis_summary()
+            severity = get_severity_distribution()
+            data = {
+                "severity": severity,
+                "total": severity.get("total", 0),
+            }
             return api_success(data, message="Analysis summary fetched")
             
         elif stat_type == 'sidebar':
@@ -201,7 +224,15 @@ def api_dashboard_stats():
 @dashboard_bp.route('/stats/export')
 def api_export_statistics():
     """Export statistics (kept separate due to different response format)."""
-    data = export_statistics()
+    data = {
+        "overview": get_system_overview(),
+        "severity": get_severity_distribution(),
+        "health": get_analyzer_health(),
+        "models": get_model_comparison(),
+        "tools": get_tool_effectiveness(),
+        "quick_stats": get_quick_stats(),
+        "filesystem": get_filesystem_metrics(),
+    }
     return api_success(data, message="Statistics exported")
 
 
@@ -312,7 +343,7 @@ def dashboard_fragment(fragment_name: str):
       - system-health
     """
     try:
-        from app.utils.template_paths import render_template_compat as render_template
+        from flask import render_template
         
         if fragment_name == 'summary-cards':
             summary = build_summary_payload()
@@ -398,8 +429,8 @@ def dashboard_system_stats():
 def tool_registry_summary():
     """Tool registry summary (kept as-is)."""
     try:
-        from app.services.tool_registry_service import get_tool_registry_service
-        registry = get_tool_registry_service()
+        from app.engines.container_tool_registry import get_container_tool_registry
+        registry = get_container_tool_registry()
 
         raw_tools = registry.get_all_tools()
         tools = list(raw_tools.values()) if isinstance(raw_tools, dict) else list(raw_tools or [])
@@ -655,7 +686,13 @@ def api_generation_stats_by_models():
     try:
         data = request.get_json() or {}
         model_slugs = data.get('model_slugs', [])
-        stats = get_generation_statistics_by_models(model_slugs)
+        all_models = get_model_comparison()
+        filtered = [m for m in all_models if m.get("model") in model_slugs]
+        stats = {
+            "models": filtered,
+            "total_apps": sum(m.get("app_count", 0) for m in filtered),
+            "total_analyses": sum(m.get("analysis_count", 0) for m in filtered),
+        }
         return api_success(stats, message="Generation statistics by models fetched")
     except Exception as e:
         current_app.logger.error(f"Error getting generation stats by models: {e}")

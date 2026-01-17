@@ -8,7 +8,7 @@ Dashboard and core web routes that render Jinja templates.
 from flask import Blueprint, flash, current_app, redirect, url_for, request, jsonify
 from flask_login import login_required, current_user
 from app.models import ModelCapability, GeneratedApplication
-from app.utils.template_paths import render_template_compat as render_template
+from flask import render_template
 from app.routes.shared_utils import _norm_caps
 
 # Create blueprint
@@ -47,12 +47,6 @@ def about():
     return redirect(url_for('docs.docs_index'))
 
 
-@main_bp.route('/system-status')
-def system_status():
-    """Deprecated: redirect to dashboard where system stats now live."""
-    from flask import redirect, url_for
-    return redirect(url_for('main.dashboard'))
-
 @main_bp.route('/api-access')
 @login_required
 def api_access():
@@ -63,20 +57,6 @@ def api_access():
         active_page='api-access'
     )
 
-@main_bp.route('/test-platform')
-def testing():
-    """Legacy testing platform route -> redirect to Analysis Hub."""
-    try:
-        flash('Testing has moved to Analysis Hub.', 'info')
-        return redirect(url_for('analysis.analysis_dashboard'))
-    except Exception as e:
-        current_app.logger.error(f"Error redirecting testing page: {e}")
-        flash('Error loading testing page', 'error')
-        return render_template(
-            'pages/errors/errors_main.html',
-            error=str(e),
-            page_title='Testing Page Error'
-        ), 500
 
 @main_bp.route('/models_overview')
 def models_overview():
@@ -228,17 +208,6 @@ def applications_file_alias(model_slug, app_number):
         current_app.logger.error(f"Error loading application file alias: {e}")
         return jsonify({'error': str(e)}), 500
 
-@main_bp.route('/applications/<model_slug>/<int:app_number>/generation-metadata')
-def applications_generation_metadata_alias(model_slug, app_number):
-    """Alias for generation metadata endpoint using /applications path."""
-    try:
-        from app.routes.jinja.applications import application_generation_metadata  # type: ignore
-        return application_generation_metadata(model_slug, app_number)
-    except Exception as e:  # pragma: no cover
-        current_app.logger.error(f"Error loading generation metadata alias: {e}")
-        from flask import jsonify
-        return jsonify({'error': str(e)}), 500
-
 # ---------------------------------------------------------------------------
 # Advanced features (consolidated from advanced.py)
 # ---------------------------------------------------------------------------
@@ -258,11 +227,6 @@ def advanced_models_overview():
         'pages/models/models_main.html',
         page_title='Models Overview'
     )
-
-@main_bp.route('/tasks')
-def tasks_overview_redirect():
-    """Deprecated tasks route - redirect to main dashboard live tasks section."""
-    return redirect(url_for('main.dashboard') + '#live-tasks')
 
 @main_bp.route('/privacy-policy')
 def privacy_policy():

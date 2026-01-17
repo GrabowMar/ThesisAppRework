@@ -109,7 +109,7 @@ def api_models_list():
 def api_models_list_options():
     """HTMX endpoint: Render <option> list for model selects."""
     try:
-        from app.utils.template_paths import render_template_compat as render_template
+        from flask import render_template
         models = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
         installed_param = request.args.get('installed') or request.args.get('installed_only')
         installed_only = str(installed_param).lower() in {'1', 'true', 'yes', 'on'}

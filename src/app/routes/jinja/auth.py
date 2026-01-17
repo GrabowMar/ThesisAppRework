@@ -9,7 +9,7 @@ from flask import Blueprint, request, flash, redirect, url_for, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from app.models import User
 from app.extensions import db
-from app.utils.template_paths import render_template_compat as render_template
+from flask import render_template
 
 # Create blueprint
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')

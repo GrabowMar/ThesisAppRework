@@ -100,12 +100,6 @@ def _extract_dynamic_findings(tool_name: str, results: Dict[str, Any]) -> List[D
                 # Handle ZAP alerts (alerts_by_risk) nested in scan_results
                 inner_scan_results = scan.get('scan_results', {})
                 
-                # If scan_results is empty, check if alerts_by_risk is at top level (legacy/fallback)
-                if not inner_scan_results:
-                        alerts_by_risk = scan.get('alerts_by_risk', {})
-                        if alerts_by_risk:
-                            inner_scan_results = {base_url: scan}
-
                 for target_url, inner_res in inner_scan_results.items():
                     if not isinstance(inner_res, dict):
                         continue
@@ -126,20 +120,6 @@ def _extract_dynamic_findings(tool_name: str, results: Dict[str, Any]) -> List[D
                                     'evidence': alert.get('evidence', '')
                                 })
 
-                # Format 1: vulnerabilities list (legacy)
-                vulnerabilities = scan.get('vulnerabilities', [])
-                if isinstance(vulnerabilities, list):
-                    for vuln in vulnerabilities:
-                        findings.append({
-                            'severity': normalize_severity(vuln.get('severity', 'medium')),
-                            'rule_id': vuln.get('type', 'ZAP Alert'),
-                            'file': base_url,
-                            'line': '-',
-                            'description': vuln.get('description', ''),
-                            'message': vuln.get('type', ''),
-                            'solution': vuln.get('recommendation', ''),
-                            'cwe': f"CWE-{vuln.get('cweid')}" if vuln.get('cweid') else ''
-                        })
                 
     # Curl / Connectivity / Vulnerability Scan
     elif tool_name in ('curl', 'connectivity', 'vulnerability_scan', 'vulnscan', 'dirsearch'):
@@ -243,9 +223,6 @@ def _extract_performance_findings(tool_name: str, results: Dict[str, Any]) -> Li
         # Check if results has keys that look like tools (if tool_name not found or generic)
         elif any(k in results for k in ['locust', 'ab', 'wrk', 'aiohttp', 'artillery']):
              tool_runs = results
-        # Legacy single-result format
-        elif 'avg_response_time' in results:
-            tool_runs = {tool_name: results}
 
     for t_name, t_result in tool_runs.items():
         # Filter by tool name if provided and matches
@@ -603,19 +580,12 @@ def _extract_ai_findings(tool_name: str, results: Dict[str, Any]) -> List[Dict[s
     # Collect all checks from different categories
     all_checks = []
     
-    # 1. Backend Requirements (new format) or Functional Requirements (legacy)
+    # 1. Backend Requirements (new format)
     backend = inner_results.get('backend_requirements', [])
     if backend:
         for item in backend:
             item['_category'] = 'backend'
         all_checks.extend(backend)
-    
-    # Legacy functional requirements
-    functional = inner_results.get('functional_requirements', [])
-    if functional:
-        for item in functional:
-            item['_category'] = 'functional'
-        all_checks.extend(functional)
         
     # 2. Frontend Requirements (new format)
     frontend = inner_results.get('frontend_requirements', [])
@@ -649,42 +619,26 @@ def _extract_ai_findings(tool_name: str, results: Dict[str, Any]) -> List[Dict[s
                     'findings': metric.get('findings', [])
                 })
         
-    # 5. Stylistic Requirements (legacy format)
-    stylistic = inner_results.get('stylistic_requirements', [])
-    if stylistic:
-        for item in stylistic:
-            item['_category'] = 'stylistic'
-        all_checks.extend(stylistic)
-        
-    # 6. Control Endpoint Tests
+    # 5. Control Endpoint Tests
     control = inner_results.get('control_endpoint_tests', [])
     if control:
         for item in control:
             item['_category'] = 'control'
         all_checks.extend(control)
         
-    # Legacy fallback
-    legacy = inner_results.get('requirement_checks', [])
-    if legacy:
-        for item in legacy:
-            item['_category'] = 'legacy'
-        all_checks.extend(legacy)
-    
     for check in all_checks:
-        result = check.get('result', {})
-        # Handle both new format (met at top level) and old format (met in result dict)
-        is_met = check.get('met', result.get('met', True))
+        is_met = check.get('met', True)
         if not is_met:
             category = check.get('_category', 'general')
             findings.append({
-                'severity': normalize_severity(check.get('confidence', result.get('confidence', 'MEDIUM'))),
+                'severity': normalize_severity(check.get('confidence', 'MEDIUM')),
                 'rule_id': f'ai-{category}-requirement-not-met',
                 'file': 'requirements.txt', # Virtual file
                 'line': '-',
                 'description': check.get('requirement', ''),
                 'message': f'Unmet {category.title()} Requirement',
-                'solution': check.get('explanation', result.get('explanation', '')),
-                'confidence': check.get('confidence', result.get('confidence'))
+                'solution': check.get('explanation', ''),
+                'confidence': check.get('confidence')
             })
             
     return findings

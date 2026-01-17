@@ -17,7 +17,7 @@
     </span>
   </div>
 
-  {# Detect result structure: new multi-tool format vs legacy single-tool format #}
+  {# Multi-tool analysis format #}
   {% set ai_analysis = ai_service.analysis if ai_service.analysis else {} %}
   
   {# Get tools dict safely #}
@@ -85,14 +85,6 @@
                 {{ aggregate_summary.quality_summary.metrics_passed|default(0) }}/{{ aggregate_summary.quality_summary.total_metrics|default(8) }}
               </div>
             </div>
-            {% else %}
-            {# Legacy format fallback #}
-            <div class="col-6 col-md-3">
-              <div class="text-muted small text-uppercase mb-1">Requirements Met</div>
-              <div class="h4 mb-0">
-                {{ aggregate_summary.requirements_summary.stylistic_met|default(0) }}/{{ aggregate_summary.requirements_summary.total_stylistic|default(0) }}
-              </div>
-            </div>
             {% endif %}
           </div>
           {% if metadata.requested_tools %}
@@ -107,12 +99,12 @@
       </div>
     {% endif %}
 
-    {# Requirements Scanner Results - supports both new 'requirements-scanner' and old 'requirements-checker' names #}
-    {% set req_scanner = tools_results['requirements-scanner'] if 'requirements-scanner' in tools_results else (tools_results['requirements-checker'] if 'requirements-checker' in tools_results else {}) %}
+    {# Requirements Scanner Results #}
+    {% set req_scanner = tools_results['requirements-scanner'] if 'requirements-scanner' in tools_results else {} %}
     {% if req_scanner and req_scanner.status == 'success' %}
       {% set req_results = req_scanner.results if req_scanner.results else {} %}
       {% set req_summary = req_results.summary if req_results.summary else {} %}
-      {% set backend_reqs = req_results.backend_requirements if req_results.backend_requirements else req_results.functional_requirements|default([]) %}
+      {% set backend_reqs = req_results.backend_requirements if req_results.backend_requirements else [] %}
       {% set frontend_reqs = req_results.frontend_requirements if req_results.frontend_requirements else [] %}
       {% set admin_reqs = req_results.admin_requirements if req_results.admin_requirements else [] %}
       {% set control_tests = req_results.control_endpoint_tests if req_results.control_endpoint_tests else [] %}
@@ -354,7 +346,6 @@
       {% set quality_results = quality_analyzer.results if quality_analyzer.results else {} %}
       {% set quality_summary = quality_results.summary if quality_results.summary else {} %}
       {% set quality_metrics = quality_results.quality_metrics if quality_results.quality_metrics else [] %}
-      {% set stylistic_reqs = quality_results.stylistic_requirements if quality_results.stylistic_requirements else [] %}
       {% set recommendations = quality_analyzer.recommendations if quality_analyzer.recommendations else [] %}
       
       <div class="card card-table-compact mb-3 shadow-sm">
@@ -371,11 +362,6 @@
             </span>
             <span class="badge bg-secondary-lt ms-1">
               {{ quality_summary.aggregate_score|default(0)|round(1) }}/100
-            </span>
-          {% else %}
-            {# Legacy compliance percentage #}
-            <span class="badge bg-success-lt text-success ms-2">
-              {{ quality_summary.compliance_percentage|default(0)|round(1) }}% compliance
             </span>
           {% endif %}
           <div class="card-actions ms-auto">
@@ -535,67 +521,6 @@
               </div>
             {% endif %}
           
-          {# Legacy stylistic requirements format #}
-          {% elif stylistic_reqs %}
-            <div class="row g-2 mb-3">
-              <div class="col-6 col-md-4">
-                <div class="text-muted small">Stylistic Requirements</div>
-                <div class="fw-bold {% if quality_summary.stylistic_requirements_met == quality_summary.total_stylistic_requirements %}text-success{% else %}text-warning{% endif %}">
-                  {{ quality_summary.stylistic_requirements_met|default(0) }}/{{ quality_summary.total_stylistic_requirements|default(0) }} met
-                </div>
-              </div>
-              <div class="col-6 col-md-4">
-                <div class="text-muted small">AI Model</div>
-                <div class="small">{{ quality_analyzer.metadata.ai_model_used|default('Unknown') }}</div>
-              </div>
-              <div class="col-6 col-md-4">
-                <div class="text-muted small">Template</div>
-                <div class="small">{{ quality_analyzer.metadata.template_name|default(quality_analyzer.metadata.template_slug|default('Unknown')) }}</div>
-              </div>
-            </div>
-            
-            <h6 class="mb-2"><i class="fa-solid fa-palette me-1"></i>Stylistic/Quality Requirements ({{ stylistic_reqs|length }})</h6>
-            <div class="table-responsive">
-              <table class="table table-sm table-vcenter table-hover mb-0">
-                <thead>
-                  <tr>
-                    <th class="w-1 text-center">Status</th>
-                    <th>Requirement</th>
-                    <th class="text-center">Confidence</th>
-                    <th>Explanation</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for req in stylistic_reqs %}
-                  <tr>
-                    <td class="text-center">
-                      {% if req.met %}
-                        <i class="fa-solid fa-check-circle text-success" title="Requirement Met"></i>
-                      {% else %}
-                        <i class="fa-solid fa-times-circle text-danger" title="Requirement Not Met"></i>
-                      {% endif %}
-                    </td>
-                    <td>
-                      <div class="small">{{ req.requirement }}</div>
-                    </td>
-                    <td class="text-center">
-                      <span class="badge {% if req.confidence == 'HIGH' %}bg-success-lt text-success{% elif req.confidence == 'MEDIUM' %}bg-warning-lt text-warning{% else %}bg-secondary-lt{% endif %}">
-                        {{ req.confidence|default('N/A') }}
-                      </span>
-                    </td>
-                    <td>
-                      <details>
-                        <summary class="text-muted small" style="cursor: pointer;">
-                          <i class="fa-solid fa-chevron-right me-1"></i>View
-                        </summary>
-                        <div class="mt-2 small text-wrap">{{ req.explanation|default('No explanation provided') }}</div>
-                      </details>
-                    </td>
-                  </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
           {% endif %}
         </div>
       </div>
@@ -607,7 +532,7 @@
     {% elif quality_analyzer and quality_analyzer.status == 'warning' %}
       <div class="alert alert-warning mb-3">
         <i class="fa-solid fa-triangle-exclamation me-2"></i>
-        <strong>Code Quality Analyzer:</strong> {{ quality_analyzer.message|default('No stylistic requirements found in template') }}
+        <strong>Code Quality Analyzer:</strong> {{ quality_analyzer.message|default('No quality metrics found for this analysis') }}
       </div>
     {% endif %}
 
@@ -629,234 +554,14 @@
       </div>
     {% endif %}
 
-  {# Legacy single-tool format (backwards compatibility) #}
   {% else %}
-    {% set analysis_results = ai_analysis.results if ai_analysis.results else {} %}
-    {% set summary = analysis_results.summary if analysis_results.summary else {} %}
-    {% set functional_reqs = analysis_results.functional_requirements if analysis_results.functional_requirements else [] %}
-    {% set stylistic_reqs = analysis_results.stylistic_requirements if analysis_results.stylistic_requirements else [] %}
-    
-    {% if analysis_results and (functional_reqs or stylistic_reqs or summary) %}
-      {# Summary Card #}
-      {% if summary %}
-        <div class="card card-table-compact mb-3 shadow-sm">
-          <div class="card-header d-flex flex-wrap align-items-center gap-3">
-            <h5 class="card-title d-flex align-items-center gap-2 mb-0">
-              <i class="fa-solid fa-clipboard-check"></i>
-              <span>Requirements Compliance Summary</span>
-            </h5>
-          </div>
-          <div class="card-body">
-            <div class="row g-3">
-              <div class="col-6 col-md-3">
-                <div class="text-muted small text-uppercase mb-1">Compliance Rate</div>
-                <div class="h3 mb-0 {% if summary.compliance_percentage >= 80 %}text-success{% elif summary.compliance_percentage >= 60 %}text-warning{% else %}text-danger{% endif %}">
-                  {{ summary.compliance_percentage|default(0)|round(1) }}%
-                </div>
-              </div>
-              {% if summary.total_functional_requirements is defined and summary.total_functional_requirements > 0 %}
-              <div class="col-6 col-md-3">
-                <div class="text-muted small text-uppercase mb-1">Functional Met</div>
-                <div class="h3 mb-0 text-success">
-                  {{ summary.functional_requirements_met|default(0) }}/{{ summary.total_functional_requirements|default(0) }}
-                </div>
-              </div>
-              {% endif %}
-              {% if summary.total_stylistic_requirements is defined and summary.total_stylistic_requirements > 0 %}
-              <div class="col-6 col-md-3">
-                <div class="text-muted small text-uppercase mb-1">Stylistic Met</div>
-                <div class="h3 mb-0 text-info">
-                  {{ summary.stylistic_requirements_met|default(0) }}/{{ summary.total_stylistic_requirements|default(0) }}
-                </div>
-              </div>
-              {% endif %}
-              {% if summary.total_control_endpoints is defined and summary.total_control_endpoints > 0 %}
-              <div class="col-6 col-md-3">
-                <div class="text-muted small text-uppercase mb-1">Control Endpoints</div>
-                <div class="h3 mb-0">
-                  {{ summary.control_endpoints_passed|default(0) }}/{{ summary.total_control_endpoints }}
-                </div>
-              </div>
-              {% endif %}
-              <div class="col-6 col-md-3">
-                <div class="text-muted small text-uppercase mb-1">AI Model Used</div>
-                <div class="small">
-                  {{ ai_analysis.metadata.ai_model_used|default('Unknown') }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      {% endif %}
-
-      {# Functional Requirements #}
-      {% if functional_reqs %}
-        <div class="card card-table-compact mb-3 shadow-sm">
-          <div class="card-header d-flex flex-wrap align-items-center gap-3">
-            <h5 class="card-title d-flex align-items-center gap-2 mb-0">
-              <i class="fa-solid fa-list-check"></i>
-              <span>Functional Requirements ({{ functional_reqs|length }})</span>
-            </h5>
-            <div class="card-actions ms-auto">
-              <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
-                      data-tool-name="requirements-scanner" 
-                      data-service-type="ai"
-                      title="View detailed analysis">
-                <i class="fa-solid fa-magnifying-glass me-1"></i>Details
-              </button>
-            </div>
-          </div>
-          <div class="card-body p-0">
-            <div class="table-responsive">
-              <table class="table table-sm table-vcenter table-hover mb-0">
-                <thead>
-                  <tr>
-                    <th class="w-1 text-center">Status</th>
-                    <th>Requirement</th>
-                    <th class="text-center">Confidence</th>
-                    <th>Explanation</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for req in functional_reqs %}
-                  <tr>
-                    <td class="text-center">
-                      {% if req.met %}
-                        <i class="fa-solid fa-check-circle text-success" title="Requirement Met"></i>
-                      {% else %}
-                        <i class="fa-solid fa-times-circle text-danger" title="Requirement Not Met"></i>
-                      {% endif %}
-                    </td>
-                    <td>
-                      <div class="small">{{ req.requirement }}</div>
-                    </td>
-                    <td class="text-center">
-                      <span class="badge {% if req.confidence == 'HIGH' %}bg-success-lt text-success{% elif req.confidence == 'MEDIUM' %}bg-warning-lt text-warning{% else %}bg-secondary-lt{% endif %}">
-                        {{ req.confidence|default('N/A') }}
-                      </span>
-                    </td>
-                    <td>
-                      <details>
-                        <summary class="text-muted small" style="cursor: pointer;">
-                          <i class="fa-solid fa-chevron-right me-1"></i>View explanation
-                        </summary>
-                        <div class="mt-2 small text-wrap">{{ req.explanation|default('No explanation provided') }}</div>
-                      </details>
-                    </td>
-                  </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      {% endif %}
-
-      {# Stylistic Requirements (legacy) #}
-      {% if stylistic_reqs %}
-        <div class="card card-table-compact mb-3 shadow-sm">
-          <div class="card-header d-flex flex-wrap align-items-center gap-3">
-            <h5 class="card-title d-flex align-items-center gap-2 mb-0">
-              <i class="fa-solid fa-palette"></i>
-              <span>Stylistic Requirements ({{ stylistic_reqs|length }})</span>
-            </h5>
-            <div class="card-actions ms-auto">
-              <button class="btn btn-sm btn-ghost-info tool-detail-btn" 
-                      data-tool-name="code-quality-analyzer" 
-                      data-service-type="ai"
-                      title="View detailed analysis">
-                <i class="fa-solid fa-magnifying-glass me-1"></i>Details
-              </button>
-            </div>
-          </div>
-          <div class="card-body p-0">
-            <div class="table-responsive">
-              <table class="table table-sm table-vcenter table-hover mb-0">
-                <thead>
-                  <tr>
-                    <th class="w-1 text-center">Status</th>
-                    <th>Requirement</th>
-                    <th class="text-center">Confidence</th>
-                    <th>Explanation</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for req in stylistic_reqs %}
-                  <tr>
-                    <td class="text-center">
-                      {% if req.met %}
-                        <i class="fa-solid fa-check-circle text-success" title="Requirement Met"></i>
-                      {% else %}
-                        <i class="fa-solid fa-times-circle text-danger" title="Requirement Not Met"></i>
-                      {% endif %}
-                    </td>
-                    <td>
-                      <div class="small">{{ req.requirement }}</div>
-                    </td>
-                    <td class="text-center">
-                      <span class="badge {% if req.confidence == 'HIGH' %}bg-success-lt text-success{% elif req.confidence == 'MEDIUM' %}bg-warning-lt text-warning{% else %}bg-secondary-lt{% endif %}">
-                        {{ req.confidence|default('N/A') }}
-                      </span>
-                    </td>
-                    <td>
-                      <details>
-                        <summary class="text-muted small" style="cursor: pointer;">
-                          <i class="fa-solid fa-chevron-right me-1"></i>View explanation
-                        </summary>
-                        <div class="mt-2 small text-wrap">{{ req.explanation|default('No explanation provided') }}</div>
-                      </details>
-                    </td>
-                  </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      {% endif %}
-
-      {# Control Endpoints Tests (legacy) #}
-      {% set control_tests = analysis_results.control_endpoint_tests if analysis_results.control_endpoint_tests else [] %}
-      {% if control_tests %}
-        <div class="card card-table-compact mt-3">
-          <div class="card-header d-flex flex-wrap align-items-center gap-3">
-            <h5 class="card-title d-flex align-items-center gap-2 mb-0">
-              <i class="fa-solid fa-flask"></i>
-              <span>Control Endpoint Tests ({{ control_tests|length }})</span>
-            </h5>
-          </div>
-          <div class="card-body">
-            <ul class="list-unstyled mb-0">
-              {% for test in control_tests %}
-                <li class="mb-2">
-                  <div class="d-flex">
-                    {% if test.passed %}
-                      <i class="fa-solid fa-check-circle text-success me-2 mt-1"></i>
-                    {% else %}
-                      <i class="fa-solid fa-times-circle text-danger me-2 mt-1"></i>
-                    {% endif %}
-                    <div>
-                      <div class="fw-medium">{{ test.endpoint|default('Unknown endpoint') }}</div>
-                      {% if test.description %}
-                        <div class="text-muted small">{{ test.description }}</div>
-                      {% endif %}
-                    </div>
-                  </div>
-                </li>
-              {% endfor %}
-            </ul>
-          </div>
-        </div>
-      {% endif %}
-    {% else %}
-      <div class="empty py-5">
-        <div class="empty-icon">
-          <i class="fa-solid fa-question-circle fa-3x text-muted"></i>
-        </div>
-        <p class="empty-title h5">No analysis results</p>
-        <p class="empty-subtitle text-muted">No AI requirements analysis results were found.</p>
+    <div class="empty py-5">
+      <div class="empty-icon">
+        <i class="fa-solid fa-question-circle fa-3x text-muted"></i>
       </div>
-    {% endif %}
+      <p class="empty-title h5">No analysis results</p>
+      <p class="empty-subtitle text-muted">No AI requirements analysis results were found.</p>
+    </div>
   {% endif %}
 {% else %}
   <div class="empty py-5">

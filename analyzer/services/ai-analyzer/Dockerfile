@@ -1,4 +1,4 @@
-# AI Requirements Analyzer Container - GPT4All & OpenRouter Analysis
+# AI Requirements Analyzer Container - OpenRouter Analysis
 FROM python:3.11-slim
 
 # Install system dependencies

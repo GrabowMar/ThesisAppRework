@@ -13,7 +13,7 @@ from app.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 # WebSocket API Blueprint
-websocket_api_bp = Blueprint('websocket_api', __name__, url_prefix='/api/websocket')
+websocket_api_bp = Blueprint('websocket_api', __name__, url_prefix='/ws-api')
 
 # Require authentication for all WebSocket API routes
 @websocket_api_bp.before_request

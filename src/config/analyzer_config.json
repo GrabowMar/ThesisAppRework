@@ -39,7 +39,7 @@
     "static": ["pylint", "mypy", "flake8", "eslint"],
     "performance": ["ab", "wrk"],
     "dynamic": ["curl", "wget", "nmap"],
-    "ai": ["requirements-scanner", "requirements-analyzer", "gpt4all-requirements", "openrouter-requirements"]
+    "ai": ["requirements-scanner", "requirements-analyzer", "openrouter-requirements"]
   },
   "analysis_timeouts": {
     "default": 300,

@@ -617,38 +617,13 @@ def load_result_file(filepath: Path) -> Dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("Result file must be a JSON object")
     
-    # Check for schema info (v2.0+) or legacy structure
+    # Check for schema info (v2.0+)
     if 'schema' in data:
         schema = data['schema']
         if schema.get('name') not in (SCHEMA_NAME, 'universal'):
             logger.warning(f"Unknown schema: {schema}")
-    elif 'metadata' not in data and 'results' in data:
-        # Legacy format - wrap it
-        data = _convert_legacy_result(data)
     
     return data
-
-
-def _convert_legacy_result(legacy: Dict[str, Any]) -> Dict[str, Any]:
-    """Convert legacy result format to current schema."""
-    results = legacy.get('results', legacy)
-    metadata = legacy.get('metadata', {})
-    
-    # Extract what we can
-    return {
-        'schema': {'name': SCHEMA_NAME, 'version': '1.0-legacy'},
-        'metadata': {
-            'task_id': results.get('task', {}).get('task_id', 'unknown'),
-            'model_slug': metadata.get('model_slug', results.get('task', {}).get('model_slug', 'unknown')),
-            'app_number': metadata.get('app_number', results.get('task', {}).get('app_number', 0)),
-            'analysis_type': metadata.get('analysis_type', 'unknown'),
-            'timestamp': metadata.get('timestamp', datetime.now(timezone.utc).isoformat()),
-            'analyzer_version': metadata.get('analyzer_version', 'unknown')
-        },
-        'summary': results.get('summary', {}),
-        'tools': results.get('tools', {}),
-        'services': results.get('services', {})
-    }
 
 
 def get_result_summary(result: Dict[str, Any]) -> Dict[str, Any]:
@@ -663,9 +638,5 @@ def get_result_summary(result: Dict[str, Any]) -> Dict[str, Any]:
     # Try v2.0 structure first
     if 'summary' in result:
         return result['summary']
-    
-    # Try legacy structure
-    if 'results' in result and 'summary' in result['results']:
-        return result['results']['summary']
     
     return {}

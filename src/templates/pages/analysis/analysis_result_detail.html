@@ -206,11 +206,6 @@
             <span class="badge bg-secondary-lt me-3">
               {{ ai_summary.tools_run|default(0) }} tools
             </span>
-          {% elif ai_analysis.results %}
-            {% set legacy_summary = ai_analysis.results.summary if ai_analysis.results.summary else {} %}
-            <span class="ms-auto me-3 badge {% if legacy_summary.compliance_percentage >= 80 %}bg-success-lt text-success{% elif legacy_summary.compliance_percentage >= 60 %}bg-warning-lt text-warning{% else %}bg-danger-lt text-danger{% endif %}">
-              {{ legacy_summary.compliance_percentage|default(0)|round(1) }}%
-            </span>
           {% else %}
             <span class="ms-auto me-3 badge bg-secondary-lt">N/A</span>
           {% endif %}

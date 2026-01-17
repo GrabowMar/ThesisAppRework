@@ -1,5 +1,5 @@
 {# Prompts & Responses - Explorer Layout (4-Query System Support) #}
-{# Check for new 4-query keys first, fall back to legacy keys #}
+{# 4-query keys #}
 {% set has_backend_user_prompt = prompts.backend_user if prompts is defined else false %}
 {% set has_backend_admin_prompt = prompts.backend_admin if prompts is defined else false %}
 {% set has_frontend_user_prompt = prompts.frontend_user if prompts is defined else false %}
@@ -8,15 +8,10 @@
 {% set has_backend_admin_response = responses.backend_admin if responses is defined else false %}
 {% set has_frontend_user_response = responses.frontend_user if responses is defined else false %}
 {% set has_frontend_admin_response = responses.frontend_admin if responses is defined else false %}
-{# Legacy keys for backward compatibility #}
-{% set has_backend_prompt = prompts.backend if prompts is defined else false %}
-{% set has_frontend_prompt = prompts.frontend if prompts is defined else false %}
-{% set has_backend_response = responses.backend if responses is defined else false %}
-{% set has_frontend_response = responses.frontend if responses is defined else false %}
 {# Determine if we have the new 4-query format #}
 {% set has_4query = has_backend_user_prompt or has_backend_admin_prompt or has_frontend_user_prompt or has_frontend_admin_prompt %}
 {# Determine if we have any content at all #}
-{% set has_any_content = has_4query or has_backend_prompt or has_frontend_prompt or has_backend_response or has_frontend_response %}
+{% set has_any_content = has_4query or has_backend_user_response or has_backend_admin_response or has_frontend_user_response or has_frontend_admin_response %}
 
 <div class="row g-2">
   {# Source Legend #}
@@ -118,32 +113,6 @@
                   <span class="badge bg-purple-lt" style="font-size:0.6rem;">R4</span>
                 </button>
                 {% endif %}
-              {% else %}
-                {# Legacy 2-file format fallback #}
-                {% if has_backend_prompt %}
-                <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small active" data-prompt-id="backend-prompt" data-prompt-content="{{ prompts.backend|e }}">
-                  <span><i class="fas fa-server me-1 text-success"></i>Backend Prompt</span>
-                  <span class="badge bg-success-lt" style="font-size:0.6rem;">OK</span>
-                </button>
-                {% endif %}
-                {% if has_frontend_prompt %}
-                <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="frontend-prompt" data-prompt-content="{{ prompts.frontend|e }}">
-                  <span><i class="fas fa-desktop me-1 text-info"></i>Frontend Prompt</span>
-                  <span class="badge bg-info-lt" style="font-size:0.6rem;">OK</span>
-                </button>
-                {% endif %}
-                {% if has_backend_response %}
-                <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="backend-response" data-prompt-content="{{ responses.backend|e }}">
-                  <span><i class="fas fa-reply me-1 text-success"></i>Backend Response</span>
-                  <span class="badge bg-success-lt" style="font-size:0.6rem;">OK</span>
-                </button>
-                {% endif %}
-                {% if has_frontend_response %}
-                <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="frontend-response" data-prompt-content="{{ responses.frontend|e }}">
-                  <span><i class="fas fa-reply me-1 text-info"></i>Frontend Response</span>
-                  <span class="badge bg-info-lt" style="font-size:0.6rem;">OK</span>
-                </button>
-                {% endif %}
               {% endif %}
               {% if not has_any_content %}
               <div class="list-group-item py-2 text-muted small text-center">
@@ -158,9 +127,6 @@
               {% if has_backend_user_prompt %}
               <div class="prompt-preview-header"><span>Backend User Prompt</span></div>
               <div class="prompt-initial-content" data-content="{{ prompts.backend_user|e }}"></div>
-              {% elif has_backend_prompt %}
-              <div class="prompt-preview-header"><span>Backend Prompt</span></div>
-              <div class="prompt-initial-content" data-content="{{ prompts.backend|e }}"></div>
               {% elif not has_any_content %}
               {# Empty state with explanation #}
               <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted py-4 px-3">

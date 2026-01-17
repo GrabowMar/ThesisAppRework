@@ -629,13 +629,13 @@ class AiParser extends BaseParser {
         if (Object.keys(toolsMap).length > 0) {
             // New multi-tool format
             
-            // Parse requirements-scanner results (supports both new name and legacy requirements-checker)
-            const reqScanner = toolsMap['requirements-scanner'] || toolsMap['requirements-checker'] || {};
+            // Parse requirements-scanner results
+            const reqScanner = toolsMap['requirements-scanner'] || {};
             if (reqScanner.status === 'success' && reqScanner.results) {
                 const reqResults = reqScanner.results;
                 
-                // Backend requirements (new format) or functional requirements (legacy)
-                const backendReqs = reqResults.backend_requirements || reqResults.functional_requirements || [];
+                // Backend requirements (new format)
+                const backendReqs = reqResults.backend_requirements || [];
                 backendReqs.forEach((req, idx) => {
                     flattened.push({
                         id: `ai-backend-req-${idx}`,
@@ -720,74 +720,11 @@ class AiParser extends BaseParser {
                             raw: metric
                         });
                     });
-                } else if (qualityResults.stylistic_requirements) {
-                    // Legacy format: stylistic requirements
-                    qualityResults.stylistic_requirements.forEach((req, idx) => {
-                        flattened.push({
-                            id: `ai-style-req-${idx}`,
-                            tool: 'code-quality-analyzer',
-                            severity: req.met ? 'success' : 'medium',
-                            message: req.requirement,
-                            status: req.met ? 'Met' : 'Not Met',
-                            confidence: req.confidence,
-                            category: 'stylistic',
-                            raw: req
-                        });
-                    });
                 }
             }
             
             return flattened;
         }
-
-        // Legacy single-tool format fallback
-        const results = analysis.results || {};
-
-        if (results.functional_requirements) {
-            results.functional_requirements.forEach((req, idx) => {
-                flattened.push({
-                    id: `ai-req-${idx}`,
-                    tool: 'requirements-scanner',
-                    severity: req.met ? 'success' : 'high',
-                    message: req.requirement,
-                    status: req.met ? 'Met' : 'Not Met',
-                    confidence: req.confidence,
-                    category: 'functional',
-                    raw: req
-                });
-            });
-        }
-        
-        if (results.stylistic_requirements) {
-            results.stylistic_requirements.forEach((req, idx) => {
-                flattened.push({
-                    id: `ai-style-${idx}`,
-                    tool: 'code-quality-analyzer',
-                    severity: req.met ? 'success' : 'medium',
-                    message: req.requirement,
-                    status: req.met ? 'Met' : 'Not Met',
-                    confidence: req.confidence,
-                    category: 'stylistic',
-                    raw: req
-                });
-            });
-        }
-        
-        if (results.control_endpoint_tests) {
-            results.control_endpoint_tests.forEach((test, idx) => {
-                flattened.push({
-                    id: `ai-control-${idx}`,
-                    tool: 'requirements-checker',
-                    severity: test.passed ? 'success' : 'high',
-                    message: test.endpoint,
-                    status: test.passed ? 'Passed' : 'Failed',
-                    confidence: 'HIGH',
-                    category: 'control',
-                    raw: test
-                });
-            });
-        }
-
         return flattened;
     }
 

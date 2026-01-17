@@ -9,7 +9,7 @@ from typing import Any
 from flask import Blueprint, current_app, flash, request, Response, redirect, url_for
 from flask_login import current_user
 from werkzeug.exceptions import HTTPException
-from app.utils.template_paths import render_template_compat as render_template
+from flask import render_template
 from app.extensions import db
 from app.models import (
     ModelCapability,

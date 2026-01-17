@@ -8,7 +8,7 @@ AI-powered analyzer that:
 2. Code Quality Analyzer - Measures actual code quality metrics (error handling, 
    type annotations, documentation, anti-patterns, code organization)
 
-Uses GPT4All or OpenRouter APIs. Based on methodology from:
+Uses OpenRouter APIs. Based on methodology from:
 - SoftwareQuality4AI (SQ4AI) framework concepts
 - ISO/IEC 25010 software quality characteristics
 """
@@ -193,13 +193,10 @@ class AIAnalyzer(BaseWSService):
             
             # API configuration
             self.openrouter_api_key = os.getenv('OPENROUTER_API_KEY')
-            self.gpt4all_api_url = os.getenv('GPT4ALL_API_URL', 'http://localhost:4891/v1')
-            self.gpt4all_timeout = int(os.getenv('GPT4ALL_TIMEOUT', '30'))
             
             # Default models - Gemini Flash is cheaper than Claude Haiku
             # Available models: google/gemini-2.5-flash (cheap), anthropic/claude-3.5-haiku, openai/gpt-4o-mini
             self.default_openrouter_model = os.getenv('AI_MODEL', 'google/gemini-2.5-flash')
-            self.preferred_gpt4all_model = os.getenv('GPT4ALL_MODEL', 'Llama 3 8B Instruct')
             
             # Cost optimization settings (defaults are cheap mode)
             # BATCH_MODE: true = batch all requirements in single API call (recommended)
@@ -214,7 +211,7 @@ class AIAnalyzer(BaseWSService):
             # Batch max tokens - larger for batch mode since it contains multiple results
             self.batch_max_response_tokens = int(os.getenv('AI_BATCH_MAX_TOKENS', '1500'))
             # Enable/disable code quality analyzer tool (8 extra API calls when granular)
-            self.quality_analyzer_enabled = os.getenv('AI_QUALITY_ANALYZER_ENABLED', 'true').lower() == 'true'
+            self.quality_analyzer_enabled = os.getenv('AI_QUALITY_ANALYZER_ENABLED', 'false').lower() == 'true'
             
             # OPTIMIZED MODE: Only scan LLM-generated files (not scaffolding)
             # This dramatically reduces token usage by ~60-70%
@@ -235,11 +232,6 @@ class AIAnalyzer(BaseWSService):
                     'src/services/api.js',      # App-specific API calls
                 ]
             }
-            
-            # GPT4All available models cache
-            self.gpt4all_available_models = []
-            self.last_check_time = 0
-            self.gpt4all_is_available = False
             
             self.log.info("AI Analyzer initialized (template-based requirements system)")
             self.log.info(f"Using model: {self.default_openrouter_model}, batch_mode={self.batch_mode}, optimized_mode={self.optimized_mode}, code_limit={self.code_truncation_limit}")
@@ -311,52 +303,17 @@ class AIAnalyzer(BaseWSService):
     
     async def _analyze_requirement(self, code_content: str, requirement: str, config: Optional[Dict[str, Any]] = None) -> RequirementResult:
         """Analyze a single requirement against the code using AI."""
-        # Try GPT4All first, then fallback to OpenRouter
-        result = await self._try_gpt4all_analysis(code_content, requirement, config)
-        if result is None and self.openrouter_api_key:
-            result = await self._try_openrouter_analysis(code_content, requirement, config)
+        result = await self._try_openrouter_analysis(code_content, requirement, config)
         
         if result is None:
             return RequirementResult(
                 met=False,
                 confidence="LOW",
                 explanation="No AI service available for analysis",
-                error="Both GPT4All and OpenRouter unavailable"
+                error="OpenRouter unavailable"
             )
         
         return result
-    
-    async def _try_gpt4all_analysis(self, code_content: str, requirement: str, config: Optional[Dict[str, Any]] = None) -> Optional[RequirementResult]:
-        """Try analysis using GPT4All API."""
-        try:
-            prompt = self._build_analysis_prompt(code_content, requirement, None)
-            
-            async with aiohttp.ClientSession() as session:
-                import aiohttp as _aiohttp
-                _timeout = _aiohttp.ClientTimeout(total=self.gpt4all_timeout)
-                payload = {
-                    "model": self.preferred_gpt4all_model,
-                    "messages": [
-                        {"role": "user", "content": prompt}
-                    ],
-                    "max_tokens": 500,
-                    "temperature": 0.1
-                }
-                async with session.post(
-                    f"{self.gpt4all_api_url}/chat/completions",
-                    json=payload,
-                    timeout=_timeout
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        ai_response = data['choices'][0]['message']['content']
-                        return self._parse_ai_response(ai_response)
-                    else:
-                        self.log.warning(f"GPT4All API error: {response.status}")
-                        return None
-        except Exception as e:
-            self.log.debug(f"GPT4All analysis failed: {e}")
-            return None
     
     async def _try_openrouter_analysis(self, code_content: str, requirement: str, config: Optional[Dict[str, Any]] = None) -> Optional[RequirementResult]:
         """Try analysis using OpenRouter API."""
@@ -2299,11 +2256,10 @@ CODE:
 {code_content}
 
 Respond with EXACTLY this format for EACH requirement (one per line):
-[REQ1] MET:YES/NO | CONF:HIGH/MEDIUM/LOW | Brief explanation
-[REQ2] MET:YES/NO | CONF:HIGH/MEDIUM/LOW | Brief explanation
+[REQ1] MET:YES/NO | CONF:HIGH/MEDIUM/LOW
+[REQ2] MET:YES/NO | CONF:HIGH/MEDIUM/LOW
 ...and so on for all {len(requirements)} requirements.
-
-Be concise but specific. Reference actual code elements when possible."""
+"""
     
     def _parse_batch_requirements_response(
         self, 
@@ -2346,15 +2302,15 @@ Be concise but specific. Reference actual code elements when possible."""
             explanation = ''
             
             # Pattern 1: Standard format with optional markdown, flexible spacing
-            # [REQ1] MET:YES | CONF:HIGH | explanation  OR  **[REQ1]** MET: YES | CONF: HIGH | explanation
+            # [REQ1] MET:YES | CONF:HIGH | explanation  OR  **[REQ1]** MET: YES | CONF: HIGH
             # Also handles MET:PARTIAL, MET:PARTIALLY
-            pattern1 = rf'\*?\*?\[REQ{req_num}\]\*?\*?\s*MET:\s*([A-Z]+)\s*\|\s*CONF:\s*(HIGH|MEDIUM|LOW)\s*\|\s*(.+?)(?=\*?\*?\[REQ|\Z)'
+            pattern1 = rf'\*?\*?\[REQ{req_num}\]\*?\*?\s*MET:\s*([A-Z]+)\s*\|\s*CONF:\s*(HIGH|MEDIUM|LOW)(?:\s*\|\s*(.+?))?(?=\*?\*?\[REQ|\Z)'
             match = re.search(pattern1, response, re.IGNORECASE | re.DOTALL)
             
             if match:
                 met, is_partial = interpret_met_status(match.group(1))
                 confidence = match.group(2).upper()
-                explanation = match.group(3).strip()
+                explanation = (match.group(3) or '').strip()
             else:
                 # Pattern 2: Numbered list format (1. MET:YES ...)
                 pattern2 = rf'^{req_num}\.\s*MET:\s*([A-Z]+)\s*\|?\s*(?:CONF:\s*(HIGH|MEDIUM|LOW)\s*\|?)?\s*(.+?)(?=^\d+\.|\Z)'
@@ -2735,13 +2691,12 @@ Focus on whether the admin panel functionality described in the requirement is a
                 app_number = message_data.get("app_number", 1)
                 config = message_data.get("config", None)
                 analysis_id = message_data.get("id")
-                # Tool selection - support both old and new names, default to both tools
-                requested_tools = list(self.extract_selected_tools(message_data) or ["requirements-scanner", "code-quality-analyzer"])
+                # Tool selection - support both old and new names, default to requirements only
+                requested_tools = list(self.extract_selected_tools(message_data) or ["requirements-scanner"])
                 
                 # Map old/legacy tool names to new ones for backwards compatibility
                 tool_mapping = {
                     "requirements-checker": "requirements-scanner",
-                    "gpt4all-requirements": "requirements-scanner",  # Legacy
                     "openrouter-requirements": "requirements-scanner",  # Legacy
                     "ai_requirements_compliance": "requirements-scanner",  # Legacy API name
                 }
@@ -2753,6 +2708,10 @@ Focus on whether the admin panel functionality described in the requirement is a
                         tools.append(mapped_tool)
                     if tool != mapped_tool:
                         self.log.info(f"[TOOL-ROUTING] Mapped legacy tool '{tool}' → '{mapped_tool}'")
+
+                if not self.quality_analyzer_enabled and "code-quality-analyzer" in tools:
+                    tools.remove("code-quality-analyzer")
+                    self.log.info("[TOOL-ROUTING] code-quality-analyzer disabled via AI_QUALITY_ANALYZER_ENABLED=false")
                 
                 # Validate template_slug is provided in config
                 if not config or not config.get('template_slug'):

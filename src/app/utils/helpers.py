@@ -244,11 +244,9 @@ def _resolve_model_directory(model_slug: str, base_path: Optional[Path] = None) 
 def get_app_directory(model_slug: str, app_number: int, base_path: Optional[Path] = None) -> Path:
     """Return path to generated app directory.
 
-    Resolution order (non‑destructive, backwards compatible):
-      1. New unified path: generated/apps/<model_slug>/appN
-      2. Template-based structure: generated/apps/<model_slug>/<template>/appN
-      3. Legacy misc/models path (older layout)
-      4. Fallback to resolved model directory heuristic (for unusual cases)
+        Resolution order (non‑destructive):
+            1. New unified path: generated/apps/<model_slug>/appN
+            2. Template-based structure: generated/apps/<model_slug>/<template>/appN
     """
     # 1) Prefer new generated/apps structure (flat layout)
     try:
@@ -278,18 +276,8 @@ def get_app_directory(model_slug: str, app_number: int, base_path: Optional[Path
     except Exception:
         pass
 
-    # 2) Legacy misc/models path
-    legacy_base = _project_root_from_helpers() / "misc" / "models" / model_slug
-    legacy_candidate = legacy_base / f"app{app_number}"
-    if legacy_candidate.exists():
-        return legacy_candidate
-    legacy_alt = legacy_base / f"app_{app_number}"
-    if legacy_alt.exists():
-        return legacy_alt
-
-    # 3) Fallback heuristic (may not exist)
-    model_dir = _resolve_model_directory(model_slug, base_path or (_project_root_from_helpers() / "misc" / "models"))
-    return model_dir / f"app{app_number}"
+    # Fallback heuristic: return expected path under generated/apps
+    return GENERATED_APPS_DIR / model_slug / f"app{app_number}"
 
 
 def check_app_exists(model_slug: str, app_number: int, base_path: Optional[Path] = None) -> bool:
@@ -401,13 +389,7 @@ def format_file_size(size_bytes: int) -> str:
 
 
 def create_error_response(error: str, code: int = 500, details: Optional[Dict[str, Any]] = None, error_type: Optional[str] = None, **extra: Any) -> Dict[str, Any]:
-    """Create standardized error response (backward compatible).
-
-    Migration Notes:
-    - Legacy keys: success, error, code, timestamp, details retained.
-    - New unified schema keys added: status, status_code, message, error_id, path.
-    - Prefer using build_error_payload directly for new endpoints.
-    """
+    """Create standardized error response."""
     try:
         from app.utils.errors import build_error_payload  # local import to avoid cycles
         payload = build_error_payload(
@@ -417,12 +399,6 @@ def create_error_response(error: str, code: int = 500, details: Optional[Dict[st
             details=details if details else None,
             **extra
         )
-        # Backward compatibility fields
-        payload.setdefault('success', False)
-        payload.setdefault('code', code)
-        payload.setdefault('error', error_type or error)
-        if details:
-            payload.setdefault('details', details)
         return payload
     except Exception:  # pragma: no cover - fallback path
         response = {
