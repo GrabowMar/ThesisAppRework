@@ -30,11 +30,11 @@ def test_health_checks():
     log("Testing health checks...")
 
     services = {
-        'Main App': f"{BASE_URL}/health",
-        'Static Analyzer': 'http://localhost:2001',
-        'Dynamic Analyzer': 'http://localhost:2002',
-        'Performance Tester': 'http://localhost:2003',
-        'AI Analyzer': 'http://localhost:2004',
+        'Main App': f"{BASE_URL}/api/health",
+        'Static Analyzer': 'http://localhost:2001/api/health',
+        'Dynamic Analyzer': 'http://localhost:2002/api/health',
+        'Performance Tester': 'http://localhost:2003/api/health',
+        'AI Analyzer': 'http://localhost:2004/api/health',
     }
 
     all_healthy = True

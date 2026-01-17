@@ -89,7 +89,7 @@ def main():
 ║  • Batch Processing Capabilities                                             ║
 ║                                                                              ║
 ║ API Endpoints:                                                               ║
-║  • GET  /health                    - Application health check                ║
+║  • GET  /api/health                - Application health check                ║
 ║  • GET  /api/tasks/status         - Active tasks status                     ║
 ║  • GET  /api/tasks/history        - Task execution history                  ║
 ║  • GET  /api/analyzer/status      - Analyzer services status                ║
@@ -108,7 +108,7 @@ def main():
             f"Environment: {config_name} | Debug: {debug}\n"
             f"Host: {host} | Port: {port}\n"
             f"Features: {execution_mode}, Analyzer services, Real-time results, Batch processing\n"
-            "Endpoints: /health, /api/tasks/status, /api/tasks/history, /api/analyzer/*\n"
+            "Endpoints: /api/health, /api/tasks/status, /api/tasks/history, /api/analyzer/*\n"
             f"Analyzer Auto-start: {app.config.get('ANALYZER_AUTO_START', False)} | Location: ../analyzer/analyzer_manager.py\n"
         )
     

@@ -47,6 +47,7 @@ class GenerationConfig:
     temperature: float = 0.3
     timeout: int = 300
     save_artifacts: bool = True
+    auto_fix: bool = True
     
     # Optional overrides
     backend_port: Optional[int] = None

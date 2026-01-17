@@ -32,7 +32,7 @@ react-flask/
 ## What's Provided (Fixed)
 - Docker containers for backend/frontend
 - SQLite database at `/app/data/app.db`
-- CORS, Nginx proxy, health check endpoint
+- CORS, Nginx proxy, health check endpoint (/api/health)
 - Tailwind CSS, Axios, react-hot-toast, heroicons pre-configured
 
 ## What Model Generates

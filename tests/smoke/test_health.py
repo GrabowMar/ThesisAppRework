@@ -8,7 +8,7 @@ def test_app_exists(app):
 @pytest.mark.smoke
 def test_health_check(client):
     """Check the health endpoint."""
-    response = client.get('/health')
+    response = client.get('/api/health')
     assert response.status_code == 200
     data = response.get_json()
     # API returns wrapped response: {'success': True, 'data': {'status': 'healthy', ...}}

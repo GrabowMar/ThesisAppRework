@@ -2,9 +2,8 @@
 =========================
 
 Centralized service registry for dependency injection.
-Now intentionally minimal: deprecated services (AnalyzerService,
-ContainerService, HuggingFaceService, PortService) are no longer
-registered here. Shims remain only to prevent import errors.
+Deprecated services (AnalyzerService, ContainerService, HuggingFaceService,
+PortService) are no longer registered here.
 
 All new services should reuse standardized exceptions from
 `service_base` and keep side-effects (threads, external processes)
@@ -19,7 +18,7 @@ if TYPE_CHECKING:
     from .docker_manager import DockerManager
     from .docker_status_cache import DockerStatusCache
     from .model_service import ModelService
-    from .generation import GenerationService
+    from .generation_v2.service import GenerationService
     from .analysis_inspection_service import AnalysisInspectionService
     from .unified_result_service import UnifiedResultService
     from .report_service import ReportService
@@ -52,10 +51,7 @@ class ServiceLocator:
         """Register all core application services."""
         # Import services here to avoid circular imports. Keep the list short.
         from .model_service import ModelService
-        try:
-            from .generation import get_generation_service
-        except ImportError:  # pragma: no cover
-            get_generation_service = None  # type: ignore
+        from .generation_v2 import get_generation_service
 
         try:
             from .health_service import HealthService
@@ -91,11 +87,10 @@ class ServiceLocator:
         # Register available services
         cls.register('model_service', ModelService(app))
         
-        if get_generation_service:
-            try:
-                cls.register('generation_service', get_generation_service())
-            except Exception as e:  # pragma: no cover
-                logging.warning(f"Failed to register generation service: {e}")
+        try:
+            cls.register('generation_service', get_generation_service())
+        except Exception as e:  # pragma: no cover
+            logging.warning(f"Failed to register generation service: {e}")
 
         # No registrations for removed legacy services
         if DockerManager:

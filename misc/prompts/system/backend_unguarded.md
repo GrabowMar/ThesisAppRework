@@ -66,10 +66,6 @@ class Example(db.Model):
 
 # ============== ROUTES ==============
 
-@app.route('/health')
-def health():
-    return jsonify({'status': 'healthy'}), 200
-
 @app.route('/api/health')
 def api_health():
     return jsonify({'status': 'healthy'}), 200
@@ -110,7 +106,7 @@ if __name__ == '__main__':
 
 1. **Entry Point**: `app.py` is the ONLY entry point
 2. **Port**: Read from `FLASK_RUN_PORT` environment variable (default 5000)
-3. **Health Checks**: MUST have BOTH `/health` AND `/api/health` returning 200 OK
+3. **Health Checks**: MUST have `/api/health` returning 200 OK
 4. **CORS**: MUST allow all origins with `CORS(app, origins=['*'])`
 5. **Database Path**: MUST use `sqlite:////app/data/app.db` (Docker volume)
 6. **Database Init**: Create tables on startup with `db.create_all()`

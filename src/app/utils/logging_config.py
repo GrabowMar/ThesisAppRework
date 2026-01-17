@@ -234,7 +234,7 @@ class WerkzeugEndpointFilter(logging.Filter):
     """Filter to suppress high-frequency werkzeug request logs.
     
     Suppresses logging for:
-    - Health check endpoints (/health, /api/health)
+    - Health check endpoint (/api/health)
     - Pipeline status polling (/automation/api/pipeline/*/status)
     - Fragment status (/automation/fragments/status)
     - Static files (css, js, images, fonts)
@@ -246,7 +246,6 @@ class WerkzeugEndpointFilter(logging.Filter):
     
     # Endpoints to suppress (substring matches)
     _suppressed_endpoints = (
-        'GET /health ',
         'GET /api/health ',
         '/status HTTP',
         '/detailed-status HTTP',
@@ -427,7 +426,6 @@ class SmartLogFilter(logging.Filter):
             r'Error \d+ connecting to localhost:\d+\.',
             r'Redis is loading the dataset in memory\.',
             # High-frequency polling endpoints (suppress completely)
-            r'GET /health HTTP',
             r'GET /api/health HTTP',
             r'GET /automation/api/pipeline/[^/]+/status HTTP',
             r'GET /automation/api/pipeline/[^/]+/detailed-status HTTP',
@@ -446,7 +444,7 @@ class SmartLogFilter(logging.Filter):
             # Werkzeug request logging patterns for common non-essential requests
             r'127\.0\.0\.1 - - \[.*\] "GET /static/',
             r'127\.0\.0\.1 - - \[.*\] "GET /favicon',
-            r'127\.0\.0\.1 - - \[.*\] "GET /health',
+            r'127\.0\.0\.1 - - \[.*\] "GET /api/health',
             # Socket.IO/WebSocket noise
             r'socket\.io.*polling',
             r'GET /socket\.io/.*polling',

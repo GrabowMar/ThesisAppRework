@@ -205,8 +205,8 @@ sudo certbot --nginx -d your-domain.com
 # Application health
 curl http://localhost:5000/api/health
 
-# Analyzer health
-curl http://localhost:5000/api/health/analyzers
+# Analyzer status
+curl http://localhost:5000/api/analyzer/status
 
 # CLI health check
 python analyzer/analyzer_manager.py health

@@ -8,12 +8,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
+
+# CORS config (env-driven, defaults to allow all for scaffolding)
+cors_origins = os.environ.get('CORS_ORIGINS', '').strip()
+if cors_origins:
+    origins_list = [o.strip() for o in cors_origins.split(',') if o.strip()]
+    CORS(app, supports_credentials=True, origins=origins_list)
+else:
+    CORS(app, supports_credentials=True)
 
 # Database config
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////app/data/app.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    'DATABASE_URL',
+    'sqlite:////app/data/app.db'
+)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', app.config['SECRET_KEY'])
 
 # Initialize database
 from models import db

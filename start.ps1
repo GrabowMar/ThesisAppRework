@@ -78,7 +78,7 @@ $Script:CONFIG = @{
         PidFile = Join-Path $RUN_DIR "flask.pid"
         LogFile = Join-Path $LOGS_DIR "app.log"
         Port = $Port
-        HealthEndpoint = "http://127.0.0.1:$Port/health"
+        HealthEndpoint = "http://127.0.0.1:$Port/api/health"
         StartupTime = 10
         Color = "Cyan"
     }
@@ -833,7 +833,7 @@ function Start-DockerStack {
             
             # Check web service health
             try {
-                $response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/health" -TimeoutSec 2 -ErrorAction SilentlyContinue
+                $response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/api/health" -TimeoutSec 2 -ErrorAction SilentlyContinue
                 if ($response.StatusCode -eq 200) {
                     Write-Host ""
                     Write-Status "All services are ready! (${waited}s)" "Success"

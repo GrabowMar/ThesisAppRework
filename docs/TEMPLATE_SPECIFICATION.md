@@ -350,7 +350,7 @@ flowchart TB
 - [ ] Backend requirements include data model
 - [ ] Frontend requirements include user interactions
 - [ ] API endpoints have request/response schemas
-- [ ] Health endpoint included in control_endpoints
+- [ ] Health endpoint (/api/health) included in control_endpoints
 
 ## Related Documentation
 

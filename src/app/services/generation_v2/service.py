@@ -7,7 +7,8 @@ Simple, linear flow: scaffold → generate → merge → persist.
 
 import logging
 import time
-from datetime import datetime
+import asyncio
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -16,6 +17,7 @@ from app.models import GeneratedApplication, GenerationMode as DBGenerationMode
 from app.paths import GENERATED_APPS_DIR
 from app.utils.time import utc_now
 from app.utils.async_utils import run_async_safely
+from app.paths import REQUIREMENTS_DIR
 
 from .config import GenerationConfig, GenerationMode, GenerationResult
 from .scaffolding import ScaffoldingManager, get_scaffolding_manager
@@ -42,6 +44,158 @@ class GenerationService:
     def __init__(self):
         self.scaffolding = get_scaffolding_manager()
         self.generator = get_code_generator()
+
+    def get_template_catalog(self) -> list[dict[str, Any]]:
+        """Return available generation templates with metadata."""
+        import json
+
+        catalog: list[dict[str, Any]] = []
+        seen_slugs = set()
+
+        if not REQUIREMENTS_DIR.exists():
+            logger.debug("Requirements directory missing: %s", REQUIREMENTS_DIR)
+            return catalog
+
+        for req_file in sorted(REQUIREMENTS_DIR.glob('*.json')):
+            try:
+                data = json.loads(req_file.read_text(encoding='utf-8'))
+            except json.JSONDecodeError as exc:
+                logger.warning("Skipping invalid JSON in %s: %s", req_file.name, exc)
+                continue
+            except OSError as exc:
+                logger.warning("Failed to read %s: %s", req_file.name, exc)
+                continue
+
+            template_slug = data.get('slug')
+            if template_slug is None:
+                logger.warning("Skipping %s: missing 'slug' field", req_file.name)
+                continue
+
+            name = data.get('name')
+            if not name:
+                logger.warning("Skipping %s: missing 'name' field", req_file.name)
+                continue
+
+            normalized_slug = template_slug.lower().replace('-', '_')
+            if req_file.stem.lower().replace('-', '_') != normalized_slug:
+                logger.warning(
+                    "Slug mismatch in %s: file has slug='%s', filename is %s",
+                    req_file.name, template_slug, req_file.stem
+                )
+                continue
+
+            if template_slug in seen_slugs:
+                logger.error("Duplicate template slug %s in %s", template_slug, req_file.name)
+                continue
+            seen_slugs.add(template_slug)
+
+            description = data.get('description', '')
+            category = data.get('category', 'general')
+            complexity = data.get('complexity') or data.get('difficulty') or 'medium'
+
+            features = data.get('features') or data.get('key_features') or []
+            if isinstance(features, str):
+                features = [features]
+
+            tech_stack = data.get('tech_stack') or data.get('stack') or {}
+            if not isinstance(tech_stack, dict):
+                tech_stack = {'value': tech_stack}
+
+            catalog.append({
+                'slug': template_slug,
+                'name': name,
+                'description': description,
+                'category': category,
+                'complexity': complexity,
+                'features': features,
+                'tech_stack': tech_stack,
+                'filename': req_file.name,
+            })
+
+        logger.info("Loaded %s valid templates from %s", len(catalog), REQUIREMENTS_DIR)
+        return catalog
+
+    def get_generation_status(self) -> dict[str, Any]:
+        """Return basic generation system status for UI dashboards."""
+        return {
+            'in_flight_count': 0,
+            'available_slots': 0,
+            'max_concurrent': 0,
+            'in_flight_keys': [],
+            'system_healthy': True,
+        }
+
+    def get_summary_metrics(self) -> dict[str, Any]:
+        """Return summary metrics for UI dashboards."""
+        summary = {
+            'total_results': 0,
+            'total_templates': 0,
+            'total_models': 0,
+            'recent_results': 0,
+        }
+
+        try:
+            from sqlalchemy import func
+            from app.models import ModelCapability
+
+            summary['total_results'] = GeneratedApplication.query.count()
+            summary['total_models'] = ModelCapability.query.count()
+
+            day_ago = utc_now() - timedelta(days=1)
+            summary['recent_results'] = (
+                GeneratedApplication.query
+                .filter(GeneratedApplication.created_at >= day_ago)
+                .count()
+            )
+        except Exception:
+            pass
+
+        summary['total_templates'] = len(self.get_template_catalog())
+        return summary
+
+    async def generate_full_app(
+        self,
+        model_slug: str,
+        app_num: Optional[int],
+        template_slug: str,
+        generate_frontend: bool = True,
+        generate_backend: bool = True,
+        batch_id: Optional[str] = None,
+        parent_app_id: Optional[int] = None,
+        version: int = 1,
+        generation_mode: str = 'guarded',
+        use_auto_fix: bool = True,
+    ) -> dict:
+        """Generate a complete app with standard response payload."""
+        mode = GenerationMode.GUARDED if generation_mode == 'guarded' else GenerationMode.UNGUARDED
+        app_number = app_num or self.get_next_app_number(model_slug)
+
+        config = GenerationConfig(
+            model_slug=model_slug,
+            template_slug=template_slug,
+            app_num=app_number,
+            mode=mode,
+            auto_fix=use_auto_fix,
+        )
+
+        loop = asyncio.get_running_loop()
+        gen_result = await loop.run_in_executor(None, self.generate, config)
+
+        success = gen_result.success
+        errors = list(gen_result.errors) if gen_result.errors else ([] if success else [gen_result.error_message])
+
+        return {
+            'success': success,
+            'scaffolded': gen_result.app_dir is not None,
+            'backend_generated': bool(generate_backend) and success,
+            'frontend_generated': bool(generate_frontend) and success,
+            'generation_mode': generation_mode,
+            'errors': errors,
+            'app_number': app_number,
+            'app_num': app_number,
+            'app_dir': str(gen_result.app_dir) if gen_result.app_dir else None,
+            'metrics': gen_result.metrics,
+        }
     
     def generate(self, config: GenerationConfig) -> GenerationResult:
         """Generate an application synchronously.
@@ -79,6 +233,34 @@ class GenerationService:
                 written = merger.merge_unguarded(code)
             
             result.artifacts = written
+
+            # Step 3.5: Post-generation healing to fix common dependency/import issues
+            if config.auto_fix:
+                try:
+                    from app.services.dependency_healer import get_dependency_healer, heal_generated_app
+                    logger.info("Running dependency healer (auto-fix enabled)...")
+                    pre_fix = get_dependency_healer(auto_fix=False).validate_app(app_dir)
+                    healing_result = heal_generated_app(app_dir, auto_fix=True)
+                    result.metrics['healing'] = {
+                        'success': healing_result.success,
+                        'issues_found': healing_result.issues_found,
+                        'issues_fixed': healing_result.issues_fixed,
+                        'changes_made': healing_result.changes_made,
+                        'frontend_issues': healing_result.frontend_issues,
+                        'backend_issues': healing_result.backend_issues,
+                        'errors': healing_result.errors,
+                        'pre_fix': {
+                            'issues_found': pre_fix.issues_found,
+                            'frontend_issues': pre_fix.frontend_issues,
+                            'backend_issues': pre_fix.backend_issues,
+                            'errors': pre_fix.errors,
+                        }
+                    }
+                except Exception as healing_error:
+                    logger.warning(f"Dependency healing failed (non-fatal): {healing_error}")
+                    result.metrics['healing'] = {'error': str(healing_error)}
+            else:
+                result.metrics['healing'] = {'skipped': True, 'reason': 'auto_fix disabled'}
             
             # Step 4: Update database
             logger.info("Step 4/4: Persisting to database...")
@@ -87,11 +269,14 @@ class GenerationService:
             # Success!
             elapsed = time.time() - start_time
             result.success = True
-            result.metrics = {
+            base_metrics = {
                 'duration_seconds': elapsed,
                 'files_written': len(written),
                 'queries': 4 if config.is_guarded else 2,
             }
+            if 'healing' in result.metrics:
+                base_metrics['healing'] = result.metrics['healing']
+            result.metrics = base_metrics
             
             logger.info(f"✅ Generation complete in {elapsed:.1f}s")
             logger.info(f"   App directory: {app_dir}")
@@ -131,17 +316,47 @@ class GenerationService:
                 written = merger.merge_unguarded(code)
             
             result.artifacts = written
+
+            if config.auto_fix:
+                try:
+                    from app.services.dependency_healer import get_dependency_healer, heal_generated_app
+                    logger.info("Running dependency healer (auto-fix enabled)...")
+                    pre_fix = get_dependency_healer(auto_fix=False).validate_app(app_dir)
+                    healing_result = heal_generated_app(app_dir, auto_fix=True)
+                    result.metrics['healing'] = {
+                        'success': healing_result.success,
+                        'issues_found': healing_result.issues_found,
+                        'issues_fixed': healing_result.issues_fixed,
+                        'changes_made': healing_result.changes_made,
+                        'frontend_issues': healing_result.frontend_issues,
+                        'backend_issues': healing_result.backend_issues,
+                        'errors': healing_result.errors,
+                        'pre_fix': {
+                            'issues_found': pre_fix.issues_found,
+                            'frontend_issues': pre_fix.frontend_issues,
+                            'backend_issues': pre_fix.backend_issues,
+                            'errors': pre_fix.errors,
+                        }
+                    }
+                except Exception as healing_error:
+                    logger.warning(f"Dependency healing failed (non-fatal): {healing_error}")
+                    result.metrics['healing'] = {'error': str(healing_error)}
+            else:
+                result.metrics['healing'] = {'skipped': True, 'reason': 'auto_fix disabled'}
             
             # Step 4: Persist (sync operation)
             self._persist_to_database(config, app_dir, code)
             
             elapsed = time.time() - start_time
             result.success = True
-            result.metrics = {
+            base_metrics = {
                 'duration_seconds': elapsed,
                 'files_written': len(written),
                 'queries': 4 if config.is_guarded else 2,
             }
+            if 'healing' in result.metrics:
+                base_metrics['healing'] = result.metrics['healing']
+            result.metrics = base_metrics
             
             logger.info(f"✅ Generation complete in {elapsed:.1f}s")
             

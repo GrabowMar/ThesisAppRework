@@ -293,7 +293,7 @@ def dashboard_system_status():
             analyzer_healthy = False
             try:
                 import requests
-                resp = requests.get('http://localhost:2001/health', timeout=2)
+                resp = requests.get('http://localhost:2001/api/health', timeout=2)
                 analyzer_healthy = resp.status_code == 200
             except Exception:
                 pass
@@ -435,25 +435,7 @@ def tool_registry_summary():
         raw_tools = registry.get_all_tools()
         tools = list(raw_tools.values()) if isinstance(raw_tools, dict) else list(raw_tools or [])
 
-        get_profiles = getattr(registry, 'get_all_profiles', None)
-        raw_profiles = get_profiles() if callable(get_profiles) else []
-
-        if isinstance(raw_profiles, dict):  # pragma: no cover - defensive
-            raw_profiles_iter = list(raw_profiles.values())
-        elif isinstance(raw_profiles, (list, tuple, set)):
-            raw_profiles_iter = list(raw_profiles)
-        else:
-            raw_profiles_iter = [raw_profiles] if raw_profiles else []
-
-        profiles = []
-        for profile in raw_profiles_iter:
-            profile_any = cast(Any, profile)
-            if hasattr(profile_any, 'to_dict'):
-                profiles.append(profile_any.to_dict())
-            elif isinstance(profile_any, dict):
-                profiles.append(profile)
-            else:
-                profiles.append({'name': str(profile_any)})
+        profiles: list[dict[str, Any]] = []
 
         def _serialise_tool(tool_obj: Any) -> Dict[str, Any]:
             if hasattr(tool_obj, '__dataclass_fields__'):

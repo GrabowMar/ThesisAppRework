@@ -334,7 +334,7 @@ def get_report_options():
     try:
         from ...models import ModelCapability, GeneratedApplication
         from ...engines.container_tool_registry import get_container_tool_registry
-        from ...services.generation import get_generation_service
+        from ...services.generation_v2 import get_generation_service
         from ...utils.slug_utils import normalize_model_slug
         
         # Get all unique model slugs from generated apps (most reliable source)

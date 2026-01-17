@@ -279,8 +279,17 @@ class DependencyHealer:
             
             if self.auto_fix:
                 self._fix_jsx_extensions(jsx_issues, result)
+
+        # 1. Fix common relative import path mistakes (e.g., ./services/* from pages)
+        import_fix = self._fix_relative_import_paths(src_dir, auto_fix=self.auto_fix)
+        for issue in import_fix['issues']:
+            result.frontend_issues.append(issue)
+            result.issues_found += 1
+        if import_fix['fixed_count'] > 0:
+            result.issues_fixed += import_fix['fixed_count']
+            result.changes_made.extend(import_fix['changes'])
         
-        # 1. Scan for missing npm dependencies
+        # 2. Scan for missing npm dependencies
         missing_deps = self._find_missing_npm_deps(src_dir, package_json_path)
         if missing_deps:
             for dep in missing_deps:
@@ -290,7 +299,7 @@ class DependencyHealer:
             if self.auto_fix:
                 self._add_npm_dependencies(package_json_path, missing_deps, result)
         
-        # 2. Check export patterns in components
+        # 3. Check export patterns in components
         export_issues = self._check_frontend_exports(src_dir)
         if export_issues:
             for issue in export_issues:
@@ -300,7 +309,7 @@ class DependencyHealer:
             if self.auto_fix:
                 self._fix_frontend_exports(export_issues, result)
 
-        # 3. Ensure API exports referenced by pages exist (prevents Vite build failures)
+        # 4. Ensure API exports referenced by pages exist (prevents Vite build failures)
         api_fix = self._ensure_api_exports(src_dir, api_js_path, auto_fix=self.auto_fix)
         for issue in api_fix['issues']:
             result.frontend_issues.append(issue)
@@ -308,6 +317,94 @@ class DependencyHealer:
         if api_fix['fixed_count'] > 0:
             result.issues_fixed += api_fix['fixed_count']
             result.changes_made.extend(api_fix['changes'])
+
+    def _fix_relative_import_paths(self, src_dir: Path, auto_fix: bool) -> Dict[str, Any]:
+        """Fix common relative import path mistakes in frontend files."""
+        issues: List[str] = []
+        changes: List[str] = []
+        fixed_count = 0
+
+        def resolve_module(base_dir: Path, rel_path: str) -> bool:
+            candidate = (base_dir / rel_path).resolve()
+
+            candidates = []
+            if candidate.suffix:
+                candidates.append(candidate)
+            else:
+                for ext in ('.js', '.jsx', '.ts', '.tsx', '.json'):
+                    candidates.append(candidate.with_suffix(ext))
+                for ext in ('.js', '.jsx', '.ts', '.tsx', '.json'):
+                    candidates.append(candidate / f'index{ext}')
+
+            return any(path.exists() for path in candidates)
+
+        def normalize_to_src(import_path: str) -> Optional[Path]:
+            parts = list(Path(import_path).as_posix().split('/'))
+            while parts and parts[0] in ('.', '..'):
+                parts.pop(0)
+            if not parts:
+                return None
+            return src_dir / Path(*parts)
+
+        import_pattern = re.compile(
+            r"import\s+[^\n]+?\s+from\s+['\"](?P<path>[^'\"]+)['\"]"
+        )
+
+        for file_path in src_dir.rglob('*'):
+            if file_path.suffix not in {'.js', '.jsx', '.ts', '.tsx'}:
+                continue
+
+            try:
+                content = file_path.read_text(encoding='utf-8')
+            except Exception:
+                continue
+
+            updated = False
+
+            def replace(match: re.Match) -> str:
+                nonlocal updated, fixed_count
+                import_path = match.group('path')
+
+                if not import_path.startswith('.'):
+                    return match.group(0)
+
+                file_dir = file_path.parent
+                if resolve_module(file_dir, import_path):
+                    return match.group(0)
+
+                src_target = normalize_to_src(import_path)
+                if src_target is None or not resolve_module(src_dir, src_target.relative_to(src_dir).as_posix()):
+                    return match.group(0)
+
+                new_rel = os.path.relpath(src_target, file_dir).replace('\\', '/')
+                if not new_rel.startswith('.'):
+                    new_rel = f'./{new_rel}'
+
+                issues.append(
+                    f"{file_path.relative_to(src_dir)}: fixed import '{import_path}' → '{new_rel}'"
+                )
+
+                if auto_fix:
+                    updated = True
+                    fixed_count += 1
+                    return match.group(0).replace(import_path, new_rel)
+
+                return match.group(0)
+
+            new_content = import_pattern.sub(replace, content)
+
+            if auto_fix and updated and new_content != content:
+                try:
+                    file_path.write_text(new_content, encoding='utf-8')
+                    changes.append(f"Updated relative imports in {file_path.relative_to(src_dir)}")
+                except Exception as e:
+                    issues.append(f"Failed to update {file_path.name}: {e}")
+
+        return {
+            'issues': issues,
+            'changes': changes,
+            'fixed_count': fixed_count,
+        }
 
     def _find_jsx_extension_issues(self, src_dir: Path) -> List[Dict]:
         """Find .js files that contain JSX syntax and should be .jsx.
@@ -693,6 +790,27 @@ class DependencyHealer:
         except Exception as e:
             return {'issues': [f"Failed to read api.js: {e}"], 'changes': [], 'fixed_count': 0}
 
+        content_modified = False
+
+        # Remove invalid self-reexports that duplicate named exports (e.g. export { api } from './api')
+        self_reexport_pattern = re.compile(
+            r"^\s*export\s*\{[^}]*\}\s*from\s*['\"]\./api['\"];?\s*$",
+            re.MULTILINE
+        )
+        if self_reexport_pattern.search(api_content):
+            issues.append("api.js re-exports from './api' causing duplicate exports")
+            if auto_fix:
+                api_content = self_reexport_pattern.sub('', api_content).rstrip() + "\n"
+                changes.append("Removed self-reexport from api.js")
+                fixed_count += 1
+                content_modified = True
+
+        if content_modified and auto_fix:
+            try:
+                api_js_path.write_text(api_content, encoding='utf-8')
+            except Exception as e:
+                issues.append(f"Failed to write api.js: {e}")
+
         exported = set()
         for match in re.finditer(r'export\s+(?:const|function)\s+(\w+)', api_content):
             exported.add(match.group(1))
@@ -726,7 +844,7 @@ class DependencyHealer:
         wanted = wanted_admin | wanted_user
 
         missing = sorted(name for name in wanted if name not in exported)
-        if not missing:
+        if not missing and not content_modified:
             return {'issues': issues, 'changes': changes, 'fixed_count': fixed_count}
 
         for name in missing:

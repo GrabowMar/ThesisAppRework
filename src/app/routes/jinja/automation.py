@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 from flask import Blueprint, current_app, jsonify, render_template, flash, redirect, url_for, request, make_response
 from flask_login import current_user
 
-from app.services.generation import get_generation_service
+from app.services.generation_v2 import get_generation_service
 
 
 def _get_analyzer_host(service_name: str) -> str:

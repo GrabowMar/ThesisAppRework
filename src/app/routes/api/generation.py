@@ -22,7 +22,7 @@ import logging
 from flask import Blueprint, request, jsonify
 from flask_login import current_user
 
-from app.services.generation import get_generation_service
+from app.services.generation_v2 import get_generation_service, GenerationConfig, GenerationMode
 from app.utils.helpers import create_success_response, create_error_response
 from app.utils.async_utils import run_async_safely
 
@@ -113,11 +113,17 @@ def scaffold():
             )
         
         service = get_generation_service()
-        success = service.scaffolding.scaffold(model_slug, app_num)
+        config = GenerationConfig(
+            model_slug=model_slug,
+            template_slug=data.get('template_slug', 'crud_todo_list'),
+            app_num=app_num,
+            mode=GenerationMode.GUARDED,
+        )
+        app_dir = service.scaffolding.create_scaffolding(config)
+        success = app_dir is not None
         
         if success:
-            app_dir = service.scaffolding.get_app_dir(model_slug, app_num)
-            backend_port, frontend_port = service.scaffolding.get_ports(model_slug, app_num)
+            backend_port, frontend_port = service.scaffolding.allocate_ports(model_slug, app_num)
             
             # List scaffolding files created
             files = []

@@ -11,13 +11,12 @@ Refactored API routes organized by domain:
 - analysis: Analysis operations and statistics
 - generation: Scaffolding-first AI code generation (ACTIVE)
 - tasks_realtime: Real-time task updates
-- tool_registry: Tool registry and profiles
 - container_tools: Container management tools
 - statistics: Statistics dashboard API
 
 REMOVED:
 - sample_generation: OLD deprecated system (3700+ lines)
-- simple_generation: Merged into generation.py
+- simple_generation: Removed (generation_v2 only)
 - app_scaffolding: Unused legacy route (no frontend calls)
 - template_store: Unused template CRUD (no frontend calls)
 

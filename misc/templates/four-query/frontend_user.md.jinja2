@@ -45,7 +45,7 @@ You MUST implement complete auth UI:
 
 ## Stack & Constraints
 - React 18 + Tailwind CSS
-- Use Axios via the existing `services/api.js` (baseURL is `/api`)
+- Use Axios via the existing `services/api.js` (baseURL is `/api` by default; it honors `VITE_BACKEND_URL` when set)
 - Use `react-hot-toast` for user feedback (`toast.success`, `toast.error`)
 - Do NOT create/modify `App.jsx` (scaffolding owns routing/navigation)
 

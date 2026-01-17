@@ -17,7 +17,7 @@ from typing import Any, Dict, List
 from flask import Blueprint, current_app, jsonify, render_template, flash, redirect, url_for, request
 from flask_login import current_user
 
-from app.services.generation import get_generation_service
+from app.services.generation_v2 import get_generation_service
 from app.models import ModelCapability
 
 sample_generator_bp = Blueprint('sample_generator', __name__, url_prefix='/sample-generator')

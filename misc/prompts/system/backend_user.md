@@ -34,6 +34,7 @@ The project uses a modular structure:
 
 ## Data Model Rules
 - The scaffolding already includes a required `User` model used by authentication.
+- `User` MUST include `is_admin` (boolean) for admin checks.
 - You MUST keep `User` (do not remove or rename it). You may add fields if needed.
 - Every model must include:
   - `id` primary key

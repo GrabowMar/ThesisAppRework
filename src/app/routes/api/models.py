@@ -1091,7 +1091,7 @@ def api_model_app_regenerate(model_slug, app_number):
         - generate_backend: bool (default: true)
     """
     try:
-        from app.routes.api.generation import get_generation_service
+        from app.services.generation_v2 import get_generation_service
         from app.utils.async_utils import run_async_safely
         
         # Find the latest version of this app

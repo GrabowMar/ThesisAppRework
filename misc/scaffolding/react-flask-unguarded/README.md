@@ -17,7 +17,7 @@ The following remain constant (same as guarded mode):
 - Flask backend framework
 - React + Vite frontend framework
 - SQLite database at `/app/data/app.db`
-- Health check endpoint requirement
+- Health check endpoint requirement (/api/health)
 
 ## Running the Application
 

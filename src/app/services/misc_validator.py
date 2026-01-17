@@ -81,10 +81,10 @@ def _validate_requirements_data(data: Dict[str, Any], filename: str) -> List[str
                     f"requirements/{filename}: {key}[{idx}] path should start with /api/admin"
                 )
             if key == "control_endpoints" and path and not (
-                path.startswith("/health") or path.startswith("/api/health") or path.startswith("/api/status")
+                path.startswith("/api/health") or path.startswith("/api/status")
             ):
                 issues.append(
-                    f"requirements/{filename}: {key}[{idx}] path should be /health or /api/health"
+                    f"requirements/{filename}: {key}[{idx}] path should be /api/health"
                 )
 
             if method and path:

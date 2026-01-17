@@ -16,9 +16,11 @@ import asyncio
 import logging
 import os
 import time
+import uuid
 from typing import Dict, Any, Tuple, Optional
 
 from app.utils.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerOpenError
+from app.services.rate_limiter import get_openrouter_rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +72,7 @@ class OpenRouterClient:
             "HTTP-Referer": self.site_url,
             "X-Title": self.site_name,
             "Content-Type": "application/json",
+            "X-Request-ID": str(uuid.uuid4()),
         }
     
     def _payload(self, model: str, messages: list, temperature: float, max_tokens: int) -> Dict[str, Any]:
@@ -78,7 +81,7 @@ class OpenRouterClient:
             "model": model,
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": max_tokens,
+            "max_tokens": min(max_tokens, 32000),
         }
         if self.allow_fallbacks:
             payload["provider"] = {
@@ -94,7 +97,7 @@ class OpenRouterClient:
         temperature: float = 0.3,
         max_tokens: int = 32000,
         timeout: int = 300,
-        max_retries: int = 1,
+        max_retries: int = 2,
     ) -> Tuple[bool, Dict[str, Any], int]:
         """Make a chat completion request.
         
@@ -120,6 +123,10 @@ class OpenRouterClient:
                 "error": f"Circuit breaker open, retry after {status.get('last_failure', 'unknown')}",
                 "circuit_open": True,
             }, 503
+
+        limiter = get_openrouter_rate_limiter()
+        if not await limiter.acquire(timeout=timeout):
+            return False, {"error": "Rate limiter blocked request"}, 429
         
         headers = self._headers()
         payload = self._payload(model, messages, temperature, max_tokens)
@@ -161,6 +168,7 @@ class OpenRouterClient:
                                     error_msg = error_msg.get('message', 'Missing choices')
                                 logger.error(f"Malformed 200 response: {error_msg}")
                                 breaker.record_failure()
+                                limiter.release(success=False, error=error_msg, duration=time.time() - start_time)
                                 return False, {"error": error_msg}, status_code
                             
                             # Success!
@@ -171,6 +179,7 @@ class OpenRouterClient:
                                 f"({usage.get('prompt_tokens', 0)}→{usage.get('completion_tokens', 0)} tokens)"
                             )
                             breaker.record_success()
+                            limiter.release(success=True, duration=elapsed)
                             return True, data, status_code
                         
                         # Error response
@@ -183,7 +192,7 @@ class OpenRouterClient:
                         logger.warning(f"API error {status_code}: {error_msg}")
                         
                         # Retry on 5xx errors
-                        if status_code >= 500 and attempt < max_retries:
+                        if status_code in (408, 409, 429, 500, 502, 503, 504) and attempt < max_retries:
                             backoff = 2 ** attempt * 2
                             logger.info(f"Retrying in {backoff}s...")
                             await asyncio.sleep(backoff)
@@ -191,7 +200,7 @@ class OpenRouterClient:
                         
                         if status_code >= 500:
                             breaker.record_failure()
-                        
+                        limiter.release(success=False, error=error_msg, duration=time.time() - start_time)
                         return False, data, status_code
                         
             except aiohttp.ClientError as e:
@@ -214,6 +223,7 @@ class OpenRouterClient:
         
         # All retries failed
         breaker.record_failure()
+        limiter.release(success=False, error=last_error or "Unknown error", duration=time.time() - start_time)
         return False, {"error": last_error or "Unknown error"}, 503
 
 

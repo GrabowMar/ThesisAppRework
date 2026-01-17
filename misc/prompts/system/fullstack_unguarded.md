@@ -43,13 +43,9 @@ db = SQLAlchemy(app)
 from models import *
 
 # ============== HEALTH ENDPOINTS (REQUIRED) ==============
-@app.route('/health')
-def health():
-    return jsonify({'status': 'healthy'})
-
 @app.route('/api/health')
 def api_health():
-    return jsonify({'status': 'healthy', 'database': 'connected'})
+  return jsonify({'status': 'healthy', 'database': 'connected'})
 
 # ============== YOUR API ROUTES ==============
 # Add all API routes here...
@@ -189,7 +185,7 @@ class Item(db.Model):
 ### Example 2: GET Route with Query Params
 
 ```python
-@user_bp.route('/items', methods=['GET'])
+@app.route('/api/items', methods=['GET'])
 def get_items():
     try:
         # Parse query parameters
@@ -217,7 +213,7 @@ def get_items():
 ### Example 3: POST Route with Validation
 
 ```python
-@user_bp.route('/items', methods=['POST'])
+@app.route('/api/items', methods=['POST'])
 def create_item():
     try:
         data = request.get_json()
@@ -273,7 +269,7 @@ def create_item():
 
 ## Common Mistakes to Avoid
 
-1. **Missing health endpoints** - Both `/health` and `/api/health` REQUIRED
+1. **Missing health endpoint** - `/api/health` REQUIRED
 2. **Wrong database path** - MUST be `sqlite:////app/data/app.db` (4 slashes)
 3. **Missing CORS** - MUST have `CORS(app, origins=['*'])`
 4. **Circular imports** - Import models AFTER db is defined

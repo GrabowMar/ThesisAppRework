@@ -20,7 +20,7 @@ The actual route implementations are distributed across focused modules:
 All routes have been migrated out of this file for better organization.
 No route implementations should exist here - only blueprint registrations.
 
-SECURITY: All API routes require authentication except /health endpoint.
+SECURITY: All API routes require authentication except /api/health endpoint.
 """
 
 from flask import Blueprint, request, jsonify

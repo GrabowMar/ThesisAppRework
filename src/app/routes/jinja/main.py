@@ -18,6 +18,10 @@ main_bp = Blueprint('main', __name__)
 @main_bp.before_request
 def require_authentication():
     """Require authentication for all main blueprint endpoints."""
+    # Allow unauthenticated health checks for container/monitoring probes
+    if request.path == '/health':
+        return None
+
     if not current_user.is_authenticated:
         flash('Please log in to access this page.', 'info')
         return redirect(url_for('auth.login', next=request.url))
@@ -45,6 +49,24 @@ def dashboard():
 def about():
     """About page - redirects to docs since about content is now consolidated there."""
     return redirect(url_for('docs.docs_index'))
+
+
+@main_bp.route('/health')
+def health_check():
+    """Public health check endpoint (compat alias for /api/health)."""
+    from datetime import datetime, timezone
+    from app.routes.api.common import api_success, api_error, get_database_health
+
+    db_healthy, db_error = get_database_health()
+    if not db_healthy:
+        return api_error(f"Database health check failed: {db_error}", status=503)
+
+    return api_success({
+        'status': 'healthy',
+        'database': 'connected',
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'version': '1.0'
+    })
 
 
 @main_bp.route('/api-access')

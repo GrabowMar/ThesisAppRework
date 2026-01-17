@@ -21,7 +21,7 @@ from .common import (
 system_bp = Blueprint('system_api', __name__)
 
 
-@system_bp.route('/health')
+@system_bp.route('/system/health')
 def api_system_health():
     """Comprehensive system health status."""
     try:

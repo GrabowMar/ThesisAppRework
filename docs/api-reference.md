@@ -293,10 +293,10 @@ Analysis results follow this structure:
 GET /api/health
 ```
 
-### Analyzer Health
+### Analyzer Status
 
 ```http
-GET /api/health/analyzers
+GET /api/analyzer/status
 ```
 
 Returns status of all analyzer containers (ports 2001-2004).
@@ -308,7 +308,7 @@ The REST API is organized into the following modules:
 | Module | Prefix | Description |
 |--------|--------|-------------|
 | `analysis` | `/api/analysis/` | Custom analysis operations, tool registry queries |
-| `applications` | `/api/apps/` | Application CRUD, container operations |
+| `applications` | `/api/app/` | Application CRUD, container operations |
 | `container_tools` | `/api/container-tools/` | Container tool operations |
 | `core` | `/api/` | Health, status endpoints |
 | `dashboard` | `/api/dashboard/` | Dashboard data, statistics |

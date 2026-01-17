@@ -87,12 +87,11 @@ def _check_requirements() -> list[str]:
                         f"requirements/{path.name}: {key}[{idx}] path should start with /api/admin"
                     )
                 if key == "control_endpoints" and path_value and not (
-                    path_value.startswith("/health")
-                    or path_value.startswith("/api/health")
+                    path_value.startswith("/api/health")
                     or path_value.startswith("/api/status")
                 ):
                     issues.append(
-                        f"requirements/{path.name}: {key}[{idx}] path should be /health or /api/health"
+                        f"requirements/{path.name}: {key}[{idx}] path should be /api/health"
                     )
 
                 if method and path_value:

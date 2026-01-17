@@ -55,4 +55,4 @@ volumes:
 
 networks:
   thesis-apps-network:
-    external: true
+    name: thesis-apps-network

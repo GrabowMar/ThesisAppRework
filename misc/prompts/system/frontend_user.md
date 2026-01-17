@@ -13,7 +13,7 @@ The project uses a modular structure:
 - `hooks/useData.js` - Custom hooks (YOU IMPLEMENT if needed)
 
 ## Must Do
-- Use axios via `services/api.js` (instance has baseURL `/api`)
+- Use axios via `services/api.js` (baseURL is `/api` by default; honors `VITE_BACKEND_URL` when set)
 - Handle loading states with `<Spinner />`
 - Handle errors properly with try/catch
 - Use toast notifications: `toast.success()`, `toast.error()`
@@ -147,9 +147,13 @@ export default UserPage;
 ```jsx:services/api.js
 import axios from 'axios';
 
+const rawBaseUrl = import.meta.env.VITE_BACKEND_URL;
+const normalizedBase = rawBaseUrl ? rawBaseUrl.replace(/\/$/, '') : '';
+const baseURL = normalizedBase ? `${normalizedBase}/api` : '/api';
+
 const api = axios.create({
-  baseURL: '/api',
-  headers: { 'Content-Type': 'application/json' }
+    baseURL,
+    headers: { 'Content-Type': 'application/json' }
 });
 
 // User API functions

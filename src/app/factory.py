@@ -385,12 +385,6 @@ def create_app(config_name: str = 'default') -> Flask:
     from app.routes import register_blueprints
     register_blueprints(app)
     
-    # Register health check route at root
-    @app.route('/health')
-    def health_check():
-        from app.routes.api.core import api_health
-        return api_health()
-    
     # Initialize services
     try:
         # Initialize service locator with all core services

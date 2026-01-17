@@ -2181,7 +2181,7 @@ class PipelineExecutionService:
         
         try:
             # Get generation service
-            from app.services.generation import get_generation_service
+            from app.services.generation_v2 import get_generation_service
             svc = get_generation_service()
             
             # Use pipeline_id as batch_id for grouping related generations

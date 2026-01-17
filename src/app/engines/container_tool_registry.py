@@ -1033,13 +1033,6 @@ class ContainerToolRegistry:
         """Get all analyzer containers."""
         return list(AnalyzerContainer)
 
-    def get_all_profiles(self) -> List[Dict[str, Any]]:
-        """Return available tool execution profiles (compatibility shim)."""
-        # Legacy code expects a list of profile dictionaries with optional
-        # ``to_dict`` methods. Profiles have not yet been ported to the container
-        # registry, so provide an empty list instead of raising AttributeError.
-        return []
-    
     def get_container_info(self) -> Dict[str, Dict[str, Any]]:
         """Get information about all containers and their tools."""
         self.initialize()

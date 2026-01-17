@@ -525,7 +525,7 @@ def generate_application():
     4. Creates the database record
     """
     try:
-        from app.services.generation import get_generation_service
+        from app.services.generation_v2 import get_generation_service
         from app.utils.async_utils import run_async_safely
 
         model_slug = (request.form.get('model_slug') or '').strip()

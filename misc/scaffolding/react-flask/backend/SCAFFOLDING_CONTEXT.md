@@ -71,6 +71,7 @@ def token_required(f):
 - DB: `sqlite:////app/data/app.db`
 - Port: `FLASK_RUN_PORT` env var
 - Secret: `SECRET_KEY` env var
+- Health endpoint: `/api/health`
 
 ## Dependencies & Healing
 - You MAY add additional Python packages if needed.

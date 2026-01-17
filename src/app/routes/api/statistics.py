@@ -96,7 +96,7 @@ def get_severity():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@statistics_bp.route("/health", methods=["GET"])
+@statistics_bp.route("/statistics/health", methods=["GET"])
 def get_health():
     """Get analyzer health status."""
     try:
