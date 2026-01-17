@@ -51,14 +51,6 @@ def main():
     
     # Import after path setup
     from app.factory import create_app
-    # Run generated content migration (best-effort)
-    try:
-        from app.services.generation_migration import run_generated_migration
-        mig_report = run_generated_migration(delete_source=False)
-        if not mig_report.get('skipped'):
-            logger.info("Generated content migration run: moved_files=%s", mig_report.get('moved_files'))
-    except Exception as mig_err:  # noqa: BLE001
-        logger.warning(f"Generated content migration skipped due to error: {mig_err}")
     
     # Get configuration from environment
     config_name = os.environ.get('FLASK_ENV', 'development')

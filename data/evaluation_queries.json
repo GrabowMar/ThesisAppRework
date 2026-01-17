@@ -1,0 +1,44 @@
+[
+  {
+    "template": "crud_todo_list",
+    "model_slug": "anthropic_claude-3-5-haiku",
+    "mode": "guarded",
+    "description": "Generate a CRUD todo list app with user auth and admin dashboard",
+    "run_count": 3
+  },
+  {
+    "template": "utility_base64_tool",
+    "model_slug": "anthropic_claude-3-5-haiku",
+    "mode": "guarded",
+    "description": "Generate a base64 encode/decode utility app with history and validation",
+    "run_count": 3
+  },
+  {
+    "template": "validation_xml_checker",
+    "model_slug": "anthropic_claude-3-5-haiku",
+    "mode": "guarded",
+    "description": "Generate an XML validation app with upload, errors list, and admin view",
+    "run_count": 3
+  },
+  {
+    "template": "crud_book_library",
+    "model_slug": "anthropic_claude-3-5-haiku",
+    "mode": "guarded",
+    "description": "Generate a book library CRUD app with search and admin management",
+    "run_count": 3
+  },
+  {
+    "template": "productivity_notes",
+    "model_slug": "anthropic_claude-3-5-haiku",
+    "mode": "guarded",
+    "description": "Generate a notes app with tagging, search, and admin moderation",
+    "run_count": 3
+  },
+  {
+    "template": "finance_expense_list",
+    "model_slug": "anthropic_claude-3-5-haiku",
+    "mode": "guarded",
+    "description": "Generate an expense tracker with categories, filters, and admin reports",
+    "run_count": 3
+  }
+]

@@ -537,22 +537,6 @@ def create_app(config_name: str = 'default') -> Flask:
         else:
             logger.info("Pipeline execution service disabled (ENABLE_PIPELINE_SERVICE=false)")
         
-        # Validate and fix model IDs on startup (provider namespace normalization, case fixes)
-        try:  # pragma: no cover - maintenance task
-            with app.app_context():
-                from app.services.model_migration import get_migration_service
-                migration_svc = get_migration_service()
-                logger.info("Running model ID validation and fixes...")
-                result = migration_svc.validate_and_fix_all_models(dry_run=False, auto_fix=True)
-                summary = result.get('summary', {})
-                if summary.get('fixed', 0) > 0:
-                    logger.info(f"✅ Fixed {summary['fixed']} model IDs on startup")
-                if summary.get('valid', 0) > 0:
-                    logger.info(f"✅ {summary['valid']}/{summary['total']} models validated successfully")
-                if summary.get('unfixable', 0) > 0:
-                    logger.warning(f"⚠️  {summary['unfixable']} models could not be auto-fixed")
-        except Exception as _model_fix_err:  # pragma: no cover
-            logger.warning(f"Model ID validation skipped: {_model_fix_err}")
         
     except Exception as e:
         logger.exception(f"Failed to initialize services: {e}")

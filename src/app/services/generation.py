@@ -678,23 +678,7 @@ class CodeGenerator:
         #          3) model_id (fallback)
         openrouter_model = model.hugging_face_id or model.base_model_id or model.model_id
         
-        # Optional runtime validation (fails open if catalog unavailable)
-        # The OpenRouter API will be the final authority on model validity
-        try:
-            from app.services.model_validator import get_validator
-            validator = get_validator()
-            
-            if not validator.is_valid_model_id(openrouter_model):
-                # Try to find correction
-                suggestion = validator.suggest_correction(openrouter_model)
-                if suggestion:
-                    corrected_id, reason = suggestion
-                    logger.info(f"Auto-correcting model ID: {openrouter_model} → {corrected_id} ({reason})")
-                    openrouter_model = corrected_id
-                # If no suggestion, continue anyway - let OpenRouter API validate
-        except Exception as e:
-            # Validation is optional - continue with generation if it fails
-            logger.debug(f"Model validation skipped: {e}")
+        # Model validation removed - OpenRouter API is the final authority on model validity
         
         logger.info(f"Using OpenRouter model: {openrouter_model} (HF ID: {model.hugging_face_id}, base: {model.base_model_id}, model_id: {model.model_id}, slug: {config.model_slug})")
         
