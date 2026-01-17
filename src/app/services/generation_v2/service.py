@@ -2,24 +2,24 @@
 ====================
 
 Main orchestration service for app generation.
-Simple, linear flow: scaffold → generate → merge → persist.
+Simple, linear flow: scaffold → generate backend → scan → generate frontend → merge → persist.
 """
 
 import logging
 import time
 import asyncio
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any
 
 from app.extensions import db
-from app.models import GeneratedApplication, GenerationMode as DBGenerationMode
+from app.models import GeneratedApplication
 from app.paths import GENERATED_APPS_DIR
 from app.utils.time import utc_now
 from app.utils.async_utils import run_async_safely
 from app.paths import REQUIREMENTS_DIR
 
-from .config import GenerationConfig, GenerationMode, GenerationResult
+from .config import GenerationConfig, GenerationResult
 from .scaffolding import ScaffoldingManager, get_scaffolding_manager
 from .code_generator import CodeGenerator, get_code_generator
 from .code_merger import CodeMerger
@@ -33,12 +33,11 @@ class GenerationService:
     Flow:
     1. Reserve app number in database
     2. Create scaffolding
-    3. Generate code via LLM
-    4. Merge code into scaffolding
-    5. Update database record
-    
-    No queues, no workers, no complex retry logic.
-    Just simple, synchronous execution.
+    3. Generate backend code via LLM
+    4. Scan backend for API context
+    5. Generate frontend code via LLM (with backend context)
+    6. Merge code into scaffolding
+    7. Update database record
     """
     
     def __init__(self):
@@ -68,47 +67,28 @@ class GenerationService:
 
             template_slug = data.get('slug')
             if template_slug is None:
-                logger.warning("Skipping %s: missing 'slug' field", req_file.name)
                 continue
 
             name = data.get('name')
             if not name:
-                logger.warning("Skipping %s: missing 'name' field", req_file.name)
                 continue
 
             normalized_slug = template_slug.lower().replace('-', '_')
             if req_file.stem.lower().replace('-', '_') != normalized_slug:
-                logger.warning(
-                    "Slug mismatch in %s: file has slug='%s', filename is %s",
-                    req_file.name, template_slug, req_file.stem
-                )
                 continue
 
             if template_slug in seen_slugs:
-                logger.error("Duplicate template slug %s in %s", template_slug, req_file.name)
                 continue
             seen_slugs.add(template_slug)
-
-            description = data.get('description', '')
-            category = data.get('category', 'general')
-            complexity = data.get('complexity') or data.get('difficulty') or 'medium'
-
-            features = data.get('features') or data.get('key_features') or []
-            if isinstance(features, str):
-                features = [features]
-
-            tech_stack = data.get('tech_stack') or data.get('stack') or {}
-            if not isinstance(tech_stack, dict):
-                tech_stack = {'value': tech_stack}
 
             catalog.append({
                 'slug': template_slug,
                 'name': name,
-                'description': description,
-                'category': category,
-                'complexity': complexity,
-                'features': features,
-                'tech_stack': tech_stack,
+                'description': data.get('description', ''),
+                'category': data.get('category', 'general'),
+                'complexity': data.get('complexity') or 'medium',
+                'features': data.get('features') or [],
+                'tech_stack': data.get('tech_stack') or {},
                 'filename': req_file.name,
             })
 
@@ -163,19 +143,15 @@ class GenerationService:
         batch_id: Optional[str] = None,
         parent_app_id: Optional[int] = None,
         version: int = 1,
-        generation_mode: str = 'guarded',
-        use_auto_fix: bool = True,
+        **kwargs
     ) -> dict:
         """Generate a complete app with standard response payload."""
-        mode = GenerationMode.GUARDED if generation_mode == 'guarded' else GenerationMode.UNGUARDED
         app_number = app_num or self.get_next_app_number(model_slug)
 
         config = GenerationConfig(
             model_slug=model_slug,
             template_slug=template_slug,
             app_num=app_number,
-            mode=mode,
-            auto_fix=use_auto_fix,
         )
 
         loop = asyncio.get_running_loop()
@@ -189,7 +165,6 @@ class GenerationService:
             'scaffolded': gen_result.app_dir is not None,
             'backend_generated': bool(generate_backend) and success,
             'frontend_generated': bool(generate_frontend) and success,
-            'generation_mode': generation_mode,
             'errors': errors,
             'app_number': app_number,
             'app_num': app_number,
@@ -211,72 +186,35 @@ class GenerationService:
         
         logger.info(f"Starting generation: {config.model_slug}/app{config.app_num}")
         logger.info(f"  Template: {config.template_slug}")
-        logger.info(f"  Mode: {config.mode.value}")
         
         try:
             # Step 1: Create scaffolding
-            logger.info("Step 1/4: Creating scaffolding...")
+            logger.info("Step 1/3: Creating scaffolding...")
             app_dir = self.scaffolding.create_scaffolding(config)
             result.app_dir = app_dir
             
-            # Step 2: Generate code
-            logger.info("Step 2/4: Generating code via LLM...")
+            # Step 2: Generate code (backend → scan → frontend)
+            logger.info("Step 2/3: Generating code via LLM...")
             code = run_async_safely(self.generator.generate(config))
             
             # Step 3: Merge code into scaffolding
-            logger.info("Step 3/4: Merging generated code...")
+            logger.info("Step 3/3: Merging generated code...")
             merger = CodeMerger(app_dir)
-            
-            if config.is_guarded:
-                written = merger.merge_guarded(code)
-            else:
-                written = merger.merge_unguarded(code)
-            
+            written = merger.merge(code)
             result.artifacts = written
-
-            # Step 3.5: Post-generation healing to fix common dependency/import issues
-            if config.auto_fix:
-                try:
-                    from app.services.dependency_healer import get_dependency_healer, heal_generated_app
-                    logger.info("Running dependency healer (auto-fix enabled)...")
-                    pre_fix = get_dependency_healer(auto_fix=False).validate_app(app_dir)
-                    healing_result = heal_generated_app(app_dir, auto_fix=True)
-                    result.metrics['healing'] = {
-                        'success': healing_result.success,
-                        'issues_found': healing_result.issues_found,
-                        'issues_fixed': healing_result.issues_fixed,
-                        'changes_made': healing_result.changes_made,
-                        'frontend_issues': healing_result.frontend_issues,
-                        'backend_issues': healing_result.backend_issues,
-                        'errors': healing_result.errors,
-                        'pre_fix': {
-                            'issues_found': pre_fix.issues_found,
-                            'frontend_issues': pre_fix.frontend_issues,
-                            'backend_issues': pre_fix.backend_issues,
-                            'errors': pre_fix.errors,
-                        }
-                    }
-                except Exception as healing_error:
-                    logger.warning(f"Dependency healing failed (non-fatal): {healing_error}")
-                    result.metrics['healing'] = {'error': str(healing_error)}
-            else:
-                result.metrics['healing'] = {'skipped': True, 'reason': 'auto_fix disabled'}
             
-            # Step 4: Update database
-            logger.info("Step 4/4: Persisting to database...")
+            # Persist to database
+            logger.info("Persisting to database...")
             self._persist_to_database(config, app_dir, code)
             
             # Success!
             elapsed = time.time() - start_time
             result.success = True
-            base_metrics = {
+            result.metrics = {
                 'duration_seconds': elapsed,
                 'files_written': len(written),
-                'queries': 4 if config.is_guarded else 2,
+                'queries': 2,
             }
-            if 'healing' in result.metrics:
-                base_metrics['healing'] = result.metrics['healing']
-            result.metrics = base_metrics
             
             logger.info(f"✅ Generation complete in {elapsed:.1f}s")
             logger.info(f"   App directory: {app_dir}")
@@ -291,72 +229,35 @@ class GenerationService:
         return result
     
     async def generate_async(self, config: GenerationConfig) -> GenerationResult:
-        """Generate an application asynchronously.
-        
-        Same as generate() but async-native.
-        """
+        """Generate an application asynchronously."""
         start_time = time.time()
         result = GenerationResult(success=False)
         
         logger.info(f"Starting async generation: {config.model_slug}/app{config.app_num}")
         
         try:
-            # Step 1: Create scaffolding (sync operation)
+            # Step 1: Create scaffolding
             app_dir = self.scaffolding.create_scaffolding(config)
             result.app_dir = app_dir
             
-            # Step 2: Generate code (async)
+            # Step 2: Generate code
             code = await self.generator.generate(config)
             
-            # Step 3: Merge code (sync operation)
+            # Step 3: Merge code
             merger = CodeMerger(app_dir)
-            if config.is_guarded:
-                written = merger.merge_guarded(code)
-            else:
-                written = merger.merge_unguarded(code)
-            
+            written = merger.merge(code)
             result.artifacts = written
-
-            if config.auto_fix:
-                try:
-                    from app.services.dependency_healer import get_dependency_healer, heal_generated_app
-                    logger.info("Running dependency healer (auto-fix enabled)...")
-                    pre_fix = get_dependency_healer(auto_fix=False).validate_app(app_dir)
-                    healing_result = heal_generated_app(app_dir, auto_fix=True)
-                    result.metrics['healing'] = {
-                        'success': healing_result.success,
-                        'issues_found': healing_result.issues_found,
-                        'issues_fixed': healing_result.issues_fixed,
-                        'changes_made': healing_result.changes_made,
-                        'frontend_issues': healing_result.frontend_issues,
-                        'backend_issues': healing_result.backend_issues,
-                        'errors': healing_result.errors,
-                        'pre_fix': {
-                            'issues_found': pre_fix.issues_found,
-                            'frontend_issues': pre_fix.frontend_issues,
-                            'backend_issues': pre_fix.backend_issues,
-                            'errors': pre_fix.errors,
-                        }
-                    }
-                except Exception as healing_error:
-                    logger.warning(f"Dependency healing failed (non-fatal): {healing_error}")
-                    result.metrics['healing'] = {'error': str(healing_error)}
-            else:
-                result.metrics['healing'] = {'skipped': True, 'reason': 'auto_fix disabled'}
             
-            # Step 4: Persist (sync operation)
+            # Persist to database
             self._persist_to_database(config, app_dir, code)
             
             elapsed = time.time() - start_time
             result.success = True
-            base_metrics = {
+            result.metrics = {
                 'duration_seconds': elapsed,
                 'files_written': len(written),
-                'queries': 4 if config.is_guarded else 2,
+                'queries': 2,
             }
-            if 'healing' in result.metrics:
-                base_metrics['healing'] = result.metrics['healing']
-            result.metrics = base_metrics
             
             logger.info(f"✅ Generation complete in {elapsed:.1f}s")
             
@@ -373,45 +274,31 @@ class GenerationService:
         from app.constants import AnalysisStatus
         
         try:
-            # Check if record already exists
             existing = GeneratedApplication.query.filter_by(
                 model_slug=config.model_slug,
                 app_number=config.app_num,
             ).first()
             
-            # Determine what was generated
-            has_backend = bool(code.get('backend') or code.get('backend_user'))
-            has_frontend = bool(code.get('frontend') or code.get('frontend_user'))
-            
-            # Get provider from model slug
+            has_backend = bool(code.get('backend'))
+            has_frontend = bool(code.get('frontend'))
             provider = config.model_slug.split('_')[0] if '_' in config.model_slug else 'unknown'
             
             if existing:
-                # Update existing record
                 existing.template_slug = config.template_slug
-                existing.generation_mode = (
-                    DBGenerationMode.GUARDED if config.is_guarded 
-                    else DBGenerationMode.UNGUARDED
-                )
                 existing.has_backend = has_backend
                 existing.has_frontend = has_frontend
-                existing.has_docker_compose = True  # Scaffolding includes docker-compose
+                existing.has_docker_compose = True
                 existing.updated_at = utc_now()
                 existing.generation_status = AnalysisStatus.COMPLETED
                 existing.is_generation_failed = False
                 existing.error_message = None
             else:
-                # Create new record
                 app_record = GeneratedApplication(
                     model_slug=config.model_slug,
                     app_number=config.app_num,
                     app_type='fullstack',
                     provider=provider,
                     template_slug=config.template_slug,
-                    generation_mode=(
-                        DBGenerationMode.GUARDED if config.is_guarded 
-                        else DBGenerationMode.UNGUARDED
-                    ),
                     has_backend=has_backend,
                     has_frontend=has_frontend,
                     has_docker_compose=True,
@@ -422,18 +309,13 @@ class GenerationService:
                 db.session.add(app_record)
             
             db.session.commit()
-            logger.debug(f"Persisted generation to database")
             
         except Exception as e:
             db.session.rollback()
             logger.error(f"Failed to persist to database: {e}")
-            # Don't fail the generation for DB errors
     
     def get_next_app_number(self, model_slug: str) -> int:
-        """Get the next available app number for a model.
-        
-        Uses database MAX + 1 in a transaction for atomicity.
-        """
+        """Get the next available app number for a model."""
         from sqlalchemy import func
         
         try:
@@ -447,12 +329,6 @@ class GenerationService:
             
         except Exception as e:
             logger.warning(f"Error getting next app number: {e}")
-            # Fallback: count existing directories
-            safe_model = config.safe_model_slug
-            model_dir = GENERATED_APPS_DIR / safe_model
-            if model_dir.exists():
-                existing = [d for d in model_dir.iterdir() if d.is_dir() and d.name.startswith('app')]
-                return len(existing) + 1
             return 1
 
 
@@ -468,26 +344,13 @@ def get_generation_service() -> GenerationService:
     return _service
 
 
-# Convenience function for simple generation
 def generate_app(
     model_slug: str,
     template_slug: str,
     app_num: Optional[int] = None,
-    mode: str = 'guarded',
     **kwargs
 ) -> GenerationResult:
-    """Generate an app with minimal configuration.
-    
-    Args:
-        model_slug: Model identifier (e.g., 'anthropic_claude-3-5-haiku')
-        template_slug: Template identifier (e.g., 'crud_todo_list')
-        app_num: App number (auto-assigned if None)
-        mode: 'guarded' (4-query) or 'unguarded' (2-query)
-        **kwargs: Additional config options
-        
-    Returns:
-        GenerationResult
-    """
+    """Generate an app with minimal configuration."""
     service = get_generation_service()
     
     if app_num is None:
@@ -497,7 +360,6 @@ def generate_app(
         model_slug=model_slug,
         template_slug=template_slug,
         app_num=app_num,
-        mode=GenerationMode.GUARDED if mode == 'guarded' else GenerationMode.UNGUARDED,
         **kwargs
     )
     

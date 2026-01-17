@@ -304,7 +304,7 @@ services:
 
 networks:
   thesis-network:
-    driver: bridge  # Network for generated application containers (used by dynamic analyzer)
+    driver: bridge
   thesis-apps-network:
     external: true
     name: thesis-apps-network

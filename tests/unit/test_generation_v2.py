@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch, AsyncMock
 # Test config
 def test_generation_config_basic():
     """Test GenerationConfig creation."""
-    from app.services.generation_v2 import GenerationConfig, GenerationMode
+    from app.services.generation_v2 import GenerationConfig
     
     config = GenerationConfig(
         model_slug="anthropic_claude-3-5-haiku",
@@ -22,24 +22,7 @@ def test_generation_config_basic():
     assert config.model_slug == "anthropic_claude-3-5-haiku"
     assert config.template_slug == "crud_todo_list"
     assert config.app_num == 1
-    assert config.mode == GenerationMode.GUARDED
-    assert config.is_guarded is True
     assert config.safe_model_slug == "anthropic_claude-3-5-haiku"
-
-
-def test_generation_config_unguarded():
-    """Test unguarded mode config."""
-    from app.services.generation_v2 import GenerationConfig, GenerationMode
-    
-    config = GenerationConfig(
-        model_slug="openai_gpt-4o",
-        template_slug="social_blog_posts",
-        app_num=2,
-        mode=GenerationMode.UNGUARDED,
-    )
-    
-    assert config.is_guarded is False
-    assert config.mode == GenerationMode.UNGUARDED
 
 
 def test_generation_result():
@@ -71,15 +54,11 @@ def test_scaffolding_manager_init():
 def test_scaffolding_dir_paths():
     """Test scaffolding directory path resolution."""
     from app.services.generation_v2.scaffolding import ScaffoldingManager
-    from app.services.generation_v2 import GenerationMode
     
     manager = ScaffoldingManager()
     
-    guarded_dir = manager.get_scaffolding_dir(GenerationMode.GUARDED)
-    unguarded_dir = manager.get_scaffolding_dir(GenerationMode.UNGUARDED)
-    
-    assert "react-flask" in str(guarded_dir)
-    assert "react-flask-unguarded" in str(unguarded_dir)
+    scaffolding_dir = manager.get_scaffolding_dir()
+    assert "react-flask" in str(scaffolding_dir)
 
 
 # Test API client
@@ -114,14 +93,30 @@ def test_api_client_payload():
 
 # Test code merger
 @pytest.mark.unit
-def test_code_merger_extract_jsx(tmp_path):
-    """Test JSX extraction from generated content."""
+def test_code_merger_init(tmp_path):
+    """Test CodeMerger initialization."""
+    from app.services.generation_v2 import CodeMerger
+    
+    merger = CodeMerger(tmp_path)
+    assert merger.app_dir == tmp_path
+
+
+@pytest.mark.unit
+def test_code_merger_extract_blocks(tmp_path):
+    """Test code block extraction from generated content."""
     from app.services.generation_v2 import CodeMerger
     
     merger = CodeMerger(tmp_path)
     
     content = '''
-Here is the React component:
+Here is the Python file:
+
+```python:app.py
+from flask import Flask
+app = Flask(__name__)
+```
+
+And the React component:
 
 ```jsx:App.jsx
 function App() {
@@ -131,58 +126,47 @@ export default App;
 ```
 '''
     
-    blocks = merger._extract_all_code_blocks(content)
-    assert len(blocks) >= 1
-    jsx_block = next((b for b in blocks if b['language'] == 'jsx'), None)
-    assert jsx_block is not None
-    assert "function App()" in jsx_block['code']
-    assert "export default App" in jsx_block['code']
+    blocks = merger._extract_code_blocks(content)
+    assert len(blocks) >= 2
+    assert any("app.py" in b['filename'] for b in blocks)
+    assert any("App.jsx" in b['filename'] for b in blocks)
 
 
 @pytest.mark.unit
-def test_code_merger_extract_css(tmp_path):
-    """Test CSS extraction from generated content."""
+def test_code_merger_merge_backend(tmp_path):
+    """Test merging backend code blocks."""
     from app.services.generation_v2 import CodeMerger
+    
+    # Create backend directory
+    backend_dir = tmp_path / "backend"
+    backend_dir.mkdir(parents=True)
     
     merger = CodeMerger(tmp_path)
     
-    content = '''
-And the styles:
-
-```css
-.container {
-  padding: 20px;
-}
+    code = {
+        'backend': '''
+```python:app.py
+from flask import Flask
+app = Flask(__name__)
 ```
-'''
-    
-    blocks = merger._extract_all_code_blocks(content)
-    css_block = next((b for b in blocks if b['language'] == 'css'), None)
-    assert css_block is not None
-    assert ".container" in css_block['code']
 
-
-@pytest.mark.unit
-def test_code_merger_clean_python(tmp_path):
-    """Test Python code cleanup (deduplication)."""
-    from app.services.generation_v2 import CodeMerger
+```python:models.py
+from flask_sqlalchemy import SQLAlchemy
+db = SQLAlchemy()
+```
+''',
+        'frontend': ''
+    }
     
-    merger = CodeMerger(tmp_path)
+    result = merger.merge(code)
     
-    code = '''import os
-import sys
-import os
-from flask import Flask
-from flask import Flask
-
-def main():
-    pass
-'''
+    # Check files were created
+    assert (tmp_path / "backend" / "app.py").exists()
+    assert (tmp_path / "backend" / "models.py").exists()
     
-    cleaned = merger._clean_python(code)
-    assert cleaned.count("import os") == 1
-    assert cleaned.count("from flask import Flask") == 1
-    assert "def main():" in cleaned
+    # Check content
+    app_content = (tmp_path / "backend" / "app.py").read_text()
+    assert "Flask" in app_content
 
 
 # Test code generator

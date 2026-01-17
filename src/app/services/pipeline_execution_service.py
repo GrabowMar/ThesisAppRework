@@ -875,23 +875,23 @@ class PipelineExecutionService:
     ) -> Dict[str, Any]:
         """Execute generation using the simplified generation_v2 package."""
         from app.services.generation_v2 import (
-            GenerationConfig, GenerationMode, get_generation_service
+            GenerationConfig, get_generation_service
         )
         
         self._log("GEN", f"Using generation_v2 for job {job_index}")
         
         # Get generation service
         svc = get_generation_service()
-        
+
         # Build config
-        mode_str = gen_options.get('mode', 'guarded')
         app_num = job_index + 1  # App numbers are 1-based
-        
+
+        # Note: GenerationConfig no longer accepts 'mode' parameter
+        # The generation_v2 system uses a simplified 2-prompt approach (backend → frontend)
         config = GenerationConfig(
             model_slug=model_slug,
             template_slug=template_slug,
             app_num=app_num,
-            mode=GenerationMode.GUARDED if mode_str == 'guarded' else GenerationMode.UNGUARDED,
             max_tokens=gen_options.get('maxTokens', 32000),
             temperature=gen_options.get('temperature', 0.3),
         )

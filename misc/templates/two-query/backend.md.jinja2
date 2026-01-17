@@ -1,58 +1,104 @@
-# Generate {{ name }} - Backend
+# Generate Backend: {{ name }}
 
 {{ description }}
 
-## YOUR MISSION
-Generate **complete, runnable** Flask backend code that satisfies ALL requirements and fits into the provided scaffolding.
-
-## Stack & Versions
-- Python 3.11+
-- Flask 3.x
-- Flask-SQLAlchemy 3.1+ (SQLAlchemy 2.0 style)
-- flask-cors 4.x
-
-## Dependencies (Allowed)
-- You MAY choose any additional Python packages.
-- If you import a package that is not already in the scaffolding, include it in a `requirements` code block.
-- The Dependency Healer will reconcile missing packages, but you should still list any new ones you use.
-
 ## Requirements
+
+### User Features
 {% for req in backend_requirements %}
 - {{ req }}
 {% endfor %}
 
+### Admin Features  
+{% for req in admin_requirements %}
+- {{ req }}
+{% endfor %}
+
 {% if api_endpoints %}
-## Suggested API Endpoints
+## API Endpoints
 {{ api_endpoints }}
 {% endif %}
 
-## Implementation Process (DO INTERNALLY)
-1. Map requirements → models, fields, relationships, and routes.
-2. Align response shapes to the endpoint specs.
-3. Implement models with `to_dict()` (JSON-safe) and soft-delete (`is_active`).
-4. Implement routes with validation + correct status codes.
-5. Sanity-check: no missing imports, no truncated code, no placeholders.
+{% if admin_api_endpoints %}
+## Admin API Endpoints
+{{ admin_api_endpoints }}
+{% endif %}
 
-## Common Mistakes to Avoid
-- ❌ Returning raw SQLAlchemy objects → ✅ always serialize with `to_dict()`.
-- ❌ Forgetting `db.session.rollback()` on exceptions → ✅ rollback in except blocks.
-- ❌ Using unfiltered `.all()` for user-facing lists → ✅ filter `is_active=True`.
+## Data Model
+{% if data_model %}
+**{{ data_model.name }}**: {% for field, type in data_model.fields.items() %}{{ field }} ({{ type }}){% if not loop.last %}, {% endif %}{% endfor %}
+{% endif %}
 
-## Reference (Scaffolding Context)
-{{ scaffolding_backend_context }}
+## MANDATORY: Authentication System
+
+Implement JWT authentication with these endpoints:
+- POST /api/auth/register - Create user account
+- POST /api/auth/login - Login, return JWT token  
+- GET /api/auth/me - Get current user (token required)
+
+Include User model with: id, username, password_hash, is_admin, is_active, created_at
+
+Auth response requirements:
+- /api/auth/register MUST return { "token": "...", "user": { ... } }
+- /api/auth/login MUST return { "token": "...", "user": { ... } }
+- /api/auth/me MUST return the user object
+
+Use a stable secret key:
+- app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+- DO NOT use os.urandom for SECRET_KEY
+
+## Stack
+- Flask 3.x + Flask-SQLAlchemy 3.1+
+- SQLite: `sqlite:////app/data/app.db`
+- bcrypt for passwords, PyJWT for tokens
+
+## SINGLE FILE OUTPUT
+
+Generate ONE complete app.py file with ALL code:
+- Models (User + app-specific)
+- Auth helpers (token_required, admin_required decorators)
+- Auth routes (/api/auth/*)
+- User routes (/api/*)
+- Admin routes (/api/admin/*)
+
+## Code Patterns
+
+### Auth Decorator
+```python
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token: return jsonify({'error': 'Token required'}), 401
+        try:
+            data = jwt.decode(token, SECRET, algorithms=['HS256'])
+            user = User.query.get(data['user_id'])
+            if not user: return jsonify({'error': 'Invalid user'}), 401
+        except: return jsonify({'error': 'Invalid token'}), 401
+        return f(user, *args, **kwargs)
+    return decorated
+```
+
+### Response Format
+```python
+return jsonify(item.to_dict()), 200
+return jsonify({'items': [i.to_dict() for i in items]}), 200
+return jsonify({'error': 'Not found'}), 404
+```
 
 ## Output Format
-Wrap each file in markdown code blocks:
-- `python` → becomes app.py
-- `python:filename.py` → additional Python file
-- `requirements` → extra dependencies
 
-## Success Criteria
-- ✅ All listed endpoints exist and return expected shapes
-- ✅ Correct status codes (200/201/400/404/500)
-- ✅ Input validation on write routes
-- ✅ No placeholders, TODOs, or truncated code
+Generate ONE file only:
 
-Generate complete, working code for ALL requirements. Do not include explanations.
+```python:app.py
+# Complete Flask application with all models, auth, and routes
+```
+
+If you need additional dependencies, add a requirements block:
+```requirements
+package-name==1.0.0
+```
+
+Generate complete, working code. No placeholders. No explanations.
 
 

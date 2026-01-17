@@ -85,13 +85,13 @@ HEALTHCHECK --interval=120s --timeout=10s --start-period=60s --retries=5 \
         curl -sf http://localhost:5000/health 2>/dev/null || \
         exit 1
 
-# Run with environment-based port and enhanced error handling
-CMD export PORT=${FLASK_RUN_PORT:-5000} && \
-    echo "=== Starting Flask Application ===" && \
-    echo "Port: $PORT" && \
+# Run with flask run (respects FLASK_RUN_HOST and FLASK_RUN_PORT env vars)
+CMD echo "=== Starting Flask Application ===" && \
+    echo "Port: ${FLASK_RUN_PORT:-5000}" && \
+    echo "Host: ${FLASK_RUN_HOST:-0.0.0.0}" && \
     echo "Python version: $(python --version)" && \
     echo "Flask version: $(python -c 'import flask; print(flask.__version__)' 2>/dev/null || echo 'unknown')" && \
-    python app.py || \
+    flask run --host=${FLASK_RUN_HOST:-0.0.0.0} --port=${FLASK_RUN_PORT:-5000} || \
     (echo "ERROR: Flask application crashed" && \
      echo "Exit code: $?" && \
      echo "Last 50 lines of logs:" && \

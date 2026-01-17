@@ -4,9 +4,7 @@
     <div class="col-xxl-8 col-xl-7 col-lg-7">
       <div class="row row-cards g-3">
         <input type="hidden" id="input-scaffolding-id" value="default">
-        <input type="hidden" id="input-generation-mode" value="guarded">
         <input type="hidden" id="input-rerun-on-failure" value="false">
-        <input type="hidden" id="input-use-auto-fix" value="false">
         <input type="hidden" id="input-max-retries" value="1">
         <div class="col-12 wizard-panel active" data-panel="1">
           <div class="card card-table-compact">
@@ -71,78 +69,6 @@
                 Scaffolding defines baseline file layout, Docker configuration, and environment defaults. The wizard ships with the flagship React+Flask scaffold.
               </div>
 
-              {# Generation Mode Selection - NEW #}
-              <div class="card mt-4" id="generation-mode-section">
-                <div class="card-header">
-                  <h3 class="h6 mb-0 d-flex align-items-center gap-2">
-                    <i class="fas fa-shield-alt text-primary"></i>
-                    <span>Generation Mode</span>
-                  </h3>
-                </div>
-                <div class="card-body">
-                  <p class="text-muted small mb-3">Choose how much freedom the AI model has when generating code architecture.</p>
-                  <div class="row g-3">
-                    <div class="col-md-6">
-                      <div class="card selectable-card selected" role="button" onclick="selectGenerationMode('guarded')" id="mode-card-guarded">
-                        <div class="card-body">
-                          <div class="d-flex align-items-start gap-3">
-                            <div class="avatar bg-success-lt text-success rounded">
-                              <i class="fas fa-shield-alt"></i>
-                            </div>
-                            <div class="flex-fill">
-                              <h4 class="h6 mb-1 d-flex align-items-center gap-2">
-                                Guarded Mode
-                                <span class="badge bg-success-lt text-success">Default</span>
-                              </h4>
-                              <p class="text-muted small mb-2">Pre-defined architecture with structured prompts. Uses 4-query system (user/admin for backend/frontend).</p>
-                              <ul class="list-unstyled small text-muted mb-0">
-                                <li><i class="fas fa-check text-success me-1"></i>Consistent file structure</li>
-                                <li><i class="fas fa-check text-success me-1"></i>Enforced naming conventions</li>
-                                <li><i class="fas fa-check text-success me-1"></i>Pre-configured dependencies</li>
-                              </ul>
-                            </div>
-                            <div>
-                              <span class="badge bg-success" id="mode-selected-guarded">Selected</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col-md-6">
-                      <div class="card selectable-card" role="button" onclick="selectGenerationMode('unguarded')" id="mode-card-unguarded">
-                        <div class="card-body">
-                          <div class="d-flex align-items-start gap-3">
-                            <div class="avatar bg-warning-lt text-warning rounded">
-                              <i class="fas fa-unlock-alt"></i>
-                            </div>
-                            <div class="flex-fill">
-                              <h4 class="h6 mb-1 d-flex align-items-center gap-2">
-                                Unguarded Mode
-                                <span class="badge bg-warning-lt text-warning">Research</span>
-                              </h4>
-                              <p class="text-muted small mb-2">Model has more architectural freedom. Single query per component with minimal constraints.</p>
-                              <ul class="list-unstyled small text-muted mb-0">
-                                <li><i class="fas fa-brain text-warning me-1"></i>Model-driven architecture</li>
-                                <li><i class="fas fa-brain text-warning me-1"></i>Flexible file organization</li>
-                                <li><i class="fas fa-brain text-warning me-1"></i>Model-chosen patterns</li>
-                              </ul>
-                            </div>
-                            <div>
-                              <span class="badge bg-secondary d-none" id="mode-selected-unguarded">Selected</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="alert alert-warning mt-3 mb-0 small" id="unguarded-warning" style="display: none;">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    <strong>Research Mode:</strong> Unguarded generation gives the AI model more freedom in architectural decisions. 
-                    Results may vary significantly between models and may require manual adjustments.
-                  </div>
-                </div>
-              </div>
-
               {# Advanced Options Section #}
               <div class="card mt-4" id="advanced-options-section">
                 <div class="card-header d-flex align-items-center justify-content-between" data-bs-toggle="collapse" data-bs-target="#advanced-options-collapse" role="button" aria-expanded="false" aria-controls="advanced-options-collapse">
@@ -154,9 +80,9 @@
                 </div>
                 <div id="advanced-options-collapse" class="collapse">
                   <div class="card-body">
-                    <p class="text-muted small mb-3">Configure retry behavior and post-generation processing.</p>
+                    <p class="text-muted small mb-3">Configure retry behavior for failed generations.</p>
                     <div class="row g-3">
-                      <div class="col-md-6">
+                      <div class="col-12">
                         <div class="form-check form-switch mb-2">
                           <input class="form-check-input" type="checkbox" id="option-rerun-on-failure" onchange="updateAdvancedOption('rerun-on-failure', this.checked)">
                           <label class="form-check-label" for="option-rerun-on-failure">
@@ -173,19 +99,10 @@
                           </select>
                         </div>
                       </div>
-                      <div class="col-md-6">
-                        <div class="form-check form-switch mb-2">
-                          <input class="form-check-input" type="checkbox" id="option-use-auto-fix" onchange="updateAdvancedOption('use-auto-fix', this.checked)">
-                          <label class="form-check-label" for="option-use-auto-fix">
-                            <strong>Use automatic fix service</strong>
-                          </label>
-                        </div>
-                        <small class="text-muted d-block ms-4">Run dependency healer after generation to fix common issues (imports, exports, dependencies)</small>
-                      </div>
                     </div>
                     <div class="alert alert-info mt-3 mb-0 small">
                       <i class="fas fa-info-circle me-2"></i>
-                      <strong>Note:</strong> Both options are off by default. Enable them for higher success rates at the cost of additional processing time.
+                      <strong>Note:</strong> Retry is off by default. Enable it for higher success rates at the cost of additional processing time.
                     </div>
                   </div>
                 </div>
@@ -553,52 +470,6 @@
                 </div>
               </div>
               
-              <!-- Auto-Fix & Healing Results Section (Hidden by default) -->
-              <div class="col-12 mt-3" id="healing-results-section" style="display: none;">
-                <div class="card border-warning">
-                  <div class="card-header bg-warning-lt d-flex align-items-center justify-content-between">
-                    <h3 class="h6 mb-0">
-                      <i class="fas fa-wrench me-2"></i>Auto-Fix & Healing Applied
-                    </h3>
-                    <span class="badge bg-warning text-dark" id="healing-count-badge">0 fixes</span>
-                  </div>
-                  <div class="card-body">
-                    <p class="text-muted small mb-2">The following automatic fixes were applied during generation:</p>
-                    <ul class="list-unstyled mb-0" id="healing-results-list">
-                      <!-- Populated by JavaScript -->
-                    </ul>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Stub Files Created Section (Hidden by default) -->
-              <div class="col-12 mt-3" id="stub-files-section" style="display: none;">
-                <div class="card border-info">
-                  <div class="card-header bg-info-lt d-flex align-items-center justify-content-between">
-                    <h3 class="h6 mb-0">
-                      <i class="fas fa-file-code me-2"></i>Stub Files Created
-                    </h3>
-                    <span class="badge bg-info text-dark" id="stub-files-count-badge">0 files</span>
-                  </div>
-                  <div class="card-body">
-                    <p class="text-muted small mb-2">Placeholder stub files were created to resolve missing dependencies:</p>
-                    <div class="table-responsive">
-                      <table class="table table-sm table-striped mb-0">
-                        <thead class="text-muted small">
-                          <tr>
-                            <th>File Path</th>
-                            <th>Reason</th>
-                          </tr>
-                        </thead>
-                        <tbody id="stub-files-list">
-                          <!-- Populated by JavaScript -->
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
               <div class="alert alert-info mt-4 help-content" data-help="3">
                 <i class="fas fa-lightbulb me-2"></i>
                 Monitor progress and review results. You can download outputs from the results page once generation finishes.
@@ -691,13 +562,6 @@
                 <span id="sidebar-scaffolding-badge" class="badge bg-success-lt">Selected</span>
               </div>
               <div id="sidebar-scaffolding-name" class="fw-semibold">Default React + Flask stack</div>
-            </div>
-            <div class="border-top pt-3 mt-3">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="small text-muted">Generation Mode</span>
-                <span id="sidebar-mode-badge" class="badge bg-success-lt">Guarded</span>
-              </div>
-              <div id="sidebar-mode-description" class="small text-muted">Pre-defined architecture (4-query system)</div>
             </div>
             <div class="border-top pt-3 mt-3">
               <div class="d-flex justify-content-between align-items-center mb-2">

@@ -25,9 +25,7 @@ let currentStep = 1;
 let selectedScaffolding = null;
 let selectedTemplates = [];
 let selectedModels = [];
-let selectedGenerationMode = 'guarded';  // Default to guarded mode
 let rerunOnFailure = false;  // Default to false
-let useAutoFix = false;  // Default to false
 let maxRetries = 1;  // Default to 1 retry
 
 // Cache for templates and models
@@ -52,9 +50,7 @@ function initSampleGeneratorWizard() {
   selectedScaffolding = null;
   selectedTemplates = [];
   selectedModels = [];
-  selectedGenerationMode = 'guarded';
   rerunOnFailure = false;
-  useAutoFix = false;
   maxRetries = 1;
   isGenerating = false;
   
@@ -435,68 +431,6 @@ function showScaffoldingPreview() {
 }
 
 // ============================================================================
-// Generation Mode Selection
-// ============================================================================
-
-function selectGenerationMode(mode) {
-  selectedGenerationMode = mode;
-  
-  // Update hidden input
-  const input = document.getElementById('input-generation-mode');
-  if (input) {
-    input.value = mode;
-  }
-  
-  // Update card selection UI
-  const guardedCard = document.getElementById('mode-card-guarded');
-  const unguardedCard = document.getElementById('mode-card-unguarded');
-  const guardedBadge = document.getElementById('mode-selected-guarded');
-  const unguardedBadge = document.getElementById('mode-selected-unguarded');
-  const warningAlert = document.getElementById('unguarded-warning');
-  
-  if (mode === 'guarded') {
-    guardedCard?.classList.add('selected');
-    unguardedCard?.classList.remove('selected');
-    guardedBadge?.classList.remove('d-none');
-    unguardedBadge?.classList.add('d-none');
-    if (warningAlert) warningAlert.style.display = 'none';
-  } else {
-    guardedCard?.classList.remove('selected');
-    unguardedCard?.classList.add('selected');
-    guardedBadge?.classList.add('d-none');
-    unguardedBadge?.classList.remove('d-none');
-    if (warningAlert) warningAlert.style.display = 'block';
-  }
-  
-  // Update sidebar
-  updateGenerationModeSidebar();
-  updateNavigationButtons();
-}
-
-function updateGenerationModeSidebar() {
-  const modeBadge = document.getElementById('sidebar-mode-badge');
-  const modeDescription = document.getElementById('sidebar-mode-description');
-  
-  if (modeBadge) {
-    if (selectedGenerationMode === 'guarded') {
-      modeBadge.className = 'badge bg-success-lt';
-      modeBadge.textContent = 'Guarded';
-    } else {
-      modeBadge.className = 'badge bg-warning-lt';
-      modeBadge.textContent = 'Unguarded';
-    }
-  }
-  
-  if (modeDescription) {
-    if (selectedGenerationMode === 'guarded') {
-      modeDescription.textContent = 'Pre-defined architecture (4-query system)';
-    } else {
-      modeDescription.textContent = 'Model-driven architecture (research mode)';
-    }
-  }
-}
-
-// ============================================================================
 // Advanced Options Management
 // ============================================================================
 
@@ -513,17 +447,13 @@ function updateAdvancedOption(option, value) {
         maxRetriesContainer.style.display = rerunOnFailure ? 'block' : 'none';
       }
       break;
-    case 'use-auto-fix':
-      useAutoFix = !!value;
-      document.getElementById('input-use-auto-fix').value = useAutoFix ? 'true' : 'false';
-      break;
     case 'max-retries':
       maxRetries = parseInt(value, 10) || 1;
       document.getElementById('input-max-retries').value = maxRetries;
       break;
   }
   
-  console.log('[Wizard] Current advanced options:', { rerunOnFailure, useAutoFix, maxRetries });
+  console.log('[Wizard] Current advanced options:', { rerunOnFailure, maxRetries });
 }
 
 function initAdvancedOptionsCollapse() {
@@ -1396,20 +1326,16 @@ async function startGeneration() {
     // CRITICAL: Freeze selections to prevent mid-generation changes
     const templatesToGenerate = [...selectedTemplates];
     const modelsToUse = [...selectedModels];
-    const generationMode = selectedGenerationMode;  // Freeze generation mode too
     
     // Freeze advanced options
     const frozenRerunOnFailure = rerunOnFailure;
-    const frozenUseAutoFix = useAutoFix;
     const frozenMaxRetries = maxRetries;
     
     console.log(`[Wizard] LOCKED GENERATION PLAN:`);
     console.log(`  - Batch ID: ${batchId}`);
     console.log(`  - Models: ${modelsToUse.join(', ')}`);
     console.log(`  - Templates: ${templatesToGenerate.join(', ')}`);
-    console.log(`  - Generation Mode: ${generationMode}`);
     console.log(`  - Rerun on Failure: ${frozenRerunOnFailure} (max ${frozenMaxRetries} retries)`);
-    console.log(`  - Use Auto-Fix: ${frozenUseAutoFix}`);
     console.log(`  - Total apps: ${totalGenerations}`);
     
     for (const modelSlug of modelsToUse) {
@@ -1441,9 +1367,7 @@ async function startGeneration() {
                 generate_backend: true,
                 scaffold: true,
                 batch_id: batchId,  // Track batch operations together
-                version: 1,  // New generation, version 1
-                generation_mode: generationMode,  // Include generation mode
-                use_auto_fix: frozenUseAutoFix  // Include auto-fix option
+                version: 1  // New generation, version 1
               })
             });
             
@@ -1459,10 +1383,7 @@ async function startGeneration() {
                 result_id: `${templateSlug}_${modelSlug.replace(/\//g, '_')}`,
                 message: attemptNumber > 1 ? `Generated successfully (attempt ${attemptNumber})` : 'Generated successfully',
                 batch_id: batchId,
-                attempts: attemptNumber,
-                // Capture healing and stub file data from API response
-                healing: result.data?.healing || null,
-                stub_files_created: result.data?.stub_files_created || []
+                attempts: attemptNumber
               });
             } else {
               lastError = result.message || result.error || 'Generation failed';
@@ -1484,10 +1405,7 @@ async function startGeneration() {
             error: frozenRerunOnFailure 
               ? `Failed after ${attemptNumber} attempt(s): ${lastError}`
               : lastError,
-            attempts: attemptNumber,
-            // Capture any partial healing data from failed attempts
-            healing: null,
-            stub_files_created: []
+            attempts: attemptNumber
           });
         }
           
@@ -1646,118 +1564,6 @@ function displayBatchResults(batchResults) {
     if (emptyState) emptyState.classList.add('d-none');
   } else if (emptyState) {
     emptyState.classList.remove('d-none');
-  }
-  
-  // =========================================================================
-  // Populate Healing Results and Stub Files UI Sections
-  // =========================================================================
-  
-  // Aggregate healing data from all results
-  const allHealing = results
-    .filter(r => r.healing && typeof r.healing === 'object')
-    .map(r => ({ model: r.model, healing: r.healing }));
-  
-  // Aggregate stub files from all results
-  const allStubFiles = results.flatMap(r => {
-    if (Array.isArray(r.stub_files_created) && r.stub_files_created.length > 0) {
-      return r.stub_files_created.map(sf => ({
-        ...sf,
-        model: r.model
-      }));
-    }
-    return [];
-  });
-  
-  // Update Healing Results Section
-  const healingSection = document.getElementById('healing-results-section');
-  const healingList = document.getElementById('healing-results-list');
-  const healingBadge = document.getElementById('healing-count-badge');
-  
-  if (healingSection && healingList && healingBadge) {
-    if (allHealing.length > 0) {
-      // Count total fixes applied
-      let totalFixes = 0;
-      healingList.innerHTML = '';
-      
-      allHealing.forEach(item => {
-        const h = item.healing;
-        const fixes = [];
-        
-        // Extract meaningful healing information
-        if (h.dependencies_added && h.dependencies_added.length > 0) {
-          fixes.push(`Dependencies added: ${h.dependencies_added.join(', ')}`);
-          totalFixes += h.dependencies_added.length;
-        }
-        if (h.imports_fixed && h.imports_fixed.length > 0) {
-          fixes.push(`Imports fixed: ${h.imports_fixed.length}`);
-          totalFixes += h.imports_fixed.length;
-        }
-        if (h.syntax_errors_fixed && h.syntax_errors_fixed.length > 0) {
-          fixes.push(`Syntax errors fixed: ${h.syntax_errors_fixed.length}`);
-          totalFixes += h.syntax_errors_fixed.length;
-        }
-        if (h.files_healed && h.files_healed.length > 0) {
-          fixes.push(`Files healed: ${h.files_healed.join(', ')}`);
-          totalFixes += h.files_healed.length;
-        }
-        if (h.jsx_extensions_added > 0) {
-          fixes.push(`JSX extensions added: ${h.jsx_extensions_added}`);
-          totalFixes += h.jsx_extensions_added;
-        }
-        if (h.missing_exports_stubbed > 0) {
-          fixes.push(`Missing exports stubbed: ${h.missing_exports_stubbed}`);
-          totalFixes += h.missing_exports_stubbed;
-        }
-        
-        // If no specific fixes but healing object exists, show generic message
-        if (fixes.length === 0 && Object.keys(h).length > 0) {
-          fixes.push('Auto-fix applied (see logs for details)');
-          totalFixes += 1;
-        }
-        
-        if (fixes.length > 0) {
-          const li = document.createElement('li');
-          li.className = 'mb-2';
-          li.innerHTML = `
-            <strong><code class="small">${escapeHtml(item.model)}</code></strong>:
-            <ul class="mb-0 mt-1">
-              ${fixes.map(f => `<li class="small text-muted">${escapeHtml(f)}</li>`).join('')}
-            </ul>
-          `;
-          healingList.appendChild(li);
-        }
-      });
-      
-      healingBadge.textContent = `${totalFixes} fix${totalFixes !== 1 ? 'es' : ''}`;
-      healingSection.style.display = 'block';
-    } else {
-      healingSection.style.display = 'none';
-    }
-  }
-  
-  // Update Stub Files Section
-  const stubSection = document.getElementById('stub-files-section');
-  const stubList = document.getElementById('stub-files-list');
-  const stubBadge = document.getElementById('stub-files-count-badge');
-  
-  if (stubSection && stubList && stubBadge) {
-    if (allStubFiles.length > 0) {
-      stubList.innerHTML = '';
-      
-      allStubFiles.forEach(sf => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><code class="small">${escapeHtml(sf.path || sf.file || 'Unknown')}</code></td>
-          <td class="text-muted small">${escapeHtml(sf.reason || 'Missing dependency')}</td>
-        `;
-        stubList.appendChild(tr);
-      });
-      
-      stubBadge.textContent = `${allStubFiles.length} file${allStubFiles.length !== 1 ? 's' : ''}`;
-      stubSection.style.display = 'block';
-    } else {
-      stubSection.style.display = 'none';
-    }
   }
   
   // Show summary notification
@@ -2316,7 +2122,6 @@ window.nextStep = nextStep;
 window.previousStep = previousStep;
 window.goToStep = goToStep;
 window.selectScaffolding = selectScaffolding;
-window.selectGenerationMode = selectGenerationMode;
 window.updateAdvancedOption = updateAdvancedOption;
 window.toggleTemplateSelection = toggleTemplateSelection;
 window.selectAllTemplates = selectAllTemplates;

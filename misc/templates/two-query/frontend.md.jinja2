@@ -1,53 +1,114 @@
-# Generate {{ name }} - Frontend
+# Generate Frontend: {{ name }}
 
 {{ description }}
 
-## YOUR MISSION
-Generate **complete, runnable** React frontend code that satisfies ALL requirements and integrates with the provided backend API.
-
-## Stack & Versions
-- React 18
-- Axios (use the provided axios instance pattern)
-- Tailwind CSS + react-hot-toast
-
-## Dependencies (Allowed)
-- You MAY choose any additional frontend dependencies.
-- If you import a package that is not already in the scaffolding, include a `package.json` block in your output.
-- The Dependency Healer will reconcile missing packages, but you should still list any new ones you use.
-
 ## Requirements
+
+### User Features
 {% for req in frontend_requirements %}
 - {{ req }}
 {% endfor %}
 
-{% if api_endpoints %}
-## Backend API Available
-{{ api_endpoints }}
-{% endif %}
+### Admin Features
+{% for req in admin_requirements %}
+- {{ req }}
+{% endfor %}
 
-## Implementation Process (DO INTERNALLY)
-1. Map requirements → UI sections, state, and user flows.
-2. Map endpoints → functions in `services/api.js` (axios baseURL is `/api` by default; honors `VITE_BACKEND_URL` when set).
-3. Implement loading/error/empty states and optimistic UX where safe.
-4. Add toast notifications for create/update/delete actions.
-5. Sanity-check: no placeholders/TODOs/truncated code.
+## Backend API (Generated)
 
-## Reference
-{{ scaffolding_frontend_context }}
+{{ backend_api_context }}
+
+## Stack
+- React 18 + Vite
+- Tailwind CSS for styling
+- axios for API calls
+- react-hot-toast for notifications
+- react-router-dom for routing
+
+## Available Packages (DO NOT ADD OTHERS)
+react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, date-fns, clsx, uuid
+
+## SINGLE FILE OUTPUT
+
+Generate ONE complete App.jsx file with ALL code:
+- API client (axios instance + API functions)
+- Auth context (AuthProvider + useAuth hook)
+- Public HomePage component (guest content + logged-in summary)
+- LoginPage component
+- UserPage component
+- AdminPage component
+- Navigation component
+- ProtectedRoute component
+- Main App component with Routes (NO BrowserRouter - main.jsx handles that)
+
+**CRITICAL: Do NOT wrap App in BrowserRouter. main.jsx already provides it.**
+
+Auth behavior requirements:
+- Store JWT in localStorage under key "token"
+- After register/login, set user state from response (token + user)
+- On app load, call /api/auth/me if token exists
+
+User content requirements:
+- Show a public/guest message on the Home page when not authenticated
+- Show a "Logged in as <username>" panel on the Home page when authenticated
+- / route MUST be public (HomePage)
+- /user route MUST be protected
+
+## Code Patterns
+
+### API Client
+```jsx
+const baseURL = import.meta.env.VITE_BACKEND_URL 
+  ? `${import.meta.env.VITE_BACKEND_URL.replace(/\/$/, '')}/api` 
+  : '/api';
+const api = axios.create({ baseURL });
+api.interceptors.request.use(c => {
+  const t = localStorage.getItem('token');
+  if (t) c.headers.Authorization = `Bearer ${t}`;
+  return c;
+});
+```
+
+### Auth Functions
+```jsx
+const login = async (username, password) => {
+  const res = await api.post('/auth/login', { username, password });
+  if (res.data.token) localStorage.setItem('token', res.data.token);
+  return res.data;
+};
+```
+
+### Component Pattern
+```jsx
+function UserPage() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    fetchItems();
+  }, []);
+  
+  if (loading) return <div>Loading...</div>;
+  return (/* JSX */);
+}
+```
+
+### Toast Usage
+```jsx
+toast.success('Saved!');
+toast.error(err.response?.data?.error || 'Error');
+```
 
 ## Output Format
-Wrap each file in markdown code blocks:
-- `jsx` → becomes App.jsx
-- `jsx:components/Name.jsx` → additional component
-- `css` → becomes App.css
-- `json:package.json` → optional dependencies to merge
 
-## Success Criteria
-- ✅ All requirements implemented
-- ✅ API integration matches endpoints + response shapes
-- ✅ Good UX (loading/errors/toasts)
-- ✅ No placeholders/TODOs
+Generate ONE file only:
 
-Generate complete, working code with good UX (loading, errors, toasts). Do not include explanations.
+```jsx:App.jsx
+// Complete React application with all components
+```
+
+If you need additional dependencies, mention them but they must be from the available packages list.
+
+Generate complete, working React code. No placeholders. No explanations.
 
 

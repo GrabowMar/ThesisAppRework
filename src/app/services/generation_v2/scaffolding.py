@@ -14,7 +14,7 @@ from typing import Dict, Tuple, Optional
 from app.paths import SCAFFOLDING_DIR, GENERATED_APPS_DIR
 from app.services.port_allocation_service import get_port_allocation_service
 
-from .config import GenerationConfig, GenerationMode
+from .config import GenerationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -28,19 +28,15 @@ class ScaffoldingManager:
     - Template variable substitution
     """
     
-    # Scaffolding directories by mode
-    SCAFFOLDING_DIRS = {
-        GenerationMode.GUARDED: "react-flask",
-        GenerationMode.UNGUARDED: "react-flask-unguarded",
-    }
+    # Single scaffolding template
+    SCAFFOLDING_DIR_NAME = "react-flask"
     
     def __init__(self):
         self.port_service = get_port_allocation_service()
     
-    def get_scaffolding_dir(self, mode: GenerationMode) -> Path:
-        """Get scaffolding source directory for mode."""
-        subdir = self.SCAFFOLDING_DIRS.get(mode, "react-flask")
-        return SCAFFOLDING_DIR / subdir
+    def get_scaffolding_dir(self) -> Path:
+        """Get scaffolding source directory."""
+        return SCAFFOLDING_DIR / self.SCAFFOLDING_DIR_NAME
     
     def allocate_ports(self, model_slug: str, app_num: int) -> Tuple[int, int]:
         """Allocate backend and frontend ports.
@@ -69,7 +65,7 @@ class ScaffoldingManager:
         """
         # Determine paths
         app_dir = config.get_app_dir(GENERATED_APPS_DIR)
-        scaffolding_dir = self.get_scaffolding_dir(config.mode)
+        scaffolding_dir = self.get_scaffolding_dir()
         
         logger.info(f"Creating scaffolding: {config.model_slug}/app{config.app_num}")
         logger.info(f"  Source: {scaffolding_dir}")

@@ -217,19 +217,14 @@ class AIAnalyzer(BaseWSService):
             # This dramatically reduces token usage by ~60-70%
             self.optimized_mode = os.getenv('AI_OPTIMIZED_MODE', 'true').lower() == 'true'
             
-            # LLM-generated files whitelist (files that are NOT scaffolding)
-            # These are the files where LLM actually generates app-specific code
+            # LLM-generated files whitelist (files that contain app-specific code)
+            # Single-file mode: app.py for backend, App.jsx for frontend
             self.llm_generated_files = {
                 'backend': [
-                    'models.py',           # App-specific data models
-                    'services.py',         # App-specific business logic
-                    'routes/user.py',      # App-specific user API endpoints
-                    'routes/admin.py',     # App-specific admin API endpoints
+                    'app.py',              # Complete backend in single file
                 ],
                 'frontend': [
-                    'src/pages/UserPage.jsx',   # App-specific user interface
-                    'src/pages/AdminPage.jsx',  # App-specific admin interface
-                    'src/services/api.js',      # App-specific API calls
+                    'src/App.jsx',         # Complete frontend in single file
                 ]
             }
             
@@ -1538,7 +1533,7 @@ Focus on whether the functionality described in the requirement is actually impl
         code_note = ""
         if is_optimized:
             code_note = """
-NOTE: This is LLM-generated code only (models.py, services.py, user routes, admin routes, UserPage, AdminPage, api.js).
+NOTE: This is LLM-generated code only (app.py for backend, App.jsx for frontend).
 Scaffolding/boilerplate files are excluded as they are identical across all generated apps.
 Evaluate quality based on this LLM-generated business logic code.
 """
@@ -2042,13 +2037,13 @@ Focus on practical, real-world code quality concerns. Be specific about what you
         This is the OPTIMIZED mode that dramatically reduces token usage (~60-70% less)
         by only scanning files where the LLM actually generates app-specific code.
         
-        LLM-generated files are:
-        - Backend: models.py, services.py, routes/user.py, routes/admin.py
-        - Frontend: src/pages/UserPage.jsx, src/pages/AdminPage.jsx, src/services/api.js
+        Single-file mode:
+        - Backend: app.py (contains all models, auth, routes)
+        - Frontend: src/App.jsx (contains all components, pages, API)
         
         Scaffolding files (NOT included - identical across all apps):
-        - Backend: app.py, routes/__init__.py, routes/auth.py, requirements.txt, Dockerfile
-        - Frontend: App.jsx, main.jsx, App.css, package.json, vite.config.js, components/*, hooks/*
+        - Backend: requirements.txt, Dockerfile
+        - Frontend: main.jsx, App.css, package.json, vite.config.js
         
         Returns:
             Combined code string with file headers
@@ -2231,8 +2226,8 @@ APPLICATION CONTEXT:
         code_note = ""
         if is_optimized:
             code_note = """
-NOTE: This is LLM-generated code only (models.py, services.py, user routes, admin routes, UserPage, AdminPage, api.js).
-Scaffolding/boilerplate files (app.py, auth.py, App.jsx, etc.) are excluded - they are identical across all apps.
+NOTE: This is LLM-generated code only (app.py for backend, App.jsx for frontend).
+Scaffolding/boilerplate files are excluded - they are identical across all apps.
 """
         
         # Build numbered requirements list

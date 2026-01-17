@@ -2,27 +2,12 @@
 ===========================
 
 Simple dataclass configuration for app generation.
-No complex inheritance or modes - just the essentials.
+Single 2-prompt mode: backend → frontend with API context scanning.
 """
 
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Optional, Dict, Any
 from pathlib import Path
-
-
-class GenerationMode(str, Enum):
-    """Generation mode - guarded (4-query) or unguarded (single-query)."""
-    GUARDED = "guarded"
-    UNGUARDED = "unguarded"
-
-
-class QueryType(str, Enum):
-    """Query types for guarded 4-query generation."""
-    BACKEND_USER = "backend_user"
-    BACKEND_ADMIN = "backend_admin"
-    FRONTEND_USER = "frontend_user"
-    FRONTEND_ADMIN = "frontend_admin"
 
 
 @dataclass
@@ -31,9 +16,8 @@ class GenerationConfig:
     
     Attributes:
         model_slug: Normalized model identifier (e.g., 'anthropic_claude-3-5-haiku')
-        template_slug: Template identifier (e.g., 'todo_app')
+        template_slug: Template identifier (e.g., 'crud_todo_list')
         app_num: App number (1, 2, 3, ...)
-        mode: Generation mode (guarded or unguarded)
         max_tokens: Maximum tokens per API call
         temperature: Sampling temperature
         timeout: API call timeout in seconds
@@ -42,24 +26,17 @@ class GenerationConfig:
     model_slug: str
     template_slug: str
     app_num: int
-    mode: GenerationMode = GenerationMode.GUARDED
     max_tokens: int = 32000
     temperature: float = 0.3
     timeout: int = 300
     save_artifacts: bool = True
-    auto_fix: bool = True
     
-    # Optional overrides
+    # Optional port overrides
     backend_port: Optional[int] = None
     frontend_port: Optional[int] = None
     
     # Metadata
     extra: Dict[str, Any] = field(default_factory=dict)
-    
-    @property
-    def is_guarded(self) -> bool:
-        """Check if using guarded (4-query) mode."""
-        return self.mode == GenerationMode.GUARDED
     
     @property
     def safe_model_slug(self) -> str:

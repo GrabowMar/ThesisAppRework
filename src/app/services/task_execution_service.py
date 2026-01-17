@@ -2073,10 +2073,10 @@ class TaskExecutionService:
                 status = str(result.get('status', '')).lower()
                 success = status in ('success', 'completed', 'ok', 'partial')
                 is_partial = status == 'partial'
-                
+
                 if success:
                     self._record_service_success(service_name)
-                elif status in ('error', 'timeout', 'failed'):
+                elif status in ('error', 'timeout', 'failed', 'targets_unreachable', 'partial_connectivity'):
                     self._record_service_failure(service_name)
                 
                 # Store result and mark complete (partial is still a success - results were generated)
@@ -2232,11 +2232,16 @@ class TaskExecutionService:
                 for result in results:
                     service_name = result.get('service_name', 'unknown')
                     result_status = str(result.get('status', 'error')).lower()
-                    
+
                     # Track success/failure for overall status
+                    # Note: 'partial' counts as success (some results were obtained)
+                    # But 'targets_unreachable' and 'partial_connectivity' are failures
                     if result_status in ('success', 'completed', 'ok', 'partial'):
                         any_succeeded = True
+                    elif result_status in ('error', 'failed', 'timeout', 'targets_unreachable', 'partial_connectivity'):
+                        any_failed = True
                     else:
+                        # Unknown status - treat as failure
                         any_failed = True
                     
                     # CRITICAL FIX: Store service data with 'analysis' key for template compatibility

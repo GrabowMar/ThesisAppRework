@@ -22,7 +22,7 @@ from app.extensions import db
 from app.models import PipelineExecution, PipelineExecutionStatus
 from app.utils.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 
-from .config import GenerationConfig, GenerationMode, GenerationResult
+from .config import GenerationConfig, GenerationResult
 from .service import get_generation_service
 
 logger = logging.getLogger(__name__)
@@ -206,13 +206,11 @@ class JobExecutor:
         
         # Prepare config for generation
         gen_options = config.get('generation', {}).get('options', {})
-        mode_str = gen_options.get('mode', 'guarded')
         
         gen_config = GenerationConfig(
             model_slug=model_slug,
             template_slug=template_slug,
             app_num=job_index + 1,  # App numbers are 1-based
-            mode=GenerationMode.GUARDED if mode_str == 'guarded' else GenerationMode.UNGUARDED,
             max_tokens=gen_options.get('maxTokens', 32000),
             temperature=gen_options.get('temperature', 0.3),
         )
