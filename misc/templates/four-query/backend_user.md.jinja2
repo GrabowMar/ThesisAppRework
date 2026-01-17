@@ -1,0 +1,244 @@
+# Generate {{ name }} - Backend User Routes
+
+{{ description }}
+
+## Your Task
+
+Implement the **USER-FACING** backend functionality:
+- **User model** + **JWT authentication** in `models.py` and `routes/auth.py`
+- Domain models in `models.py`
+- User API routes in `routes/user.py`
+- Business logic in `services.py` (if needed)
+
+## Requirements
+
+{% for req in backend_requirements %}
+{{ loop.index }}. {{ req }}
+{% endfor %}
+
+## Authentication Requirements (MANDATORY)
+
+You MUST implement complete JWT authentication:
+
+1. **User Model** with: id, username (unique), email (unique), password_hash, is_admin (boolean), is_active, created_at
+2. **Auth Routes** in `routes/auth.py`:
+   - `POST /auth/register` - Create user, hash password with bcrypt, return JWT token
+   - `POST /auth/login` - Verify credentials, return JWT token  
+   - `GET /auth/me` - Return current user (requires @token_required)
+   - `POST /auth/logout` - Return success message
+3. **JWT Helpers**:
+    - `generate_token(user_id)` - Create JWT with exp=24h, SECRET_KEY from env
+   - `token_required(f)` decorator - Validate token, inject `current_user`
+    - `admin_required(f)` decorator - Check `current_user.is_admin`
+
+{% if api_endpoints %}
+## API Endpoints
+
+{{ api_endpoints }}
+{% endif %}
+
+## Stack & Constraints
+- Flask 3.x + Flask-SQLAlchemy 3.1+ (SQLAlchemy 2.0 style)
+- SQLite at `sqlite:////app/data/app.db` (preconfigured)
+- Use the existing blueprints from `routes/__init__.py`
+- Generate ONLY application code (no Docker/infra files)
+
+## Dependencies (REQUIRED if using any external packages)
+You MUST list ALL Python packages you import that are not in the default scaffolding.
+
+**Already available (do NOT list these):**
+- Flask, Flask-SQLAlchemy, Flask-CORS, Flask-Login
+- Werkzeug, SQLAlchemy, bcrypt, PyJWT
+- python-dotenv, gunicorn
+
+**If you use ANY package not in the above list, you MUST include a requirements block.**
+Example: If you use `requests`, `redis`, `celery`, `pandas`, etc. → include them.
+
+The code merger will append your requirements to the scaffolding's requirements.txt.
+
+## Implementation Process (DO INTERNALLY)
+1. Map requirements → models, fields, relationships, and routes.
+2. Implement models in `models.py`:
+    - Include `is_active` for soft delete
+    - Include `created_at` (UTC)
+    - Provide `to_dict()` that produces JSON-safe values
+3. Implement user routes in `routes/user.py`:
+    - Use `@user_bp.route('/path')` (NOT `/api/path`)
+    - Validate inputs and return correct status codes
+    - Wrap DB writes in try/except and rollback on failure
+4. Add `services.py` only if business logic is non-trivial.
+
+## Common Mistakes to Avoid
+- ❌ `@user_bp.route('/api/...')` → ✅ `@user_bp.route('/...')` (prefix already applied)
+- ❌ Missing `db.session.rollback()` → ✅ rollback in exception paths
+- ❌ Returning inactive items → ✅ filter `is_active=True` for user-facing lists
+
+## Code Examples
+
+### Example Model
+
+```python
+class Item(db.Model):
+    __tablename__ = 'items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'created_at': self.created_at.isoformat()
+        }
+```
+
+### Example Route
+
+```python
+@user_bp.route('/items', methods=['GET'])
+def get_items():
+    try:
+        items = Item.query.filter_by(is_active=True).all()
+        return jsonify({
+            'items': [item.to_dict() for item in items],
+            'total': len(items)
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+```
+
+## Critical Rules
+
+**Routing:** ⚠️
+- The `user_bp` blueprint has `/api` prefix configured in `__init__.py`
+- Use `@user_bp.route('/todos')` → becomes `/api/todos`
+- **Never** use `@user_bp.route('/api/todos')` → causes double prefix `/api/api/todos` (404 error)
+
+**Models:** ⚠️
+- MUST include `to_dict()` method (required for JSON responses)
+- MUST include `is_active` field (enables soft delete pattern)
+- MUST use `datetime.utcnow` for timestamps
+- MUST keep the existing `User` model required for authentication (do not remove/rename it)
+
+**Error Handling:** ⚠️
+- Wrap all routes in try/except
+- Always rollback on database errors: `db.session.rollback()`
+- Return proper error messages with appropriate status codes
+
+## File Structure
+
+The scaffolding provides:
+- `app.py` - DO NOT MODIFY (already configured)
+- `models.py` - YOU IMPLEMENT
+- `routes/user.py` - YOU IMPLEMENT
+- `services.py` - YOU IMPLEMENT (optional)
+
+## Reference: Scaffolding Context
+
+{{ scaffolding_backend_context }}
+
+## Output Format
+
+Generate complete, working code:
+
+### Models (required - include User model)
+```python:models.py
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+
+db = SQLAlchemy()
+
+class User(db.Model):
+    # id, username, email, password_hash, is_admin, is_active, created_at
+    # Include to_dict() and check_password() methods
+    pass
+
+# Your domain model definitions here
+```
+
+### Auth Routes (required)
+```python:routes/auth.py
+import jwt
+import bcrypt
+from flask import jsonify, request
+from functools import wraps
+from routes import auth_bp
+from models import db, User
+import os
+
+SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key')
+
+def generate_token(user_id):
+    # Generate JWT with 24h expiration
+    pass
+
+def token_required(f):
+    # Decorator to validate JWT and inject current_user
+    pass
+
+def admin_required(f):
+    # Decorator to check current_user.is_admin
+    pass
+
+@auth_bp.route('/register', methods=['POST'])
+def register():
+    # Create user, hash password, return token
+    pass
+
+@auth_bp.route('/login', methods=['POST'])
+def login():
+    # Verify credentials, return token
+    pass
+
+@auth_bp.route('/me', methods=['GET'])
+@token_required
+def get_me():
+    # Return current user
+    pass
+
+@auth_bp.route('/logout', methods=['POST'])
+def logout():
+    return jsonify({'message': 'Logged out'})
+```
+
+### User Routes (required)
+```python:routes/user.py
+from flask import jsonify, request
+from routes import user_bp
+from models import db, YourModel
+
+# Your route implementations here
+```
+
+### Services (optional)
+```python:services.py
+from models import db, YourModel
+
+# Complex business logic here (if needed)
+```
+
+### Extra Dependencies (optional)
+```requirements
+# Additional packages (if needed)
+```
+
+## Quality Checklist
+
+Before submitting, verify:
+- ✅ All models have `to_dict()` methods
+- ✅ All routes use `user_bp` blueprint correctly
+- ✅ All routes have error handling
+- ✅ All POST/PUT routes validate input
+- ✅ All database operations use soft delete (is_active filter)
+- ✅ No placeholders or TODO comments
+- ✅ Proper HTTP status codes used
+
+## Success Criteria
+- ✅ All endpoints implemented and match endpoint specs
+- ✅ Correct status codes (200/201/400/404/500)
+- ✅ Clean JSON serialization (no datetime/Decimal issues)
+- ✅ No placeholders/TODOs/truncated code
+
+Generate the complete implementation now. Do not include explanations.
