@@ -26,9 +26,9 @@ class GenerationConfig:
     model_slug: str
     template_slug: str
     app_num: int
-    max_tokens: int = 32000
-    temperature: float = 0.3
-    timeout: int = 300
+    max_tokens: int = 32000  # Enough for 600-900 lines of code
+    temperature: float = 0.2  # Lower temperature for more consistent, complete output
+    timeout: int = 600  # Increased timeout for larger code generation
     save_artifacts: bool = True
     
     # Optional port overrides

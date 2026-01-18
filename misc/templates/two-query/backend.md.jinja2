@@ -9,7 +9,7 @@
 - {{ req }}
 {% endfor %}
 
-### Admin Features  
+### Admin Features
 {% for req in admin_requirements %}
 - {{ req }}
 {% endfor %}
@@ -32,73 +32,211 @@
 ## MANDATORY: Authentication System
 
 Implement JWT authentication with these endpoints:
-- POST /api/auth/register - Create user account
-- POST /api/auth/login - Login, return JWT token  
-- GET /api/auth/me - Get current user (token required)
+- POST /api/auth/register - Create user account with validation
+- POST /api/auth/login - Login with username/password, return JWT token
+- GET /api/auth/me - Get current user profile (token required)
+- PUT /api/auth/me - Update current user profile (token required)
 
-Include User model with: id, username, password_hash, is_admin, is_active, created_at
+Include User model with: id, username, email, password_hash, is_admin (default False), is_active (default True), created_at, updated_at
 
 Auth response requirements:
-- /api/auth/register MUST return { "token": "...", "user": { ... } }
+- /api/auth/register MUST return { "token": "...", "user": { "id": 1, "username": "...", "email": "...", "is_admin": false } }
 - /api/auth/login MUST return { "token": "...", "user": { ... } }
-- /api/auth/me MUST return the user object
+- /api/auth/me MUST return the user object (without password_hash)
 
 Use a stable secret key:
 - app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
 - DO NOT use os.urandom for SECRET_KEY
+
+Create default admin user on startup:
+- username: admin, password: admin123, is_admin: True (if not exists)
+
+## CRITICAL: Database Initialization Pattern
+
+**The app MUST work with gunicorn (WSGI). Use this EXACT pattern:**
+
+```python
+def init_db():
+    db.create_all()
+    # Create default admin if not exists
+    admin = User.query.filter_by(username='admin').first()
+    if not admin:
+        admin = User(username='admin', email='admin@example.com', is_admin=True)
+        admin.password_hash = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt())
+        db.session.add(admin)
+        db.session.commit()
+
+# Initialize database with app context (REQUIRED for gunicorn/WSGI)
+with app.app_context():
+    init_db()
+```
+
+**FORBIDDEN PATTERNS (will crash the app):**
+- ❌ `@app.before_first_request` - REMOVED in Flask 2.3+, do NOT use
+- ❌ `init_db()` called without `app.app_context()` - crashes under gunicorn
+- ❌ `@app.before_request` for database init - runs on EVERY request
 
 ## Stack
 - Flask 3.x + Flask-SQLAlchemy 3.1+
 - SQLite: `sqlite:////app/data/app.db`
 - bcrypt for passwords, PyJWT for tokens
 
-## SINGLE FILE OUTPUT
+## CRITICAL: SINGLE FILE OUTPUT
 
-Generate ONE complete app.py file with ALL code:
-- Models (User + app-specific)
-- Auth helpers (token_required, admin_required decorators)
-- Auth routes (/api/auth/*)
-- User routes (/api/*)
-- Admin routes (/api/admin/*)
+**YOU MUST generate ONE complete app.py file containing ALL code.**
+
+DO NOT split into multiple files. DO NOT generate models.py, routes/*.py, or any other files.
+Everything goes in ONE app.py file.
+
+The file structure MUST be:
+1. All imports at the top
+2. Flask app setup and config
+3. Database setup (db = SQLAlchemy())
+4. ALL Model classes (User + app-specific models with to_dict() methods)
+5. Auth decorators (token_required, admin_required)
+6. ALL Auth routes (/api/auth/*)
+7. ALL User routes (/api/*)
+8. ALL Admin routes (/api/admin/*)
+9. Health check route
+10. Database initialization with default admin
+11. Main entry point
+
+## Implementation Requirements
+
+### Models - MUST include:
+- Complete User model with to_dict() method (exclude password_hash)
+- All app-specific models with to_dict() methods
+- Proper relationships if needed (e.g., user_id foreign keys)
+- Default values and nullable settings
+
+### Routes - MUST include:
+- Input validation with proper error messages
+- Try/except blocks for database operations
+- Proper HTTP status codes (200, 201, 400, 401, 403, 404, 500)
+- Pagination for list endpoints (page, per_page query params)
+- Filtering support where specified
+- Soft delete (is_active=False) not hard delete
+
+### Auth - MUST include:
+- Password validation (min 6 chars)
+- Username uniqueness check
+- Token expiration (24 hours)
+- Proper error messages for auth failures
 
 ## Code Patterns
 
-### Auth Decorator
+### Auth Decorator (use exactly this pattern)
 ```python
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = request.headers.get('Authorization', '').replace('Bearer ', '')
-        if not token: return jsonify({'error': 'Token required'}), 401
+        if not token:
+            return jsonify({'error': 'Token required'}), 401
         try:
-            data = jwt.decode(token, SECRET, algorithms=['HS256'])
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
             user = User.query.get(data['user_id'])
-            if not user: return jsonify({'error': 'Invalid user'}), 401
-        except: return jsonify({'error': 'Invalid token'}), 401
+            if not user or not user.is_active:
+                return jsonify({'error': 'Invalid user'}), 401
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token expired'}), 401
+        except:
+            return jsonify({'error': 'Invalid token'}), 401
+        return f(user, *args, **kwargs)
+    return decorated
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token:
+            return jsonify({'error': 'Token required'}), 401
+        try:
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            user = User.query.get(data['user_id'])
+            if not user or not user.is_active:
+                return jsonify({'error': 'Invalid user'}), 401
+            if not user.is_admin:
+                return jsonify({'error': 'Admin access required'}), 403
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token expired'}), 401
+        except:
+            return jsonify({'error': 'Invalid token'}), 401
         return f(user, *args, **kwargs)
     return decorated
 ```
 
 ### Response Format
 ```python
+# Single item
 return jsonify(item.to_dict()), 200
-return jsonify({'items': [i.to_dict() for i in items]}), 200
+
+# List with pagination
+return jsonify({
+    'items': [i.to_dict() for i in items],
+    'total': total,
+    'page': page,
+    'per_page': per_page
+}), 200
+
+# Error
 return jsonify({'error': 'Not found'}), 404
+
+# Created
+return jsonify(item.to_dict()), 201
 ```
 
 ## Output Format
 
-Generate ONE file only:
+**Generate EXACTLY ONE code block:**
 
 ```python:app.py
-# Complete Flask application with all models, auth, and routes
+# Complete Flask application - ALL code in this single file
+# Approximately 400-600 lines of production-ready code
+
+import os
+import logging
+from datetime import datetime, timedelta, timezone
+from functools import wraps
+from flask import Flask, jsonify, request
+from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
+import bcrypt
+import jwt
+
+# Flask app setup
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:////app/data/app.db')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+db = SQLAlchemy(app)
+CORS(app)
+
+# ... ALL models, decorators, and routes ...
+
+def init_db():
+    db.create_all()
+    # Create default admin...
+
+# CRITICAL: Must use app_context for gunicorn/WSGI compatibility
+with app.app_context():
+    init_db()
+
+if __name__ == '__main__':
+    port = int(os.environ.get('FLASK_RUN_PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
 ```
 
-If you need additional dependencies, add a requirements block:
+Optionally add dependencies:
 ```requirements
 package-name==1.0.0
 ```
 
-Generate complete, working code. No placeholders. No explanations.
+**CRITICAL RULES:**
+1. Generate ONE app.py file only - NO multiple files
+2. NO placeholders, NO TODOs, NO "..." ellipsis
+3. NO "Would you like me to continue?" - generate EVERYTHING
+4. Every function MUST be fully implemented
+5. All routes MUST have proper error handling
+6. Generate 400-600 lines of complete, working code
 
 

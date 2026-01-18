@@ -84,99 +84,328 @@ class CodeMerger:
         return blocks
     
     def _process_backend(self, raw_content: str) -> Dict[str, Path]:
-        """Process backend code blocks - expects single app.py file."""
+        """Process backend code blocks - merges ALL Python code into app.py.
+
+        Even if the LLM generates multiple files (models.py, routes/*.py),
+        we merge everything into a single app.py for the single-file architecture.
+        """
         written = {}
         blocks = self._extract_code_blocks(raw_content)
-        
+
+        # Collect all Python code blocks
+        python_blocks = []
         for block in blocks:
             lang = block['language']
             filename = block['filename']
             code = block['code']
-            
+
             # Handle requirements block
             if lang == 'requirements' or (filename and 'requirements' in filename.lower()):
                 self._merge_requirements(code)
                 continue
-            
-            if lang != 'python':
-                continue
-            
-            # Default to app.py if no filename or just "app"
-            if not filename or filename.lower() in ('app', 'app.py', 'main', 'main.py'):
-                filename = 'app.py'
-            
-            # Normalize filename
-            filename = filename.lstrip('/')
-            if not filename.endswith('.py'):
-                filename += '.py'
-            
-            # Write the file
-            target_path = self.backend_dir / filename
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-            target_path.write_text(code, encoding='utf-8')
-            
-            key = filename.replace('/', '_').replace('.py', '')
-            written[f'backend_{key}'] = target_path
-            logger.info(f"✓ Wrote backend/{filename}")
-        
+
+            if lang == 'python':
+                python_blocks.append({
+                    'filename': filename or 'app.py',
+                    'code': code
+                })
+
+        if not python_blocks:
+            logger.warning("No Python code blocks found in backend response")
+            return written
+
+        # Check if we have a single app.py block
+        app_blocks = [b for b in python_blocks
+                      if b['filename'].lower().rstrip('.py') in ('app', 'main', '')]
+
+        if len(python_blocks) == 1:
+            # Single file case - use as-is
+            code = python_blocks[0]['code']
+        elif app_blocks and len(app_blocks) == 1 and len(python_blocks) <= 2:
+            # Main app.py with maybe one helper - use app.py
+            code = app_blocks[0]['code']
+        else:
+            # Multiple files case - merge into single app.py
+            logger.info(f"Merging {len(python_blocks)} Python files into app.py")
+            code = self._merge_python_files(python_blocks)
+
+        # Write the merged app.py
+        target_path = self.backend_dir / 'app.py'
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(code, encoding='utf-8')
+        written['backend_app'] = target_path
+        logger.info(f"✓ Wrote backend/app.py ({len(code)} chars)")
+
         return written
+
+    def _merge_python_files(self, blocks: List[Dict[str, str]]) -> str:
+        """Merge multiple Python code blocks into a single app.py file.
+
+        Strategy:
+        1. Collect all imports from all files
+        2. Collect model classes
+        3. Collect route functions
+        4. Reassemble in correct order
+        """
+        all_imports = set()
+        model_code = []
+        route_code = []
+        other_code = []
+        main_code = []
+
+        import_pattern = re.compile(r'^(?:from\s+\S+\s+)?import\s+.+$', re.MULTILINE)
+
+        for block in blocks:
+            code = block['code']
+            filename = block['filename'].lower()
+
+            # Extract imports
+            for match in import_pattern.finditer(code):
+                import_line = match.group().strip()
+                # Skip relative imports that won't work in single file
+                if not import_line.startswith('from .') and \
+                   'from routes' not in import_line and \
+                   'from models' not in import_line:
+                    all_imports.add(import_line)
+
+            # Remove imports from code for further processing
+            code_without_imports = import_pattern.sub('', code).strip()
+
+            # Categorize by filename
+            if 'model' in filename:
+                model_code.append(f"# From {block['filename']}\n{code_without_imports}")
+            elif 'route' in filename or 'api' in filename:
+                route_code.append(f"# From {block['filename']}\n{code_without_imports}")
+            elif filename.rstrip('.py') in ('app', 'main', ''):
+                main_code.append(code_without_imports)
+            else:
+                other_code.append(f"# From {block['filename']}\n{code_without_imports}")
+
+        # Build merged file
+        parts = []
+
+        # Standard imports first
+        parts.append("# Merged from multiple generated files into single app.py")
+        parts.append("")
+
+        # Sort and add imports
+        sorted_imports = sorted(all_imports, key=lambda x: (not x.startswith('import'), x.lower()))
+        parts.extend(sorted_imports)
+        parts.append("")
+
+        # Add model code
+        if model_code:
+            parts.append("# " + "=" * 70)
+            parts.append("# MODELS")
+            parts.append("# " + "=" * 70)
+            parts.extend(model_code)
+            parts.append("")
+
+        # Add other code (helpers, decorators, etc.)
+        if other_code:
+            parts.append("# " + "=" * 70)
+            parts.append("# HELPERS")
+            parts.append("# " + "=" * 70)
+            parts.extend(other_code)
+            parts.append("")
+
+        # Add route code
+        if route_code:
+            parts.append("# " + "=" * 70)
+            parts.append("# ROUTES")
+            parts.append("# " + "=" * 70)
+            parts.extend(route_code)
+            parts.append("")
+
+        # Add main code
+        if main_code:
+            parts.append("# " + "=" * 70)
+            parts.append("# MAIN")
+            parts.append("# " + "=" * 70)
+            parts.extend(main_code)
+
+        return '\n'.join(parts)
     
     def _process_frontend(self, raw_content: str) -> Dict[str, Path]:
-        """Process frontend code blocks - expects single App.jsx file."""
+        """Process frontend code blocks - merges ALL JSX code into App.jsx.
+
+        Even if the LLM generates multiple files (pages/*.jsx, components/*.jsx),
+        we merge everything into a single App.jsx for the single-file architecture.
+        """
         written = {}
         blocks = self._extract_code_blocks(raw_content)
         frontend_src = self.frontend_dir / 'src'
-        
+
+        # Collect all JS/JSX code blocks
+        jsx_blocks = []
         for block in blocks:
             lang = block['language']
             filename = block['filename']
             code = block['code']
-            
+
             # Handle CSS
             if lang == 'css':
-                target_filename = filename if filename else 'App.css'
+                target_filename = filename.lstrip('/') if filename else 'App.css'
+                if not target_filename.endswith('.css'):
+                    target_filename += '.css'
                 target_path = frontend_src / target_filename
                 target_path.parent.mkdir(parents=True, exist_ok=True)
                 target_path.write_text(code, encoding='utf-8')
                 written[f'css_{target_filename}'] = target_path
                 logger.info(f"✓ Wrote frontend/src/{target_filename}")
                 continue
-            
+
             # Handle package.json
             if lang == 'json' and filename and 'package' in filename.lower():
                 self._merge_package_json(code)
                 continue
-            
+
             # Handle JS/JSX files
-            if lang not in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
-                continue
-            
-            # Default to App.jsx for main component
-            if not filename or filename.lower() in ('app', 'app.jsx', 'app.js'):
-                filename = 'App.jsx'
-            
-            # Normalize filename
-            filename = filename.lstrip('/')
-            
-            # Fix API URLs
-            code = self._fix_api_urls(code)
-            
-            # Ensure default export for App component
-            if 'App' in filename and 'export default' not in code:
-                func_match = re.search(r'function\s+(App)\b', code)
-                if func_match:
-                    code += f"\n\nexport default App;"
-            
-            # Write the file
-            target_path = frontend_src / filename
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-            target_path.write_text(code, encoding='utf-8')
-            
-            key = filename.replace('/', '_').replace('.jsx', '').replace('.js', '')
-            written[f'frontend_{key}'] = target_path
-            logger.info(f"✓ Wrote frontend/src/{filename}")
-        
+            if lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
+                jsx_blocks.append({
+                    'filename': filename or 'App.jsx',
+                    'code': code
+                })
+
+        if not jsx_blocks:
+            logger.warning("No JSX code blocks found in frontend response")
+            return written
+
+        # Check if we have a single App.jsx block
+        app_blocks = [b for b in jsx_blocks
+                      if b['filename'].lower().rstrip('.jsx').rstrip('.js').rstrip('.tsx')
+                      in ('app', 'src/app', '')]
+
+        if len(jsx_blocks) == 1:
+            # Single file case - use as-is
+            code = jsx_blocks[0]['code']
+        elif app_blocks and len(app_blocks) == 1 and len(jsx_blocks) <= 2:
+            # Main App.jsx with maybe one helper - use App.jsx
+            code = app_blocks[0]['code']
+        else:
+            # Multiple files case - merge into single App.jsx
+            logger.info(f"Merging {len(jsx_blocks)} JSX files into App.jsx")
+            code = self._merge_jsx_files(jsx_blocks)
+
+        # Fix API URLs
+        code = self._fix_api_urls(code)
+
+        # Ensure default export for App component
+        if 'export default' not in code:
+            if 'function App' in code:
+                code += "\n\nexport default App;"
+
+        # Write the merged App.jsx
+        target_path = frontend_src / 'App.jsx'
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(code, encoding='utf-8')
+        written['frontend_App'] = target_path
+        logger.info(f"✓ Wrote frontend/src/App.jsx ({len(code)} chars)")
+
         return written
+
+    def _merge_jsx_files(self, blocks: List[Dict[str, str]]) -> str:
+        """Merge multiple JSX code blocks into a single App.jsx file.
+
+        Strategy:
+        1. Collect all imports from all files
+        2. Collect components (pages, etc.)
+        3. Collect main App component
+        4. Reassemble with proper export
+        """
+        all_imports = set()
+        api_code = []
+        auth_code = []
+        component_code = []
+        app_code = []
+
+        import_pattern = re.compile(r"^import\s+.+$", re.MULTILINE)
+
+        for block in blocks:
+            code = block['code']
+            filename = block['filename'].lower()
+
+            # Extract imports
+            for match in import_pattern.finditer(code):
+                import_line = match.group().strip()
+                # Skip relative imports
+                if not import_line.startswith("import ") or \
+                   "'." not in import_line and '"./' not in import_line:
+                    all_imports.add(import_line)
+
+            # Remove imports from code for further processing
+            code_without_imports = import_pattern.sub('', code).strip()
+
+            # Also remove any export default at the end (we'll add one final export)
+            code_without_imports = re.sub(
+                r'\nexport\s+default\s+\w+;?\s*$', '', code_without_imports
+            ).strip()
+
+            # Categorize by filename
+            if 'api' in filename or 'service' in filename:
+                api_code.append(f"// From {block['filename']}\n{code_without_imports}")
+            elif 'auth' in filename or 'context' in filename:
+                auth_code.append(f"// From {block['filename']}\n{code_without_imports}")
+            elif filename.rstrip('.jsx').rstrip('.js').rstrip('.tsx') in ('app', 'src/app', ''):
+                app_code.append(code_without_imports)
+            else:
+                component_code.append(f"// From {block['filename']}\n{code_without_imports}")
+
+        # Build merged file
+        parts = []
+
+        # Standard imports first
+        parts.append("// Merged from multiple generated files into single App.jsx")
+        parts.append("")
+
+        # Sort and add imports (React first, then others)
+        def import_sort_key(imp):
+            if "'react'" in imp or '"react"' in imp:
+                return (0, imp)
+            if "'react-" in imp or '"react-' in imp:
+                return (1, imp)
+            return (2, imp)
+
+        sorted_imports = sorted(all_imports, key=import_sort_key)
+        parts.extend(sorted_imports)
+        parts.append("")
+
+        # Add API code
+        if api_code:
+            parts.append("// " + "=" * 70)
+            parts.append("// API CLIENT")
+            parts.append("// " + "=" * 70)
+            parts.extend(api_code)
+            parts.append("")
+
+        # Add auth code
+        if auth_code:
+            parts.append("// " + "=" * 70)
+            parts.append("// AUTH CONTEXT")
+            parts.append("// " + "=" * 70)
+            parts.extend(auth_code)
+            parts.append("")
+
+        # Add component code
+        if component_code:
+            parts.append("// " + "=" * 70)
+            parts.append("// COMPONENTS & PAGES")
+            parts.append("// " + "=" * 70)
+            parts.extend(component_code)
+            parts.append("")
+
+        # Add app code
+        if app_code:
+            parts.append("// " + "=" * 70)
+            parts.append("// MAIN APP")
+            parts.append("// " + "=" * 70)
+            parts.extend(app_code)
+
+        # Add final export
+        parts.append("")
+        parts.append("export default App;")
+
+        return '\n'.join(parts)
     
     def _fix_api_urls(self, code: str) -> str:
         """Fix API URLs for Docker networking."""

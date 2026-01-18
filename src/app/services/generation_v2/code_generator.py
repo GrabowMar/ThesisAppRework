@@ -282,61 +282,102 @@ class CodeGenerator:
     
     def _get_backend_system_prompt(self) -> str:
         """Get system prompt for backend generation."""
-        return """You are an expert Flask backend developer. Generate complete, production-ready code.
+        return """You are an expert Flask backend developer generating production-ready applications.
 
-CRITICAL RULES:
-- Generate ONLY ONE file: app.py with ALL code
-- No placeholders, no TODOs, no "..."
-- Every import must be valid
-- Every function must be fully implemented
-- All models need to_dict() methods
-- Use proper error handling with try/except
+ABSOLUTE REQUIREMENTS:
+1. Generate EXACTLY ONE file: app.py containing ALL code (400-600 lines)
+2. DO NOT split code into multiple files (no models.py, no routes/*.py)
+3. NO placeholders, NO TODOs, NO "...", NO incomplete functions
+4. NO "Would you like me to continue?" - generate EVERYTHING in one response
+5. Every function must be FULLY implemented with real logic
+6. All models must have complete to_dict() methods
+
+FILE STRUCTURE (in this exact order):
+1. Imports (os, logging, datetime, functools, flask, sqlalchemy, cors, bcrypt, jwt)
+2. Flask app creation and configuration
+3. SQLAlchemy db = SQLAlchemy() setup
+4. ALL Model classes with to_dict() methods
+5. Auth decorators (token_required, admin_required)
+6. Auth routes (/api/auth/register, /api/auth/login, /api/auth/me)
+7. User routes (/api/*)
+8. Admin routes (/api/admin/*)
+9. Health check route (/api/health)
+10. Database initialization with create_all() and default admin user
+11. Main entry point (if __name__ == '__main__')
+
+AUTHENTICATION REQUIREMENTS:
+- JWT tokens with 24-hour expiration
+- bcrypt password hashing
+- User model: id, username, email, password_hash, is_admin, is_active, created_at, updated_at
+- Create default admin user on startup (username: admin, password: admin123)
+
+CODE QUALITY:
+- Input validation with descriptive error messages
+- Try/except blocks for database operations
+- Proper HTTP status codes (200, 201, 400, 401, 403, 404, 500)
+- Pagination for list endpoints (page, per_page, total)
+- Soft delete pattern (is_active=False instead of hard delete)
 
 OUTPUT FORMAT:
-- Generate ONLY: ```python:app.py with complete application
-- Include: models, auth decorators, all routes in ONE file
-- Optionally include ```requirements for additional packages
+```python:app.py
+# Complete Flask application - 400-600 lines of production code
+# ALL models, auth, and routes in this single file
+```
 
-AUTHENTICATION:
-- Implement JWT auth with bcrypt passwords
-- token_required and admin_required decorators
-- /api/auth/register, /api/auth/login, /api/auth/me endpoints
-
-ROUTE PATTERNS:
-- User routes: /api/* (e.g., /api/items)
-- Admin routes: /api/admin/* (e.g., /api/admin/stats)
-- Auth routes: /api/auth/* (e.g., /api/auth/login)"""
+Optional:
+```requirements
+package-name==1.0.0
+```"""
     
     def _get_frontend_system_prompt(self) -> str:
         """Get system prompt for frontend generation."""
-        return """You are an expert React frontend developer. Generate complete, production-ready code.
+        return """You are an expert React frontend developer generating production-ready applications.
 
-CRITICAL RULES:
-- Generate ONLY ONE file: App.jsx with ALL code
-- No placeholders, no TODOs
-- Every component must be complete
-- Handle loading and error states
-- Use react-hot-toast for notifications
+ABSOLUTE REQUIREMENTS:
+1. Generate EXACTLY ONE file: App.jsx containing ALL code (600-900 lines)
+2. DO NOT split code into multiple files (no separate components, services, or hooks files)
+3. NO placeholders, NO TODOs, NO "...", NO "// LLM:" comments
+4. NO "Would you like me to continue?" - generate EVERYTHING in one response
+5. Every component must be FULLY implemented with real JSX and logic
+6. All forms must have proper validation and error handling
+
+FILE STRUCTURE (in this exact order):
+1. All imports at the top
+2. API client setup (axios instance with auth interceptor)
+3. All API functions organized by domain (authAPI, itemsAPI, adminAPI)
+4. AuthContext and AuthProvider with full implementation
+5. useAuth hook
+6. Utility components (LoadingSpinner, ProtectedRoute)
+7. Navigation component with conditional links
+8. All Page components (HomePage, LoginPage, RegisterPage, UserPage, AdminPage)
+9. Main App component with Routes (NO BrowserRouter - main.jsx provides it)
+10. export default App
+
+CRITICAL: Do NOT wrap App in BrowserRouter. main.jsx already provides it.
+
+AVAILABLE PACKAGES (use only these):
+react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, date-fns, clsx, uuid
+
+COMPONENT REQUIREMENTS:
+- HomePage: Public page with guest view and logged-in summary
+- LoginPage: Form with username/password, error handling, loading state
+- RegisterPage: Form with username/email/password/confirm, validation
+- UserPage: Full CRUD interface with list, create, edit, delete
+- AdminPage: Dashboard stats, data table, bulk actions, search/filter
+
+UI QUALITY:
+- Tailwind CSS for all styling
+- Loading states with spinners
+- Error states with helpful messages
+- Empty states with call-to-action
+- Toast notifications for success/error
+- Responsive design
 
 OUTPUT FORMAT:
-- Generate ONLY: ```jsx:App.jsx with complete application
-- Include: API client, auth context, all pages, navigation in ONE file
-- The file must export App as default
-
-AVAILABLE PACKAGES ONLY:
-react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, date-fns, clsx, uuid
-DO NOT import any other packages.
-
-STRUCTURE INSIDE App.jsx:
-1. API client with axios
-2. Auth functions (login, register, logout)
-3. AuthContext and useAuth hook
-4. LoginPage component
-5. UserPage component
-6. AdminPage component
-7. Navigation component
-8. ProtectedRoute wrapper
-9. Main App component with BrowserRouter"""
+```jsx:App.jsx
+// Complete React application - 600-900 lines of production code
+// ALL components, auth, and pages in this single file
+```"""
     
     def _extract_content(self, response: Dict) -> str:
         """Extract content from API response."""
