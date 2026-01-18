@@ -8,14 +8,16 @@
     "2. CRUD endpoints: GET /api/books, POST /api/books, PUT /api/books/:id, DELETE /api/books/:id",
     "3. Search support: ?query=text searches title and author",
     "4. Input validation: title and author required, year must be 4 digits",
-    "5. JSON responses with proper status codes (200, 201, 400, 404)"
+    "5. JSON responses with proper status codes (200, 201, 400, 404)",
+    "Access control: allow public read-only book listings; require auth for create/update/delete"
   ],
   "frontend_requirements": [
     "1. Book list table with columns: title, author, year",
     "2. Add book form with title, author, year, isbn fields",
     "3. Edit button opens form with pre-filled data",
     "4. Delete button with confirmation dialog",
-    "5. Simple search box to filter books"
+    "5. Simple search box to filter books",
+    "Public guest view of books with CTA to sign in for personal library"
   ],
   "api_endpoints": [
     {

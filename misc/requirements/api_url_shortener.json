@@ -8,14 +8,16 @@
     "2. URL model: id, original_url, short_code (unique), created_at, click_count",
     "3. GET /api/r/:code - lookup and redirect to original URL, increment counter",
     "4. Validate URL format before shortening",
-    "5. GET /api/urls - return list of recently shortened URLs with click counts"
+    "5. GET /api/urls - return list of recently shortened URLs with click counts",
+    "Access control: allow public read-only short URL redirect and public list; require auth for creation and admin actions"
   ],
   "frontend_requirements": [
     "1. Input field for long URL with 'Shorten' button",
     "2. Display shortened URL with copy-to-clipboard button",
     "3. Show click count for generated URLs",
     "4. List of recently shortened URLs",
-    "5. Validation error for invalid URLs"
+    "5. Validation error for invalid URLs",
+    "Public guest view for shortening URLs with CTA to sign in for management"
   ],
   "api_endpoints": [
     {

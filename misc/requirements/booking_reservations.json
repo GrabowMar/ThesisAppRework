@@ -4,6 +4,7 @@
   "category": "Booking",
   "description": "Book time slots or rooms",
   "backend_requirements": [
+    "Access control: allow public read-only reservation listings; require auth for create/update/delete",
     "1. Reservation model: id, name (required), email (required), date (required), time (HH:MM format), party_size (integer)",
     "2. CRUD endpoints: GET /api/reservations, POST, DELETE",
     "3. Filter by date: ?date=YYYY-MM-DD query parameter",
@@ -11,6 +12,7 @@
     "5. JSON responses with proper status codes (200, 201, 400, 404, 409 for conflicts)"
   ],
   "frontend_requirements": [
+    "Public guest view of reservations with CTA to sign in for booking",
     "1. Reservation list grouped by date, showing name, email, time, party size",
     "2. Book form: name, email, date picker, time picker, party size",
     "3. Validation for email format and required fields",

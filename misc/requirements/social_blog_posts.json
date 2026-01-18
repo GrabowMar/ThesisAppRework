@@ -4,6 +4,7 @@
   "category": "Social",
   "description": "Write and read blog posts",
   "backend_requirements": [
+     "Access control: allow public read-only posts; require auth for create/update/delete",
     "1. Post model: id, title (required), content (text), author, created_at, updated_at",
     "2. CRUD endpoints: GET /api/posts (list), GET /api/posts/:id (single), POST, PUT, DELETE",
     "3. Support pagination: ?page=1&limit=10",
@@ -11,6 +12,7 @@
     "5. Auto-update updated_at timestamp on every edit"
   ],
   "frontend_requirements": [
+     "Public guest view of posts with CTA to sign in for posting",
     "1. Post list showing title, excerpt (first 200 chars), date, author",
     "2. Click post title to view full content",
     "3. Create/edit post form with title and content textarea",

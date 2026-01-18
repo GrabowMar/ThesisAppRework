@@ -157,7 +157,7 @@ function HomePage() {
       <h1 className="text-3xl font-bold mb-4">Welcome</h1>
       {!isAuthenticated ? (
         <div className="bg-white rounded-lg shadow p-6">
-          <p className="text-gray-600 mb-4">Please log in to access the application.</p>
+          <p className="text-gray-600 mb-4">Browse the public view. Sign in for create/edit features.</p>
           <Link to="/login" className="text-indigo-600 hover:text-indigo-800">
             Login to get started →
           </Link>

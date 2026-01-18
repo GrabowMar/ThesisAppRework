@@ -16,6 +16,10 @@ Implement the **USER-FACING** backend functionality:
 {{ loop.index }}. {{ req }}
 {% endfor %}
 
+## Access Policy (MANDATORY)
+- Provide **public read-only/basic endpoints** (no auth) for core functionality
+- Create/update/delete and user-specific data must require auth
+
 ## Authentication Requirements (MANDATORY)
 
 You MUST implement complete JWT authentication:
@@ -72,6 +76,7 @@ The code merger will append your requirements to the scaffolding's requirements.
 - ❌ `@user_bp.route('/api/...')` → ✅ `@user_bp.route('/...')` (prefix already applied)
 - ❌ Missing `db.session.rollback()` → ✅ rollback in exception paths
 - ❌ Returning inactive items → ✅ filter `is_active=True` for user-facing lists
+- ✅ Public read-only endpoints must not require auth
 
 ## Code Examples
 

@@ -4,6 +4,7 @@
   "category": "E-commerce",
   "description": "Add products to cart and checkout",
   "backend_requirements": [
+    "Access control: allow public product browsing; require auth for cart mutations and checkout",
     "1. Product model: id, name, price (decimal), description, image_url, is_active (default True), stock_quantity",
     "2. Cart stored in session or database: product_id, quantity",
     "3. POST /api/cart/add - add item to cart (check stock)",
@@ -11,6 +12,7 @@
     "5. GET /api/cart/total - calculate total price"
   ],
   "frontend_requirements": [
+    "Public guest view of products with CTA to sign in for cart and checkout",
     "1. Product grid with name, price, image, 'Add to Cart' button",
     "2. Cart sidebar showing items with quantity controls (+/-)",
     "3. Display subtotal and total price",

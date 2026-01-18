@@ -8,14 +8,16 @@
     "2. CRUD endpoints: GET /api/notes, POST, PUT /api/notes/:id, DELETE",
     "3. Search notes: ?query=text searches title and content",
     "4. Filter by tag: ?tag=work",
-    "5. Auto-update updated_at timestamp on every edit"
+    "5. Auto-update updated_at timestamp on every edit",
+    "Access control: allow public read-only notes list; require auth for create/update/delete"
   ],
   "frontend_requirements": [
     "1. Two-column layout: note list (left), editor (right)",
     "2. Note list shows titles with preview and tags",
     "3. Click note to load in editor",
     "4. Auto-save on typing (debounced)",
-    "5. Delete note button with confirmation"
+    "5. Delete note button with confirmation",
+    "Public guest view of notes with CTA to sign in for personal notes"
   ],
   "api_endpoints": [
     {

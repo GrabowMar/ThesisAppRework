@@ -4,6 +4,7 @@
   "category": "File Processing",
   "description": "Upload and view images",
   "backend_requirements": [
+    "Access control: allow public image browsing; require auth for uploads and management",
     "1. POST /api/images/upload - accept multipart/form-data image files",
     "2. Save images to /uploads directory with unique filenames",
     "3. Image model: id, stored_filename, original_filename, size_bytes, uploaded_at, is_active",
@@ -11,6 +12,7 @@
     "5. Validate file type (jpg, png, gif) and size (<5MB)"
   ],
   "frontend_requirements": [
+    "Public guest view of gallery with CTA to sign in for management",
     "1. File input with 'Upload' button, show selected filename",
     "2. Image grid displaying thumbnails (CSS grid)",
     "3. Click image to view full size in modal/lightbox",

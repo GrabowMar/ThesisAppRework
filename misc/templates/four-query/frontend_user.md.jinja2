@@ -38,6 +38,11 @@ You MUST implement complete auth UI:
 - {{ req }}
 {% endfor %}
 
+## Access Policy (MANDATORY)
+- Include a **public guest view** (no auth) for the core feature
+- Gate create/update/delete and personal data behind auth
+- Provide clear CTA to sign in for full functionality
+
 {% if api_endpoints %}
 ## Backend API Available
 {{ api_endpoints }}

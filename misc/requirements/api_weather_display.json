@@ -8,14 +8,16 @@
     "2. Return JSON: {city, temperature, condition, humidity, feels_like, icon}",
     "3. Cache results for 15 minutes per city in SQLite (WeatherCacheEntry) to avoid API rate limits",
     "4. Cache behavior: return cached result if not expired; otherwise refresh and update the cache row",
-    "5. Handle errors: 404 for city not found, 503 for API down, 400 for missing/blank city param"
+    "5. Handle errors: 404 for city not found, 503 for API down, 400 for missing/blank city param",
+    "Access control: allow public read-only weather checks; restrict saved locations to auth"
   ],
   "frontend_requirements": [
     "1. City input field with search button",
     "2. Display temperature in Celsius/Fahrenheit with toggle",
     "3. Show weather condition with appropriate icon",
     "4. Loading spinner while fetching data",
-    "5. Error message for invalid city or API failure"
+    "5. Recent searches list (last 10 cached lookups)",
+    "Public guest view of weather checks with CTA to sign in for saved locations"
   ],
   "api_endpoints": [
     {
@@ -31,6 +33,13 @@
         "feels_like": 19.0,
         "icon": "string"
       }
+    },
+    {
+      "method": "GET",
+      "path": "/api/weather/recent",
+      "description": "List recent cached weather lookups",
+      "request": null,
+      "response": {"items": [{"city": "string", "temperature": 20.5, "condition": "string", "fetched_at": "ISO8601"}], "total": 10}
     },
     {
       "method": "GET",

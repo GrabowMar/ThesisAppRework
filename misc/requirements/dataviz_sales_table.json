@@ -4,6 +4,7 @@
   "category": "Data Visualization",
   "description": "View and visualize sales data",
   "backend_requirements": [
+    "Access control: allow public read-only sales view; require auth for create/update/delete",
     "1. Sale model: id, product (required), amount (decimal), quantity (integer), date (default today)",
     "2. GET /api/sales - return all sales, support date range filter (?start_date=, ?end_date=)",
     "3. GET /api/sales/summary - return totals (total_sales, total_transactions, average_sale)",
@@ -11,6 +12,7 @@
     "5. POST /api/sales - create new sale with validation (amount > 0, quantity >= 1)"
   ],
   "frontend_requirements": [
+    "Public guest view of sales with CTA to sign in for full analytics",
     "1. Sales table with date, product, amount, quantity columns",
     "2. Total sales and transaction count displayed prominently at top",
     "3. Simple bar chart showing sales over time (Chart.js or similar)",

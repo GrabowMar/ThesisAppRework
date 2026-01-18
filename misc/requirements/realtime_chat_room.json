@@ -4,6 +4,7 @@
   "category": "Real-time",
   "description": "Simple real-time messaging",
   "backend_requirements": [
+    "Access control: allow public read-only chat view; restrict sending messages to authenticated users",
     "1. WebSocket endpoint at /api/ws/chat for bidirectional communication",
     "2. Message model: id, username, text, timestamp",
     "3. Broadcast incoming messages to all connected clients",
@@ -11,6 +12,7 @@
     "5. GET /api/messages - return recent message history for new connections"
   ],
   "frontend_requirements": [
+    "Public guest view of chat with CTA to sign in for sending messages",
     "1. Message list showing username, text, and time",
     "2. Input field with send button at bottom",
     "3. Auto-scroll to newest message",

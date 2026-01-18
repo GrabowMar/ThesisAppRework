@@ -4,6 +4,7 @@
   "category": "CRM",
   "description": "Manage customer contacts",
   "backend_requirements": [
+    "Access control: allow public read-only customer listings; require auth for create/update/delete",
     "1. Customer model: id, name (required), email (required, unique), phone, company, notes",
     "2. CRUD endpoints: GET /api/customers, POST, PUT, DELETE",
     "3. Search customers: ?query=text searches name, email, company",
@@ -11,6 +12,7 @@
     "5. JSON responses with proper status codes (200, 201, 400, 404, 409 for duplicate email)"
   ],
   "frontend_requirements": [
+    "Public guest view of customers with CTA to sign in for management",
     "1. Customer list table: name, email, phone, company",
     "2. Add customer form with validation",
     "3. Click customer to view/edit details",

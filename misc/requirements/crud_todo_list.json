@@ -13,7 +13,8 @@
     "7. Input validation: title required (1-255 chars), priority must be low/medium/high, due_date must be valid ISO date",
     "8. GET /api/todos/stats - return user's todo statistics (total, completed, pending, overdue count)",
     "9. PUT /api/todos/:id/complete - quick toggle completion status",
-    "10. GET /api/todos/categories - return list of user's unique categories"
+    "10. GET /api/todos/categories - return list of user's unique categories",
+    "Access control: allow public read-only todo list; keep create/update/delete and personal stats behind auth"
   ],
   "frontend_requirements": [
     "1. Main todo list view with cards showing: title, description preview, priority badge (color-coded), due date (highlight if overdue), completion checkbox, edit/delete buttons",
@@ -27,7 +28,8 @@
     "9. Optimistic updates: checkbox toggles immediately, reverts on error",
     "10. Bulk actions: select multiple todos, mark all complete, delete selected",
     "11. Category badges with different colors",
-    "12. Due date display: 'Today', 'Tomorrow', 'Overdue', or formatted date"
+    "12. Due date display: 'Today', 'Tomorrow', 'Overdue', or formatted date",
+    "Public guest view of todos with CTA to sign in for personal todos"
   ],
   "admin_requirements": [
     "1. Admin dashboard with stats cards: total todos (all users), total users, todos created today, completion rate percentage",

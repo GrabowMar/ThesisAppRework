@@ -15,14 +15,16 @@
     "2. Registration form with username, password, confirm password",
     "3. Display logged-in username in header",
     "4. Logout button that clears token",
-    "5. Show error messages for invalid credentials"
+    "5. Validate: username 3-20 chars alphanumeric, password min 8 chars, check duplicate username",
+    "Access control: allow public login/register views; auth required for profile access"
   ],
   "admin_requirements": [
     "1. Admin dashboard showing total users, active users, and registrations this week",
     "2. Table listing ALL users with status badges (active/inactive)",
     "3. Toggle button to enable/disable user accounts",
     "4. Checkbox selection with bulk disable action",
-    "5. Search users by username or email"
+    "5. Show error messages for invalid credentials",
+    "Public guest auth views with CTA to register"
   ],
   "api_endpoints": [
     {

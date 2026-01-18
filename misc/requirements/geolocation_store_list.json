@@ -4,6 +4,7 @@
   "category": "Geolocation",
   "description": "Find stores by location",
   "backend_requirements": [
+    "Access control: allow public read-only store browsing; require auth for create/update/delete",
     "1. Store model: id, name, address, latitude, longitude, phone",
     "2. GET /api/stores - return all stores",
     "3. GET /api/stores/nearby?lat=X&lng=Y&radius=5 - filter by distance",
@@ -11,6 +12,7 @@
     "5. GET /api/stores/:id - return single store details"
   ],
   "frontend_requirements": [
+    "Public guest view for store browsing with CTA to sign in for management",
     "1. Store list showing name, address, phone",
     "2. Display distance from user location (if permission granted)",
     "3. Optional: simple map using Leaflet.js showing store markers",

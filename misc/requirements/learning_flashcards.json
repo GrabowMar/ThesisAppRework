@@ -4,6 +4,7 @@
   "category": "Learning",
   "description": "Study with flashcards",
   "backend_requirements": [
+    "Access control: allow public read-only flashcards; require auth for create/update/delete and progress tracking",
     "1. Flashcard model: id, question (required), answer (required), category, difficulty",
     "2. CRUD endpoints: GET /api/flashcards, POST, PUT, DELETE",
     "3. GET /api/flashcards/random - return random card",
@@ -11,6 +12,7 @@
     "5. Seed with 10+ sample flashcards across different categories"
   ],
   "frontend_requirements": [
+    "Public guest view of flashcards with CTA to sign in for progress tracking",
     "1. Card display: large question text centered",
     "2. Click card or 'Show Answer' button to flip and reveal answer",
     "3. 'Next Card' button to load random card",

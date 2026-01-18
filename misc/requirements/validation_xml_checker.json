@@ -4,6 +4,7 @@
   "category": "Validation",
   "description": "Validate XML syntax",
   "backend_requirements": [
+    "Access control: allow public validation; restrict history listing to authenticated users",
     "1. POST /api/validate/xml - accept {xml: string}",
     "2. Parse XML using Python's xml.etree or lxml",
     "3. Return {valid: true} or {valid: false, error: message, line: number}",
@@ -11,6 +12,7 @@
     "5. Store each validation attempt in SQLite (XmlValidation) with valid/error/line and an xml_preview (first 200 chars)"
   ],
   "frontend_requirements": [
+    "Public guest validation view with CTA to sign in for saved history",
     "1. Large textarea for XML input with monospace font",
     "2. 'Validate' button",
     "3. Result display: green checkmark for valid, red X with error message for invalid",

@@ -4,6 +4,7 @@
   "category": "Scheduling",
   "description": "Track events by date",
   "backend_requirements": [
+    "Access control: allow public read-only event listings; require auth for create/update/delete",
     "1. Event model: id, title (required), date (required), time, description, location",
     "2. CRUD endpoints: GET /api/events, POST, PUT, DELETE",
     "3. Filter by date range: ?start=YYYY-MM-DD&end=YYYY-MM-DD",
@@ -11,6 +12,7 @@
     "5. Validate: end_time must be after start_time, title is required"
   ],
   "frontend_requirements": [
+    "Public guest view of events with CTA to sign in for management",
     "1. Event list grouped by date, showing title and time",
     "2. Add event form with date picker, time picker, title, description",
     "3. Click event to view details in modal",

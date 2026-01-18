@@ -4,6 +4,7 @@
   "category": "Healthcare",
   "description": "Book and manage appointments",
   "backend_requirements": [
+    "Access control: allow public read-only appointment listings; require auth for create/update/delete",
     "1. Appointment model: id, patient_name (required), doctor (required), date (required), time (HH:MM format), reason (optional)",
     "2. CRUD endpoints: GET /api/appointments, POST, PUT, DELETE",
     "3. Filter by date: ?date=YYYY-MM-DD",
@@ -11,6 +12,7 @@
     "5. JSON responses with proper status codes (200, 201, 400, 404, 409 for conflicts)"
   ],
   "frontend_requirements": [
+    "Public guest view of appointments with CTA to sign in for scheduling",
     "1. Appointment list grouped by date, sorted by time",
     "2. Book form with patient name, date picker, time picker, doctor dropdown, reason (optional)",
     "3. Click appointment to view/edit details",

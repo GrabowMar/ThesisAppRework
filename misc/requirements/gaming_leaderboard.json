@@ -4,6 +4,7 @@
   "category": "Gaming",
   "description": "Track player scores",
   "backend_requirements": [
+    "Access control: allow public read-only leaderboard; require auth for score submissions",
     "1. Score model: id, player_name (required), score (integer, required), achieved_at",
     "2. POST /api/scores - submit new score",
     "3. GET /api/leaderboard - return top 10 scores sorted descending",
@@ -11,6 +12,7 @@
     "5. Input validation: player_name required (max 50 chars), score must be non-negative"
   ],
   "frontend_requirements": [
+    "Public guest view of leaderboard with CTA to sign in for submitting scores",
     "1. Leaderboard table: rank, player name, score, date",
     "2. Top 3 highlighted with gold/silver/bronze",
     "3. Submit score form with player name and score",

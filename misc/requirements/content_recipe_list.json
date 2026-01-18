@@ -4,6 +4,7 @@
   "category": "Content",
   "description": "Save and view recipes",
   "backend_requirements": [
+    "Access control: allow public read-only recipes; require auth for create/update/delete",
     "1. Recipe model: id, title (required), ingredients (JSON array), instructions (text), category (optional)",
     "2. CRUD endpoints: GET /api/recipes, GET /api/recipes/:id, POST, DELETE",
     "3. Filter by category: ?category=dessert query parameter",
@@ -11,6 +12,7 @@
     "5. JSON responses with proper status codes (200, 201, 404)"
   ],
   "frontend_requirements": [
+    "Public guest view of recipes with CTA to sign in for management",
     "1. Recipe list showing title and category",
     "2. Click recipe to view full details (ingredients and instructions)",
     "3. Add recipe form with title, ingredients, instructions, category",

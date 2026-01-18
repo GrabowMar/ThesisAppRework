@@ -14,6 +14,11 @@
 - {{ req }}
 {% endfor %}
 
+## Access Policy (MANDATORY)
+- Provide public read-only/basic endpoints for core functionality
+- Require auth for create/update/delete and user-specific data
+- Admin endpoints must require admin auth
+
 {% if api_endpoints %}
 ## API Endpoints
 {{ api_endpoints }}

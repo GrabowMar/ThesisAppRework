@@ -4,6 +4,7 @@
   "category": "Collaboration",
   "description": "Create and vote on polls",
   "backend_requirements": [
+    "Access control: allow public voting; require auth for poll creation",
     "1. Poll model: id, question (required), created_at",
     "2. Option model: id, poll_id, option_text, vote_count (integer, default 0)",
     "3. POST /api/polls - create poll with question and options array",
@@ -11,6 +12,7 @@
     "5. GET /api/polls/:id - return poll with options and total vote count"
   ],
   "frontend_requirements": [
+    "Public guest view of polls with CTA to sign in for creating polls",
     "1. Display poll question with options as buttons or radio buttons",
     "2. Click option to vote",
     "3. Show vote counts and percentages after voting",

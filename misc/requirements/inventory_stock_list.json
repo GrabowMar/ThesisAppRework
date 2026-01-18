@@ -8,14 +8,16 @@
     "2. CRUD endpoints: GET /api/inventory, POST, PUT, DELETE",
     "3. Filter for low stock items: ?low_stock=true returns items where quantity < min_quantity",
     "4. Computed 'low_stock' boolean field in responses",
-    "5. Input validation: name and sku required, quantity must be non-negative"
+    "5. Input validation: name and sku required, quantity must be non-negative",
+    "Access control: allow public read-only inventory view; require auth for create/update/delete"
   ],
   "frontend_requirements": [
     "1. Item list table: name, SKU, quantity, min_quantity",
     "2. Low stock items highlighted in red (quantity < min_quantity)",
     "3. Add item form with name, SKU, quantity, min_quantity fields",
     "4. Edit quantity directly in table or via edit form",
-    "5. Delete item button with confirmation"
+    "5. Delete item button with confirmation",
+    "Public guest view of inventory with CTA to sign in for management"
   ],
   "api_endpoints": [
     {

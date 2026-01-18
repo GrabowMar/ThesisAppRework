@@ -4,6 +4,7 @@
   "category": "Media",
   "description": "Play audio files",
   "backend_requirements": [
+    "Access control: allow public read-only track browsing; require auth for playlist management",
     "1. Track model: id, title (required), artist (optional), duration (seconds), filepath (server path)",
     "2. GET /api/tracks - return list of audio tracks",
     "3. Serve static audio files from /audio directory",
@@ -11,6 +12,7 @@
     "5. DELETE /api/tracks/:id - remove track and associated file"
   ],
   "frontend_requirements": [
+    "Public guest view of tracks with CTA to sign in for playlists",
     "1. Track list with title, artist, and duration",
     "2. Click track to load in HTML5 audio player",
     "3. Player controls: play/pause, seek bar, volume, current time",

@@ -4,6 +4,7 @@
   "category": "Utility",
   "description": "Encode and decode base64",
   "backend_requirements": [
+    "Access control: allow public encode/decode; restrict saved history to authenticated users",
     "1. POST /api/base64/encode - accept {text: string}, return {encoded: string}",
     "2. POST /api/base64/decode - accept {encoded: string}, return {text: string}",
     "3. Handle decode errors for invalid base64",
@@ -11,6 +12,7 @@
     "5. Store each conversion in SQLite (Conversion) with direction, input_preview, output_preview, created_at, is_active"
   ],
   "frontend_requirements": [
+    "Public guest tool view with CTA to sign in for saved history",
     "1. Two textareas: input and output",
     "2. 'Encode' button converts input to base64 in output",
     "3. 'Decode' button converts base64 input to text in output",

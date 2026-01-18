@@ -4,6 +4,7 @@
   "category": "IoT",
   "description": "Display sensor readings",
   "backend_requirements": [
+    "Access control: allow public read-only sensor dashboards; require auth for sensor management",
     "1. Reading model: id, temperature, humidity, timestamp",
     "2. GET /api/sensors/current - return latest reading (or generate random mock data)",
     "3. GET /api/sensors/history?hours=24 - return readings from last N hours",
@@ -11,6 +12,7 @@
     "5. Seed with initial mock sensor data if database is empty"
   ],
   "frontend_requirements": [
+    "Public guest view of sensor dashboard with CTA to sign in for management",
     "1. Large cards displaying current temperature and humidity",
     "2. Timestamp of last reading",
     "3. Simple line chart showing last 24 hours (Chart.js)",

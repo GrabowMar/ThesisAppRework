@@ -8,14 +8,16 @@
     "2. CRUD endpoints: GET /api/tasks, POST, PUT, DELETE",
     "3. Update status: PUT /api/tasks/:id/status with {status: 'done'}",
     "4. Filter by status: ?status=todo",
-    "5. Validate: status must be one of todo/in_progress/done, priority must be low/medium/high"
+    "5. Validate: status must be one of todo/in_progress/done, priority must be low/medium/high",
+    "Access control: allow public read-only board view; require auth for create/update/delete"
   ],
   "frontend_requirements": [
     "1. Three columns: To Do, In Progress, Done",
     "2. Task cards showing title and description",
     "3. Button to move task to next column",
     "4. Add task form with title, description, priority",
-    "5. Delete button per task"
+    "5. Delete button per task",
+    "Public guest view for board with CTA to sign in for full workflow"
   ],
   "api_endpoints": [
     {

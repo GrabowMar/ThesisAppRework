@@ -38,6 +38,11 @@ backend/
 - Soft delete pattern (is_active=False)
 - Input validation with descriptive error messages
 
+## Access Policy (IMPORTANT)
+- Expose **basic functionality publicly** (read-only views or public lists)
+- Require auth for **create/update/delete** and user-specific data
+- Admin endpoints always require admin auth
+
 ## Database Configuration
 ```python
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:////app/data/app.db')

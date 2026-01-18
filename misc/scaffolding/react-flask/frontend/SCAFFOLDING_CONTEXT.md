@@ -45,6 +45,11 @@ react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, da
 - Form validation
 - Responsive Tailwind CSS styling
 
+## Access Policy (IMPORTANT)
+- Provide a **public guest view** (no auth) for the core feature
+- Gate create/update/delete or personal data behind auth
+- Admin views remain admin-only
+
 ## Example Import Section
 ```jsx
 import React, { useState, useEffect, createContext, useContext } from 'react';
