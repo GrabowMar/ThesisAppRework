@@ -224,7 +224,10 @@ class ReportService:
                 data = self._generate_tool_report(config, report)
             elif report_type == 'generation_analytics':
                 data = self._generate_generation_analytics(config, report)
-            
+
+            # Store the generated data in the database
+            report.set_report_data(data)
+
             report.status = 'completed'
             report.completed_at = utc_now()
             report.progress_percent = 100
