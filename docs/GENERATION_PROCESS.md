@@ -109,17 +109,40 @@ sequenceDiagram
 
 Each query has a strict **file whitelist** enforced by the generation service:
 
-| Query | Component | Allowed Files |
-|-------|-----------|---------------|
-| 1 | Backend User | `models.py`, `services.py`, `routes/user.py` |
-| 2 | Backend Admin | `routes/admin.py` **only** |
-| 3 | Frontend User | `pages/UserPage.jsx`, `hooks/useData.js`, `services/api.js` |
-| 4 | Frontend Admin | `pages/AdminPage.jsx` **only** |
+| Query | Component | Output File |
+|-------|-----------|-------------|
+| 1 | Backend User | `app.py` (complete backend with models, auth, user routes) |
+| 2 | Backend Admin | `app.py` (admin routes merged into same file) |
+| 3 | Frontend User | `App.jsx` (complete React app with all components, auth, pages) |
+| 4 | Frontend Admin | `App.jsx` (admin page merged into same file) |
 
-**Why this restriction?**
-- Prevents AI from overwriting scaffolding files
-- Ensures admin code cannot accidentally modify user functionality
-- Creates predictable file structure for analysis
+**Single-File Architecture:**
+- Backend: ALL code in one `app.py` file (~500-800 lines)
+- Frontend: ALL code in one `App.jsx` file (~600-900 lines)
+- Simpler for LLMs to understand and generate
+- No file splitting or imports between generated files
+- Predictable structure for analysis
+
+#### Public + Logged-in Conditional Rendering
+
+The HomePage serves **both public and logged-in users** through conditional rendering:
+
+**Public User Experience:**
+- Fetches data from public read endpoints (no authentication required)
+- Displays ALL content in read-only mode
+- Shows "Sign in to [action]" call-to-action buttons instead of action buttons
+- Same layout and data as logged-in users
+
+**Logged-in User Experience:**
+- Same public data fetch (same endpoints)
+- Unlocks create/edit/delete buttons via conditional rendering
+- Shows additional features/sections if specified in requirements
+- Pattern: `{isAuthenticated ? <EditButton /> : <SignInCTA />}`
+
+**Backend Support:**
+- GET/list endpoints are public (no @token_required decorator)
+- POST/PUT/DELETE endpoints require authentication
+- Public endpoints return ALL data (no filtering by auth status)
 
 ### UNGUARDED Mode (Experimental - Not Used for Research)
 

@@ -207,6 +207,73 @@ class CodeGenerator:
             raise RuntimeError(f"Frontend generation failed: {error}")
         
         frontend_code = self._extract_content(response)
+        frontend_finish = self._get_finish_reason(response)
+
+        if frontend_finish == 'length':
+            logger.warning("Frontend response truncated (finish_reason=length); requesting continuation")
+            frontend_code = await self._continue_frontend(
+                openrouter_model,
+                messages,
+                frontend_code,
+                config,
+            )
+
+        if not self._has_frontend_code_block(frontend_code):
+            logger.warning("Frontend response missing JSX code block; retrying with strict prompt")
+            strict_system = (
+                self._get_frontend_system_prompt()
+                + "\n\nSTRICT MODE: Output ONLY a single JSX code block with filename App.jsx."
+                + " No prose, no questions, no extra commentary."
+            )
+            strict_user = (
+                frontend_prompt
+                + "\n\nSTRICT OUTPUT: Return ONLY one code block in this exact format:"
+                + "\n```jsx:App.jsx\n...full code...\n```"
+            )
+
+            messages = [
+                {"role": "system", "content": strict_system},
+                {"role": "user", "content": strict_user},
+            ]
+
+            strict_temperature = min(config.temperature, 0.2)
+
+            if config.save_artifacts:
+                self._save_payload(config, 'frontend_retry', openrouter_model,
+                                   messages, strict_temperature, config.max_tokens)
+
+            success, response, status = await self.client.chat_completion(
+                model=openrouter_model,
+                messages=messages,
+                temperature=strict_temperature,
+                max_tokens=config.max_tokens,
+                timeout=config.timeout,
+            )
+
+            if config.save_artifacts and success:
+                self._save_response(config, 'frontend_retry', response)
+
+            if not success:
+                error = response.get('error', 'Unknown error')
+                if isinstance(error, dict):
+                    error = error.get('message', str(error))
+                raise RuntimeError(f"Frontend generation failed on retry: {error}")
+
+            frontend_code = self._extract_content(response)
+            frontend_finish = self._get_finish_reason(response)
+
+            if frontend_finish == 'length':
+                logger.warning("Frontend retry truncated (finish_reason=length); requesting continuation")
+                frontend_code = await self._continue_frontend(
+                    openrouter_model,
+                    messages,
+                    frontend_code,
+                    config,
+                )
+
+        if not self._has_frontend_code_block(frontend_code):
+            raise RuntimeError("Frontend generation produced no JSX code block")
+
         results['frontend'] = frontend_code
         logger.info(f"    ✓ Frontend: {len(frontend_code)} chars")
         
@@ -453,13 +520,12 @@ function LoadingSpinner() { return <div className="flex justify-center"><div cla
 function ProtectedRoute({ children, adminOnly }) { /* redirect if not auth */ }
 
 // 5. Navigation
-function Navigation() { /* Links: Home, Dashboard (if auth), Admin (if admin), Login/Logout */ }
+function Navigation() { /* Links: Home, Admin (if admin), Login/Logout */ }
 
 // 6. Page Components
-function HomePage() { /* Public welcome + logged-in summary */ }
+function HomePage() { /* Main app page - public read-only + logged-in CRUD via conditional rendering */ }
 function LoginPage() { /* Form with validation, error handling, loading state */ }
 function RegisterPage() { /* Form with password confirmation */ }
-function UserPage() { /* Full CRUD: list, create, edit, delete with loading/empty states */ }
 function AdminPage() { /* Stats cards, data table, bulk actions, search */ }
 
 // 7. Main App - NO BrowserRouter (main.jsx provides it)
@@ -473,7 +539,6 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route path="/user" element={<ProtectedRoute><UserPage /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
           </Routes>
         </main>
@@ -491,10 +556,12 @@ export default App;
 react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, date-fns, clsx, uuid
 
 ## PAGE REQUIREMENTS:
-- HomePage: Welcome message, guest CTA, logged-in user stats
-- LoginPage: Username/password form, loading state, error display, link to register
-- RegisterPage: Username/email/password/confirm form, validation, link to login
-- UserPage: CRUD interface - list items, create form, edit, delete with confirmation
+- HomePage: Main app page with conditional rendering:
+  * Fetches ALL data from public read endpoint (works without auth)
+  * Public users: Read-only view + "Sign in to create/edit" CTAs
+  * Logged-in users: Same content + create/edit/delete buttons + additional features
+- LoginPage: Username/password form, loading state, error display, link to register, redirects to / on success
+- RegisterPage: Username/email/password/confirm form, validation, link to login, redirects to / on success
 - AdminPage: Stats cards, full data table, toggle status, bulk delete, search/filter
 
 ## UI REQUIREMENTS:
@@ -517,6 +584,116 @@ react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, da
         if not choices:
             return ""
         return choices[0].get('message', {}).get('content', '').strip()
+
+    def _get_finish_reason(self, response: Dict) -> str:
+        """Extract finish reason from API response."""
+        choices = response.get('choices', [])
+        if not choices:
+            return ""
+        return (choices[0].get('finish_reason') or choices[0].get('native_finish_reason') or '').strip()
+
+    async def _continue_frontend(
+        self,
+        model: str,
+        base_messages: list,
+        base_content: str,
+        config: GenerationConfig,
+        max_continuations: int = 2,
+    ) -> str:
+        """Request continuation for truncated frontend output and stitch code blocks."""
+        stitched_code = self._extract_app_jsx_code(base_content)
+        if stitched_code is None:
+            stitched_code = ""
+
+        continuation_prompt = (
+            "Continue the App.jsx output from where you left off. "
+            "Return ONLY the remaining code, wrapped in a single code block: "
+            "```jsx:App.jsx\n...\n```. Do not repeat content already provided."
+        )
+
+        content = base_content
+        for idx in range(max_continuations):
+            messages = (
+                list(base_messages)
+                + [{"role": "assistant", "content": content},
+                   {"role": "user", "content": continuation_prompt}]
+            )
+
+            success, response, status = await self.client.chat_completion(
+                model=model,
+                messages=messages,
+                temperature=min(config.temperature, 0.2),
+                max_tokens=config.max_tokens,
+                timeout=config.timeout,
+            )
+
+            if config.save_artifacts:
+                self._save_response(config, f'frontend_continue_{idx + 1}', response)
+
+            if not success:
+                error = response.get('error', 'Unknown error')
+                if isinstance(error, dict):
+                    error = error.get('message', str(error))
+                raise RuntimeError(f"Frontend continuation failed: {error}")
+
+            continuation_content = self._extract_content(response)
+            continuation_code = self._extract_app_jsx_code(continuation_content) or ""
+
+            stitched_code = self._merge_continuation(stitched_code, continuation_code)
+            content = continuation_content
+
+            finish = self._get_finish_reason(response)
+            if finish != 'length':
+                break
+
+        if not stitched_code.strip():
+            return base_content
+
+        return f"```jsx:App.jsx\n{stitched_code.strip()}\n```"
+
+    def _extract_app_jsx_code(self, content: str) -> Optional[str]:
+        """Extract App.jsx code from a fenced JSX block; allow missing closing fence."""
+        if not content:
+            return None
+        match = re.search(
+            r"```\s*(jsx|javascript|js|tsx|typescript|ts)(?::([^\n\r`]+))?\s*[\r\n]+",
+            content,
+            re.IGNORECASE,
+        )
+        if not match:
+            return None
+        start = match.end()
+        end_match = re.search(r"```", content[start:])
+        if end_match:
+            end = start + end_match.start()
+            return content[start:end].strip()
+        return content[start:].strip()
+
+    def _merge_continuation(self, base_code: str, continuation: str) -> str:
+        """Merge continuation code, trimming overlapping tail/head lines."""
+        if not base_code.strip():
+            return continuation
+        if not continuation.strip():
+            return base_code
+
+        base_lines = base_code.splitlines()
+        cont_lines = continuation.splitlines()
+
+        max_overlap = min(50, len(base_lines), len(cont_lines))
+        overlap = 0
+        for i in range(1, max_overlap + 1):
+            if base_lines[-i:] == cont_lines[:i]:
+                overlap = i
+        if overlap:
+            cont_lines = cont_lines[overlap:]
+
+        return "\n".join(base_lines + cont_lines)
+
+    def _has_frontend_code_block(self, content: str) -> bool:
+        """Return True if the content includes a JSX code block."""
+        if not content:
+            return False
+        return re.search(r"```\s*(jsx|javascript|js|tsx|typescript|ts)(?::[^\n\r`]*)?\s*[\r\n]+", content, re.IGNORECASE) is not None
 
 
 # Singleton

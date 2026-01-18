@@ -1,42 +1,24 @@
-# Generate {{ name }} - Frontend User Page
+# Generate {{ name }} - Frontend Application
 
 {{ description }}
 
 ## Your Task
-Implement the **USER-FACING** frontend functionality. This includes:
-- **Login/Register page** in `pages/LoginPage.jsx`
-- **Auth context** in `hooks/useAuth.jsx`
-- Main user interface in `pages/UserPage.jsx`
-- API service functions in `services/api.js`
-- Auth service functions in `services/auth.js`
-- Custom hooks in `hooks/useData.js` (if needed)
-- Additional UI components (if needed)
+Generate a **COMPLETE SINGLE-FILE React application** in `App.jsx` containing ALL frontend code:
+- All imports at the top
+- API client setup with axios
+- Authentication context and hooks (AuthContext, AuthProvider, useAuth)
+- All page components (HomePage, LoginPage, RegisterPage)
+- Navigation component
+- ProtectedRoute component
+- Main App component with routing
+- Everything in ONE file - NO separate files
 
 ## TL;DR
-- Build a public read-only view
-- Gate create/update/delete behind auth
-- Keep UI minimal and consistent with endpoints
-
-## Authentication Requirements (MANDATORY)
-
-You MUST implement complete auth UI:
-
-1. **LoginPage.jsx** with:
-   - Toggle between Login/Register forms
-   - Form validation (username, email, password)
-   - Call auth API, store token in localStorage
-   - Redirect to UserPage on success
-   - Show error toasts on failure
-
-2. **useAuth.jsx** hook with:
-   - AuthContext with user, token, login(), logout(), register()
-   - Auto-login from stored token on app load
-   - Protect routes (redirect to login if not authenticated)
-
-3. **services/auth.js** with:
-   - login(username, password), register(username, email, password)
-   - getToken(), setToken(), clearToken()
-   - getCurrentUser()
+- Generate ONE App.jsx file with ALL code (~600-900 lines)
+- HomePage serves both public and logged-in users via conditional rendering
+- Public users: read-only view of ALL content with "Sign in" CTAs
+- Logged-in users: same content + create/edit/delete + additional features
+- Use pattern: `{isAuthenticated ? <EditButton /> : <SignInCTA />}`
 
 ## User Requirements
 {% for req in frontend_requirements %}
@@ -44,9 +26,12 @@ You MUST implement complete auth UI:
 {% endfor %}
 
 ## Access Policy (MANDATORY)
-- Include a **public guest view** (no auth) for the core feature
-- Gate create/update/delete and personal data behind auth
-- Provide clear CTA to sign in for full functionality
+- HomePage displays **ALL content in read-only mode** for public users (no auth required)
+- Public users fetch data from the SAME endpoints as logged-in users
+- Conditional rendering based on `isAuthenticated`:
+  - Public: Show items with "Sign in to manage" CTAs instead of action buttons
+  - Logged-in: Show items with create/edit/delete buttons + forms
+- Same layout, same data, different interactive elements
 
 {% if api_endpoints %}
 ## Backend API Available
@@ -55,112 +40,364 @@ You MUST implement complete auth UI:
 
 ## Stack & Constraints
 - React 18 + Tailwind CSS
-- Use Axios via the existing `services/api.js` (baseURL is `/api` by default; it honors `VITE_BACKEND_URL` when set)
-- Use `react-hot-toast` for user feedback (`toast.success`, `toast.error`)
-- Do NOT create/modify `App.jsx` (scaffolding owns routing/navigation)
+- Axios for API calls (baseURL: `/api` or `VITE_BACKEND_URL/api`)
+- react-hot-toast for notifications
+- react-router-dom for routing (DO NOT wrap in BrowserRouter - main.jsx provides it)
+- All code in ONE App.jsx file
 
-## Dependencies (REQUIRED if using any external packages)
-You MUST list ALL npm packages you import that are not in the default scaffolding.
+## CRITICAL: SINGLE FILE OUTPUT
 
-**Already available (do NOT list these):**
-- react, react-dom, react-router-dom, axios
-- @heroicons/react (use v2 paths: `@heroicons/react/24/solid`)
-- react-hot-toast, react-copy-to-clipboard
-- date-fns, clsx, uuid
-- tailwindcss, postcss, autoprefixer, vite, @vitejs/plugin-react
+**YOU MUST generate ONE complete App.jsx file containing ALL code.**
 
-**If you use ANY package not in the above list, you MUST include a package.json block.**
-Example: If you use `recharts`, `zustand`, `formik`, `yup`, etc. → include them.
+DO NOT split into multiple files. DO NOT generate separate pages/, services/, or hooks/ files.
+Everything goes in ONE App.jsx file.
 
-The code merger will merge your dependencies into the scaffolding's package.json.
+## File Structure (Internal to App.jsx)
 
-## Implementation Process (DO INTERNALLY)
-1. Translate requirements into page sections, state, and user flows.
-2. Map API endpoints → functions in `services/api.js` (use the axios instance).
-3. Implement `pages/UserPage.jsx`:
-	- Loading, error, empty states
-	- Forms with client-side validation
-	- Toasts for create/update/delete actions
-4. If you repeat data-fetch logic, extract it to `hooks/useData.js`.
-5. Sanity-check: no placeholder UI, no missing imports, no dead endpoints.
+The code MUST be organized in this order:
 
-## Common Mistakes to Avoid
-- ❌ Calling `/api/api/...` → ✅ call `api.get('/...')` (baseURL already `/api`)
-- ❌ Silent failures → ✅ always show a toast and a visible error state
-- ❌ Forgetting empty states → ✅ show friendly “no items yet” UI
+```jsx
+// 1. All imports
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+// ... other imports
 
-## File Structure (DO NOT CREATE App.jsx)
-The scaffolding already has these files ready for you to fill:
-- `pages/UserPage.jsx` - Main user interface
-- `services/api.js` - API call functions
-- `hooks/useData.js` - Custom React hooks
+// 2. API Client Setup
+const baseURL = import.meta.env.VITE_BACKEND_URL
+  ? `${import.meta.env.VITE_BACKEND_URL.replace(/\/$/, '')}/api`
+  : '/api';
 
-Pre-built components available: `Spinner`, `ErrorBoundary` from `../components`
+const api = axios.create({ baseURL, headers: { 'Content-Type': 'application/json' } });
 
-## Reference
-{{ scaffolding_frontend_context }}
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
-## Output Format
-Generate code in these markdown blocks with EXACT filenames:
+// 3. AuthContext and AuthProvider
+const AuthContext = createContext(null);
 
-**Login Page (required):**
-```jsx:pages/LoginPage.jsx
-// Login/Register form with toggle, validation, and auth API calls
+function AuthProvider({ children }) {
+  // Auth state and methods
+  // ...
+}
+
+const useAuth = () => useContext(AuthContext);
+
+// 4. Utility Components
+function LoadingSpinner() { /* ... */ }
+function ProtectedRoute({ children, adminOnly }) { /* ... */ }
+
+// 5. Navigation
+function Navigation() { /* Links: Home, Admin (if admin), Login/Logout */ }
+
+// 6. Page Components
+function HomePage() {
+  /* Main app page with conditional rendering:
+     - Fetch ALL data (public endpoint, no auth)
+     - Show read-only view for public users
+     - Show same data + create/edit/delete for logged-in users
+     - Use {isAuthenticated ? <actions> : <CTAs>}
+  */
+}
+
+function LoginPage() { /* Login form, redirects to / */ }
+function RegisterPage() { /* Register form, redirects to / */ }
+
+// 7. Main App Component (NO BrowserRouter - main.jsx provides it)
+function App() {
+  return (
+    <AuthProvider>
+      <div className="min-h-screen bg-gray-50">
+        <Navigation />
+        <main className="container mx-auto px-4 py-8">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+          </Routes>
+        </main>
+      </div>
+    </AuthProvider>
+  );
+}
+
+export default App;
 ```
 
-**Auth Hook (required):**
-```jsx:hooks/useAuth.jsx
-// AuthContext, AuthProvider with login/logout/register, token management
-```
+## Authentication Requirements (MANDATORY)
 
-**Auth Service (required):**
-```jsx:services/auth.js
-// login(), register(), getToken(), setToken(), clearToken(), getCurrentUser()
-```
+Implement complete JWT authentication:
 
-**User Page (required):**
-```jsx:pages/UserPage.jsx
-// Main user interface component
-```
+1. **AuthContext** with:
+   - State: `user`, `loading`
+   - Methods: `login(username, password)`, `register(data)`, `logout()`
+   - Auto-restore session from localStorage token on mount
+   - Provide `isAuthenticated` (!!user) and `isAdmin` (user?.is_admin)
 
-**API Service (required):**
-```jsx:services/api.js
-// API call functions for user features (include auth header interceptor)
-```
+2. **LoginPage** with:
+   - Username and password fields
+   - Form validation
+   - Error handling with toasts
+   - Redirect to `/` on success
+   - Link to register page
 
-**Dependencies (optional):**
-```json:package.json
-{
-   "dependencies": {
-      "some-lib": "^1.2.3"
-   },
-   "devDependencies": {
-      "some-dev-lib": "^4.5.6"
-   }
+3. **RegisterPage** with:
+   - Username, email, password, confirm password fields
+   - Client-side validation (passwords match)
+   - Error handling with toasts
+   - Redirect to `/` on success
+   - Link to login page
+
+## HomePage Pattern (CRITICAL)
+
+The HomePage MUST implement conditional rendering:
+
+```jsx
+function HomePage() {
+  const { isAuthenticated, user } = useAuth();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch data - works for EVERYONE (public endpoint)
+  useEffect(() => {
+    api.get('/items')
+      .then(res => setItems(res.data.items || res.data))
+      .catch(err => toast.error('Failed to load'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // CRUD handlers - only for authenticated users
+  const handleCreate = async (data) => {
+    if (!isAuthenticated) {
+      toast.error('Please sign in');
+      return;
+    }
+    // ... create logic
+  };
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <div>
+      <h1>{isAuthenticated ? `Welcome, ${user?.username}!` : 'Welcome!'}</h1>
+
+      {/* Public CTA banner */}
+      {!isAuthenticated && (
+        <div className="bg-indigo-50 p-4 mb-4 rounded">
+          <Link to="/login">Sign in</Link> to create and manage items.
+        </div>
+      )}
+
+      {/* Conditional create button */}
+      {isAuthenticated ? (
+        <button onClick={() => setShowForm(true)}>Create New</button>
+      ) : (
+        <Link to="/login">Sign In to Create</Link>
+      )}
+
+      {/* Data display - SAME for everyone */}
+      {items.map(item => (
+        <div key={item.id}>
+          <h3>{item.title}</h3>
+          {/* Conditional actions */}
+          {isAuthenticated && (
+            <>
+              <button onClick={() => handleEdit(item)}>Edit</button>
+              <button onClick={() => handleDelete(item.id)}>Delete</button>
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 ```
 
-**Custom Hooks (if needed):**
-```jsx:hooks/useData.js
-// Custom hooks for data fetching, forms
+## Available Packages (DO NOT ADD OTHERS)
+
+react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, date-fns, clsx, uuid
+
+**If you need additional packages**, include a package.json block.
+
+## Output Format
+
+Generate EXACTLY ONE code block:
+
+```jsx:App.jsx
+// Complete React application - ALL code in this single file
+// Approximately 600-900 lines of production-ready code
+
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+// ... more imports if needed
+
+// API CLIENT
+const baseURL = import.meta.env.VITE_BACKEND_URL
+  ? `${import.meta.env.VITE_BACKEND_URL.replace(/\/$/, '')}/api`
+  : '/api';
+
+const api = axios.create({ baseURL, headers: { 'Content-Type': 'application/json' } });
+
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+// AUTH CONTEXT
+const AuthContext = createContext(null);
+
+function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      api.get('/auth/me')
+        .then(res => setUser(res.data))
+        .catch(() => localStorage.removeItem('token'))
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  const login = async (username, password) => {
+    const res = await api.post('/auth/login', { username, password });
+    localStorage.setItem('token', res.data.token);
+    setUser(res.data.user);
+    return res.data;
+  };
+
+  const register = async (data) => {
+    const res = await api.post('/auth/register', data);
+    localStorage.setItem('token', res.data.token);
+    setUser(res.data.user);
+    return res.data;
+  };
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, loading, login, register, logout, isAuthenticated: !!user }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+const useAuth = () => useContext(AuthContext);
+
+// COMPONENTS
+function LoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center min-h-[200px]">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+    </div>
+  );
+}
+
+function Navigation() {
+  const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  return (
+    <nav className="bg-white shadow-sm border-b">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
+          <Link to="/" className="text-xl font-bold text-indigo-600">App</Link>
+          <div className="flex items-center gap-4">
+            {isAuthenticated ? (
+              <>
+                <span className="text-gray-600">{user?.username}</span>
+                <button onClick={handleLogout} className="text-gray-600 hover:text-gray-900">Logout</button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="text-gray-600 hover:text-gray-900">Login</Link>
+                <Link to="/register" className="text-indigo-600 hover:text-indigo-800">Register</Link>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+// PAGES
+function HomePage() {
+  // IMPLEMENT: Main page with conditional rendering
+  // Fetch ALL data (public endpoint)
+  // Show read-only + CTAs for public
+  // Show full CRUD for logged-in
+}
+
+function LoginPage() {
+  // IMPLEMENT: Login form, redirect to /
+}
+
+function RegisterPage() {
+  // IMPLEMENT: Register form, redirect to /
+}
+
+// MAIN APP
+function App() {
+  return (
+    <AuthProvider>
+      <div className="min-h-screen bg-gray-50">
+        <Navigation />
+        <main className="container mx-auto px-4 py-8">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+          </Routes>
+        </main>
+      </div>
+    </AuthProvider>
+  );
+}
+
+export default App;
 ```
 
-**Additional Components (if needed):**
-```jsx:components/ItemList.jsx
-// Reusable UI component
-```
+## CRITICAL RULES
 
-Generate COMPLETE, WORKING code with:
-- Loading states (use `<Spinner />`)
-- Error handling (try/catch, error messages)
-- Toast notifications for actions (use `toast.success()`, `toast.error()`)
-- Tailwind CSS for styling
+1. Generate ONE App.jsx file only - NO multiple files
+2. NO placeholders, NO TODOs, NO "..." ellipsis, NO "// IMPLEMENT" comments
+3. NO "Would you like me to continue?" - generate EVERYTHING
+4. Every component MUST be fully implemented with real functionality
+5. All CRUD operations must work
+6. All forms must have validation
+7. All API calls must have error handling
+8. All user actions must show toast notifications
+9. Loading states everywhere data is fetched
+10. Empty states when no data exists
 
 ## Success Criteria
-- ✅ All UI requirements implemented
-- ✅ API calls match backend response shapes
-- ✅ Great UX: loading/errors/toasts/empty states
-- ✅ No placeholders/TODOs/truncated code
 
-Do not include explanations—only the requested code blocks.
+- ✅ ONE complete App.jsx file (600-900 lines)
+- ✅ All requirements implemented
+- ✅ HomePage works for both public and logged-in users
+- ✅ Conditional rendering everywhere needed
+- ✅ Complete auth system (login/register/logout)
+- ✅ Loading/error/empty states throughout
+- ✅ Toast notifications for all actions
+- ✅ No placeholders or incomplete code
 
+Generate the complete App.jsx file now. Do not include explanations.

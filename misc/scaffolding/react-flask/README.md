@@ -24,7 +24,7 @@ react-flask/
     ├── SCAFFOLDING_CONTEXT.md  # Quick reference for common patterns
     └── src/
         ├── main.jsx        # React entry
-        ├── App.jsx         # Main component → model implements
+        ├── App.jsx         # COMPLETE application (all code in one file)
         ├── App.css         # Tailwind imports
         └── components/     # Utilities: Spinner, ErrorBoundary
 ```
@@ -36,9 +36,9 @@ react-flask/
 - Tailwind CSS, Axios, react-hot-toast, heroicons pre-configured
 
 ## What Model Generates
-- Database models and API routes (in `app.py` or separate files)
-- React UI (in `App.jsx` or additional components)
-- All business logic per requirements
+- Backend: ONE complete `app.py` file with all models, routes, and business logic
+- Frontend: ONE complete `App.jsx` file with all components, auth, routing, and pages
+- App.jsx contains HomePage serving both public (read-only) and logged-in (full CRUD) users via conditional rendering
 
 ## Ports
 - `BACKEND_PORT`: Flask API (default 5000)

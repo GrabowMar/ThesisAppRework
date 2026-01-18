@@ -12,7 +12,8 @@ Implement the **USER-FACING** backend functionality:
 
 ## TL;DR
 - Implement only the core endpoints from requirements
-- Public = read-only endpoints, Auth = create/update/delete
+- Public read endpoints return ALL data (no auth, no filtering)
+- Create/update/delete endpoints require authentication
 - Admin endpoints are separate and require admin auth
 
 ## Requirements
@@ -22,8 +23,10 @@ Implement the **USER-FACING** backend functionality:
 {% endfor %}
 
 ## Access Policy (MANDATORY)
-- Provide **public read-only/basic endpoints** (no auth) for core functionality
-- Create/update/delete and user-specific data must require auth
+- Provide **public read-only endpoints** that return ALL data (no authentication required)
+- Public endpoints serve the SAME dataset to both anonymous and logged-in users
+- Create/update/delete endpoints MUST require authentication via @token_required
+- User-specific data (if any) should be in separate authenticated endpoints
 
 ## Authentication Requirements (MANDATORY)
 
@@ -81,7 +84,8 @@ The code merger will append your requirements to the scaffolding's requirements.
 - ❌ `@user_bp.route('/api/...')` → ✅ `@user_bp.route('/...')` (prefix already applied)
 - ❌ Missing `db.session.rollback()` → ✅ rollback in exception paths
 - ❌ Returning inactive items → ✅ filter `is_active=True` for user-facing lists
-- ✅ Public read-only endpoints must not require auth
+- ❌ Requiring auth for GET/list endpoints → ✅ Public read endpoints must work without auth
+- ❌ Filtering data by user for public endpoints → ✅ Return ALL data for public reads
 
 ## Code Examples
 
@@ -104,11 +108,13 @@ class Item(db.Model):
         }
 ```
 
-### Example Route
+### Example Routes
 
+**Public Read Endpoint (no auth required):**
 ```python
 @user_bp.route('/items', methods=['GET'])
 def get_items():
+    """Public endpoint - returns ALL items for both anonymous and logged-in users"""
     try:
         items = Item.query.filter_by(is_active=True).all()
         return jsonify({
@@ -116,6 +122,23 @@ def get_items():
             'total': len(items)
         }), 200
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+```
+
+**Authenticated Write Endpoint:**
+```python
+@user_bp.route('/items', methods=['POST'])
+@token_required
+def create_item(current_user):
+    """Authenticated endpoint - requires login"""
+    try:
+        data = request.get_json()
+        item = Item(name=data['name'], user_id=current_user.id)
+        db.session.add(item)
+        db.session.commit()
+        return jsonify(item.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 ```
 

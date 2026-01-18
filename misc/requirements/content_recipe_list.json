@@ -12,12 +12,14 @@
     "5. JSON responses with proper status codes (200, 201, 404)"
   ],
   "frontend_requirements": [
-    "Public guest view of recipes with CTA to sign in for management",
-    "1. Recipe list showing title and category",
-    "2. Click recipe to view full details (ingredients and instructions)",
-    "3. Add recipe form with title, ingredients, instructions, category",
-    "4. Delete button with confirmation",
-    "5. Filter by category dropdown"
+    "HomePage displays ALL content in read-only mode for public users",
+    "Public users see \"Sign in to add recipes\" CTAs instead of action buttons",
+    "Logged-in users see same content plus create/edit/delete functionality",
+    "1. Recipe list showing title and category (visible to all)",
+    "2. Click recipe to view full details (ingredients and instructions) (visible to all)",
+    "3. Add recipe form with title, ingredients, instructions, category (logged-in only)",
+    "4. Delete button with confirmation (logged-in only)",
+    "5. Filter by category dropdown (visible to all)"
   ],
   "api_endpoints": [
     {

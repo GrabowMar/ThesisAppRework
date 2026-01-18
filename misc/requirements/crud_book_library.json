@@ -12,12 +12,14 @@
     "Access control: allow public read-only book listings; require auth for create/update/delete"
   ],
   "frontend_requirements": [
-    "1. Book list table with columns: title, author, year",
-    "2. Add book form with title, author, year, isbn fields",
-    "3. Edit button opens form with pre-filled data",
-    "4. Delete button with confirmation dialog",
-    "5. Simple search box to filter books",
-    "Public guest view of books with CTA to sign in for personal library"
+    "HomePage displays ALL books in read-only mode for public users",
+    "Public users see 'Sign in to add books' CTAs instead of action buttons",
+    "Logged-in users see same content plus create/edit/delete functionality",
+    "1. Book list table with columns: title, author, year (visible to all)",
+    "2. Add book form (logged-in only)",
+    "3. Edit button (logged-in only)",
+    "4. Delete button with confirmation (logged-in only)",
+    "5. Simple search box to filter books (visible to all)"
   ],
   "api_endpoints": [
     {

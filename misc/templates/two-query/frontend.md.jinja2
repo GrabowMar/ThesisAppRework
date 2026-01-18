@@ -15,14 +15,17 @@
 {% endfor %}
 
 ## TL;DR
-- Public read-only view
-- Auth for create/update/delete
-- Admin: list + toggle
+- ONE page serves both public (read-only) and logged-in (full CRUD) users
+- Use conditional rendering: `{isAuthenticated ? <EditButton /> : <SignInCTA />}`
+- Public users see ALL content in read-only mode
+- Admin: separate route with list + toggle functionality
 
 ## Access Policy (MANDATORY)
-- Provide a public guest view (no auth) for core functionality
-- Gate create/update/delete and personal data behind auth
-- Admin views remain admin-only
+- HomePage (/) displays ALL content in read-only mode for public users (no auth required)
+- Same content, same data for both public and logged-in users
+- Logged-in users see additional UI: create/edit/delete buttons + additional features
+- Use conditional rendering to show "Sign in to [action]" CTAs for public users
+- Admin views remain admin-only at /admin route
 
 ## Backend API (Generated)
 
@@ -51,7 +54,7 @@ The file structure MUST be:
 3. All API functions (getTodos, createTodo, etc.)
 4. AuthContext and AuthProvider
 5. useAuth hook
-6. ALL Page components (HomePage, LoginPage, RegisterPage, UserPage, AdminPage)
+6. ALL Page components (HomePage, LoginPage, RegisterPage, AdminPage)
 7. Navigation component
 8. ProtectedRoute component
 9. Main App component with Routes (NO BrowserRouter - main.jsx provides it)
@@ -71,17 +74,20 @@ The file structure MUST be:
 
 ### Pages - MUST include:
 
-**HomePage (/)** - Public page:
-- Welcome message and app description
-- If not logged in: Show guest content with "Login to get started" call-to-action
-- If logged in: Show user summary panel with stats (e.g., "You have X items")
+**HomePage (/)** - Main application page (public + logged-in):
+- Fetch and display ALL data from public read endpoint (works without auth)
+- Conditional rendering based on isAuthenticated:
+  - Public users: Show all content in read-only mode + "Sign in to create/edit" CTAs
+  - Logged-in users: Same content + create/edit/delete buttons + additional features
+- Loading, error, and empty states for all users
+- Forms and actions only visible/functional when authenticated
 
 **LoginPage (/login)**:
 - Form with username and password inputs
 - Submit button with loading state
 - Link to register page
 - Error display for failed login
-- Redirect to /user on success
+- Redirect to / on success
 
 **RegisterPage (/register)**:
 - Form with username, email, password, confirm password inputs
@@ -89,17 +95,7 @@ The file structure MUST be:
 - Submit button with loading state
 - Link to login page
 - Error display for failed registration
-- Redirect to /user on success
-
-**UserPage (/user)** - Protected:
-- Full CRUD interface for the app's main entity
-- List view with items displayed nicely
-- Create form (inline or modal)
-- Edit functionality
-- Delete with confirmation
-- Loading states
-- Empty state when no items
-- Error handling with toast notifications
+- Redirect to / on success
 
 **AdminPage (/admin)** - Protected, admin only:
 - Dashboard stats cards at top (total, active, inactive counts)
@@ -193,17 +189,19 @@ const useAuth = () => useContext(AuthContext);
 ```
 {% endraw %}
 
-### Component with Data Fetching
+### HomePage Pattern (Public + Logged-in)
 ```jsx
-function UserPage() {
+function HomePage() {
+  const { isAuthenticated, user } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Fetch data - works for both public and logged-in users
   const fetchItems = async () => {
     try {
       setLoading(true);
-      const res = await itemsAPI.list();
+      const res = await itemsAPI.list(); // Public endpoint, no auth required
       setItems(res.data.items || res.data);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load items');
@@ -216,6 +214,49 @@ function UserPage() {
   useEffect(() => {
     fetchItems();
   }, []);
+
+  // CRUD operations - only for authenticated users
+  const handleCreate = async (data) => {
+    if (!isAuthenticated) {
+      toast.error('Please sign in to create items');
+      return;
+    }
+    // ... implementation
+  };
+
+  return (
+    <div>
+      <h1>{isAuthenticated ? `Welcome, ${user?.username}!` : 'Welcome!'}</h1>
+
+      {/* Public CTA for guests */}
+      {!isAuthenticated && (
+        <div className="bg-blue-50 p-4 mb-4 rounded">
+          <Link to="/login">Sign in</Link> to create and manage items.
+        </div>
+      )}
+
+      {/* Conditional create button */}
+      {isAuthenticated ? (
+        <button onClick={() => setShowForm(true)}>Create New Item</button>
+      ) : (
+        <Link to="/login">Sign In to Create</Link>
+      )}
+
+      {/* Data display - same for everyone */}
+      {items.map(item => (
+        <div key={item.id}>
+          <h3>{item.title}</h3>
+          {/* Conditional edit/delete buttons */}
+          {isAuthenticated && (
+            <>
+              <button onClick={() => handleEdit(item)}>Edit</button>
+              <button onClick={() => handleDelete(item.id)}>Delete</button>
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 
   if (loading) return <LoadingSpinner />;
   if (error) return <div className="text-red-500">{error}</div>;
@@ -256,7 +297,7 @@ import clsx from 'clsx';
 // ... LoadingSpinner, ProtectedRoute, Navigation ...
 
 // Pages
-// ... HomePage, LoginPage, RegisterPage, UserPage, AdminPage ...
+// ... HomePage, LoginPage, RegisterPage, AdminPage ...
 
 // Main App
 function App() {
@@ -269,7 +310,6 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route path="/user" element={<ProtectedRoute><UserPage /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
           </Routes>
         </main>

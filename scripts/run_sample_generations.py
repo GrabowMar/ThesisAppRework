@@ -33,7 +33,6 @@ def main() -> int:
                 model_slug=MODEL_SLUG,
                 template_slug=template_slug,
                 app_num=None,
-                mode="guarded",
             ).to_dict()
         results.append(result)
         status = "success" if result.get("success") else "failed"

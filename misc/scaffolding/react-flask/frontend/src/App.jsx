@@ -118,9 +118,6 @@ function Navigation() {
             <Link to="/" className="text-xl font-bold text-indigo-600">App</Link>
             <div className="flex gap-4">
               <Link to="/" className="text-gray-600 hover:text-gray-900">Home</Link>
-              {isAuthenticated && (
-                <Link to="/user" className="text-gray-600 hover:text-gray-900">Dashboard</Link>
-              )}
               {user?.is_admin && (
                 <Link to="/admin" className="text-gray-600 hover:text-gray-900">Admin</Link>
               )}
@@ -151,22 +148,85 @@ function Navigation() {
 
 function HomePage() {
   const { user, isAuthenticated } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // LLM: Add state for your data
+  // const [items, setItems] = useState([]);
+
+  // LLM: Implement data fetching (PUBLIC - no auth required)
+  // useEffect(() => {
+  //   const fetchData = async () => {
+  //     setLoading(true);
+  //     try {
+  //       const response = await api.get('/items'); // Public endpoint
+  //       setItems(response.data);
+  //     } catch (err) {
+  //       setError(err.response?.data?.error || 'Failed to load data');
+  //       toast.error('Failed to load data');
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   };
+  //   fetchData();
+  // }, []);
+
+  // LLM: Implement CRUD handlers (AUTH REQUIRED)
+  // const handleCreate = async (data) => {
+  //   if (!isAuthenticated) {
+  //     toast.error('Please sign in to create items');
+  //     return;
+  //   }
+  //   // ... implementation
+  // };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-4">Welcome</h1>
-      {!isAuthenticated ? (
-        <div className="bg-white rounded-lg shadow p-6">
-          <p className="text-gray-600 mb-4">Browse the public view. Sign in for create/edit features.</p>
-          <Link to="/login" className="text-indigo-600 hover:text-indigo-800">
-            Login to get started →
-          </Link>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow p-6">
-          <p className="text-gray-600">Welcome back, {user?.username}!</p>
+    <div className="container mx-auto p-4">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">
+          {isAuthenticated ? `Welcome, ${user?.username}!` : 'Welcome!'}
+        </h1>
+        {/* LLM: CONDITIONAL RENDERING - Show create button only when authenticated */}
+      </div>
+
+      {/* Public CTA Banner - Show only to guests */}
+      {!isAuthenticated && (
+        <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+          <p className="text-indigo-900 mb-2">
+            You're viewing in read-only mode.
+            <Link to="/login" className="ml-2 font-semibold text-indigo-600 hover:text-indigo-800">
+              Sign in
+            </Link>
+            {' '}or{' '}
+            <Link to="/register" className="font-semibold text-indigo-600 hover:text-indigo-800">
+              create an account
+            </Link>
+            {' '}to unlock full functionality.
+          </p>
         </div>
       )}
+
+      {loading && (
+        <div className="flex justify-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        </div>
+      )}
+
+      {error && (
+        <div className="p-4 bg-red-100 text-red-700 rounded mb-4">
+          {error}
+        </div>
+      )}
+
+      {/* LLM: IMPLEMENT YOUR MAIN INTERFACE BELOW */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <p className="text-gray-500">
+          Implement your main interface here based on the requirements.
+        </p>
+        <p className="text-sm text-gray-400 mt-2">
+          Remember: Same page for both public and logged-in users, with conditional rendering.
+        </p>
+      </div>
     </div>
   );
 }
@@ -184,7 +244,7 @@ function LoginPage() {
     try {
       await login(username, password);
       toast.success('Login successful');
-      navigate('/user');
+      navigate('/');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Login failed');
     } finally {
@@ -249,7 +309,7 @@ function RegisterPage() {
     try {
       await register({ username: formData.username, email: formData.email, password: formData.password });
       toast.success('Registration successful');
-      navigate('/user');
+      navigate('/');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Registration failed');
     } finally {
@@ -318,22 +378,6 @@ function RegisterPage() {
   );
 }
 
-function UserPage() {
-  const { user } = useAuth();
-
-  return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">User Dashboard</h1>
-      <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-600">Welcome, {user?.username}!</p>
-        <p className="text-sm text-gray-500 mt-2">
-          This page will display the main application functionality.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function AdminPage() {
   const { user } = useAuth();
 
@@ -364,7 +408,6 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route path="/user" element={<ProtectedRoute><UserPage /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
           </Routes>
         </main>

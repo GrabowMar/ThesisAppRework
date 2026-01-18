@@ -12,12 +12,14 @@
     "5. Auto-update updated_at timestamp on every edit"
   ],
   "frontend_requirements": [
-    "Public guest view of posts with CTA to sign in for posting",
-    "1. Post list showing title, excerpt (first 200 chars), date, author",
-    "2. Click post title to view full content",
-    "3. Create/edit post form with title and content textarea",
-    "4. Delete button with confirmation",
-    "5. Pagination controls at bottom"
+    "HomePage displays ALL posts in read-only mode for public users",
+    "Public users see 'Sign in to write posts' CTAs instead of action buttons",
+    "Logged-in users see same content plus create/edit/delete functionality",
+    "1. Post list showing title, excerpt, date, author (visible to all)",
+    "2. Click post title to view full content (visible to all)",
+    "3. Create/edit post form (logged-in only)",
+    "4. Delete button with confirmation (logged-in only)",
+    "5. Pagination controls (visible to all)"
   ],
   "api_endpoints": [
     {

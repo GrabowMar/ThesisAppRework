@@ -12,12 +12,14 @@
     "5. DELETE /api/items/:id - delete item"
   ],
   "frontend_requirements": [
-    "Public guest view of inventory with CTA to sign in for management",
-    "1. Inventory table: name, sku, quantity, location",
-    "2. Add item form",
-    "3. Edit item dialog",
-    "4. Delete item button",
-    "5. Low-stock highlight"
+    "HomePage displays ALL content in read-only mode for public users",
+    "Public users see \"Sign in to manage inventory\" CTAs instead of action buttons",
+    "Logged-in users see same content plus create/edit/delete functionality",
+    "1. Inventory table: name, sku, quantity, location (visible to all)",
+    "2. Add item form (logged-in only)",
+    "3. Edit item dialog (logged-in only)",
+    "4. Delete item button (logged-in only)",
+    "5. Low-stock highlight (visible to all)"
   ],
   "api_endpoints": [
     {

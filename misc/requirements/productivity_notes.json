@@ -12,12 +12,14 @@
     "5. DELETE /api/notes/:id - delete note"
   ],
   "frontend_requirements": [
-    "Public guest notes view with CTA to sign in for management",
-    "1. Notes list with title and tags",
-    "2. Note editor with title and content",
-    "3. Tag filter chips",
-    "4. Edit and delete actions",
-    "5. Empty state messaging"
+    "HomePage displays ALL content in read-only mode for public users",
+    "Public users see \"Sign in to create notes\" CTAs instead of action buttons",
+    "Logged-in users see same content plus create/edit/delete functionality",
+    "1. Notes list with title and tags (visible to all)",
+    "2. Note editor with title and content (logged-in only)",
+    "3. Tag filter chips (visible to all)",
+    "4. Edit and delete actions (logged-in only)",
+    "5. Empty state messaging (visible to all)"
   ],
   "api_endpoints": [
     {

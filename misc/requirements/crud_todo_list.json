@@ -12,12 +12,14 @@
     "5. DELETE /api/todos/:id - delete todo"
   ],
   "frontend_requirements": [
-    "Public guest view of todos with CTA to sign in for management",
-    "1. Todo list with title, priority, and status",
-    "2. Add todo form with validation",
-    "3. Toggle completed checkbox",
-    "4. Edit and delete buttons per todo",
-    "5. Filters for All / Active / Completed"
+    "HomePage displays ALL todos in read-only mode for public users",
+    "Public users see 'Sign in to manage' CTAs instead of action buttons",
+    "Logged-in users see same content plus create/edit/delete functionality",
+    "1. Todo list with title, priority, and status (visible to all)",
+    "2. Add todo form (logged-in only)",
+    "3. Toggle completed checkbox (logged-in only)",
+    "4. Edit and delete buttons per todo (logged-in only)",
+    "5. Filters for All / Active / Completed (visible to all)"
   ],
   "api_endpoints": [
     {

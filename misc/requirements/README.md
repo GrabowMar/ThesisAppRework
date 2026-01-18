@@ -6,9 +6,17 @@ This directory contains 30 **simple, single-feature application templates** for 
 
 Templates are intentionally minimal:
 - **Backend**: ~4-5 requirements (model + endpoints + validation + behavior)
+  - Include access control: "allow public read-only; require auth for create/update/delete"
 - **Frontend**: ~4-5 requirements (display + interaction + basic UX + states)
+  - Specify conditional rendering: "Public guest view with CTA to sign in for management"
 - **Admin**: optional but recommended for guarded 4-query (list-all, toggle, bulk ops, stats)
 - **Single Purpose**: Each app does ONE thing well
+
+### Public + Logged-in Pattern
+All apps follow this pattern:
+- **Public users**: Read-only view of ALL content, with "Sign in" CTAs
+- **Logged-in users**: Same content + create/edit/delete functionality + additional features
+- **Implementation**: HomePage uses conditional rendering based on `isAuthenticated`
 
 Examples:
 - **Todo List**: Add, complete, delete tasks

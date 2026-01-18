@@ -123,6 +123,9 @@ class DependencyHealer:
         'requests': 'requests==2.31.0',
         'httpx': 'httpx==0.26.0',
         'aiohttp': 'aiohttp==3.9.1',
+
+        # Validation
+        'validators': 'validators==0.22.0',
         
         # Data processing
         'pandas': 'pandas==2.1.4',

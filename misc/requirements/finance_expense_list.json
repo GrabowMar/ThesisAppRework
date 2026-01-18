@@ -12,12 +12,14 @@
     "5. GET /api/expenses/total - return sum of expenses"
   ],
   "frontend_requirements": [
-    "Public guest view of expense summaries with CTA to sign in for personal expenses",
-    "1. Expense list showing date, amount, category, description",
-    "2. Total amount card",
-    "3. Add expense form with validation",
-    "4. Delete button per expense",
-    "5. Filter by category"
+    "HomePage displays ALL content in read-only mode for public users",
+    "Public users see \"Sign in to track expenses\" CTAs instead of action buttons",
+    "Logged-in users see same content plus create/edit/delete functionality",
+    "1. Expense list showing date, amount, category, description (visible to all)",
+    "2. Total amount card (visible to all)",
+    "3. Add expense form with validation (logged-in only)",
+    "4. Delete button per expense (logged-in only)",
+    "5. Filter by category (visible to all)"
   ],
   "api_endpoints": [
     {

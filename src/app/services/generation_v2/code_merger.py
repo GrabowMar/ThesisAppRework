@@ -5,11 +5,14 @@ Merges generated code into the scaffolded app structure.
 Simple file writing based on annotated code blocks.
 """
 
+import ast
 import json
 import logging
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
+
+from app.services.dependency_healer import DependencyHealer
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,9 @@ class CodeMerger:
         self.app_dir = app_dir
         self.backend_dir = app_dir / 'backend'
         self.frontend_dir = app_dir / 'frontend'
+        self._stdlib_modules = DependencyHealer.PYTHON_STDLIB
+        self._local_prefixes = DependencyHealer.LOCAL_PREFIXES
+        self._package_version_map = DependencyHealer.KNOWN_PYTHON_PACKAGES
     
     def merge(self, code: Dict[str, str]) -> Dict[str, Path]:
         """Merge generated code into app directory.
@@ -136,6 +142,11 @@ class CodeMerger:
         written['backend_app'] = target_path
         logger.info(f"✓ Wrote backend/app.py ({len(code)} chars)")
 
+        # Infer and update missing dependencies in requirements.txt
+        inferred_packages = self._infer_backend_dependencies(code)
+        if inferred_packages:
+            self._update_backend_requirements(inferred_packages)
+
         return written
 
     def _merge_python_files(self, blocks: List[Dict[str, str]]) -> str:
@@ -225,6 +236,66 @@ class CodeMerger:
             parts.extend(main_code)
 
         return '\n'.join(parts)
+
+    def _infer_backend_dependencies(self, code: str) -> Set[str]:
+        """Infer third-party packages from generated backend code."""
+        modules: Set[str] = set()
+        try:
+            tree = ast.parse(code or '')
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        modules.add((alias.name or '').split('.')[0])
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        modules.add(node.module.split('.')[0])
+        except SyntaxError:
+            logger.debug("AST parsing failed for dependency inference; falling back to regex")
+            for match in re.finditer(r"^\s*(?:from\s+([\w\.]+)\s+import|import\s+([\w\.]+))", code or '', re.MULTILINE):
+                module = match.group(1) or match.group(2) or ''
+                if module:
+                    modules.add(module.split('.')[0])
+
+        packages: Set[str] = set()
+        for module in modules:
+            normalized = (module or '').lower()
+            if not normalized or normalized in self._stdlib_modules or normalized in self._local_prefixes:
+                continue
+            packages.add(self._package_version_map.get(normalized, module.replace('_', '-')))
+
+        return packages
+
+    def _update_backend_requirements(self, packages: Set[str]) -> None:
+        """Append inferred packages to backend/requirements.txt if missing."""
+        if not packages:
+            return
+
+        requirements_path = self.backend_dir / 'requirements.txt'
+        if not requirements_path.exists():
+            logger.warning("Backend requirements.txt missing at %s", requirements_path)
+            return
+
+        try:
+            original_content = requirements_path.read_text(encoding='utf-8')
+            existing_packages = {
+                re.split(r'[<>=]', line, 1)[0].strip().lower()
+                for line in original_content.splitlines()
+                if line.strip() and not line.strip().startswith('#')
+            }
+
+            new_entries = [
+                pkg for pkg in sorted(packages)
+                if re.split(r'[<>=]', pkg, 1)[0].strip().lower() not in existing_packages
+            ]
+
+            if new_entries:
+                with requirements_path.open('a', encoding='utf-8') as f:
+                    if not original_content.endswith('\n'):
+                        f.write('\n')
+                    f.write('\n'.join(new_entries) + '\n')
+                logger.info("Added %d dependencies to backend requirements: %s", len(new_entries), ', '.join(new_entries))
+        except OSError as exc:
+            logger.warning("Failed to update backend requirements: %s", exc)
     
     def _process_frontend(self, raw_content: str) -> Dict[str, Path]:
         """Process frontend code blocks - merges ALL JSX code into App.jsx.

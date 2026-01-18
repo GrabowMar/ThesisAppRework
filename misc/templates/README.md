@@ -23,11 +23,20 @@ templates/
 ## Template Types
 
 ### four-query (recommended)
-A four-step, scaffolding-first generation approach:
-1. Backend user prompt (models + user routes)
-2. Backend admin prompt (admin routes)
-3. Frontend user prompt (user page + API functions)
-4. Frontend admin prompt (admin page + admin API functions)
+A four-step, single-file generation approach:
+1. Backend user prompt → generates complete `app.py` (models + user routes + auth)
+2. Backend admin prompt → merges admin routes into same `app.py`
+3. Frontend user prompt → generates complete `App.jsx` (all components + HomePage + LoginPage + auth)
+4. Frontend admin prompt → merges AdminPage into same `App.jsx`
+
+**Single-File Architecture:**
+- Backend: ONE `app.py` file with ALL code (~500-800 lines)
+- Frontend: ONE `App.jsx` file with ALL code (~600-900 lines)
+- Simpler for LLMs - no file splitting or complex imports
+
+The HomePage (in App.jsx) serves **both public and logged-in users** via conditional rendering:
+- Public users: read-only view of ALL data with "Sign in" CTAs
+- Logged-in users: same content + create/edit/delete buttons + additional features
 
 ### two-query
 A two-step generation approach:

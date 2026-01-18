@@ -16,13 +16,16 @@
 
 ## TL;DR
 - Core endpoints only
-- Public read-only, auth for mutations
+- Public read endpoints return ALL data (no auth, no filtering)
+- Auth required for create/update/delete
 - Admin: list + toggle
 
 ## Access Policy (MANDATORY)
-- Provide public read-only/basic endpoints for core functionality
-- Require auth for create/update/delete and user-specific data
-- Admin endpoints must require admin auth
+- Provide **public read-only endpoints** that return ALL data (no authentication required)
+- Public endpoints serve the SAME dataset to both anonymous and logged-in users
+- Create/update/delete endpoints MUST require authentication via @token_required
+- User-specific data (if any) should be in separate authenticated endpoints
+- Admin endpoints must require admin auth via @admin_required
 
 {% if api_endpoints %}
 ## API Endpoints
