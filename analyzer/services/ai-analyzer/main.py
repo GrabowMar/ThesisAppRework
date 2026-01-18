@@ -588,7 +588,7 @@ Focus on whether the functionality described in the requirement is actually impl
             # Extract ALL requirement types from template
             backend_requirements = template_data.get('backend_requirements', [])
             frontend_requirements = template_data.get('frontend_requirements', [])
-            admin_requirements = template_data.get('admin_requirements', [])
+            admin_requirements = template_data.get('admin_requirements', [])[:2]
             
             # Extract ALL api_endpoints from requirements
             api_endpoints = template_data.get('api_endpoints', [])
@@ -605,7 +605,7 @@ Focus on whether the functionality described in the requirement is actually impl
             ]
             
             # Extract ALL admin_api_endpoints (these require authentication)
-            admin_api_endpoints = template_data.get('admin_api_endpoints', [])
+            admin_api_endpoints = template_data.get('admin_api_endpoints', [])[:2]
             admin_endpoints = [
                 {
                     'path': ep.get('path', '/').replace(':id', '1'),  # Replace :id with test ID

@@ -2,38 +2,37 @@
   "slug": "iot_sensor_display",
   "name": "Sensor Dashboard",
   "category": "IoT",
-  "description": "Display sensor readings",
+  "description": "Display live sensor readings",
   "backend_requirements": [
-    "Access control: allow public read-only sensor dashboards; require auth for sensor management",
-    "1. Reading model: id, temperature, humidity, timestamp",
-    "2. GET /api/sensors/current - return latest reading (or generate random mock data)",
-    "3. GET /api/sensors/history?hours=24 - return readings from last N hours",
-    "4. POST /api/sensors/reading - accept new reading (for simulated sensor)",
-    "5. Seed with initial mock sensor data if database is empty"
+    "Access control: allow public read-only sensor data; require auth for registering sensors and posting readings",
+    "1. Sensor model: id, name (required), location, unit, last_value, last_updated",
+    "2. GET /api/sensors - list sensors",
+    "3. GET /api/sensors/:id - get sensor details",
+    "4. POST /api/sensors - register new sensor",
+    "5. POST /api/sensors/:id/readings - update last_value"
   ],
   "frontend_requirements": [
-    "Public guest view of sensor dashboard with CTA to sign in for management",
-    "1. Large cards displaying current temperature and humidity",
-    "2. Timestamp of last reading",
-    "3. Simple line chart showing last 24 hours (Chart.js)",
-    "4. Color-coded alerts if values outside normal range",
-    "5. Auto-refresh every 30 seconds"
+    "Public guest view of sensors with CTA to sign in for management",
+    "1. Sensor cards with name, location, last value, unit",
+    "2. Detail modal with last updated time",
+    "3. Add sensor form",
+    "4. Refresh button",
+    "5. Empty state when no sensors"
   ],
   "api_endpoints": [
     {
       "method": "GET",
       "path": "/api/sensors",
-      "description": "List all sensors with current readings",
+      "description": "List sensors",
       "request": null,
       "response": {
         "items": [
           {
             "id": 1,
             "name": "string",
-            "type": "temperature",
-            "value": 22.5,
-            "unit": "°C",
-            "updated_at": "ISO8601"
+            "location": "string",
+            "last_value": 21.4,
+            "unit": "C"
           }
         ],
         "total": 1
@@ -47,40 +46,39 @@
       "response": {
         "id": 1,
         "name": "string",
-        "type": "temperature",
-        "value": 22.5,
-        "unit": "°C",
-        "updated_at": "ISO8601"
+        "location": "string",
+        "last_value": 21.4,
+        "unit": "C",
+        "last_updated": "ISO8601"
       }
     },
     {
       "method": "POST",
-      "path": "/api/sensors/:id/reading",
-      "description": "Submit new sensor reading",
+      "path": "/api/sensors",
+      "description": "Register new sensor",
       "request": {
-        "value": "number"
+        "name": "string",
+        "location": "string",
+        "unit": "string"
       },
       "response": {
         "id": 1,
-        "sensor_id": 1,
-        "value": 22.5,
-        "timestamp": "ISO8601"
+        "name": "string",
+        "location": "string",
+        "unit": "string"
       }
     },
     {
-      "method": "GET",
-      "path": "/api/sensors/:id/history",
-      "description": "Get sensor reading history",
-      "request": null,
+      "method": "POST",
+      "path": "/api/sensors/:id/readings",
+      "description": "Post a new reading",
+      "request": {
+        "value": 21.4
+      },
       "response": {
-        "items": [
-          {
-            "id": 1,
-            "value": 22.5,
-            "timestamp": "ISO8601"
-          }
-        ],
-        "total": 100
+        "id": 1,
+        "last_value": 21.4,
+        "last_updated": "ISO8601"
       }
     },
     {
@@ -95,35 +93,32 @@
     }
   ],
   "data_model": {
-    "name": "Sensor & Reading",
+    "name": "Sensor",
     "fields": {
-      "Sensor.id": "integer (primary key)",
-      "Sensor.name": "string (required)",
-      "Sensor.type": "string (temperature, humidity, etc.)",
-      "Sensor.unit": "string (°C, %, etc.)",
-      "Reading.id": "integer (primary key)",
-      "Reading.sensor_id": "integer (foreign key)",
-      "Reading.value": "decimal",
-      "Reading.timestamp": "datetime (auto, ISO 8601)",
-      "Sensor.is_active": "boolean (default: true, for soft delete)"
+      "id": "integer (primary key, auto-increment)",
+      "name": "string (required, max 100 chars)",
+      "location": "string (optional)",
+      "unit": "string (required)",
+      "last_value": "decimal (nullable)",
+      "last_updated": "datetime (auto, ISO 8601 format in JSON)",
+      "is_active": "boolean (default: true, for soft delete)"
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
-    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
-    "3. Toggle button to activate/deactivate entries",
-    "4. Bulk actions for selected entries (delete, status change)",
-    "5. Search and filter functionality"
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any sensor"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
       "path": "/api/admin/sensors",
-      "description": "List ALL sensors including inactive",
+      "description": "Admin overview: list all sensors and counts",
       "request": null,
       "response": {
         "items": [],
-        "total": 0
+        "total": 0,
+        "active": 0,
+        "inactive": 0
       }
     },
     {
@@ -134,32 +129,6 @@
       "response": {
         "id": 1,
         "is_active": true
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/sensors/bulk-delete",
-      "description": "Delete multiple sensors",
-      "request": {
-        "ids": [
-          1,
-          2,
-          3
-        ]
-      },
-      "response": {
-        "deleted": 3
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get dashboard statistics",
-      "request": null,
-      "response": {
-        "total": 0,
-        "active": 0,
-        "inactive": 0
       }
     }
   ]

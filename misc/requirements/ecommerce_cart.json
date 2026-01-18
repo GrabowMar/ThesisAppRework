@@ -2,44 +2,37 @@
   "slug": "ecommerce_cart",
   "name": "Shopping Cart",
   "category": "E-commerce",
-  "description": "Add products to cart and checkout",
+  "description": "Browse products and manage a cart",
   "backend_requirements": [
-    "Access control: allow public product browsing; require auth for cart mutations and checkout",
-    "1. Product model: id, name, price (decimal), description, image_url, is_active (default True), stock_quantity",
-    "2. Cart stored in session or database: product_id, quantity",
-    "3. POST /api/cart/add - add item to cart (check stock)",
-    "4. PUT /api/cart/:id - update quantity, DELETE /api/cart/:id - remove item",
-    "5. GET /api/cart/total - calculate total price"
+    "Access control: allow public product browsing; require auth for cart management",
+    "1. Product model: id, name (required), price (decimal), image_url, stock",
+    "2. CartItem model: id, product_id, quantity, created_at",
+    "3. GET /api/products - list products",
+    "4. GET /api/cart - list current cart items",
+    "5. POST /api/cart - add or update a cart item"
   ],
   "frontend_requirements": [
-    "Public guest view of products with CTA to sign in for cart and checkout",
-    "1. Product grid with name, price, image, 'Add to Cart' button",
-    "2. Cart sidebar showing items with quantity controls (+/-)",
-    "3. Display subtotal and total price",
-    "4. Remove item button for each cart item",
-    "5. Empty cart message when no items"
-  ],
-  "admin_requirements": [
-    "1. Admin dashboard with total products, total revenue, low stock alerts",
-    "2. Product management table with ALL products including inactive",
-    "3. Toggle product availability (active/inactive)",
-    "4. Edit stock quantity inline",
-    "5. Bulk delete products with confirmation"
+    "Public guest product catalog with CTA to sign in for cart",
+    "1. Product grid with image, price, and Add button",
+    "2. Cart drawer showing items and totals",
+    "3. Quantity stepper per cart item",
+    "4. Remove item button",
+    "5. Empty cart state"
   ],
   "api_endpoints": [
     {
       "method": "GET",
       "path": "/api/products",
-      "description": "List all active products",
+      "description": "List products",
       "request": null,
       "response": {
         "items": [
           {
             "id": 1,
             "name": "string",
-            "price": 29.99,
-            "description": "string",
-            "image_url": "string"
+            "price": 9.99,
+            "image_url": "string",
+            "stock": 12
           }
         ],
         "total": 1
@@ -48,29 +41,26 @@
     {
       "method": "GET",
       "path": "/api/cart",
-      "description": "Get current cart items",
+      "description": "List cart items",
       "request": null,
       "response": {
         "items": [
           {
             "id": 1,
             "product_id": 1,
-            "product_name": "string",
-            "price": 29.99,
             "quantity": 2
           }
         ],
-        "subtotal": 59.98,
-        "total": 59.98
+        "total": 1
       }
     },
     {
       "method": "POST",
-      "path": "/api/cart/add",
-      "description": "Add product to cart",
+      "path": "/api/cart",
+      "description": "Add or update a cart item",
       "request": {
-        "product_id": "integer",
-        "quantity": "integer (default: 1)"
+        "product_id": 1,
+        "quantity": 2
       },
       "response": {
         "id": 1,
@@ -79,35 +69,11 @@
       }
     },
     {
-      "method": "PUT",
-      "path": "/api/cart/:itemId",
-      "description": "Update cart item quantity",
-      "request": {
-        "quantity": "integer"
-      },
-      "response": {
-        "id": 1,
-        "product_id": 1,
-        "quantity": 3
-      }
-    },
-    {
       "method": "DELETE",
-      "path": "/api/cart/:itemId",
-      "description": "Remove item from cart",
+      "path": "/api/cart/:id",
+      "description": "Remove cart item",
       "request": null,
       "response": {}
-    },
-    {
-      "method": "GET",
-      "path": "/api/cart/total",
-      "description": "Get cart total price",
-      "request": null,
-      "response": {
-        "subtotal": 59.98,
-        "tax": 5.4,
-        "total": 65.38
-      }
     },
     {
       "method": "GET",
@@ -120,56 +86,43 @@
       }
     }
   ],
+  "data_model": {
+    "name": "CartItem",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "product_id": "integer (required)",
+      "quantity": "integer (required, min 1)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)",
+      "is_active": "boolean (default: true, for soft delete)"
+    },
+    "related": "Product (id, name, price, image_url, stock)"
+  },
+  "admin_requirements": [
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any product"
+  ],
   "admin_api_endpoints": [
     {
       "method": "GET",
       "path": "/api/admin/products",
-      "description": "List ALL products including inactive",
+      "description": "Admin overview: list all products and counts",
       "request": null,
-      "response": {"items": [{"id": 1, "name": "string", "price": 29.99, "stock_quantity": 100, "is_active": true}], "total": 1}
+      "response": {
+        "items": [],
+        "total": 0,
+        "active": 0,
+        "inactive": 0
+      }
     },
     {
       "method": "POST",
       "path": "/api/admin/products/:id/toggle",
-      "description": "Toggle product availability",
+      "description": "Toggle product active status",
       "request": null,
-      "response": {"id": 1, "name": "string", "is_active": false}
-    },
-    {
-      "method": "PUT",
-      "path": "/api/admin/products/:id/stock",
-      "description": "Update product stock quantity",
-      "request": {"stock_quantity": 50},
-      "response": {"id": 1, "stock_quantity": 50}
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/products/bulk-delete",
-      "description": "Delete multiple products",
-      "request": {"ids": [1, 2, 3]},
-      "response": {"deleted": 3}
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get admin dashboard statistics",
-      "request": null,
-      "response": {"total_products": 50, "active_products": 45, "low_stock_count": 5, "total_cart_value": 1250.00}
+      "response": {
+        "id": 1,
+        "is_active": true
+      }
     }
-  ],
-  "data_model": {
-    "name": "Product & CartItem",
-    "fields": {
-      "Product.id": "integer (primary key)",
-      "Product.name": "string (required)",
-      "Product.price": "decimal (required)",
-      "Product.description": "text",
-      "Product.image_url": "string",
-      "Product.is_active": "boolean (default: true)",
-      "Product.stock_quantity": "integer (default: 0)",
-      "CartItem.id": "integer (primary key)",
-      "CartItem.product_id": "integer (foreign key)",
-      "CartItem.quantity": "integer (default: 1)"
-    }
-  }
+  ]
 }

@@ -5,35 +5,34 @@
   "description": "Track your expenses",
   "backend_requirements": [
     "Access control: allow public read-only expense summaries; require auth for personal expense CRUD",
-    "1. Expense model: id, amount (decimal, required), category (required), description, date (default today)",
-    "2. CRUD endpoints: GET /api/expenses, POST, PUT, DELETE",
-    "3. GET /api/expenses/total - return sum of all expenses",
-    "4. GET /api/expenses/by-category - group totals by category",
-    "5. Input validation: amount must be positive, category is required"
+    "1. Expense model: id, amount (decimal, required), category (required), description, date",
+    "2. GET /api/expenses - list expenses",
+    "3. POST /api/expenses - add expense",
+    "4. DELETE /api/expenses/:id - delete expense",
+    "5. GET /api/expenses/total - return sum of expenses"
   ],
   "frontend_requirements": [
     "Public guest view of expense summaries with CTA to sign in for personal expenses",
     "1. Expense list showing date, amount, category, description",
-    "2. Display total at top prominently",
-    "3. Add expense form with amount, category dropdown, description, date",
-    "4. Delete expense button",
-    "5. Filter by category and date range"
+    "2. Total amount card",
+    "3. Add expense form with validation",
+    "4. Delete button per expense",
+    "5. Filter by category"
   ],
   "api_endpoints": [
     {
       "method": "GET",
       "path": "/api/expenses",
-      "description": "List all expenses",
+      "description": "List expenses",
       "request": null,
       "response": {
         "items": [
           {
             "id": 1,
-            "amount": 50.75,
+            "amount": 19.99,
             "category": "string",
             "description": "string",
-            "date": "ISO8601",
-            "created_at": "ISO8601"
+            "date": "YYYY-MM-DD"
           }
         ],
         "total": 1
@@ -42,39 +41,19 @@
     {
       "method": "POST",
       "path": "/api/expenses",
-      "description": "Create new expense",
+      "description": "Create expense",
       "request": {
-        "amount": "number",
+        "amount": 19.99,
         "category": "string",
-        "description": "string (optional)",
-        "date": "string (optional)"
+        "description": "string",
+        "date": "YYYY-MM-DD"
       },
       "response": {
         "id": 1,
-        "amount": 50.75,
+        "amount": 19.99,
         "category": "string",
         "description": "string",
-        "date": "ISO8601",
-        "created_at": "ISO8601"
-      }
-    },
-    {
-      "method": "PUT",
-      "path": "/api/expenses/:id",
-      "description": "Update expense",
-      "request": {
-        "amount": "number (optional)",
-        "category": "string (optional)",
-        "description": "string (optional)",
-        "date": "string (optional)"
-      },
-      "response": {
-        "id": 1,
-        "amount": 50.75,
-        "category": "string",
-        "description": "string",
-        "date": "ISO8601",
-        "created_at": "ISO8601"
+        "date": "YYYY-MM-DD"
       }
     },
     {
@@ -87,26 +66,10 @@
     {
       "method": "GET",
       "path": "/api/expenses/total",
-      "description": "Get sum of all expenses",
+      "description": "Get total expenses",
       "request": null,
       "response": {
-        "total": 1250.5,
-        "count": 42
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/expenses/by-category",
-      "description": "Get totals grouped by category",
-      "request": null,
-      "response": {
-        "categories": [
-          {
-            "category": "Food",
-            "total": 450.25,
-            "count": 15
-          }
-        ]
+        "total": 120.5
       }
     },
     {
@@ -124,30 +87,29 @@
     "name": "Expense",
     "fields": {
       "id": "integer (primary key, auto-increment)",
-      "amount": "decimal (required, 2 decimal places)",
-      "category": "string (required, max 50 chars)",
-      "description": "string (optional, max 255 chars)",
-      "date": "date (default: today)",
+      "amount": "decimal (required, min 0)",
+      "category": "string (required)",
+      "description": "text (optional)",
+      "date": "date (required)",
       "created_at": "datetime (auto, ISO 8601 format in JSON)",
       "is_active": "boolean (default: true, for soft delete)"
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
-    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
-    "3. Toggle button to activate/deactivate entries",
-    "4. Bulk actions for selected entries (delete, status change)",
-    "5. Search and filter functionality"
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any expense"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
       "path": "/api/admin/expenses",
-      "description": "List ALL expenses including inactive",
+      "description": "Admin overview: list all expenses and counts",
       "request": null,
       "response": {
         "items": [],
-        "total": 0
+        "total": 0,
+        "active": 0,
+        "inactive": 0
       }
     },
     {
@@ -158,32 +120,6 @@
       "response": {
         "id": 1,
         "is_active": true
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/expenses/bulk-delete",
-      "description": "Delete multiple expenses",
-      "request": {
-        "ids": [
-          1,
-          2,
-          3
-        ]
-      },
-      "response": {
-        "deleted": 3
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get dashboard statistics",
-      "request": null,
-      "response": {
-        "total": 0,
-        "active": 0,
-        "inactive": 0
       }
     }
   ]

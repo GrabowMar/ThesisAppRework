@@ -101,6 +101,10 @@ def _validate_requirements_data(data: Dict[str, Any], filename: str) -> List[str
         issues.append(f"requirements/{filename}: admin_requirements present but admin_api_endpoints missing")
     if admin_eps and not admin_reqs:
         issues.append(f"requirements/{filename}: admin_api_endpoints present but admin_requirements missing")
+    if len(admin_reqs) > 2:
+        issues.append(f"requirements/{filename}: admin_requirements must be <= 2 (found {len(admin_reqs)})")
+    if len(admin_eps) > 2:
+        issues.append(f"requirements/{filename}: admin_api_endpoints must be <= 2 (found {len(admin_eps)})")
 
     return issues
 

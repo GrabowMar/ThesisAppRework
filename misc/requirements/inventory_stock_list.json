@@ -1,40 +1,38 @@
 {
   "slug": "inventory_stock_list",
-  "name": "Inventory Tracker",
+  "name": "Inventory",
   "category": "Inventory",
-  "description": "Track stock quantities",
+  "description": "Track stock levels",
   "backend_requirements": [
-    "1. InventoryItem model: id, name (required), sku (unique, required), quantity (integer), min_quantity (threshold for low stock)",
-    "2. CRUD endpoints: GET /api/inventory, POST, PUT, DELETE",
-    "3. Filter for low stock items: ?low_stock=true returns items where quantity < min_quantity",
-    "4. Computed 'low_stock' boolean field in responses",
-    "5. Input validation: name and sku required, quantity must be non-negative",
-    "Access control: allow public read-only inventory view; require auth for create/update/delete"
+    "Access control: allow public read-only inventory; require auth for create/update/delete",
+    "1. Item model: id, name (required), sku, quantity, location",
+    "2. GET /api/items - list items",
+    "3. POST /api/items - create item",
+    "4. PUT /api/items/:id - update item",
+    "5. DELETE /api/items/:id - delete item"
   ],
   "frontend_requirements": [
-    "1. Item list table: name, SKU, quantity, min_quantity",
-    "2. Low stock items highlighted in red (quantity < min_quantity)",
-    "3. Add item form with name, SKU, quantity, min_quantity fields",
-    "4. Edit quantity directly in table or via edit form",
-    "5. Delete item button with confirmation",
-    "Public guest view of inventory with CTA to sign in for management"
+    "Public guest view of inventory with CTA to sign in for management",
+    "1. Inventory table: name, sku, quantity, location",
+    "2. Add item form",
+    "3. Edit item dialog",
+    "4. Delete item button",
+    "5. Low-stock highlight"
   ],
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/inventory",
-      "description": "List all items (supports ?low_stock=true for items below threshold)",
+      "path": "/api/items",
+      "description": "List items",
       "request": null,
       "response": {
         "items": [
           {
             "id": 1,
             "name": "string",
-            "sku": "string",
-            "quantity": 50,
-            "min_quantity": 10,
-            "low_stock": false,
-            "created_at": "ISO8601"
+            "sku": "SKU-001",
+            "quantity": 10,
+            "location": "A1"
           }
         ],
         "total": 1
@@ -42,45 +40,43 @@
     },
     {
       "method": "POST",
-      "path": "/api/inventory",
-      "description": "Add new item",
+      "path": "/api/items",
+      "description": "Create item",
       "request": {
         "name": "string",
         "sku": "string",
-        "quantity": "integer",
-        "min_quantity": "integer (optional)"
+        "quantity": 10,
+        "location": "string"
       },
       "response": {
         "id": 1,
         "name": "string",
         "sku": "string",
-        "quantity": 50,
-        "min_quantity": 10,
-        "low_stock": false,
-        "created_at": "ISO8601"
+        "quantity": 10,
+        "location": "string"
       }
     },
     {
       "method": "PUT",
-      "path": "/api/inventory/:id",
-      "description": "Update item quantity",
+      "path": "/api/items/:id",
+      "description": "Update item",
       "request": {
-        "quantity": "integer (optional)",
-        "min_quantity": "integer (optional)"
+        "name": "string",
+        "sku": "string",
+        "quantity": 10,
+        "location": "string"
       },
       "response": {
         "id": 1,
         "name": "string",
         "sku": "string",
-        "quantity": 75,
-        "min_quantity": 10,
-        "low_stock": false,
-        "created_at": "ISO8601"
+        "quantity": 10,
+        "location": "string"
       }
     },
     {
       "method": "DELETE",
-      "path": "/api/inventory/:id",
+      "path": "/api/items/:id",
       "description": "Delete item",
       "request": null,
       "response": {}
@@ -97,69 +93,42 @@
     }
   ],
   "data_model": {
-    "name": "InventoryItem",
+    "name": "Item",
     "fields": {
       "id": "integer (primary key, auto-increment)",
-      "name": "string (required, max 100 chars)",
-      "sku": "string (unique, required, max 50 chars)",
+      "name": "string (required, max 200 chars)",
+      "sku": "string (optional)",
       "quantity": "integer (required, min 0)",
-      "min_quantity": "integer (default: 10, low stock threshold)",
+      "location": "string (optional)",
       "created_at": "datetime (auto, ISO 8601 format in JSON)",
       "is_active": "boolean (default: true, for soft delete)"
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
-    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
-    "3. Toggle button to activate/deactivate entries",
-    "4. Bulk actions for selected entries (delete, status change)",
-    "5. Search and filter functionality"
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any item"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/admin/inventory",
-      "description": "List ALL inventory items including inactive",
+      "path": "/api/admin/items",
+      "description": "Admin overview: list all items and counts",
       "request": null,
       "response": {
         "items": [],
-        "total": 0
+        "total": 0,
+        "active": 0,
+        "inactive": 0
       }
     },
     {
       "method": "POST",
-      "path": "/api/admin/inventory/:id/toggle",
-      "description": "Toggle inventory item active status",
+      "path": "/api/admin/items/:id/toggle",
+      "description": "Toggle item active status",
       "request": null,
       "response": {
         "id": 1,
         "is_active": true
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/inventory/bulk-delete",
-      "description": "Delete multiple inventory items",
-      "request": {
-        "ids": [
-          1,
-          2,
-          3
-        ]
-      },
-      "response": {
-        "deleted": 3
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get dashboard statistics",
-      "request": null,
-      "response": {
-        "total": 0,
-        "active": 0,
-        "inactive": 0
       }
     }
   ]

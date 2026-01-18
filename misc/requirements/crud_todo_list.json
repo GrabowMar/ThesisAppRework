@@ -1,162 +1,97 @@
 {
   "slug": "crud_todo_list",
-  "name": "Todo List Manager",
-  "category": "CRUD",
-  "description": "A full-featured task management application with user-specific todos, priority levels, due dates, categories, and comprehensive admin controls. Users can organize their tasks with tags, set priorities, and track completion progress.",
+  "name": "Todo List",
+  "category": "Productivity",
+  "description": "Track personal tasks",
   "backend_requirements": [
-    "1. Todo model with SQLAlchemy: id, title (string, required, max 255), description (text, optional), completed (boolean, default False), priority (string: low/medium/high, default medium), due_date (datetime, optional), category (string, optional), user_id (foreign key to User), created_at, updated_at, is_active (boolean, default True)",
-    "2. Each todo belongs to a user (user_id foreign key) - users can only see/edit their own todos",
-    "3. REST API endpoints: GET /api/todos (list user's active todos with pagination), POST /api/todos (create), PUT /api/todos/:id (update), DELETE /api/todos/:id (soft delete)",
-    "4. Filter support: ?completed=true/false, ?priority=high/medium/low, ?category=work, ?search=keyword query parameters",
-    "5. Sorting support: ?sort=created_at&order=desc (default), ?sort=due_date&order=asc, ?sort=priority",
-    "6. Pagination: ?page=1&per_page=10 with total count in response",
-    "7. Input validation: title required (1-255 chars), priority must be low/medium/high, due_date must be valid ISO date",
-    "8. GET /api/todos/stats - return user's todo statistics (total, completed, pending, overdue count)",
-    "9. PUT /api/todos/:id/complete - quick toggle completion status",
-    "10. GET /api/todos/categories - return list of user's unique categories",
-    "Access control: allow public read-only todo list; keep create/update/delete and personal stats behind auth"
+    "Access control: allow public read-only todos; require auth for create/update/delete",
+    "1. Todo model: id, title (required), description, priority, completed, created_at",
+    "2. GET /api/todos - list todos",
+    "3. POST /api/todos - create todo",
+    "4. PUT /api/todos/:id - update todo",
+    "5. DELETE /api/todos/:id - delete todo"
   ],
   "frontend_requirements": [
-    "1. Main todo list view with cards showing: title, description preview, priority badge (color-coded), due date (highlight if overdue), completion checkbox, edit/delete buttons",
-    "2. Add todo form with fields: title (required), description (textarea), priority (dropdown), due date (date picker), category (input with autocomplete from existing categories)",
-    "3. Inline editing: click title to edit, click outside or press Enter to save",
-    "4. Filter bar with: search input, priority filter dropdown, category filter dropdown, show completed toggle",
-    "5. Sort dropdown: newest first, oldest first, due date, priority",
-    "6. Stats panel at top showing: total todos, completed count, pending count, overdue count (if any)",
-    "7. Empty state with illustration/icon and 'Create your first todo' call-to-action",
-    "8. Loading skeletons while fetching data",
-    "9. Optimistic updates: checkbox toggles immediately, reverts on error",
-    "10. Bulk actions: select multiple todos, mark all complete, delete selected",
-    "11. Category badges with different colors",
-    "12. Due date display: 'Today', 'Tomorrow', 'Overdue', or formatted date",
-    "Public guest view of todos with CTA to sign in for personal todos"
-  ],
-  "admin_requirements": [
-    "1. Admin dashboard with stats cards: total todos (all users), total users, todos created today, completion rate percentage",
-    "2. User activity chart placeholder (show last 7 days todo creation counts)",
-    "3. Table listing ALL todos from ALL users with columns: ID, User, Title, Priority, Status, Created, Actions",
-    "4. Sortable columns by clicking headers",
-    "5. Search across all todos by title or username",
-    "6. Filter by: user, priority, completion status, active/inactive",
-    "7. Toggle active status button (soft delete/restore)",
-    "8. Bulk selection with checkboxes for mass operations",
-    "9. Bulk actions: delete selected, restore selected, export selected (as JSON)",
-    "10. User management section: list users with their todo counts, toggle user active status"
+    "Public guest view of todos with CTA to sign in for management",
+    "1. Todo list with title, priority, and status",
+    "2. Add todo form with validation",
+    "3. Toggle completed checkbox",
+    "4. Edit and delete buttons per todo",
+    "5. Filters for All / Active / Completed"
   ],
   "api_endpoints": [
     {
       "method": "GET",
       "path": "/api/todos",
-      "description": "List user's active todos with filtering, sorting, pagination",
+      "description": "List all todos",
       "request": null,
-      "response": {"items": [{"id": 1, "title": "string", "description": "string", "completed": false, "priority": "medium", "due_date": "ISO8601", "category": "string", "created_at": "ISO8601", "updated_at": "ISO8601"}], "total": 25, "page": 1, "per_page": 10}
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "title": "string",
+            "description": "string",
+            "priority": "medium",
+            "completed": false,
+            "created_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
     },
     {
       "method": "POST",
       "path": "/api/todos",
-      "description": "Create new todo for current user",
-      "request": {"title": "string (required)", "description": "string", "priority": "low|medium|high", "due_date": "ISO8601", "category": "string"},
-      "response": {"id": 1, "title": "string", "description": "string", "completed": false, "priority": "medium", "due_date": "ISO8601", "category": "string", "created_at": "ISO8601"}
-    },
-    {
-      "method": "GET",
-      "path": "/api/todos/:id",
-      "description": "Get single todo by ID (must belong to user)",
-      "request": null,
-      "response": {"id": 1, "title": "string", "description": "string", "completed": false, "priority": "medium", "due_date": "ISO8601", "category": "string", "created_at": "ISO8601", "updated_at": "ISO8601"}
-    },
-    {
-      "method": "PUT",
-      "path": "/api/todos/:id",
-      "description": "Update todo (must belong to user)",
-      "request": {"title": "string", "description": "string", "completed": "boolean", "priority": "string", "due_date": "ISO8601", "category": "string"},
-      "response": {"id": 1, "title": "string", "description": "string", "completed": true, "priority": "high", "due_date": "ISO8601", "category": "string", "updated_at": "ISO8601"}
+      "description": "Create new todo",
+      "request": {
+        "title": "string",
+        "description": "string",
+        "priority": "low|medium|high"
+      },
+      "response": {
+        "id": 1,
+        "title": "string",
+        "description": "string",
+        "priority": "medium",
+        "completed": false,
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "PUT",
-      "path": "/api/todos/:id/complete",
-      "description": "Toggle todo completion status",
-      "request": null,
-      "response": {"id": 1, "completed": true, "updated_at": "ISO8601"}
+      "path": "/api/todos/:id",
+      "description": "Update todo",
+      "request": {
+        "title": "string",
+        "description": "string",
+        "priority": "low|medium|high",
+        "completed": true
+      },
+      "response": {
+        "id": 1,
+        "title": "string",
+        "description": "string",
+        "priority": "medium",
+        "completed": true,
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "DELETE",
       "path": "/api/todos/:id",
-      "description": "Soft delete todo (set is_active=false)",
+      "description": "Delete todo",
       "request": null,
-      "response": {"message": "Todo deleted"}
-    },
-    {
-      "method": "GET",
-      "path": "/api/todos/stats",
-      "description": "Get user's todo statistics",
-      "request": null,
-      "response": {"total": 25, "completed": 10, "pending": 15, "overdue": 3}
-    },
-    {
-      "method": "GET",
-      "path": "/api/todos/categories",
-      "description": "Get list of user's unique categories",
-      "request": null,
-      "response": {"categories": ["work", "personal", "shopping"]}
-    },
-    {
-      "method": "POST",
-      "path": "/api/todos/bulk",
-      "description": "Bulk operations on multiple todos",
-      "request": {"ids": [1, 2, 3], "action": "complete|delete"},
-      "response": {"updated": 3}
+      "response": {}
     },
     {
       "method": "GET",
       "path": "/api/health",
       "description": "Health check endpoint",
       "request": null,
-      "response": {"status": "healthy", "service": "backend"}
-    }
-  ],
-  "admin_api_endpoints": [
-    {
-      "method": "GET",
-      "path": "/api/admin/todos",
-      "description": "List ALL todos from all users with pagination",
-      "request": null,
-      "response": {"items": [{"id": 1, "user_id": 1, "username": "string", "title": "string", "priority": "medium", "completed": false, "is_active": true, "created_at": "ISO8601"}], "total": 100, "page": 1, "per_page": 20}
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/todos/:id/toggle",
-      "description": "Toggle todo active status (soft delete/restore)",
-      "request": null,
-      "response": {"id": 1, "is_active": false}
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/todos/bulk-delete",
-      "description": "Permanently delete multiple todos",
-      "request": {"ids": [1, 2, 3]},
-      "response": {"deleted": 3}
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get admin dashboard statistics",
-      "request": null,
-      "response": {"total_todos": 150, "total_users": 25, "todos_today": 12, "completion_rate": 67.5, "active_todos": 140, "inactive_todos": 10}
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/users",
-      "description": "List all users with their todo counts",
-      "request": null,
-      "response": {"items": [{"id": 1, "username": "string", "email": "string", "is_admin": false, "is_active": true, "todo_count": 15, "created_at": "ISO8601"}], "total": 25}
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/users/:id/toggle",
-      "description": "Toggle user active status",
-      "request": null,
-      "response": {"id": 1, "is_active": false}
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
   ],
   "data_model": {
@@ -164,15 +99,39 @@
     "fields": {
       "id": "integer (primary key, auto-increment)",
       "title": "string (required, max 255 chars)",
-      "description": "text (optional, for longer notes)",
-      "completed": "boolean (default: false)",
+      "description": "text (optional)",
       "priority": "string (low, medium, high - default: medium)",
-      "due_date": "datetime (optional, for task deadlines)",
-      "category": "string (optional, max 50 chars, for grouping)",
-      "user_id": "integer (foreign key to User, required)",
-      "is_active": "boolean (default: true, for soft delete)",
+      "completed": "boolean (default: false)",
       "created_at": "datetime (auto, ISO 8601 format in JSON)",
-      "updated_at": "datetime (auto-update on changes)"
+      "is_active": "boolean (default: true, for soft delete)"
     }
-  }
+  },
+  "admin_requirements": [
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any todo"
+  ],
+  "admin_api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/admin/todos",
+      "description": "Admin overview: list all todos and counts",
+      "request": null,
+      "response": {
+        "items": [],
+        "total": 0,
+        "active": 0,
+        "inactive": 0
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/todos/:id/toggle",
+      "description": "Toggle todo active status",
+      "request": null,
+      "response": {
+        "id": 1,
+        "is_active": false
+      }
+    }
+  ]
 }

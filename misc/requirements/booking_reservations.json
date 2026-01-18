@@ -31,9 +31,9 @@
             "id": 1,
             "name": "string",
             "email": "string",
-            "date": "ISO8601",
-            "time": "string",
-            "party_size": 4,
+            "date": "YYYY-MM-DD",
+            "time": "HH:MM",
+            "party_size": 2,
             "created_at": "ISO8601"
           }
         ],
@@ -47,17 +47,17 @@
       "request": {
         "name": "string",
         "email": "string",
-        "date": "string",
-        "time": "string",
-        "party_size": "integer"
+        "date": "YYYY-MM-DD",
+        "time": "HH:MM",
+        "party_size": 2
       },
       "response": {
         "id": 1,
         "name": "string",
         "email": "string",
-        "date": "ISO8601",
-        "time": "string",
-        "party_size": 4,
+        "date": "YYYY-MM-DD",
+        "time": "HH:MM",
+        "party_size": 2,
         "created_at": "ISO8601"
       }
     },
@@ -93,21 +93,20 @@
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
-    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
-    "3. Toggle button to activate/deactivate entries",
-    "4. Bulk actions for selected entries (delete, status change)",
-    "5. Search and filter functionality"
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any reservation"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
       "path": "/api/admin/reservations",
-      "description": "List ALL reservations including inactive",
+      "description": "Admin overview: list all reservations and counts",
       "request": null,
       "response": {
         "items": [],
-        "total": 0
+        "total": 0,
+        "active": 0,
+        "inactive": 0
       }
     },
     {
@@ -118,32 +117,6 @@
       "response": {
         "id": 1,
         "is_active": true
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/reservations/bulk-delete",
-      "description": "Delete multiple reservations",
-      "request": {
-        "ids": [
-          1,
-          2,
-          3
-        ]
-      },
-      "response": {
-        "deleted": 3
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get dashboard statistics",
-      "request": null,
-      "response": {
-        "total": 0,
-        "active": 0,
-        "inactive": 0
       }
     }
   ]

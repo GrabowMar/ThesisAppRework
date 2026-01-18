@@ -2,28 +2,28 @@
   "slug": "media_audio_player",
   "name": "Audio Player",
   "category": "Media",
-  "description": "Play audio files",
+  "description": "Play and manage audio tracks",
   "backend_requirements": [
-    "Access control: allow public read-only track browsing; require auth for playlist management",
-    "1. Track model: id, title (required), artist (optional), duration (seconds), filepath (server path)",
-    "2. GET /api/tracks - return list of audio tracks",
-    "3. Serve static audio files from /audio directory",
-    "4. Seed with 2-3 sample audio URLs or placeholder tracks",
-    "5. DELETE /api/tracks/:id - remove track and associated file"
+    "Access control: allow public read-only tracks; require auth for upload/delete",
+    "1. Track model: id, title (required), artist, url (required), duration",
+    "2. GET /api/tracks - list tracks",
+    "3. POST /api/tracks - add track",
+    "4. DELETE /api/tracks/:id - delete track",
+    "5. Validate: url must be valid and duration non-negative"
   ],
   "frontend_requirements": [
-    "Public guest view of tracks with CTA to sign in for playlists",
-    "1. Track list with title, artist, and duration",
-    "2. Click track to load in HTML5 audio player",
-    "3. Player controls: play/pause, seek bar, volume, current time",
-    "4. Currently playing track highlighted",
-    "5. Upload audio file button (multipart form)"
+    "Public guest player with CTA to sign in for management",
+    "1. Track list with play buttons",
+    "2. Audio player with progress bar",
+    "3. Current track display",
+    "4. Add track form",
+    "5. Delete track action"
   ],
   "api_endpoints": [
     {
       "method": "GET",
       "path": "/api/tracks",
-      "description": "List all audio tracks",
+      "description": "List tracks",
       "request": null,
       "response": {
         "items": [
@@ -31,9 +31,8 @@
             "id": 1,
             "title": "string",
             "artist": "string",
-            "duration": 180,
-            "url": "/audio/track.mp3",
-            "created_at": "ISO8601"
+            "url": "string",
+            "duration": 180
           }
         ],
         "total": 1
@@ -41,37 +40,20 @@
     },
     {
       "method": "POST",
-      "path": "/api/tracks/upload",
-      "description": "Upload audio file",
+      "path": "/api/tracks",
+      "description": "Create track",
       "request": {
-        "content_type": "multipart/form-data",
-        "fields": {
-          "audio": "binary (required)",
-          "title": "string (optional)",
-          "artist": "string (optional)"
-        }
+        "title": "string",
+        "artist": "string",
+        "url": "string",
+        "duration": 180
       },
       "response": {
         "id": 1,
         "title": "string",
         "artist": "string",
-        "duration": 180,
-        "url": "/audio/track.mp3",
-        "created_at": "ISO8601"
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/tracks/:id",
-      "description": "Get track details",
-      "request": null,
-      "response": {
-        "id": 1,
-        "title": "string",
-        "artist": "string",
-        "duration": 180,
-        "url": "/audio/track.mp3",
-        "created_at": "ISO8601"
+        "url": "string",
+        "duration": 180
       }
     },
     {
@@ -96,30 +78,29 @@
     "name": "Track",
     "fields": {
       "id": "integer (primary key, auto-increment)",
-      "title": "string (required, max 255 chars)",
-      "artist": "string (optional, max 255 chars)",
-      "duration": "integer (seconds)",
-      "filepath": "string (server path)",
+      "title": "string (required)",
+      "artist": "string (optional)",
+      "url": "string (required)",
+      "duration": "integer (seconds, optional)",
       "created_at": "datetime (auto, ISO 8601 format in JSON)",
       "is_active": "boolean (default: true, for soft delete)"
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
-    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
-    "3. Toggle button to activate/deactivate entries",
-    "4. Bulk actions for selected entries (delete, status change)",
-    "5. Search and filter functionality"
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any track"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
       "path": "/api/admin/tracks",
-      "description": "List ALL tracks including inactive",
+      "description": "Admin overview: list all tracks and counts",
       "request": null,
       "response": {
         "items": [],
-        "total": 0
+        "total": 0,
+        "active": 0,
+        "inactive": 0
       }
     },
     {
@@ -130,32 +111,6 @@
       "response": {
         "id": 1,
         "is_active": true
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/tracks/bulk-delete",
-      "description": "Delete multiple tracks",
-      "request": {
-        "ids": [
-          1,
-          2,
-          3
-        ]
-      },
-      "response": {
-        "deleted": 3
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get dashboard statistics",
-      "request": null,
-      "response": {
-        "total": 0,
-        "active": 0,
-        "inactive": 0
       }
     }
   ]

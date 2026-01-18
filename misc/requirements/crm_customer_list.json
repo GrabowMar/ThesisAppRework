@@ -42,12 +42,13 @@
     {
       "method": "POST",
       "path": "/api/customers",
-      "description": "Create new customer",
+      "description": "Create customer",
       "request": {
         "name": "string",
         "email": "string",
-        "phone": "string (optional)",
-        "company": "string (optional)"
+        "phone": "string",
+        "company": "string",
+        "notes": "string"
       },
       "response": {
         "id": 1,
@@ -55,6 +56,7 @@
         "email": "string",
         "phone": "string",
         "company": "string",
+        "notes": "string",
         "created_at": "ISO8601"
       }
     },
@@ -63,10 +65,11 @@
       "path": "/api/customers/:id",
       "description": "Update customer",
       "request": {
-        "name": "string (optional)",
-        "email": "string (optional)",
-        "phone": "string (optional)",
-        "company": "string (optional)"
+        "name": "string",
+        "email": "string",
+        "phone": "string",
+        "company": "string",
+        "notes": "string"
       },
       "response": {
         "id": 1,
@@ -74,6 +77,7 @@
         "email": "string",
         "phone": "string",
         "company": "string",
+        "notes": "string",
         "created_at": "ISO8601"
       }
     },
@@ -100,29 +104,29 @@
     "fields": {
       "id": "integer (primary key, auto-increment)",
       "name": "string (required, max 100 chars)",
-      "email": "string (required, valid email)",
-      "phone": "string (optional, max 20 chars)",
-      "company": "string (optional, max 100 chars)",
+      "email": "string (required, unique)",
+      "phone": "string (optional)",
+      "company": "string (optional)",
+      "notes": "text (optional)",
       "created_at": "datetime (auto, ISO 8601 format in JSON)",
       "is_active": "boolean (default: true, for soft delete)"
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
-    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
-    "3. Toggle button to activate/deactivate entries",
-    "4. Bulk actions for selected entries (delete, status change)",
-    "5. Search and filter functionality"
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any customer"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
       "path": "/api/admin/customers",
-      "description": "List ALL customers including inactive",
+      "description": "Admin overview: list all customers and counts",
       "request": null,
       "response": {
         "items": [],
-        "total": 0
+        "total": 0,
+        "active": 0,
+        "inactive": 0
       }
     },
     {
@@ -133,32 +137,6 @@
       "response": {
         "id": 1,
         "is_active": true
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/customers/bulk-delete",
-      "description": "Delete multiple customers",
-      "request": {
-        "ids": [
-          1,
-          2,
-          3
-        ]
-      },
-      "response": {
-        "deleted": 3
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get dashboard statistics",
-      "request": null,
-      "response": {
-        "total": 0,
-        "active": 0,
-        "inactive": 0
       }
     }
   ]

@@ -101,21 +101,20 @@
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard summarizing the question bank (total questions, active, inactive)",
-    "2. Table listing ALL questions including inactive/soft-deleted with status badges",
-    "3. Toggle button to activate/deactivate questions",
-    "4. Bulk delete action for selected questions",
-    "5. Search and filter questions by text"
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any question"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
       "path": "/api/admin/questions",
-      "description": "List ALL quiz questions including inactive",
+      "description": "Admin overview: list all questions and counts",
       "request": null,
       "response": {
         "items": [],
-        "total": 0
+        "total": 0,
+        "active": 0,
+        "inactive": 0
       }
     },
     {
@@ -126,32 +125,6 @@
       "response": {
         "id": 1,
         "is_active": true
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/questions/bulk-delete",
-      "description": "Delete multiple questions",
-      "request": {
-        "ids": [
-          1,
-          2,
-          3
-        ]
-      },
-      "response": {
-        "deleted": 3
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get question bank dashboard statistics",
-      "request": null,
-      "response": {
-        "total": 0,
-        "active": 0,
-        "inactive": 0
       }
     }
   ]

@@ -1,40 +1,38 @@
 {
   "slug": "healthcare_appointments",
-  "name": "Appointment Scheduler",
+  "name": "Appointments",
   "category": "Healthcare",
-  "description": "Book and manage appointments",
+  "description": "Schedule and manage appointments",
   "backend_requirements": [
     "Access control: allow public read-only appointment listings; require auth for create/update/delete",
-    "1. Appointment model: id, patient_name (required), doctor (required), date (required), time (HH:MM format), reason (optional)",
-    "2. CRUD endpoints: GET /api/appointments, POST, PUT, DELETE",
-    "3. Filter by date: ?date=YYYY-MM-DD",
-    "4. Validate: no double-booking same doctor/time slot",
-    "5. JSON responses with proper status codes (200, 201, 400, 404, 409 for conflicts)"
+    "1. Appointment model: id, patient_name (required), date, time, reason, status",
+    "2. GET /api/appointments - list appointments",
+    "3. POST /api/appointments - create appointment",
+    "4. PUT /api/appointments/:id - update appointment",
+    "5. DELETE /api/appointments/:id - cancel appointment"
   ],
   "frontend_requirements": [
-    "Public guest view of appointments with CTA to sign in for scheduling",
-    "1. Appointment list grouped by date, sorted by time",
-    "2. Book form with patient name, date picker, time picker, doctor dropdown, reason (optional)",
-    "3. Click appointment to view/edit details",
-    "4. Cancel button with confirmation",
-    "5. Today's appointments highlighted"
+    "Public guest schedule view with CTA to sign in for management",
+    "1. Appointment list with date, time, patient name, status",
+    "2. Create appointment form",
+    "3. Edit appointment modal",
+    "4. Cancel appointment button",
+    "5. Filter by date"
   ],
   "api_endpoints": [
     {
       "method": "GET",
       "path": "/api/appointments",
-      "description": "List all appointments (supports ?date= filter)",
+      "description": "List appointments",
       "request": null,
       "response": {
         "items": [
           {
             "id": 1,
             "patient_name": "string",
-            "doctor": "string",
-            "date": "ISO8601",
-            "time": "string",
-            "reason": "string",
-            "created_at": "ISO8601"
+            "date": "YYYY-MM-DD",
+            "time": "HH:MM",
+            "status": "scheduled"
           }
         ],
         "total": 1
@@ -43,22 +41,20 @@
     {
       "method": "POST",
       "path": "/api/appointments",
-      "description": "Schedule new appointment",
+      "description": "Create appointment",
       "request": {
         "patient_name": "string",
-        "doctor": "string",
-        "date": "string",
-        "time": "string",
-        "reason": "string (optional)"
+        "date": "YYYY-MM-DD",
+        "time": "HH:MM",
+        "reason": "string"
       },
       "response": {
         "id": 1,
         "patient_name": "string",
-        "doctor": "string",
-        "date": "ISO8601",
-        "time": "string",
+        "date": "YYYY-MM-DD",
+        "time": "HH:MM",
         "reason": "string",
-        "created_at": "ISO8601"
+        "status": "scheduled"
       }
     },
     {
@@ -66,18 +62,18 @@
       "path": "/api/appointments/:id",
       "description": "Update appointment",
       "request": {
-        "date": "string (optional)",
-        "time": "string (optional)",
-        "reason": "string (optional)"
+        "date": "YYYY-MM-DD",
+        "time": "HH:MM",
+        "reason": "string",
+        "status": "scheduled|completed|cancelled"
       },
       "response": {
         "id": 1,
         "patient_name": "string",
-        "doctor": "string",
-        "date": "ISO8601",
-        "time": "string",
+        "date": "YYYY-MM-DD",
+        "time": "HH:MM",
         "reason": "string",
-        "created_at": "ISO8601"
+        "status": "scheduled"
       }
     },
     {
@@ -103,30 +99,29 @@
     "fields": {
       "id": "integer (primary key, auto-increment)",
       "patient_name": "string (required, max 100 chars)",
-      "doctor": "string (required, max 100 chars)",
       "date": "date (required)",
-      "time": "string (required, HH:MM format)",
+      "time": "string (required, HH:MM)",
       "reason": "text (optional)",
+      "status": "string (scheduled, completed, cancelled - default: scheduled)",
       "created_at": "datetime (auto, ISO 8601 format in JSON)",
       "is_active": "boolean (default: true, for soft delete)"
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
-    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
-    "3. Toggle button to activate/deactivate entries",
-    "4. Bulk actions for selected entries (delete, status change)",
-    "5. Search and filter functionality"
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any appointment"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
       "path": "/api/admin/appointments",
-      "description": "List ALL appointments including inactive",
+      "description": "Admin overview: list all appointments and counts",
       "request": null,
       "response": {
         "items": [],
-        "total": 0
+        "total": 0,
+        "active": 0,
+        "inactive": 0
       }
     },
     {
@@ -137,32 +132,6 @@
       "response": {
         "id": 1,
         "is_active": true
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/appointments/bulk-delete",
-      "description": "Delete multiple appointments",
-      "request": {
-        "ids": [
-          1,
-          2,
-          3
-        ]
-      },
-      "response": {
-        "deleted": 3
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get dashboard statistics",
-      "request": null,
-      "response": {
-        "total": 0,
-        "active": 0,
-        "inactive": 0
       }
     }
   ]

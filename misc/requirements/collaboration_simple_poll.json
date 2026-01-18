@@ -1,29 +1,29 @@
 {
   "slug": "collaboration_simple_poll",
-  "name": "Quick Poll",
+  "name": "Quick Polls",
   "category": "Collaboration",
-  "description": "Create and vote on polls",
+  "description": "Create polls and vote",
   "backend_requirements": [
-    "Access control: allow public voting; require auth for poll creation",
+    "Access control: allow public poll voting and viewing; require auth for poll creation/deletion",
     "1. Poll model: id, question (required), created_at",
-    "2. Option model: id, poll_id, option_text, vote_count (integer, default 0)",
-    "3. POST /api/polls - create poll with question and options array",
-    "4. POST /api/polls/:id/vote - accept {option_id}, increment vote_count",
-    "5. GET /api/polls/:id - return poll with options and total vote count"
+    "2. PollOption model: id, poll_id, text, votes",
+    "3. GET /api/polls - list polls with options",
+    "4. POST /api/polls - create poll with 2-6 options",
+    "5. POST /api/polls/:id/vote - increment option votes"
   ],
   "frontend_requirements": [
     "Public guest view of polls with CTA to sign in for creating polls",
-    "1. Display poll question with options as buttons or radio buttons",
-    "2. Click option to vote",
-    "3. Show vote counts and percentages after voting",
-    "4. Create poll form with question and 2-5 option inputs",
-    "5. Can only vote once (tracked by session or localStorage)"
+    "1. Poll list with question and options",
+    "2. Vote buttons with immediate count update",
+    "3. Results bar chart per poll",
+    "4. Create poll form with dynamic options",
+    "5. Loading and empty states"
   ],
   "api_endpoints": [
     {
       "method": "GET",
       "path": "/api/polls",
-      "description": "List all polls",
+      "description": "List all polls with options",
       "request": null,
       "response": {
         "items": [
@@ -31,8 +31,11 @@
             "id": 1,
             "question": "string",
             "options": [
-              "A",
-              "B"
+              {
+                "id": 1,
+                "text": "A",
+                "votes": 2
+              }
             ],
             "created_at": "ISO8601"
           }
@@ -47,7 +50,8 @@
       "request": {
         "question": "string",
         "options": [
-          "string"
+          "A",
+          "B"
         ]
       },
       "response": {
@@ -56,7 +60,7 @@
         "options": [
           {
             "id": 1,
-            "text": "string",
+            "text": "A",
             "votes": 0
           }
         ],
@@ -64,35 +68,16 @@
       }
     },
     {
-      "method": "GET",
-      "path": "/api/polls/:id",
-      "description": "Get poll details with vote counts",
-      "request": null,
-      "response": {
-        "id": 1,
-        "question": "string",
-        "options": [
-          {
-            "id": 1,
-            "text": "string",
-            "votes": 5
-          }
-        ],
-        "total_votes": 10,
-        "created_at": "ISO8601"
-      }
-    },
-    {
       "method": "POST",
       "path": "/api/polls/:id/vote",
-      "description": "Vote on a poll option",
+      "description": "Vote on an option",
       "request": {
-        "option_id": "integer"
+        "option_id": 1
       },
       "response": {
-        "success": true,
+        "id": 1,
         "option_id": 1,
-        "new_vote_count": 6
+        "votes": 3
       }
     },
     {
@@ -117,21 +102,20 @@
     "related": "PollOption (id, poll_id, text, votes)"
   },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
-    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
-    "3. Toggle button to activate/deactivate entries",
-    "4. Bulk actions for selected entries (delete, status change)",
-    "5. Search and filter functionality"
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any poll"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
       "path": "/api/admin/polls",
-      "description": "List ALL polls including inactive",
+      "description": "Admin overview: list all polls and counts",
       "request": null,
       "response": {
         "items": [],
-        "total": 0
+        "total": 0,
+        "active": 0,
+        "inactive": 0
       }
     },
     {
@@ -142,32 +126,6 @@
       "response": {
         "id": 1,
         "is_active": true
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/polls/bulk-delete",
-      "description": "Delete multiple polls",
-      "request": {
-        "ids": [
-          1,
-          2,
-          3
-        ]
-      },
-      "response": {
-        "deleted": 3
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get dashboard statistics",
-      "request": null,
-      "response": {
-        "total": 0,
-        "active": 0,
-        "inactive": 0
       }
     }
   ]

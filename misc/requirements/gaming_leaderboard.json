@@ -35,7 +35,7 @@
             "achieved_at": "ISO8601"
           }
         ],
-        "total": 1
+        "total": 10
       }
     },
     {
@@ -44,31 +44,14 @@
       "description": "Submit new score",
       "request": {
         "player_name": "string",
-        "score": "integer"
+        "score": 1234
       },
       "response": {
         "id": 1,
         "player_name": "string",
-        "score": 9999,
-        "rank": 5,
+        "score": 1234,
+        "rank": 1,
         "achieved_at": "ISO8601"
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/leaderboard/top/:limit",
-      "description": "Get top N players",
-      "request": null,
-      "response": {
-        "items": [
-          {
-            "id": 1,
-            "player_name": "string",
-            "score": 9999,
-            "rank": 1
-          }
-        ],
-        "total": 10
       }
     },
     {
@@ -93,21 +76,20 @@
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
-    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
-    "3. Toggle button to activate/deactivate entries",
-    "4. Bulk actions for selected entries (delete, status change)",
-    "5. Search and filter functionality"
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any score"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
       "path": "/api/admin/scores",
-      "description": "List ALL scores including inactive",
+      "description": "Admin overview: list all scores and counts",
       "request": null,
       "response": {
         "items": [],
-        "total": 0
+        "total": 0,
+        "active": 0,
+        "inactive": 0
       }
     },
     {
@@ -118,32 +100,6 @@
       "response": {
         "id": 1,
         "is_active": true
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/scores/bulk-delete",
-      "description": "Delete multiple scores",
-      "request": {
-        "ids": [
-          1,
-          2,
-          3
-        ]
-      },
-      "response": {
-        "deleted": 3
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get dashboard statistics",
-      "request": null,
-      "response": {
-        "total": 0,
-        "active": 0,
-        "inactive": 0
       }
     }
   ]

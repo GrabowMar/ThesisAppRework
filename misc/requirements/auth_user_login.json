@@ -1,44 +1,35 @@
 {
   "slug": "auth_user_login",
   "name": "User Login",
-  "category": "Authentication",
-  "description": "Basic authentication system",
+  "category": "Auth",
+  "description": "Register and sign in users",
   "backend_requirements": [
-    "1. User model: id, username (unique, required), password_hash, email, is_active (default True), created_at",
-    "2. POST /api/auth/register - validate input, hash password with bcrypt, save user, return user object",
-    "3. POST /api/auth/login - verify credentials, return JWT token with 24h expiry and user info",
-    "4. GET /api/auth/me - validate JWT from Authorization header, return user info (no password)",
-    "5. Validate: username 3-20 chars alphanumeric, password min 8 chars, check duplicate username"
+    "Access control: public registration/login; require auth for profile access",
+    "1. User model: id, email (required, unique), password_hash, is_admin, created_at",
+    "2. POST /api/auth/register - create user account",
+    "3. POST /api/auth/login - return JWT token",
+    "4. GET /api/auth/me - return current user profile",
+    "5. Validate: strong password (min 8 chars) and email format"
   ],
   "frontend_requirements": [
-    "1. Login form with username and password fields",
-    "2. Registration form with username, password, confirm password",
-    "3. Display logged-in username in header",
-    "4. Logout button that clears token",
-    "5. Validate: username 3-20 chars alphanumeric, password min 8 chars, check duplicate username",
-    "Access control: allow public login/register views; auth required for profile access"
-  ],
-  "admin_requirements": [
-    "1. Admin dashboard showing total users, active users, and registrations this week",
-    "2. Table listing ALL users with status badges (active/inactive)",
-    "3. Toggle button to enable/disable user accounts",
-    "4. Checkbox selection with bulk disable action",
-    "5. Show error messages for invalid credentials",
-    "Public guest auth views with CTA to register"
+    "Public login/register view with CTA to sign in",
+    "1. Tab switch between Login and Register",
+    "2. Inline form validation and error messages",
+    "3. Show authenticated banner with user email",
+    "4. Logout button clears token",
+    "5. Protected area message only visible when logged in"
   ],
   "api_endpoints": [
     {
       "method": "POST",
       "path": "/api/auth/register",
-      "description": "Register new user",
+      "description": "Register a new user",
       "request": {
-        "username": "string",
-        "password": "string",
-        "email": "string (optional)"
+        "email": "string",
+        "password": "string"
       },
       "response": {
         "id": 1,
-        "username": "string",
         "email": "string",
         "created_at": "ISO8601"
       }
@@ -48,37 +39,28 @@
       "path": "/api/auth/login",
       "description": "Login and get JWT token",
       "request": {
-        "username": "string",
+        "email": "string",
         "password": "string"
       },
       "response": {
-        "token": "string (JWT)",
+        "token": "jwt-token",
         "user": {
           "id": 1,
-          "username": "string",
-          "email": "string"
+          "email": "string",
+          "is_admin": false
         }
       }
     },
     {
       "method": "GET",
       "path": "/api/auth/me",
-      "description": "Get current user info (requires auth)",
+      "description": "Get current user profile",
       "request": null,
       "response": {
         "id": 1,
-        "username": "string",
         "email": "string",
+        "is_admin": false,
         "created_at": "ISO8601"
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/auth/logout",
-      "description": "Logout user",
-      "request": null,
-      "response": {
-        "message": "Logged out successfully"
       }
     },
     {
@@ -92,45 +74,43 @@
       }
     }
   ],
+  "data_model": {
+    "name": "User",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "email": "string (required, unique)",
+      "password_hash": "string (required)",
+      "is_admin": "boolean (default: false)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)",
+      "is_active": "boolean (default: true, for soft delete)"
+    }
+  },
+  "admin_requirements": [
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any user"
+  ],
   "admin_api_endpoints": [
     {
       "method": "GET",
       "path": "/api/admin/users",
-      "description": "List ALL users including inactive",
+      "description": "Admin overview: list all users and counts",
       "request": null,
-      "response": {"items": [{"id": 1, "username": "string", "email": "string", "is_active": true, "created_at": "ISO8601"}], "total": 1}
+      "response": {
+        "items": [],
+        "total": 0,
+        "active": 0,
+        "inactive": 0
+      }
     },
     {
       "method": "POST",
       "path": "/api/admin/users/:id/toggle",
       "description": "Toggle user active status",
       "request": null,
-      "response": {"id": 1, "username": "string", "is_active": false}
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/users/bulk-disable",
-      "description": "Disable multiple users",
-      "request": {"ids": [1, 2, 3]},
-      "response": {"disabled": 3}
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get user statistics",
-      "request": null,
-      "response": {"total_users": 100, "active_users": 95, "new_this_week": 10}
+      "response": {
+        "id": 1,
+        "is_active": true
+      }
     }
-  ],
-  "data_model": {
-    "name": "User",
-    "fields": {
-      "id": "integer (primary key, auto-increment)",
-      "username": "string (unique, required, 3-20 chars)",
-      "password_hash": "string (never exposed in responses)",
-      "email": "string (optional)",
-      "is_active": "boolean (default: true)",
-      "created_at": "datetime (auto, ISO 8601 format in JSON)"
-    }
-  }
+  ]
 }

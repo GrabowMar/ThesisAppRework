@@ -1,29 +1,29 @@
 {
   "slug": "learning_flashcards",
-  "name": "Flashcard Study Tool",
+  "name": "Flashcards",
   "category": "Learning",
-  "description": "Study with flashcards",
+  "description": "Create and study flashcards",
   "backend_requirements": [
-    "Access control: allow public read-only flashcards; require auth for create/update/delete and progress tracking",
-    "1. Flashcard model: id, question (required), answer (required), category, difficulty",
-    "2. CRUD endpoints: GET /api/flashcards, POST, PUT, DELETE",
-    "3. GET /api/flashcards/random - return random card",
-    "4. Filter by category: ?category=math",
-    "5. Seed with 10+ sample flashcards across different categories"
+    "Access control: allow public read-only flashcards; require auth for create/update/delete",
+    "1. Flashcard model: id, question (required), answer (required), deck",
+    "2. GET /api/flashcards - list flashcards",
+    "3. POST /api/flashcards - create flashcard",
+    "4. PUT /api/flashcards/:id - update flashcard",
+    "5. DELETE /api/flashcards/:id - delete flashcard"
   ],
   "frontend_requirements": [
-    "Public guest view of flashcards with CTA to sign in for progress tracking",
-    "1. Card display: large question text centered",
-    "2. Click card or 'Show Answer' button to flip and reveal answer",
-    "3. 'Next Card' button to load random card",
-    "4. Add flashcard form with question, answer, category",
-    "5. Category filter dropdown"
+    "Public guest study view with CTA to sign in for management",
+    "1. Flashcard list with deck filter",
+    "2. Flip animation to show answer",
+    "3. Create flashcard form",
+    "4. Edit and delete actions",
+    "5. Search by question text"
   ],
   "api_endpoints": [
     {
       "method": "GET",
       "path": "/api/flashcards",
-      "description": "List all flashcards",
+      "description": "List flashcards",
       "request": null,
       "response": {
         "items": [
@@ -31,8 +31,7 @@
             "id": 1,
             "question": "string",
             "answer": "string",
-            "category": "string",
-            "created_at": "ISO8601"
+            "deck": "string"
           }
         ],
         "total": 1
@@ -41,30 +40,33 @@
     {
       "method": "POST",
       "path": "/api/flashcards",
-      "description": "Create new flashcard",
+      "description": "Create flashcard",
       "request": {
         "question": "string",
         "answer": "string",
-        "category": "string (optional)"
+        "deck": "string"
       },
       "response": {
         "id": 1,
         "question": "string",
         "answer": "string",
-        "category": "string",
-        "created_at": "ISO8601"
+        "deck": "string"
       }
     },
     {
-      "method": "GET",
-      "path": "/api/flashcards/random",
-      "description": "Get random flashcard",
-      "request": null,
+      "method": "PUT",
+      "path": "/api/flashcards/:id",
+      "description": "Update flashcard",
+      "request": {
+        "question": "string",
+        "answer": "string",
+        "deck": "string"
+      },
       "response": {
         "id": 1,
         "question": "string",
         "answer": "string",
-        "category": "string"
+        "deck": "string"
       }
     },
     {
@@ -73,23 +75,6 @@
       "description": "Delete flashcard",
       "request": null,
       "response": {}
-    },
-    {
-      "method": "PUT",
-      "path": "/api/flashcards/:id",
-      "description": "Update flashcard",
-      "request": {
-        "question": "string (optional)",
-        "answer": "string (optional)",
-        "category": "string (optional)"
-      },
-      "response": {
-        "id": 1,
-        "question": "string",
-        "answer": "string",
-        "category": "string",
-        "created_at": "ISO8601"
-      }
     },
     {
       "method": "GET",
@@ -106,29 +91,28 @@
     "name": "Flashcard",
     "fields": {
       "id": "integer (primary key, auto-increment)",
-      "question": "text (required)",
+      "question": "string (required)",
       "answer": "text (required)",
-      "category": "string (optional, max 50 chars)",
+      "deck": "string (optional)",
       "created_at": "datetime (auto, ISO 8601 format in JSON)",
       "is_active": "boolean (default: true, for soft delete)"
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
-    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
-    "3. Toggle button to activate/deactivate entries",
-    "4. Bulk actions for selected entries (delete, status change)",
-    "5. Search and filter functionality"
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any flashcard"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
       "path": "/api/admin/flashcards",
-      "description": "List ALL flashcards including inactive",
+      "description": "Admin overview: list all flashcards and counts",
       "request": null,
       "response": {
         "items": [],
-        "total": 0
+        "total": 0,
+        "active": 0,
+        "inactive": 0
       }
     },
     {
@@ -139,32 +123,6 @@
       "response": {
         "id": 1,
         "is_active": true
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/flashcards/bulk-delete",
-      "description": "Delete multiple flashcards",
-      "request": {
-        "ids": [
-          1,
-          2,
-          3
-        ]
-      },
-      "response": {
-        "deleted": 3
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get dashboard statistics",
-      "request": null,
-      "response": {
-        "total": 0,
-        "active": 0,
-        "inactive": 0
       }
     }
   ]

@@ -1,45 +1,54 @@
 {
   "slug": "api_weather_display",
-  "name": "Weather Checker",
-  "category": "API Integration",
-  "description": "Get current weather for any city",
+  "name": "Weather Display",
+  "category": "API",
+  "description": "Look up current weather by city",
   "backend_requirements": [
-    "1. GET /api/weather?city=name - proxy to OpenWeatherMap API using a configured API key",
-    "2. Return JSON: {city, temperature, condition, humidity, feels_like, icon}",
-    "3. Cache results for 15 minutes per city in SQLite (WeatherCacheEntry) to avoid API rate limits",
-    "4. Cache behavior: return cached result if not expired; otherwise refresh and update the cache row",
-    "5. Handle errors: 404 for city not found, 503 for API down, 400 for missing/blank city param",
-    "Access control: allow public read-only weather checks; restrict saved locations to auth"
+    "Access control: allow public read-only weather lookups; require auth for cache management",
+    "1. WeatherCache model: id, city (required), temperature, condition, fetched_at, expires_at",
+    "2. GET /api/weather?city=NAME - return current weather, use cached result when fresh",
+    "3. GET /api/weather/recent - return last 10 cached lookups",
+    "4. Validate: city is required and max 100 chars",
+    "5. Graceful error handling for unknown cities"
   ],
   "frontend_requirements": [
-    "1. City input field with search button",
-    "2. Display temperature in Celsius/Fahrenheit with toggle",
-    "3. Show weather condition with appropriate icon",
-    "4. Loading spinner while fetching data",
-    "5. Recent searches list (last 10 cached lookups)",
-    "Public guest view of weather checks with CTA to sign in for saved locations"
+    "Public guest weather search with CTA to sign in for cache management",
+    "1. Search input for city with 'Search' button",
+    "2. Weather card showing city, temperature, condition, last updated",
+    "3. Recent searches list (last 5)",
+    "4. Loading and error states",
+    "5. Units toggle (C/F) display-only"
   ],
   "api_endpoints": [
     {
       "method": "GET",
       "path": "/api/weather",
-      "description": "Get weather for a city (query param: city)",
+      "description": "Get current weather by city (?city=)",
       "request": null,
       "response": {
         "city": "string",
         "temperature": 20.5,
         "condition": "string",
-        "humidity": 65,
-        "feels_like": 19.0,
-        "icon": "string"
+        "fetched_at": "ISO8601"
       }
     },
     {
       "method": "GET",
       "path": "/api/weather/recent",
-      "description": "List recent cached weather lookups",
+      "description": "List recent cached lookups",
       "request": null,
-      "response": {"items": [{"city": "string", "temperature": 20.5, "condition": "string", "fetched_at": "ISO8601"}], "total": 10}
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "city": "string",
+            "temperature": 20.5,
+            "condition": "string",
+            "fetched_at": "ISO8601"
+          }
+        ],
+        "total": 10
+      }
     },
     {
       "method": "GET",
@@ -53,47 +62,32 @@
     }
   ],
   "data_model": {
-    "name": "WeatherCacheEntry",
+    "name": "WeatherCache",
     "fields": {
       "id": "integer (primary key, auto-increment)",
-      "city": "string (required, normalized)",
-      "temperature": "decimal",
-      "condition": "string",
-      "humidity": "integer",
-      "feels_like": "decimal",
-      "icon": "string",
-      "fetched_at": "datetime (when data was fetched)",
-      "expires_at": "datetime (fetched_at + 15 minutes)",
+      "city": "string (required, max 100 chars)",
+      "temperature": "decimal (nullable)",
+      "condition": "string (nullable)",
+      "fetched_at": "datetime (auto, ISO 8601 format in JSON)",
+      "expires_at": "datetime (nullable)",
       "is_active": "boolean (default: true, for soft delete)"
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard summarizing cache usage (total entries, active entries, expired entries)",
-    "2. Table listing cached cities with fetched_at/expires_at and an 'expired' badge",
-    "3. Toggle button to activate/deactivate cache entries",
-    "4. Bulk delete action to remove selected cache entries",
-    "5. Search/filter by city name and expired status"
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any cached entry"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
       "path": "/api/admin/weather-cache",
-      "description": "List ALL cached weather entries (including inactive)",
+      "description": "Admin overview: list all cache entries and counts",
       "request": null,
       "response": {
-        "items": [
-          {
-            "id": 1,
-            "city": "string",
-            "temperature": 20.5,
-            "condition": "string",
-            "humidity": 65,
-            "fetched_at": "ISO8601",
-            "expires_at": "ISO8601",
-            "is_active": true
-          }
-        ],
-        "total": 1
+        "items": [],
+        "total": 0,
+        "active": 0,
+        "inactive": 0
       }
     },
     {
@@ -104,33 +98,6 @@
       "response": {
         "id": 1,
         "is_active": true
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/weather-cache/bulk-delete",
-      "description": "Delete multiple cache entries",
-      "request": {
-        "ids": [
-          1,
-          2,
-          3
-        ]
-      },
-      "response": {
-        "deleted": 3
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get cache dashboard statistics",
-      "request": null,
-      "response": {
-        "total": 10,
-        "active": 8,
-        "inactive": 2,
-        "expired": 3
       }
     }
   ]

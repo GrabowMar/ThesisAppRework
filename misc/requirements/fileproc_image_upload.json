@@ -1,47 +1,29 @@
 {
   "slug": "fileproc_image_upload",
-  "name": "Image Gallery",
+  "name": "Image Upload",
   "category": "File Processing",
   "description": "Upload and view images",
   "backend_requirements": [
-    "Access control: allow public image browsing; require auth for uploads and management",
-    "1. POST /api/images/upload - accept multipart/form-data image files",
-    "2. Save images to /uploads directory with unique filenames",
-    "3. Image model: id, stored_filename, original_filename, size_bytes, uploaded_at, is_active",
-    "4. GET /api/images - return list of images with URLs",
-    "5. Validate file type (jpg, png, gif) and size (<5MB)"
+    "Access control: allow public gallery view; require auth for upload/delete",
+    "1. Image model: id, filename (required), url (required), uploaded_at",
+    "2. GET /api/images - list images",
+    "3. POST /api/images - upload image",
+    "4. DELETE /api/images/:id - delete image",
+    "5. Validate: allow only jpg/png and size limit"
   ],
   "frontend_requirements": [
-    "Public guest view of gallery with CTA to sign in for management",
-    "1. File input with 'Upload' button, show selected filename",
-    "2. Image grid displaying thumbnails (CSS grid)",
-    "3. Click image to view full size in modal/lightbox",
-    "4. Delete button per image with confirmation",
-    "5. Upload progress bar or spinner"
+    "Public gallery with CTA to sign in for uploads",
+    "1. Grid of image thumbnails",
+    "2. Upload form with file picker",
+    "3. Preview of selected image",
+    "4. Delete button per image",
+    "5. Empty state when no images"
   ],
   "api_endpoints": [
     {
-      "method": "POST",
-      "path": "/api/images/upload",
-      "description": "Upload image file",
-      "request": {
-        "content_type": "multipart/form-data",
-        "fields": {
-          "image": "binary"
-        }
-      },
-      "response": {
-        "id": 1,
-        "filename": "string",
-        "url": "/uploads/image.jpg",
-        "size": 12345,
-        "uploaded_at": "ISO8601"
-      }
-    },
-    {
       "method": "GET",
       "path": "/api/images",
-      "description": "List all images",
+      "description": "List images",
       "request": null,
       "response": {
         "items": [
@@ -49,11 +31,24 @@
             "id": 1,
             "filename": "string",
             "url": "string",
-            "size": 12345,
             "uploaded_at": "ISO8601"
           }
         ],
         "total": 1
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/images",
+      "description": "Upload image",
+      "request": {
+        "file": "multipart"
+      },
+      "response": {
+        "id": 1,
+        "filename": "string",
+        "url": "string",
+        "uploaded_at": "ISO8601"
       }
     },
     {
@@ -77,31 +72,28 @@
   "data_model": {
     "name": "Image",
     "fields": {
-      "id": "integer (primary key)",
-      "stored_filename": "string (required, unique filename on disk)",
-      "original_filename": "string (required, original upload filename)",
-      "filepath": "string (server filesystem path)",
-      "size_bytes": "integer (bytes)",
+      "id": "integer (primary key, auto-increment)",
+      "filename": "string (required)",
+      "url": "string (required)",
       "uploaded_at": "datetime (auto, ISO 8601 format in JSON)",
       "is_active": "boolean (default: true, for soft delete)"
     }
   },
   "admin_requirements": [
-    "1. Admin dashboard showing key statistics (total entries, active, inactive)",
-    "2. Table listing ALL entries including inactive/soft-deleted with status badges",
-    "3. Toggle button to activate/deactivate entries",
-    "4. Bulk actions for selected entries (delete, status change)",
-    "5. Search and filter functionality"
+    "1. Admin overview list with total/active/inactive counts",
+    "2. Toggle active status for any image"
   ],
   "admin_api_endpoints": [
     {
       "method": "GET",
       "path": "/api/admin/images",
-      "description": "List ALL images including inactive",
+      "description": "Admin overview: list all images and counts",
       "request": null,
       "response": {
         "items": [],
-        "total": 0
+        "total": 0,
+        "active": 0,
+        "inactive": 0
       }
     },
     {
@@ -112,32 +104,6 @@
       "response": {
         "id": 1,
         "is_active": true
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/images/bulk-delete",
-      "description": "Delete multiple images",
-      "request": {
-        "ids": [
-          1,
-          2,
-          3
-        ]
-      },
-      "response": {
-        "deleted": 3
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/stats",
-      "description": "Get dashboard statistics",
-      "request": null,
-      "response": {
-        "total": 0,
-        "active": 0,
-        "inactive": 0
       }
     }
   ]
