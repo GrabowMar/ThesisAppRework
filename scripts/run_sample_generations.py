@@ -84,27 +84,32 @@ def ensure_model_exists(app) -> tuple[bool, str]:
         # Create a minimal fallback model entry for testing
         print(f"   Creating minimal model entry for {MODEL_SLUG}...")
         try:
-            for slug, openrouter_id in FALLBACK_MODELS[:1]:  # Just create the first one
-                # Extract provider from model ID
-                provider = openrouter_id.split('/')[0] if '/' in openrouter_id else 'unknown'
-                model_name = openrouter_id.split('/')[-1] if '/' in openrouter_id else openrouter_id
-                
-                new_model = ModelCapability(
-                    model_id=openrouter_id,
-                    canonical_slug=slug,
-                    base_model_id=openrouter_id.split(':')[0],
-                    provider=provider,
-                    model_name=model_name,
-                    installed=True,
-                    context_window=200000,
-                    max_output_tokens=8192,
-                    input_price_per_token=0.000001,
-                    output_price_per_token=0.000005,
-                )
-                db.session.add(new_model)
-                db.session.commit()
-                print(f"   ✓ Created fallback model: {slug}")
-                return True, slug
+            # Use only the first fallback model
+            slug, openrouter_id = FALLBACK_MODELS[0]
+            
+            # Extract provider from model ID
+            provider = openrouter_id.split('/')[0] if '/' in openrouter_id else 'unknown'
+            model_name = openrouter_id.split('/')[-1] if '/' in openrouter_id else openrouter_id
+            
+            # base_model_id is the model ID without variant suffix (e.g., without :free)
+            base_model_id = openrouter_id.split(':')[0] if ':' in openrouter_id else openrouter_id
+            
+            new_model = ModelCapability(
+                model_id=openrouter_id,
+                canonical_slug=slug,
+                base_model_id=base_model_id,
+                provider=provider,
+                model_name=model_name,
+                installed=True,
+                context_window=200000,
+                max_output_tokens=8192,
+                input_price_per_token=0.000001,
+                output_price_per_token=0.000005,
+            )
+            db.session.add(new_model)
+            db.session.commit()
+            print(f"   ✓ Created fallback model: {slug}")
+            return True, slug
         except Exception as e:
             print(f"   ❌ Failed to create fallback model: {e}")
             db.session.rollback()
@@ -157,12 +162,13 @@ def main() -> int:
 
         # Docker build step (optional)
         if app_dir and not args.skip_docker_build:
-            compose_path = f"{app_dir}/docker-compose.yml"
-            if os.path.exists(compose_path):
+            from pathlib import Path
+            compose_path = Path(app_dir) / "docker-compose.yml"
+            if compose_path.exists():
                 print(f"   Building Docker containers...")
                 try:
                     subprocess.run(
-                        ["docker", "compose", "-f", compose_path, "build"],
+                        ["docker", "compose", "-f", str(compose_path), "build"],
                         check=True,
                         capture_output=True,
                     )
