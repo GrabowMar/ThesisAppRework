@@ -82,10 +82,10 @@ def ensure_model_exists(app) -> tuple[bool, str]:
             return False, ""
         
         # Create a minimal fallback model entry for testing
-        print(f"   Creating minimal model entry for {MODEL_SLUG}...")
+        # Use only the first fallback model
+        slug, openrouter_id = FALLBACK_MODELS[0]
+        print(f"   Creating minimal model entry for {slug}...")
         try:
-            # Use only the first fallback model
-            slug, openrouter_id = FALLBACK_MODELS[0]
             
             # Extract provider from model ID
             provider = openrouter_id.split('/')[0] if '/' in openrouter_id else 'unknown'
