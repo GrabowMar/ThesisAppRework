@@ -109,7 +109,40 @@ def _filter_model_slugs(app, requested: List[str]) -> Tuple[List[str], List[str]
     return [slug for slug in requested if slug in available], missing
 
 
+def _load_openrouter_key_from_env_file() -> None:
+    if os.getenv("OPENROUTER_API_KEY"):
+        return
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    if not env_path.exists():
+        return
+    try:
+        for raw_line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            if key.strip() == "OPENROUTER_API_KEY":
+                cleaned = value.strip().strip('"').strip("'")
+                if cleaned:
+                    os.environ["OPENROUTER_API_KEY"] = cleaned
+                return
+    except Exception:
+        return
+
+
+def _sync_openrouter_models(app) -> dict:
+    from app.services.data_initialization import DataInitializationService
+
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        return {"loaded": 0, "errors": ["OPENROUTER_API_KEY not configured"]}
+    with app.app_context():
+        service = DataInitializationService()
+        return service._load_from_openrouter_api(api_key)
+
+
 def main() -> int:
+    _load_openrouter_key_from_env_file()
     if not os.getenv("OPENROUTER_API_KEY"):
         print("OPENROUTER_API_KEY not set. Provide a key to generate real frontends.")
         return 1
@@ -123,8 +156,16 @@ def main() -> int:
 
     model_slugs, missing_models = _filter_model_slugs(app, MODEL_SLUGS)
     if missing_models:
-        model_failures.extend(missing_models)
         print("Missing models in database:", ", ".join(missing_models))
+        print("Syncing models from OpenRouter...")
+        sync_result = _sync_openrouter_models(app)
+        if sync_result.get("errors"):
+            print("OpenRouter sync errors:", "; ".join(sync_result["errors"]))
+        elif sync_result.get("loaded", 0) > 0:
+            print(f"Synced {sync_result['loaded']} models from OpenRouter.")
+        model_slugs, missing_models = _filter_model_slugs(app, MODEL_SLUGS)
+    if missing_models:
+        model_failures.extend(missing_models)
     if not model_slugs:
         print("No available models found. Configure OPENROUTER_API_KEY and re-run.")
         return 1
