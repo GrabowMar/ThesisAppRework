@@ -873,39 +873,44 @@ class PipelineExecutionService:
         gen_options: Dict[str, Any],
         result: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Execute generation using the simplified generation_v2 package."""
-        from app.services.generation_v2 import (
-            GenerationConfig, get_generation_service
-        )
-        
+        """Execute generation using generation_v2 with auto-allocation."""
+        from app.services.generation_v2 import get_generation_service
+
         self._log("GEN", f"Using generation_v2 for job {job_index}")
-        
-        # Get generation service
+
         svc = get_generation_service()
+        batch_id = pipeline_id
 
-        # Build config
-        app_num = job_index + 1  # App numbers are 1-based
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            gen_result = loop.run_until_complete(
+                svc.generate_full_app(
+                    model_slug=model_slug,
+                    app_num=None,  # Let service handle allocation to avoid app number drift
+                    template_slug=template_slug,
+                    generate_frontend=True,
+                    generate_backend=True,
+                    batch_id=batch_id,
+                    parent_app_id=None,
+                    version=1,
+                )
+            )
+        finally:
+            loop.close()
 
-        # Note: GenerationConfig no longer accepts 'mode' parameter
-        # The generation_v2 system uses a simplified 2-prompt approach (backend → frontend)
-        config = GenerationConfig(
-            model_slug=model_slug,
-            template_slug=template_slug,
-            app_num=app_num,
-            max_tokens=gen_options.get('maxTokens', 32000),
-            temperature=gen_options.get('temperature', 0.3),
-        )
-        
-        # Run synchronous generation
-        gen_result = svc.generate(config)
-        
         # Map result
-        result['success'] = gen_result.success
-        result['app_number'] = app_num
-        
-        if not gen_result.success:
-            result['error'] = gen_result.error_message
-        
+        result['success'] = gen_result.get('success', False)
+        app_number = gen_result.get('app_number')
+        if app_number is None:
+            app_number = gen_result.get('app_num')
+        result['app_number'] = app_number
+
+        if not result['success']:
+            errors = gen_result.get('errors') or []
+            result['error'] = "; ".join(errors) if errors else gen_result.get('error') or 'Unknown error'
+
         return result
     
     

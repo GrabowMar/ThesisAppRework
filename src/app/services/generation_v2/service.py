@@ -146,7 +146,14 @@ class GenerationService:
         **kwargs
     ) -> dict:
         """Generate a complete app with standard response payload."""
-        app_number = app_num or self.get_next_app_number(model_slug)
+        app_record, app_number = self._reserve_app_record(
+            model_slug=model_slug,
+            template_slug=template_slug,
+            app_num=app_num,
+            batch_id=batch_id,
+            parent_app_id=parent_app_id,
+            version=version,
+        )
 
         config = GenerationConfig(
             model_slug=model_slug,
@@ -180,6 +187,78 @@ class GenerationService:
             'app_dir': str(gen_result.app_dir) if gen_result.app_dir else None,
             'metrics': gen_result.metrics,
         }
+
+    def _reserve_app_record(
+        self,
+        *,
+        model_slug: str,
+        template_slug: str,
+        app_num: Optional[int] = None,
+        batch_id: Optional[str] = None,
+        parent_app_id: Optional[int] = None,
+        version: int = 1,
+        max_retries: int = 5,
+    ) -> tuple[GeneratedApplication, int]:
+        """Reserve an app number by creating a DB record.
+
+        This ensures app numbers stay unique across concurrent pipelines.
+        """
+        from sqlalchemy import func
+        from sqlalchemy.exc import IntegrityError
+        from app.constants import AnalysisStatus, GenerationMode
+
+        provider = model_slug.split('_')[0] if '_' in model_slug else 'unknown'
+
+        for attempt in range(max_retries):
+            try:
+                if app_num is None:
+                    max_num = db.session.query(
+                        func.max(GeneratedApplication.app_number)
+                    ).filter_by(
+                        model_slug=model_slug
+                    ).scalar()
+                    app_number = (max_num or 0) + 1
+                else:
+                    app_number = app_num
+
+                existing = GeneratedApplication.query.filter_by(
+                    model_slug=model_slug,
+                    app_number=app_number,
+                    version=version,
+                ).first()
+                if existing:
+                    return existing, app_number
+
+                app_record = GeneratedApplication(
+                    model_slug=model_slug,
+                    app_number=app_number,
+                    version=version,
+                    parent_app_id=parent_app_id,
+                    batch_id=batch_id,
+                    app_type='fullstack',
+                    provider=provider,
+                    template_slug=template_slug,
+                    generation_mode=GenerationMode.GUARDED,
+                    generation_status=AnalysisStatus.PENDING,
+                    has_backend=False,
+                    has_frontend=False,
+                    has_docker_compose=False,
+                    created_at=utc_now(),
+                    updated_at=utc_now(),
+                )
+                db.session.add(app_record)
+                db.session.commit()
+                return app_record, app_number
+            except IntegrityError:
+                db.session.rollback()
+                if app_num is not None:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
+            except Exception:
+                db.session.rollback()
+                raise
+
+        raise RuntimeError("Failed to reserve unique app number")
     
     def generate(self, config: GenerationConfig) -> GenerationResult:
         """Generate an application synchronously.
@@ -361,10 +440,14 @@ def generate_app(
 ) -> GenerationResult:
     """Generate an app with minimal configuration."""
     service = get_generation_service()
-    
+
     if app_num is None:
-        app_num = service.get_next_app_number(model_slug)
-    
+        _, app_num = service._reserve_app_record(
+            model_slug=model_slug,
+            template_slug=template_slug,
+            app_num=None,
+        )
+
     config = GenerationConfig(
         model_slug=model_slug,
         template_slug=template_slug,
