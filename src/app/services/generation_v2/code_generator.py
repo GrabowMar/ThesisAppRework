@@ -420,6 +420,8 @@ class CodeGenerator:
         if not self._has_frontend_code_block(frontend_code):
             raise RuntimeError("Frontend generation produced no JSX code block")
 
+        frontend_code = self._sanitize_frontend_output(frontend_code)
+
         results['frontend'] = frontend_code
         logger.info(f"    ✓ Frontend: {len(frontend_code)} chars")
         
@@ -1523,6 +1525,24 @@ Output ONLY the code block. No explanations before or after."""
             return f"```jsx:App.jsx\n{content.strip()}\n```"
 
         return None
+
+    def _sanitize_frontend_output(self, content: str) -> str:
+        """Strip trailing requirement text accidentally appended after code fence."""
+        match = re.search(
+            r"```(?:\s*(?:jsx|javascript|js|tsx|typescript|ts)(?::[^\n\r`]*)?)?\s*[\r\n]+",
+            content,
+            re.IGNORECASE,
+        )
+        if not match:
+            return content
+
+        start = match.start()
+        end_match = re.search(r"```", content[match.end():])
+        if not end_match:
+            return content
+
+        end = match.end() + end_match.start() + 3
+        return content[start:end].strip()
 
 
 # Singleton
