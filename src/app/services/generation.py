@@ -329,10 +329,7 @@ class CodeGenerator:
             logger.error(f"Model not found in database: {config.model_slug}")
             return False, "", f"Model not found in database: {config.model_slug}", metrics
         
-        # Priority: 1) hugging_face_id (case-sensitive, most accurate)
-        #          2) base_model_id (normalized, no variant suffix)
-        #          3) model_id (fallback)
-        openrouter_model = model.hugging_face_id or model.base_model_id or model.model_id
+        openrouter_model = model.get_openrouter_model_id()
         
         # Model validation removed - OpenRouter API is the final authority on model validity
         

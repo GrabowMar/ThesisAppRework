@@ -85,6 +85,33 @@ class ModelCapability(db.Model):
     def set_metadata(self, metadata_dict: Dict[str, Any]) -> None:
         self.metadata_json = json.dumps(metadata_dict)
 
+    def get_openrouter_model_id(self) -> Optional[str]:
+        """Resolve the OpenRouter model ID for API calls."""
+        try:
+            meta = self.get_metadata() or {}
+        except Exception:
+            meta = {}
+
+        openrouter_id = meta.get('openrouter_model_id')
+        if openrouter_id:
+            return openrouter_id
+
+        if self.model_id and '/' in self.model_id:
+            return self.model_id
+        if self.base_model_id and '/' in self.base_model_id:
+            return self.base_model_id
+
+        if self.hugging_face_id and '/' in self.hugging_face_id:
+            return self.hugging_face_id.lower()
+
+        slug = (self.canonical_slug or '').strip()
+        if '_' in slug:
+            provider, rest = slug.split('_', 1)
+            if provider and rest:
+                return f"{provider}/{rest}"
+
+        return self.model_id or self.base_model_id or self.hugging_face_id
+
 class PortConfiguration(db.Model):
     """Model for storing Docker port configurations."""
     __tablename__ = 'port_configurations'

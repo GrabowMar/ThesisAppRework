@@ -141,6 +141,7 @@ def _upsert_openrouter_models(models_payload: list) -> int:
                 canonical = cs_norm
             except Exception:
                 pass
+        canonical = canonical.lower()
 
         # Extract base model ID (without variant suffixes like :free)
         base_id = model_id.split(':')[0] if ':' in model_id else model_id

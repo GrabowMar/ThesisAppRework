@@ -447,7 +447,7 @@ class CodeGenerator:
         model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
         if not model:
             return None
-        return model.hugging_face_id or model.base_model_id or model.model_id
+        return model.get_openrouter_model_id()
     
     def _build_backend_prompt(self, requirements: Dict) -> str:
         """Build backend prompt from template."""
