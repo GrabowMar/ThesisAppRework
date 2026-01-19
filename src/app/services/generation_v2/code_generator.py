@@ -158,10 +158,10 @@ class CodeGenerator:
 
         return bool(CONFIRMATION_REGEX.search(content))
 
-      def _has_placeholder_content(self, content: str) -> bool:
+    def _has_placeholder_content(self, content: str) -> bool:
         """Detect placeholder or incomplete sections in generated code."""
         if not content:
-          return False
+            return False
 
         # Look for known placeholder phrases
         return bool(PLACEHOLDER_REGEX.search(content))
@@ -1564,87 +1564,93 @@ Output ONLY the code block. No explanations before or after."""
 
         return "\n".join(base_lines + cont_lines)
 
-      async def _retry_frontend_no_placeholders(
+    async def _retry_frontend_no_placeholders(
         self,
         openrouter_model: str,
         frontend_prompt: str,
         config: GenerationConfig,
         max_tokens: int,
-      ) -> str:
+    ) -> str:
         """Retry frontend generation with strict no-placeholder requirements."""
         strict_system = (
-          self._get_frontend_system_prompt()
-          + "\n\nSTRICT NO PLACEHOLDERS: Output complete, runnable App.jsx. "
-          + "Do NOT omit components or write 'rest of the components'."
+            self._get_frontend_system_prompt()
+            + "\n\nSTRICT NO PLACEHOLDERS: Output complete, runnable App.jsx. "
+            + "Do NOT omit components or write 'rest of the components'."
         )
         strict_user = (
-          frontend_prompt
-          + "\n\nREGENERATE ENTIRE App.jsx. Include all referenced components "
-          + "(LoadingSpinner, ProtectedRoute, Navigation, LoginPage, RegisterPage, etc.). "
-          + "Output ONLY a single JSX code block."
+            frontend_prompt
+            + "\n\nREGENERATE ENTIRE App.jsx. Include all referenced components "
+            + "(LoadingSpinner, ProtectedRoute, Navigation, LoginPage, RegisterPage, etc.). "
+            + "Output ONLY a single JSX code block."
         )
 
         messages = [
-          {"role": "system", "content": strict_system},
-          {"role": "user", "content": strict_user},
+            {"role": "system", "content": strict_system},
+            {"role": "user", "content": strict_user},
         ]
 
         strict_temperature = min(config.temperature, 0.2)
 
         if config.save_artifacts:
-          self._save_payload(config, 'frontend_no_placeholders', openrouter_model,
-                     messages, strict_temperature, max_tokens)
+            self._save_payload(
+                config,
+                'frontend_no_placeholders',
+                openrouter_model,
+                messages,
+                strict_temperature,
+                max_tokens,
+            )
 
         success, response, _ = await self.client.chat_completion(
-          model=openrouter_model,
-          messages=messages,
-          temperature=strict_temperature,
-          max_tokens=max_tokens,
-          timeout=config.timeout,
-        )
-
-        if config.save_artifacts and success:
-          self._save_response(config, 'frontend_no_placeholders', response)
-
-        if not success:
-          error = response.get('error', 'Unknown error')
-          if isinstance(error, dict):
-            error = error.get('message', str(error))
-          raise RuntimeError(f"Frontend regeneration failed: {error}")
-
-        frontend_code = self._extract_content(response)
-        frontend_finish = self._get_finish_reason(response)
-
-        if self._is_confirmation_seeking(frontend_code):
-          messages.append({"role": "assistant", "content": frontend_code})
-          messages.append({"role": "user", "content": self._get_confirmation_response()})
-          success, response, _ = await self.client.chat_completion(
             model=openrouter_model,
             messages=messages,
             temperature=strict_temperature,
             max_tokens=max_tokens,
             timeout=config.timeout,
-          )
-          if success:
-            frontend_code = self._extract_content(response)
-            frontend_finish = self._get_finish_reason(response)
+        )
+
+        if config.save_artifacts and success:
+            self._save_response(config, 'frontend_no_placeholders', response)
+
+        if not success:
+            error = response.get('error', 'Unknown error')
+            if isinstance(error, dict):
+                error = error.get('message', str(error))
+            raise RuntimeError(f"Frontend regeneration failed: {error}")
+
+        frontend_code = self._extract_content(response)
+        frontend_finish = self._get_finish_reason(response)
+
+        if self._is_confirmation_seeking(frontend_code):
+            messages.append({"role": "assistant", "content": frontend_code})
+            messages.append({"role": "user", "content": self._get_confirmation_response()})
+            success, response, _ = await self.client.chat_completion(
+                model=openrouter_model,
+                messages=messages,
+                temperature=strict_temperature,
+                max_tokens=max_tokens,
+                timeout=config.timeout,
+            )
+            if success:
+                frontend_code = self._extract_content(response)
+                frontend_finish = self._get_finish_reason(response)
 
         if frontend_finish == 'length':
-          frontend_code = await self._continue_frontend(
-            openrouter_model,
-            messages,
-            frontend_code,
-            config,
-            max_tokens,
-          )
+            frontend_code = await self._continue_frontend(
+                openrouter_model,
+                messages,
+                frontend_code,
+                config,
+                max_tokens,
+            )
 
         if not self._has_frontend_code_block(frontend_code):
-          coerced = self._coerce_frontend_output(frontend_code)
-          if coerced:
-            frontend_code = coerced
+            coerced = self._coerce_frontend_output(frontend_code)
+            if coerced:
+                frontend_code = coerced
 
         if not self._has_frontend_code_block(frontend_code):
-          raise RuntimeError("Frontend regeneration produced no JSX code block")
+            raise RuntimeError("Frontend regeneration produced no JSX code block")
 
         return self._sanitize_frontend_output(frontend_code)
 
