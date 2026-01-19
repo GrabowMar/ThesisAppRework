@@ -26,6 +26,24 @@ from .backend_scanner import scan_backend_response, BackendScanResult
 
 logger = logging.getLogger(__name__)
 
+# Patterns that indicate model is asking for confirmation instead of generating
+CONFIRMATION_PATTERNS = [
+    r"would you like me to",
+    r"shall i (proceed|continue|generate)",
+    r"do you want me to",
+    r"should i (proceed|continue|generate)",
+    r"let me know if you",
+    r"i can (generate|create|build)",
+    r"i'll (generate|create|build).*if you",
+    r"ready to (generate|create|proceed)",
+]
+
+# Compiled regex for efficiency
+CONFIRMATION_REGEX = re.compile(
+    '|'.join(CONFIRMATION_PATTERNS),
+    re.IGNORECASE
+)
+
 # Directory for saving prompts/responses
 RAW_PAYLOADS_DIR = Path(__file__).parent.parent.parent.parent.parent / 'generated' / 'raw' / 'payloads'
 RAW_RESPONSES_DIR = Path(__file__).parent.parent.parent.parent.parent / 'generated' / 'raw' / 'responses'
@@ -105,7 +123,62 @@ class CodeGenerator:
             )
         except Exception as e:
             logger.warning(f"Failed to save response: {e}")
-    
+
+    def _is_confirmation_seeking(self, content: str) -> bool:
+        """Check if response is asking for confirmation instead of generating code.
+
+        Models sometimes ask "Would you like me to generate...?" instead of
+        actually generating the code. This detects such responses.
+        """
+        if not content:
+            return False
+
+        # Short responses that match confirmation patterns are likely seeking confirmation
+        # Long responses with code are not
+        if len(content) > 2000:
+            return False
+
+        return bool(CONFIRMATION_REGEX.search(content))
+
+    def _get_model_context_window(self, model_slug: str) -> int:
+        """Get model's context window size from database.
+
+        Returns a safe default if not found.
+        """
+        try:
+            model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+            if model and model.context_window and model.context_window > 0:
+                return model.context_window
+        except Exception as e:
+            logger.warning(f"Failed to get context window for {model_slug}: {e}")
+
+        # Default to 128K which is common for modern models
+        return 128000
+
+    def _calculate_max_tokens(self, model_slug: str, prompt_tokens_estimate: int = 8000) -> int:
+        """Calculate safe max_tokens based on model's context window.
+
+        Ensures we don't request more tokens than the model can handle.
+        """
+        context_window = self._get_model_context_window(model_slug)
+
+        # Reserve space for prompt and leave buffer
+        # Typically: context_window = prompt_tokens + completion_tokens
+        # We want: max_tokens = context_window - prompt_estimate - safety_buffer
+        safety_buffer = 1000
+        available = context_window - prompt_tokens_estimate - safety_buffer
+
+        # Clamp to reasonable range
+        # Minimum 8K for basic code generation, maximum 32K for large apps
+        return max(8000, min(32000, available))
+
+    def _get_confirmation_response(self) -> str:
+        """Get a response to use when model asks for confirmation."""
+        return (
+            "Yes, generate the complete code now. Output ONLY the code block, "
+            "no explanations or questions. Start immediately with ```"
+        )
+
     async def generate(self, config: GenerationConfig) -> Dict[str, str]:
         """Generate all code for an app using 2-prompt strategy.
         
@@ -133,26 +206,30 @@ class CodeGenerator:
         logger.info(f"Generating {config.model_slug}/app{config.app_num} (2-prompt)")
         logger.info(f"  Template: {config.template_slug}")
         logger.info(f"  Model ID: {openrouter_model}")
-        
+
+        # Calculate safe max_tokens based on model's context window
+        max_tokens = self._calculate_max_tokens(config.model_slug)
+        logger.info(f"  Max tokens: {max_tokens}")
+
         # Step 1: Generate Backend
         logger.info("  → Query 1: Backend")
         backend_prompt = self._build_backend_prompt(requirements)
         backend_system = self._get_backend_system_prompt()
-        
+
         messages = [
             {"role": "system", "content": backend_system},
             {"role": "user", "content": backend_prompt},
         ]
-        
+
         if config.save_artifacts:
-            self._save_payload(config, 'backend', openrouter_model, 
-                               messages, config.temperature, config.max_tokens)
-        
+            self._save_payload(config, 'backend', openrouter_model,
+                               messages, config.temperature, max_tokens)
+
         success, response, status = await self.client.chat_completion(
             model=openrouter_model,
             messages=messages,
             temperature=config.temperature,
-            max_tokens=config.max_tokens,
+            max_tokens=max_tokens,
             timeout=config.timeout,
         )
         
@@ -179,33 +256,33 @@ class CodeGenerator:
         logger.info("  → Query 2: Frontend")
         frontend_prompt = self._build_frontend_prompt(requirements, backend_api_context)
         frontend_system = self._get_frontend_system_prompt()
-        
+
         messages = [
             {"role": "system", "content": frontend_system},
             {"role": "user", "content": frontend_prompt},
         ]
-        
+
         if config.save_artifacts:
             self._save_payload(config, 'frontend', openrouter_model,
-                               messages, config.temperature, config.max_tokens)
-        
+                               messages, config.temperature, max_tokens)
+
         success, response, status = await self.client.chat_completion(
             model=openrouter_model,
             messages=messages,
             temperature=config.temperature,
-            max_tokens=config.max_tokens,
+            max_tokens=max_tokens,
             timeout=config.timeout,
         )
-        
+
         if config.save_artifacts and success:
             self._save_response(config, 'frontend', response)
-        
+
         if not success:
             error = response.get('error', 'Unknown error')
             if isinstance(error, dict):
                 error = error.get('message', str(error))
             raise RuntimeError(f"Frontend generation failed: {error}")
-        
+
         frontend_code = self._extract_content(response)
         frontend_finish = self._get_finish_reason(response)
 
@@ -216,7 +293,44 @@ class CodeGenerator:
                 messages,
                 frontend_code,
                 config,
+                max_tokens,
             )
+
+        # Check if model is asking for confirmation instead of generating code
+        if self._is_confirmation_seeking(frontend_code):
+            logger.warning("Model asking for confirmation; responding with 'Yes, proceed'")
+            # Continue the conversation by responding "Yes"
+            messages.append({"role": "assistant", "content": frontend_code})
+            messages.append({"role": "user", "content": self._get_confirmation_response()})
+
+            if config.save_artifacts:
+                self._save_payload(config, 'frontend_confirm', openrouter_model,
+                                   messages, config.temperature, max_tokens)
+
+            success, response, status = await self.client.chat_completion(
+                model=openrouter_model,
+                messages=messages,
+                temperature=config.temperature,
+                max_tokens=max_tokens,
+                timeout=config.timeout,
+            )
+
+            if config.save_artifacts and success:
+                self._save_response(config, 'frontend_confirm', response)
+
+            if success:
+                frontend_code = self._extract_content(response)
+                frontend_finish = self._get_finish_reason(response)
+
+                if frontend_finish == 'length':
+                    logger.warning("Frontend confirm response truncated; requesting continuation")
+                    frontend_code = await self._continue_frontend(
+                        openrouter_model,
+                        messages,
+                        frontend_code,
+                        config,
+                        max_tokens,
+                    )
 
         if not self._has_frontend_code_block(frontend_code):
             logger.warning("Frontend response missing JSX code block; retrying with strict prompt")
@@ -240,13 +354,13 @@ class CodeGenerator:
 
             if config.save_artifacts:
                 self._save_payload(config, 'frontend_retry', openrouter_model,
-                                   messages, strict_temperature, config.max_tokens)
+                                   messages, strict_temperature, max_tokens)
 
             success, response, status = await self.client.chat_completion(
                 model=openrouter_model,
                 messages=messages,
                 temperature=strict_temperature,
-                max_tokens=config.max_tokens,
+                max_tokens=max_tokens,
                 timeout=config.timeout,
             )
 
@@ -262,6 +376,31 @@ class CodeGenerator:
             frontend_code = self._extract_content(response)
             frontend_finish = self._get_finish_reason(response)
 
+            # Check if model is still asking for confirmation after strict prompt
+            if self._is_confirmation_seeking(frontend_code):
+                logger.warning("Model still asking for confirmation after strict prompt; responding with 'Yes'")
+                messages.append({"role": "assistant", "content": frontend_code})
+                messages.append({"role": "user", "content": self._get_confirmation_response()})
+
+                if config.save_artifacts:
+                    self._save_payload(config, 'frontend_retry_confirm', openrouter_model,
+                                       messages, strict_temperature, max_tokens)
+
+                success, response, status = await self.client.chat_completion(
+                    model=openrouter_model,
+                    messages=messages,
+                    temperature=strict_temperature,
+                    max_tokens=max_tokens,
+                    timeout=config.timeout,
+                )
+
+                if config.save_artifacts and success:
+                    self._save_response(config, 'frontend_retry_confirm', response)
+
+                if success:
+                    frontend_code = self._extract_content(response)
+                    frontend_finish = self._get_finish_reason(response)
+
             if frontend_finish == 'length':
                 logger.warning("Frontend retry truncated (finish_reason=length); requesting continuation")
                 frontend_code = await self._continue_frontend(
@@ -269,6 +408,7 @@ class CodeGenerator:
                     messages,
                     frontend_code,
                     config,
+                    max_tokens,
                 )
 
         if not self._has_frontend_code_block(frontend_code):
@@ -357,11 +497,15 @@ class CodeGenerator:
         """Get system prompt for backend generation."""
         return """You are an expert Flask backend developer. Generate a COMPLETE, PRODUCTION-READY Flask application.
 
-## OUTPUT: ONE FILE ONLY
-Generate EXACTLY ONE file: `app.py` containing ALL code (400-600 lines).
-DO NOT create models.py, routes.py, or any other files.
+CRITICAL INSTRUCTION: Generate the code IMMEDIATELY. Do NOT ask for confirmation. Do NOT ask "Would you like me to...?" or "Shall I proceed?". Just output the complete code block directly. This is a non-interactive code generation task.
 
-## EXACT FILE STRUCTURE (follow this order):
+## OUTPUT FORMAT
+Generate EXACTLY ONE code block with this format:
+```python:app.py
+[complete code here - 400-600 lines]
+```
+
+## COMPLETE WORKING EXAMPLE STRUCTURE
 
 ```python:app.py
 import os
@@ -374,129 +518,315 @@ from flask_cors import CORS
 import bcrypt
 import jwt
 
-# 1. Flask app setup
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:////app/data/app.db')
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 db = SQLAlchemy(app)
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# 2. Models - User model + app-specific models
+# ============================================================================
+# MODELS
+# ============================================================================
+
 class User(db.Model):
+    __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.LargeBinary, nullable=False)  # bcrypt returns bytes
+    password_hash = db.Column(db.LargeBinary, nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
-        return {'id': self.id, 'username': self.username, 'email': self.email,
-                'is_admin': self.is_admin, 'is_active': self.is_active}
+        return {
+            'id': self.id,
+            'username': self.username,
+            'email': self.email,
+            'is_admin': self.is_admin,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
 
-# 3. Auth decorators
+# ADD YOUR APP-SPECIFIC MODELS HERE with to_dict() methods
+
+# ============================================================================
+# AUTH DECORATORS
+# ============================================================================
+
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Token required'}), 401
+        token = auth_header[7:]
         if not token:
             return jsonify({'error': 'Token required'}), 401
         try:
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-            user = User.query.get(data['user_id'])
+            user = db.session.get(User, data['user_id'])
             if not user or not user.is_active:
-                return jsonify({'error': 'Invalid user'}), 401
+                return jsonify({'error': 'Invalid or inactive user'}), 401
         except jwt.ExpiredSignatureError:
             return jsonify({'error': 'Token expired'}), 401
-        except:
+        except jwt.InvalidTokenError:
             return jsonify({'error': 'Invalid token'}), 401
         return f(user, *args, **kwargs)
     return decorated
 
 def admin_required(f):
-    # Similar to token_required but also checks user.is_admin
-    ...
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Token required'}), 401
+        token = auth_header[7:]
+        if not token:
+            return jsonify({'error': 'Token required'}), 401
+        try:
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            user = db.session.get(User, data['user_id'])
+            if not user or not user.is_active:
+                return jsonify({'error': 'Invalid or inactive user'}), 401
+            if not user.is_admin:
+                return jsonify({'error': 'Admin access required'}), 403
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token expired'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Invalid token'}), 401
+        return f(user, *args, **kwargs)
+    return decorated
 
-# 4. Auth routes: /api/auth/register, /api/auth/login, /api/auth/me, /api/auth/me (PUT)
-# 5. User routes: /api/* endpoints for main functionality
-# 6. Admin routes: /api/admin/* endpoints
-# 7. Health check: /api/health
+# ============================================================================
+# AUTH ROUTES
+# ============================================================================
 
-# 8. Database initialization - CRITICAL PATTERN (required for gunicorn)
+@app.route('/api/auth/register', methods=['POST'])
+def register():
+    try:
+        data = request.get_json() or {}
+        username = (data.get('username') or '').strip()
+        email = (data.get('email') or '').strip()
+        password = data.get('password') or ''
+
+        if not username or len(username) < 3:
+            return jsonify({'error': 'Username must be at least 3 characters'}), 400
+        if not email or '@' not in email:
+            return jsonify({'error': 'Valid email required'}), 400
+        if not password or len(password) < 6:
+            return jsonify({'error': 'Password must be at least 6 characters'}), 400
+
+        if User.query.filter_by(username=username).first():
+            return jsonify({'error': 'Username already exists'}), 400
+        if User.query.filter_by(email=email).first():
+            return jsonify({'error': 'Email already exists'}), 400
+
+        user = User(
+            username=username,
+            email=email,
+            password_hash=bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        )
+        db.session.add(user)
+        db.session.commit()
+
+        token = jwt.encode(
+            {'user_id': user.id, 'exp': datetime.now(timezone.utc) + timedelta(hours=24)},
+            app.config['SECRET_KEY'],
+            algorithm='HS256'
+        )
+        return jsonify({'token': token, 'user': user.to_dict()}), 201
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Registration error: {e}")
+        return jsonify({'error': 'Registration failed'}), 500
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json() or {}
+        username = (data.get('username') or '').strip()
+        password = data.get('password') or ''
+
+        if not username or not password:
+            return jsonify({'error': 'Username and password required'}), 400
+
+        user = User.query.filter_by(username=username).first()
+        if not user or not bcrypt.checkpw(password.encode('utf-8'), user.password_hash):
+            return jsonify({'error': 'Invalid credentials'}), 401
+        if not user.is_active:
+            return jsonify({'error': 'Account is deactivated'}), 401
+
+        token = jwt.encode(
+            {'user_id': user.id, 'exp': datetime.now(timezone.utc) + timedelta(hours=24)},
+            app.config['SECRET_KEY'],
+            algorithm='HS256'
+        )
+        return jsonify({'token': token, 'user': user.to_dict()}), 200
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        return jsonify({'error': 'Login failed'}), 500
+
+@app.route('/api/auth/me', methods=['GET'])
+@token_required
+def get_me(current_user):
+    return jsonify(current_user.to_dict()), 200
+
+@app.route('/api/auth/me', methods=['PUT'])
+@token_required
+def update_me(current_user):
+    try:
+        data = request.get_json() or {}
+        if 'email' in data:
+            email = (data['email'] or '').strip()
+            if email and '@' in email:
+                existing = User.query.filter(User.email == email, User.id != current_user.id).first()
+                if existing:
+                    return jsonify({'error': 'Email already in use'}), 400
+                current_user.email = email
+        db.session.commit()
+        return jsonify(current_user.to_dict()), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Update profile error: {e}")
+        return jsonify({'error': 'Update failed'}), 500
+
+# ============================================================================
+# USER ROUTES - Implement your app-specific endpoints here
+# ============================================================================
+
+# Public endpoints (no auth): GET list endpoints return ALL data
+# Protected endpoints (token_required): POST, PUT, DELETE
+
+# ============================================================================
+# ADMIN ROUTES
+# ============================================================================
+
+@app.route('/api/admin/users', methods=['GET'])
+@admin_required
+def admin_list_users(current_user):
+    users = User.query.all()
+    return jsonify({
+        'items': [u.to_dict() for u in users],
+        'total': len(users)
+    }), 200
+
+# ============================================================================
+# HEALTH CHECK
+# ============================================================================
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    return jsonify({'status': 'healthy', 'service': 'backend'}), 200
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({'status': 'healthy'}), 200
+
+# ============================================================================
+# DATABASE INITIALIZATION
+# ============================================================================
+
 def init_db():
     db.create_all()
-    if not User.query.filter_by(username='admin').first():
-        admin = User(username='admin', email='admin@example.com', is_admin=True)
-        admin.password_hash = bcrypt.hashpw('admin123'.encode(), bcrypt.gensalt())
+    admin = User.query.filter_by(username='admin').first()
+    if not admin:
+        admin = User(
+            username='admin',
+            email='admin@example.com',
+            password_hash=bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()),
+            is_admin=True
+        )
         db.session.add(admin)
         db.session.commit()
+        logger.info("Created default admin user")
 
 with app.app_context():
     init_db()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('FLASK_RUN_PORT', 5000)))
+    port = int(os.environ.get('FLASK_RUN_PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
 ```
 
-## FORBIDDEN PATTERNS (will crash the app):
-- ❌ @app.before_first_request - REMOVED in Flask 2.3+
-- ❌ init_db() without with app.app_context() - crashes under gunicorn
+## CRITICAL REQUIREMENTS
 
-## REQUIREMENTS:
-- JWT tokens with 24-hour expiration using PyJWT
-- bcrypt for password hashing (hashpw returns bytes, store as LargeBinary)
-- All models must have to_dict() methods
-- Input validation with descriptive errors
-- Proper HTTP status codes (200, 201, 400, 401, 403, 404)
-- Pagination for list endpoints (page, per_page query params)
-- Default admin: username=admin, password=admin123, is_admin=True
+1. **SINGLE FILE**: ALL code in ONE app.py file (400-600 lines)
+2. **NO PLACEHOLDERS**: Every function fully implemented, no "...", no TODOs
+3. **WORKING AUTH**: bcrypt for passwords (LargeBinary column), PyJWT for tokens
+4. **PUBLIC READ**: GET list endpoints return ALL data without authentication
+5. **PROTECTED WRITE**: POST/PUT/DELETE require @token_required decorator
+6. **ADMIN ROUTES**: Use @admin_required decorator for admin-only endpoints
+7. **to_dict() METHODS**: Every model must have a to_dict() method
+8. **HEALTH CHECK**: Both /api/health and /health endpoints
 
-## CRITICAL RULES:
-1. NO placeholders, NO TODOs, NO "..." - generate COMPLETE code
-2. NO "Would you like me to continue?" - generate EVERYTHING
-3. Every route must be fully implemented
-4. Do NOT ask questions or request clarification; make reasonable assumptions and proceed
-5. Generate 400-600 lines of working code"""
+## FORBIDDEN PATTERNS
+- ❌ @app.before_first_request (removed in Flask 2.3+)
+- ❌ Calling init_db() without app.app_context()
+- ❌ Using db.Model.query.get() - use db.session.get() instead
+- ❌ Placeholders like "# implement here" or "pass"
+- ❌ Asking "Would you like me to continue?"
+
+## RESPONSE FORMAT
+Output ONLY the code block. No explanations before or after."""
     
     def _get_frontend_system_prompt(self) -> str:
         """Get system prompt for frontend generation."""
         return """You are an expert React frontend developer. Generate a COMPLETE, PRODUCTION-READY React application.
 
-## OUTPUT: ONE FILE ONLY
-Generate EXACTLY ONE file: `App.jsx` containing ALL code (600-900 lines).
-DO NOT create separate component files, hooks files, or service files.
+CRITICAL INSTRUCTION: Generate the code IMMEDIATELY. Do NOT ask for confirmation. Do NOT ask "Would you like me to...?" or "Shall I proceed?". Just output the complete code block directly. This is a non-interactive code generation task.
 
-## EXACT FILE STRUCTURE (follow this order):
+## OUTPUT FORMAT
+Generate EXACTLY ONE code block with this format:
+```jsx:App.jsx
+[complete code here - 600-900 lines]
+```
+
+## COMPLETE WORKING EXAMPLE STRUCTURE
 
 ```jsx:App.jsx
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { PlusIcon, TrashIcon, PencilIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, PencilIcon, XMarkIcon, CheckIcon } from '@heroicons/react/24/outline';
 
-// 1. API Client Setup
+// ============================================================================
+// API CLIENT
+// ============================================================================
+
 const baseURL = import.meta.env.VITE_BACKEND_URL
   ? `${import.meta.env.VITE_BACKEND_URL.replace(/\\/$/, '')}/api`
   : '/api';
 
 const api = axios.create({ baseURL });
+
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
-// 2. API Functions
+// Auth API
 const authAPI = {
   login: (username, password) => api.post('/auth/login', { username, password }),
   register: (data) => api.post('/auth/register', data),
   me: () => api.get('/auth/me'),
 };
-// Add app-specific API functions here
 
-// 3. Auth Context
+// App-specific API functions here...
+
+// ============================================================================
+// AUTH CONTEXT
+// ============================================================================
+
 const AuthContext = createContext(null);
 
 function AuthProvider({ children }) {
@@ -506,35 +836,487 @@ function AuthProvider({ children }) {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      authAPI.me().then(res => setUser(res.data)).catch(() => localStorage.removeItem('token')).finally(() => setLoading(false));
+      authAPI.me()
+        .then(res => setUser(res.data))
+        .catch(() => {
+          localStorage.removeItem('token');
+          setUser(null);
+        })
+        .finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
   }, []);
 
-  const login = async (username, password) => { /* ... */ };
-  const register = async (data) => { /* ... */ };
-  const logout = () => { localStorage.removeItem('token'); setUser(null); };
+  const login = async (username, password) => {
+    const res = await authAPI.login(username, password);
+    localStorage.setItem('token', res.data.token);
+    setUser(res.data.user);
+    return res.data;
+  };
 
-  return <AuthContext.Provider value={{ user, loading, login, register, logout, isAuthenticated: !!user, isAdmin: user?.is_admin }}>{children}</AuthContext.Provider>;
+  const register = async (data) => {
+    const res = await authAPI.register(data);
+    localStorage.setItem('token', res.data.token);
+    setUser(res.data.user);
+    return res.data;
+  };
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      login,
+      register,
+      logout,
+      isAuthenticated: !!user,
+      isAdmin: user?.is_admin || false
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
-const useAuth = () => useContext(AuthContext);
+const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  return context;
+};
 
-// 4. Utility Components
-function LoadingSpinner() { return <div className="flex justify-center"><div className="animate-spin ..."></div></div>; }
-function ProtectedRoute({ children, adminOnly }) { /* redirect if not auth */ }
+// ============================================================================
+// UTILITY COMPONENTS
+// ============================================================================
 
-// 5. Navigation
-function Navigation() { /* Links: Home, Admin (if admin), Login/Logout */ }
+function LoadingSpinner() {
+  return (
+    <div className="flex justify-center items-center p-8">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+    </div>
+  );
+}
 
-// 6. Page Components
-function HomePage() { /* Main app page - public read-only + logged-in CRUD via conditional rendering */ }
-function LoginPage() { /* Form with validation, error handling, loading state */ }
-function RegisterPage() { /* Form with password confirmation */ }
-function AdminPage() { /* Stats cards, data table, bulk actions, search */ }
+function ProtectedRoute({ children, adminOnly = false }) {
+  const { isAuthenticated, isAdmin, loading } = useAuth();
 
-// 7. Main App - NO BrowserRouter (main.jsx provides it)
+  if (loading) return <LoadingSpinner />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (adminOnly && !isAdmin) return <Navigate to="/" replace />;
+
+  return children;
+}
+
+// ============================================================================
+// NAVIGATION
+// ============================================================================
+
+function Navigation() {
+  const { isAuthenticated, isAdmin, user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+    toast.success('Logged out successfully');
+  };
+
+  return (
+    <nav className="bg-white shadow-sm border-b">
+      <div className="container mx-auto px-4">
+        <div className="flex justify-between items-center h-16">
+          <div className="flex items-center space-x-8">
+            <Link to="/" className="text-xl font-bold text-blue-600">App</Link>
+            <Link to="/" className="text-gray-600 hover:text-gray-900">Home</Link>
+            {isAdmin && (
+              <Link to="/admin" className="text-gray-600 hover:text-gray-900">Admin</Link>
+            )}
+          </div>
+          <div className="flex items-center space-x-4">
+            {isAuthenticated ? (
+              <>
+                <span className="text-gray-600">Hi, {user?.username}</span>
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-900"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="px-4 py-2 text-gray-600 hover:text-gray-900">Login</Link>
+                <Link to="/register" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  Register
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+// ============================================================================
+// LOGIN PAGE
+// ============================================================================
+
+function LoginPage() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { login, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isAuthenticated) navigate('/');
+  }, [isAuthenticated, navigate]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await login(username, password);
+      toast.success('Welcome back!');
+      navigate('/');
+    } catch (err) {
+      const msg = err.response?.data?.error || 'Login failed';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto mt-10">
+      <div className="bg-white p-8 rounded-lg shadow-md">
+        <h1 className="text-2xl font-bold mb-6 text-center">Login</h1>
+        {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-4">{error}</div>}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? 'Logging in...' : 'Login'}
+          </button>
+        </form>
+        <p className="mt-4 text-center text-gray-600">
+          Don't have an account? <Link to="/register" className="text-blue-600 hover:underline">Register</Link>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// REGISTER PAGE
+// ============================================================================
+
+function RegisterPage() {
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { register, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isAuthenticated) navigate('/');
+  }, [isAuthenticated, navigate]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+    setLoading(true);
+    try {
+      await register({ username, email, password });
+      toast.success('Account created successfully!');
+      navigate('/');
+    } catch (err) {
+      const msg = err.response?.data?.error || 'Registration failed';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto mt-10">
+      <div className="bg-white p-8 rounded-lg shadow-md">
+        <h1 className="text-2xl font-bold mb-6 text-center">Register</h1>
+        {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-4">{error}</div>}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              required
+              minLength={3}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              required
+              minLength={6}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? 'Creating account...' : 'Register'}
+          </button>
+        </form>
+        <p className="mt-4 text-center text-gray-600">
+          Already have an account? <Link to="/login" className="text-blue-600 hover:underline">Login</Link>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// HOME PAGE - implement app-specific content here
+// ============================================================================
+
+function HomePage() {
+  const { isAuthenticated, user } = useAuth();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch data on mount - public endpoint, works without auth
+  useEffect(() => {
+    fetchItems();
+  }, []);
+
+  const fetchItems = async () => {
+    try {
+      setLoading(true);
+      // Replace with your actual API endpoint
+      // const res = await api.get('/items');
+      // setItems(res.data.items || res.data || []);
+      setItems([]); // Placeholder
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load data');
+      toast.error('Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">
+          {isAuthenticated ? `Welcome, ${user?.username}!` : 'Welcome!'}
+        </h1>
+        {isAuthenticated ? (
+          <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <PlusIcon className="h-5 w-5 mr-2" />
+            Add New
+          </button>
+        ) : (
+          <Link to="/login" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            Sign in to create
+          </Link>
+        )}
+      </div>
+
+      {!isAuthenticated && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <p className="text-blue-800">
+            <Link to="/login" className="font-medium underline">Sign in</Link> to create, edit, and manage items.
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6">{error}</div>
+      )}
+
+      {items.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-lg shadow">
+          <p className="text-gray-500">No items yet.</p>
+          {isAuthenticated && (
+            <button className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              Create your first item
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow">
+          {/* Render items here */}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// ADMIN PAGE
+// ============================================================================
+
+function AdminPage() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
+
+  useEffect(() => {
+    fetchAdminData();
+  }, []);
+
+  const fetchAdminData = async () => {
+    try {
+      setLoading(true);
+      // Replace with your actual admin API endpoint
+      // const res = await api.get('/admin/items');
+      // setItems(res.data.items || []);
+      // setStats({ total: res.data.total, active: res.data.active, inactive: res.data.inactive });
+      setItems([]);
+      setStats({ total: 0, active: 0, inactive: 0 });
+    } catch (err) {
+      toast.error('Failed to load admin data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <div className="max-w-6xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Admin Dashboard</h1>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="bg-white p-6 rounded-lg shadow">
+          <p className="text-gray-500 text-sm">Total</p>
+          <p className="text-3xl font-bold">{stats.total}</p>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <p className="text-gray-500 text-sm">Active</p>
+          <p className="text-3xl font-bold text-green-600">{stats.active}</p>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <p className="text-gray-500 text-sm">Inactive</p>
+          <p className="text-3xl font-bold text-red-600">{stats.inactive}</p>
+        </div>
+      </div>
+
+      {/* Data Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {items.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-6 py-4 text-center text-gray-500">No items found</td>
+              </tr>
+            ) : (
+              items.map(item => (
+                <tr key={item.id}>
+                  <td className="px-6 py-4 whitespace-nowrap">{item.id}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{item.name || item.title}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 text-xs rounded-full ${item.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {item.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <button className="text-blue-600 hover:text-blue-800">Toggle</button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// MAIN APP - DO NOT wrap in BrowserRouter (main.jsx provides it)
+// ============================================================================
+
 function App() {
   return (
     <AuthProvider>
@@ -545,7 +1327,11 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
+            <Route path="/admin" element={
+              <ProtectedRoute adminOnly>
+                <AdminPage />
+              </ProtectedRoute>
+            } />
           </Routes>
         </main>
       </div>
@@ -556,33 +1342,29 @@ function App() {
 export default App;
 ```
 
-## CRITICAL: Do NOT wrap App in BrowserRouter - main.jsx already provides it!
+## CRITICAL REQUIREMENTS
 
-## AVAILABLE PACKAGES (only use these):
+1. **SINGLE FILE**: ALL code in ONE App.jsx file (600-900 lines)
+2. **NO PLACEHOLDERS**: Every component fully implemented, no "...", no TODOs
+3. **NO BrowserRouter**: main.jsx already provides it - DO NOT wrap App in BrowserRouter
+4. **WORKING AUTH**: localStorage token, AuthContext, login/register/logout functions
+5. **PUBLIC READ**: HomePage fetches data without auth, shows read-only for guests
+6. **CONDITIONAL UI**: Show edit/delete buttons only when isAuthenticated
+7. **TOAST NOTIFICATIONS**: Use toast.success() and toast.error() for feedback
+
+## AVAILABLE PACKAGES (ONLY these)
 react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, date-fns, clsx, uuid
 
-## PAGE REQUIREMENTS:
-- HomePage: Main app page with conditional rendering:
-  * Fetches ALL data from public read endpoint (works without auth)
-  * Public users: Read-only view + "Sign in to create/edit" CTAs
-  * Logged-in users: Same content + create/edit/delete buttons + additional features
-- LoginPage: Username/password form, loading state, error display, link to register, redirects to / on success
-- RegisterPage: Username/email/password/confirm form, validation, link to login, redirects to / on success
-- AdminPage: Stats cards, full data table, toggle status, bulk delete, search/filter
+DO NOT import any other packages.
 
-## UI REQUIREMENTS:
-- Tailwind CSS for ALL styling
-- Loading spinners during async operations
-- Empty states with helpful messages
-- Toast notifications (toast.success, toast.error)
-- Responsive design
+## FORBIDDEN PATTERNS
+- ❌ Wrapping App in BrowserRouter (main.jsx provides it)
+- ❌ Placeholders like "// implement here" or "/* ... */"
+- ❌ Asking "Would you like me to continue?"
+- ❌ Importing packages not in the list above
 
-## CRITICAL RULES:
-1. NO placeholders, NO TODOs, NO "..." - generate COMPLETE code
-2. NO "Would you like me to continue?" - generate EVERYTHING
-3. Do NOT ask questions or request clarification; make reasonable assumptions and proceed
-4. Every component must be fully implemented with real JSX
-5. Generate 600-900 lines of working code"""
+## RESPONSE FORMAT
+Output ONLY the code block. No explanations before or after."""
     
     def _extract_content(self, response: Dict) -> str:
         """Extract content from API response."""
@@ -604,6 +1386,7 @@ react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, da
         base_messages: list,
         base_content: str,
         config: GenerationConfig,
+        max_tokens: int,
         max_continuations: int = 2,
     ) -> str:
         """Request continuation for truncated frontend output and stitch code blocks."""
@@ -629,7 +1412,7 @@ react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, da
                 model=model,
                 messages=messages,
                 temperature=min(config.temperature, 0.2),
-                max_tokens=config.max_tokens,
+                max_tokens=max_tokens,
                 timeout=config.timeout,
             )
 

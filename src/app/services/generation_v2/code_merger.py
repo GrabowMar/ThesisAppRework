@@ -71,7 +71,7 @@ class CodeMerger:
         """
         blocks = []
         pattern = re.compile(
-            r"```(?P<lang>[a-zA-Z0-9_+-]+)?(?::(?P<filename>[^\n\r`]+))?\s*[\r\n]+(.*?)```",
+            r"```(?P<lang>[a-zA-Z0-9_+\.-]+)?(?:[ \t]*[: ]?[ \t]*(?P<filename>[^\n\r`]+))?\s*[\r\n]+(.*?)```",
             re.DOTALL
         )
         
@@ -101,9 +101,16 @@ class CodeMerger:
         # Collect all Python code blocks
         python_blocks = []
         for block in blocks:
-            lang = block['language']
-            filename = block['filename']
+            lang = (block['language'] or '').strip().lower()
+            filename = (block['filename'] or '').strip()
             code = block['code']
+            
+            if not filename and lang.endswith('.py'):
+                filename = lang
+                lang = 'python'
+            
+            if not lang and filename.lower().endswith('.py'):
+                lang = 'python'
 
             # Handle requirements block
             if lang == 'requirements' or (filename and 'requirements' in filename.lower()):
@@ -305,14 +312,23 @@ class CodeMerger:
         """
         written = {}
         blocks = self._extract_code_blocks(raw_content)
+        if not blocks and self._looks_like_jsx(raw_content):
+            blocks = [{'language': 'jsx', 'filename': 'App.jsx', 'code': raw_content.strip()}]
         frontend_src = self.frontend_dir / 'src'
 
         # Collect all JS/JSX code blocks
         jsx_blocks = []
         for block in blocks:
-            lang = block['language']
-            filename = block['filename']
+            lang = (block['language'] or '').strip().lower()
+            filename = (block['filename'] or '').strip()
             code = block['code']
+
+            if not filename and lang.endswith(('.jsx', '.js', '.tsx', '.ts')):
+                filename = lang
+                lang = 'jsx'
+
+            if not lang and filename.lower().endswith(('.jsx', '.js', '.tsx', '.ts')):
+                lang = 'jsx'
 
             # Handle CSS
             if lang == 'css':
@@ -337,10 +353,16 @@ class CodeMerger:
                     'filename': filename or 'App.jsx',
                     'code': code
                 })
+            elif not lang and self._looks_like_jsx(code):
+                jsx_blocks.append({
+                    'filename': filename or 'App.jsx',
+                    'code': code
+                })
 
         if not jsx_blocks:
-            logger.warning("No JSX code blocks found in frontend response")
-            return written
+            error_msg = "No JSX code blocks found in frontend response"
+            logger.warning(error_msg)
+            raise RuntimeError(error_msg)
 
         # Check if we have a single App.jsx block
         app_blocks = [b for b in jsx_blocks
@@ -374,6 +396,21 @@ class CodeMerger:
         logger.info(f"✓ Wrote frontend/src/App.jsx ({len(code)} chars)")
 
         return written
+
+    def _looks_like_jsx(self, code: str) -> bool:
+        """Heuristic check for JSX/React code presence."""
+        if not code:
+            return False
+        signals = (
+            r"\bimport\s+React\b",
+            r"from\s+['\"]react['\"]",
+            r"\bfunction\s+App\b",
+            r"\bconst\s+App\b",
+            r"\bexport\s+default\s+App\b",
+            r"<div[^>]*>",
+            r"return\s*\("
+        )
+        return any(re.search(pattern, code) for pattern in signals)
 
     def _merge_jsx_files(self, blocks: List[Dict[str, str]]) -> str:
         """Merge multiple JSX code blocks into a single App.jsx file.

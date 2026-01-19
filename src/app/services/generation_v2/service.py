@@ -154,8 +154,17 @@ class GenerationService:
             app_num=app_number,
         )
 
+        # Capture Flask app for pushing context in executor thread
+        from flask import current_app
+        app = current_app._get_current_object()
+
+        def _generate_with_context(cfg):
+            """Run generation with Flask app context in executor thread."""
+            with app.app_context():
+                return self.generate(cfg)
+
         loop = asyncio.get_running_loop()
-        gen_result = await loop.run_in_executor(None, self.generate, config)
+        gen_result = await loop.run_in_executor(None, _generate_with_context, config)
 
         success = gen_result.success
         errors = list(gen_result.errors) if gen_result.errors else ([] if success else [gen_result.error_message])

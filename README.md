@@ -143,6 +143,17 @@ pytest
 
 VS Code: Open **Testing** panel (Ctrl+Shift+T) for interactive test explorer.
 
+## Sample App Generation
+
+Generate a few sample apps and build their containers:
+
+```bash
+python scripts/run_sample_generations.py
+```
+
+The script uses the `anthropic_claude-3-5-haiku` model by default and runs `docker compose build`
+in each generated app directory. Each app exposes `/api/health` on port `5000` in its backend container.
+
 ## API
 
 All endpoints require Bearer token authentication.

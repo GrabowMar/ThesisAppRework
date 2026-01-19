@@ -112,9 +112,28 @@ def create_app(config_name: str = 'default') -> Flask:
         secret_key = 'dev-secret-key-change-in-production'
         logger.warning("Using default SECRET_KEY - only suitable for development!")
 
+    db_uri = os.environ.get('DATABASE_URL', default_db_path)
+    if db_uri.startswith('sqlite:///'):
+        db_file = Path(db_uri[10:])
+        if not db_file.is_absolute():
+            db_file = (project_root / db_file).resolve()
+            db_uri = f'sqlite:///{db_file}'
+        try:
+            db_file.parent.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, FileNotFoundError) as exc:
+            logger.warning(
+                "Database path %s not writable (%s); falling back to %s",
+                db_file,
+                exc,
+                default_db_path,
+            )
+            db_uri = default_db_path
+            db_file = Path(db_uri[10:])
+            db_file.parent.mkdir(parents=True, exist_ok=True)
+
     app.config.update(
         SECRET_KEY=secret_key,
-        SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', default_db_path),
+        SQLALCHEMY_DATABASE_URI=db_uri,
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         # Ensure templates are always reloaded to avoid stale caches in tests/dev
         TEMPLATES_AUTO_RELOAD=True,

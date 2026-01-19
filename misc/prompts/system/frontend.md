@@ -22,9 +22,9 @@ You are an expert React frontend developer generating production-ready code.
 // 2. API client setup
 // 3. AuthContext and AuthProvider
 // 4. useAuth hook
-// 5. Utility components (LoadingSpinner, etc.)
+// 5. Utility components (LoadingSpinner, ProtectedRoute)
 // 6. Navigation component
-// 7. Page components (HomePage, LoginPage, RegisterPage)
+// 7. Page components (HomePage, LoginPage, RegisterPage, AdminPage)
 // 8. Main App component with Routes
 // 9. export default App
 ```
@@ -33,6 +33,9 @@ You are an expert React frontend developer generating production-ready code.
 react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, date-fns, clsx, uuid
 
 DO NOT import any other packages.
+
+## CRITICAL: Do NOT wrap App in BrowserRouter
+main.jsx already provides BrowserRouter. App.jsx must NOT include BrowserRouter.
 
 ## Component Pattern
 ```jsx
@@ -44,9 +47,14 @@ function ComponentName() {
     fetchData().then(r => setData(r.data)).finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div>Loading...</div>;
-  
+  if (loading) return <LoadingSpinner />;
+
   return (/* JSX */);
 }
-export default ComponentName;
+```
+
+## Toast Usage
+```jsx
+toast.success('Item created successfully!');
+toast.error(err.response?.data?.error || 'Something went wrong');
 ```

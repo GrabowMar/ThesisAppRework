@@ -87,8 +87,9 @@ class ScaffoldingManager:
         app_dir.mkdir(parents=True, exist_ok=True)
         
         # Build substitution map
-        project_name = f"{config.safe_model_slug}_app{config.app_num}"
-        compose_name = f"{config.safe_model_slug}-app{config.app_num}"
+        sanitized_slug = re.sub(r'[^a-z0-9_-]+', '-', config.safe_model_slug.lower()).strip('-_')
+        project_name = f"{sanitized_slug}_app{config.app_num}"
+        compose_name = f"{sanitized_slug}-app{config.app_num}"
         
         substitutions = {
             'backend_port': str(backend_port),
