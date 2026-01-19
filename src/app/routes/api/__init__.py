@@ -37,6 +37,7 @@ from .container_tools import container_tools_bp
 from .export import export_bp
 from .reports import reports_bp
 from .statistics import statistics_bp
+from .automation import automation_api_bp
 
 __all__ = [
     'api_bp',
@@ -51,5 +52,6 @@ __all__ = [
     'container_tools_bp',
     'export_bp',
     'reports_bp',
-    'statistics_bp'
+    'statistics_bp',
+    'automation_api_bp'
 ]

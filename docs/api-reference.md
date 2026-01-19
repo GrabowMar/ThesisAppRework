@@ -20,6 +20,93 @@ GET /api/tokens/verify
 
 **Response:** `200 OK` with token info, or `401 Unauthorized`.
 
+## Automation Pipeline Endpoints
+
+### Start Pipeline
+
+```http
+POST /api/automation/pipelines
+Content-Type: application/json
+
+{
+  "name": "Optional pipeline name",
+  "config": {
+    "generation": {
+      "mode": "generate",
+      "models": ["openai_gpt-4"],
+      "templates": ["crud_todo_list"],
+      "options": {
+        "parallel": true,
+        "maxConcurrentTasks": 2
+      }
+    },
+    "analysis": {
+      "enabled": true,
+      "profile": "comprehensive",
+      "tools": [],
+      "options": {
+        "parallel": true,
+        "maxConcurrentTasks": 2,
+        "autoStartContainers": true,
+        "stopAfterAnalysis": true
+      }
+    }
+  }
+}
+```
+
+**Response:** `201 Created` with `pipeline_id` and pipeline data.
+
+### Get Pipeline Status
+
+```http
+GET /api/automation/pipelines/{pipeline_id}
+```
+
+### Get Detailed Pipeline Status
+
+```http
+GET /api/automation/pipelines/{pipeline_id}/details
+```
+
+### Cancel Pipeline
+
+```http
+POST /api/automation/pipelines/{pipeline_id}/cancel
+```
+
+### List Pipelines
+
+```http
+GET /api/automation/pipelines?limit=20
+```
+
+### Get Active Pipeline
+
+```http
+GET /api/automation/pipelines/active
+```
+
+### Pipeline Settings
+
+```http
+GET  /api/automation/settings
+POST /api/automation/settings
+GET  /api/automation/settings/{settings_id}
+PUT  /api/automation/settings/{settings_id}
+DELETE /api/automation/settings/{settings_id}
+POST /api/automation/settings/{settings_id}/default
+```
+
+### Tools + Analyzer Containers
+
+```http
+GET /api/automation/tools
+GET /api/automation/analyzer/status
+POST /api/automation/analyzer/start
+GET /api/automation/analyzer/health
+```
+
 ## Analysis Endpoints
 
 ### Run Analysis

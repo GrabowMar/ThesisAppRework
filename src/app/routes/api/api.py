@@ -36,6 +36,7 @@ from .analysis import analysis_bp
 from .container_tools import container_tools_bp
 from .reports import reports_bp
 from .statistics import statistics_bp
+from .automation import automation_api_bp
 
 # Create the main API blueprint that will orchestrate all others
 api_bp = Blueprint('api', __name__)
@@ -87,3 +88,4 @@ api_bp.register_blueprint(analysis_bp, url_prefix='/analysis')
 api_bp.register_blueprint(container_tools_bp)
 api_bp.register_blueprint(reports_bp)
 api_bp.register_blueprint(statistics_bp)
+api_bp.register_blueprint(automation_api_bp)
