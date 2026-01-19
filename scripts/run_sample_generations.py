@@ -1,7 +1,30 @@
-"""Generate a few sample apps for quick validation.
+"""
+Generate Sample Applications for Quick Validation
+================================================
+
+This script generates a few sample applications to quickly validate the generation pipeline.
+
+The script generates applications for multiple AI models and requirement templates,
+then attempts to build and run them to verify the generation quality.
+
+Features:
+- Generates apps for multiple models (Claude, GPT-4, Gemini)
+- Tests multiple template types (CRUD, validation, utility)
+- Builds and runs generated applications
+- Checks for placeholder code that wasn't replaced
+- Validates that applications start successfully
+
+Outputs:
+- generated/apps/test_model/app1/<template>/ - Generated application code
+- Console output with build/run status for each combination
 
 Usage:
-  python scripts/run_sample_generations.py
+    python scripts/run_sample_generations.py
+
+Configuration:
+- Models: anthropic_claude-3-5-haiku, openai_gpt-4, google_gemini-2.0-flash
+- Templates: crud_todo_list, validation_xml_checker, utility_base64_tool
+- Ports: Backend (5100+), Frontend (8100+)
 """
 from __future__ import annotations
 

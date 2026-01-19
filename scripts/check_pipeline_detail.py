@@ -1,4 +1,25 @@
-"""Check detailed pipeline status."""
+"""
+Check Pipeline Execution Details
+================================
+
+This script displays detailed status information for a pipeline execution.
+
+The script shows:
+- Pipeline status, stage, and current job index
+- Progress information and task counts
+- Individual task status for all analysis tasks
+- Target model/app combinations
+- Task progress percentages and error messages
+
+Usage:
+    python scripts/check_pipeline_detail.py [pipeline_id]
+
+Arguments:
+    pipeline_id: Optional pipeline ID to check (defaults to most recent active pipeline)
+
+This script is useful for monitoring pipeline execution and debugging issues
+with individual analysis tasks.
+"""
 import sys
 sys.path.insert(0, 'src')
 

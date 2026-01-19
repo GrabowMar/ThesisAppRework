@@ -163,13 +163,13 @@ class JobExecutor:
         with self._lock:
             in_flight = len(self._in_flight.get(pipeline_id, set()))
         
-        # Check if generation is complete
+        # Check if all generation jobs are done (completed + failed = total and no jobs in flight)
         if completed + failed >= total and in_flight == 0:
             logger.info(f"[{pipeline_id}] Generation complete: {completed}/{total} succeeded")
             self._transition_to_analysis(pipeline)
             return
         
-        # Submit new jobs up to limit
+        # Submit new jobs while under concurrency limit
         while in_flight < self.MAX_CONCURRENT_GENERATION:
             job = pipeline.get_next_job()
             if not job or job.get('stage') != 'generation':
@@ -177,17 +177,19 @@ class JobExecutor:
             
             job_key = f"gen:{job.get('job_index', 0)}"
             
+            # Skip if already in flight (defensive check)
             with self._lock:
                 if job_key in self._in_flight.get(pipeline_id, set()):
                     pipeline.advance_job_index()
                     db.session.commit()
                     continue
             
-            # Submit job
+            # Submit job to thread pool
             self._submit_generation_job(pipeline_id, job, config)
             pipeline.advance_job_index()
             db.session.commit()
             
+            # Recheck in-flight count after submission
             with self._lock:
                 in_flight = len(self._in_flight.get(pipeline_id, set()))
     
@@ -200,7 +202,7 @@ class JobExecutor:
         
         logger.info(f"[{pipeline_id}] Submitting generation job {job_index}: {model_slug} + {template_slug}")
         
-        # Add to in-flight tracking
+        # Add to in-flight tracking before submission
         with self._lock:
             self._in_flight[pipeline_id].add(job_key)
         
@@ -240,6 +242,7 @@ class JobExecutor:
     def _run_generation(self, pipeline_id: str, job_key: str, config: GenerationConfig) -> Dict[str, Any]:
         """Run a generation job (executed in thread pool)."""
         try:
+            # Handle Flask app context for database operations in thread pool
             if self._app:
                 with self._app.app_context():
                     service = get_generation_service()
@@ -267,6 +270,7 @@ class JobExecutor:
         """Check for completed jobs and update progress."""
         pipeline_id = pipeline.id
         
+        # Get snapshot of futures to avoid holding lock during result processing
         with self._lock:
             futures = dict(self._futures.get(pipeline_id, {}))
         
@@ -275,6 +279,7 @@ class JobExecutor:
                 continue
             
             try:
+                # Get result with timeout=0 (non-blocking since we know it's done)
                 result = future.result(timeout=0)
                 self._record_job_result(pipeline, job_key, result)
             except Exception as e:
@@ -285,7 +290,7 @@ class JobExecutor:
                     'errors': [str(e)],
                 })
             
-            # Remove from tracking
+            # Remove from tracking after processing result
             with self._lock:
                 self._in_flight.get(pipeline_id, set()).discard(job_key)
                 self._futures.get(pipeline_id, {}).pop(job_key, None)

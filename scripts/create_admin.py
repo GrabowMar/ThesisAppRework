@@ -1,5 +1,27 @@
 #!/usr/bin/env python
-"""Create admin user in the database."""
+"""
+Create Admin User
+=================
+
+This script creates or updates the admin user account in the database.
+
+The script will:
+1. Check if an admin user already exists
+2. Create a new admin user if none exists, or reset the password if it does
+3. Set admin privileges and default credentials
+
+Default Credentials:
+- Username: admin
+- Password: admin2025
+- Email: admin@thesis-app.local
+
+Usage:
+    python scripts/create_admin.py
+
+Note: This script is intended for development and initial setup only.
+In production environments, admin accounts should be created through
+proper user management interfaces with secure password policies.
+"""
 import sys
 import os
 

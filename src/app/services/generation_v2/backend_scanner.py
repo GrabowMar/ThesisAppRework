@@ -163,7 +163,8 @@ class BackendScanner:
             filename = (match.group('filename') or 'main').strip().lower()
             code = (match.group(2) or '').strip()
             if code:
-                # Normalize filename
+                # Normalize filename by removing .py extension and routes/ prefix
+                # This creates consistent keys like 'app', 'models', 'main'
                 key = filename.replace('.py', '').replace('routes/', '')
                 blocks[key] = code
         
@@ -173,7 +174,8 @@ class BackendScanner:
         """Extract model class definitions."""
         models = []
         
-        # Match class Name(db.Model): patterns
+        # Match SQLAlchemy model class patterns: class Name(db.Model):
+        # Uses non-greedy matching to capture class body until next class or end
         class_pattern = re.compile(
             r'class\s+(\w+)\s*\(\s*db\.Model\s*\)\s*:(.+?)(?=\nclass\s|\Z)',
             re.DOTALL
@@ -183,10 +185,11 @@ class BackendScanner:
             name = match.group(1)
             body = match.group(2)
             
-            # Extract field names from db.Column definitions
+            # Extract field names from db.Column() definitions using regex
+            # Matches patterns like: field_name = db.Column(
             fields = re.findall(r'(\w+)\s*=\s*db\.Column\s*\(', body)
             
-            # Check for to_dict method
+            # Check if model has a to_dict() method for JSON serialization
             has_to_dict = 'def to_dict' in body
             
             models.append(ModelInfo(
@@ -204,7 +207,10 @@ class BackendScanner:
         """
         endpoints = []
         
-        # Match @app.route or @blueprint.route patterns
+        # Complex regex to match Flask route decorators:
+        # Group 1: route object name ('app' or blueprint variable)
+        # Group 2: URL path in quotes
+        # Group 3: Optional methods list like methods=['GET', 'POST']
         route_pattern = re.compile(
             r"@(\w+)\.route\s*\(\s*['\"]([^'\"]+)['\"]"
             r"(?:\s*,\s*methods\s*=\s*\[([^\]]+)\])?\s*\)",
@@ -216,38 +222,45 @@ class BackendScanner:
             path = match.group(2)
             methods_str = match.group(3)
             
-            # Determine blueprint type from path or variable name
+            # Determine blueprint type from path patterns or variable names
+            # Admin routes: contain '/admin' or use 'admin' blueprint
             if '/admin' in path or 'admin' in route_obj:
                 blueprint = 'admin'
+            # Auth routes: contain '/auth' or use 'auth' blueprint  
             elif '/auth' in path or 'auth' in route_obj:
                 blueprint = 'auth'
             else:
                 blueprint = 'user'
             
-            # Parse methods
+            # Parse HTTP methods from decorator, default to GET if not specified
             if methods_str:
                 methods = [m.strip().strip("'\"") for m in methods_str.split(',')]
             else:
                 methods = ['GET']
             
-            # Check for auth decorators in surrounding context
+            # Check for authentication decorators in surrounding code context
+            # Look 200 chars before and 100 chars after the route decorator
             start = max(0, match.start() - 200)
             end = min(len(code), match.end() + 100)
             context = code[start:end]
             
+            # Check for common auth decorator patterns
             requires_auth = bool(re.search(r'@token_required|@login_required', context))
             requires_admin = bool(re.search(r'@admin_required', context)) or blueprint == 'admin'
             
-            # Ensure path starts with /api
+            # Normalize path to ensure it starts with /api prefix
             if not path.startswith('/api'):
                 if blueprint == 'admin':
+                    # Admin routes: /api/admin/path
                     path = f'/api/admin{path}' if not path.startswith('/') else f'/api/admin{path}'
                 elif blueprint == 'auth':
+                    # Auth routes: /api/auth/path
                     path = f'/api/auth{path}' if not path.startswith('/') else f'/api/auth{path}'
                 else:
+                    # User routes: /api/path
                     path = f'/api{path}' if not path.startswith('/') else f'/api{path}'
             
-            # Create endpoint for each method
+            # Create endpoint info for each HTTP method
             for method in methods:
                 endpoints.append(EndpointInfo(
                     method=method.upper(),

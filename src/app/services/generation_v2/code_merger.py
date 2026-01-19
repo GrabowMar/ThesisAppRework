@@ -177,7 +177,8 @@ class CodeMerger:
             code = block['code']
             filename = block['filename'].lower()
 
-            # Extract imports
+            # Extract imports - collect all import statements from each file
+            # Skip relative imports that won't work in single-file architecture
             for match in import_pattern.finditer(code):
                 import_line = match.group().strip()
                 # Skip relative imports that won't work in single file
@@ -189,7 +190,7 @@ class CodeMerger:
             # Remove imports from code for further processing
             code_without_imports = import_pattern.sub('', code).strip()
 
-            # Categorize by filename
+            # Categorize code blocks by filename patterns to organize the merged file
             if 'model' in filename:
                 model_code.append(f"# From {block['filename']}\n{code_without_imports}")
             elif 'route' in filename or 'api' in filename:
@@ -199,14 +200,14 @@ class CodeMerger:
             else:
                 other_code.append(f"# From {block['filename']}\n{code_without_imports}")
 
-        # Build merged file
+        # Build merged file with proper organization
         parts = []
 
         # Standard imports first
         parts.append("# Merged from multiple generated files into single app.py")
         parts.append("")
 
-        # Sort and add imports
+        # Sort and add imports - standard library first, then third-party
         sorted_imports = sorted(all_imports, key=lambda x: (not x.startswith('import'), x.lower()))
         parts.extend(sorted_imports)
         parts.append("")
@@ -433,7 +434,8 @@ class CodeMerger:
             code = block['code']
             filename = block['filename'].lower()
 
-            # Extract imports
+            # Extract imports - collect all import statements from each file
+            # Skip relative imports that won't work in single-file architecture
             for match in import_pattern.finditer(code):
                 import_line = match.group().strip()
                 # Skip relative imports
@@ -449,7 +451,7 @@ class CodeMerger:
                 r'\nexport\s+default\s+\w+;?\s*$', '', code_without_imports
             ).strip()
 
-            # Categorize by filename
+            # Categorize code blocks by filename patterns to organize the merged file
             if 'api' in filename or 'service' in filename:
                 api_code.append(f"// From {block['filename']}\n{code_without_imports}")
             elif 'auth' in filename or 'context' in filename:
@@ -459,7 +461,7 @@ class CodeMerger:
             else:
                 component_code.append(f"// From {block['filename']}\n{code_without_imports}")
 
-        # Build merged file
+        # Build merged file with proper organization
         parts = []
 
         # Standard imports first

@@ -34,7 +34,14 @@ def api_overview():
 
 @core_bp.route('/health')
 def api_health():
-    """API health check endpoint."""
+    """API health check endpoint.
+    
+    Performs basic health checks on the application and database.
+    Returns 503 if database is unhealthy, 200 if healthy.
+    
+    Returns:
+        JSON response with health status and timestamp
+    """
     db_healthy, db_error = get_database_health()
     
     if not db_healthy:
@@ -50,7 +57,14 @@ def api_health():
 
 @core_bp.route('/stats')
 def api_stats():
-    """Basic API statistics endpoint."""
+    """Basic API statistics endpoint.
+    
+    Returns counts of various entities in the database:
+    models, applications, security analyses, performance tests, batch jobs, active containers.
+    
+    Returns:
+        JSON response with entity counts
+    """
     try:
         stats = {
             'models': ModelCapability.query.count(),
@@ -70,7 +84,14 @@ def api_stats():
 
 @core_bp.route('/data/initialize', methods=['POST'])
 def api_initialize_data():
-    """Initialize database with data from JSON files."""
+    """Initialize database with data from JSON files.
+    
+    Loads model capabilities, port configurations, and other reference data
+    from JSON files in the misc/ directory.
+    
+    Returns:
+        JSON response with initialization results and counts
+    """
     try:
         results = data_init_service.initialize_all_data()
         return jsonify(results)
@@ -81,7 +102,14 @@ def api_initialize_data():
 
 @core_bp.route('/data/status')
 def api_data_status():
-    """Get data initialization status."""
+    """Get data initialization status.
+    
+    Returns the current status of data initialization,
+    including what data has been loaded and any errors.
+    
+    Returns:
+        JSON response with initialization status
+    """
     try:
         status = data_init_service.get_initialization_status()
         return jsonify(status)
@@ -92,7 +120,14 @@ def api_data_status():
 
 @core_bp.route('/data/reload', methods=['POST'])
 def api_reload_core_data():
-    """Reload core JSON files."""
+    """Reload core JSON files.
+    
+    Re-synchronizes the database with updated JSON files
+    without full reinitialization.
+    
+    Returns:
+        JSON response with reload results (200 if successful, 207 if partial success)
+    """
     try:
         results = data_init_service.reload_core_files()
         status_code = 200 if results.get('success', True) and not results.get('errors') else 207

@@ -1,7 +1,18 @@
 """
-Validation Utilities for Celery App
+Validation Utilities
+====================
 
 Provides validation functions for input data, models, and configurations.
+
+This module contains utilities for validating:
+- Model slugs and their format
+- Application numbers and ranges
+- File paths and directories
+- Analysis types and configurations
+- Template slugs and requirements
+
+Used throughout the application to ensure data integrity and provide
+meaningful error messages for invalid inputs.
 """
 
 import re

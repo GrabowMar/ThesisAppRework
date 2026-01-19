@@ -1,7 +1,32 @@
-"""Validate misc inputs (requirements, templates, scaffolding, prompts).
+"""
+Validate Miscellaneous Inputs
+=============================
 
-Run:
-  python scripts/validate_misc.py
+This script validates all miscellaneous input files used by the application.
+
+Validates:
+- Requirement JSON files (misc/requirements/*.json)
+- Jinja2 template files (misc/templates/**/*.jinja2)
+- Scaffolding configuration (misc/scaffolding/)
+- System prompt files (misc/prompts/system/*.md)
+- Template structure and references
+
+Checks performed:
+- JSON syntax and required fields
+- Template file existence and syntax
+- API endpoint method validation
+- Cross-reference integrity between requirements and templates
+- File naming conventions
+
+Usage:
+    python scripts/validate_misc.py
+
+Outputs:
+- List of validation issues found
+- Exit code 0 if all validations pass, 1 if issues found
+
+This script is used during development and CI/CD to ensure configuration
+consistency and catch issues early in the development process.
 """
 from __future__ import annotations
 

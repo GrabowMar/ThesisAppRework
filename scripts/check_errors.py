@@ -1,4 +1,22 @@
-"""Check task errors."""
+"""
+Check Analysis Task Errors
+==========================
+
+This script queries and displays recent failed analysis tasks from the database.
+
+The script shows the most recent failed tasks (up to 10) with details including:
+- Task ID and status
+- Target model and application number
+- Parent task relationship
+- Error messages
+- Creation timestamps
+
+Usage:
+    python scripts/check_errors.py
+
+This is useful for debugging pipeline failures and monitoring system health.
+Tasks are ordered by creation date (most recent first).
+"""
 import sys
 sys.path.insert(0, 'src')
 

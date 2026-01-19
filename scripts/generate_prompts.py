@@ -1,8 +1,26 @@
-"""Generate and analyze prompts for all requirement templates.
+"""
+Generate and Analyze Prompts for All Requirement Templates
+==========================================================
+
+This script generates AI prompts for all requirement templates and analyzes their quality.
+
+The script processes requirement templates from misc/requirements/ and generates:
+- Two-query prompts for each template (user + admin queries)
+- Analysis reports comparing prompt effectiveness
+- Raw API payloads for debugging
 
 Outputs:
-- generated/prompts/two-query/<template_slug>/*.md
-- reports/prompts_analysis.md
+- generated/prompts/two-query/<template_slug>/*.md - Generated prompts
+- reports/prompts_analysis.md - Quality analysis report
+- generated/raw/payloads/ - Raw API request/response data
+
+Usage:
+    python scripts/generate_prompts.py
+
+Requirements:
+- Jinja2 templates in misc/templates/
+- JSON requirement files in misc/requirements/
+- OpenRouter API key configured
 """
 from __future__ import annotations
 

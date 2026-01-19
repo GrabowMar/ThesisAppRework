@@ -1,5 +1,28 @@
 #!/usr/bin/env python3
-"""Test script for generation prompts - runs generation without Flask app."""
+"""
+Test Script for Generation Prompts
+===================================
+
+This script tests the generation prompt system without requiring a full Flask application.
+
+The script validates:
+- Requirement JSON loading and parsing
+- Jinja2 template rendering for backend and frontend prompts
+- API endpoint formatting
+- Prompt structure and content generation
+
+Features:
+- Standalone execution (no Flask app required)
+- Uses sample requirement files from misc/requirements/
+- Tests template rendering with real data
+- Validates prompt output structure
+
+Usage:
+    python test_generation.py
+
+This script is useful for development and debugging of the prompt generation
+system without the overhead of the full web application.
+"""
 import asyncio
 import json
 import os

@@ -1,6 +1,33 @@
-"""Run evaluation pipeline for generation/build/analyze.
+"""
+Run Evaluation Pipeline for Generation/Build/Analyze
+=====================================================
 
-Reads data/evaluation_queries.json and produces data/evaluation_responses.jsonl.
+This script executes the complete evaluation pipeline for AI-generated applications.
+
+The pipeline processes evaluation queries from data/evaluation_queries.json and:
+1. Generates applications using the specified model and template
+2. Builds the generated applications
+3. Runs static, dynamic, and performance analysis
+4. Collects results and metrics
+
+Outputs:
+- data/evaluation_responses.jsonl - Detailed evaluation results
+- generated/apps/<model>/app<N>/ - Generated application code
+- results/<model>/app<N>/task_<id>/ - Analysis results
+
+The script detects consistency errors in build outputs and provides comprehensive
+evaluation metrics for comparing different AI models and generation approaches.
+
+Usage:
+    python scripts/run_evaluation_pipeline.py
+    python scripts/run_evaluation_pipeline.py --model-slug anthropic_claude-3-5-haiku
+    python scripts/run_evaluation_pipeline.py --template-slug flask_blog
+
+Arguments:
+    --model-slug: AI model to use for generation (default: from queries)
+    --template-slug: Template to evaluate (default: from queries)
+    --app-num: Application number for results (default: auto-increment)
+    --force: Overwrite existing results
 """
 from __future__ import annotations
 

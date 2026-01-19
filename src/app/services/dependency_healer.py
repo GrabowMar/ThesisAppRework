@@ -360,20 +360,35 @@ class DependencyHealer:
         fixed_count = 0
 
         def resolve_module(base_dir: Path, rel_path: str) -> bool:
+            """Check if a relative import path resolves to an actual file.
+            
+            Handles both direct file imports and index file imports.
+            For example, if rel_path is './utils', it will check for:
+            - ./utils (with various extensions)
+            - ./utils/index.js, ./utils/index.jsx, etc.
+            """
             candidate = (base_dir / rel_path).resolve()
 
             candidates = []
             if candidate.suffix:
+                # Direct file reference - check as-is
                 candidates.append(candidate)
             else:
+                # Directory or extensionless import - try multiple extensions
                 for ext in ('.js', '.jsx', '.ts', '.tsx', '.json'):
                     candidates.append(candidate.with_suffix(ext))
+                # Also check for index files in directories
                 for ext in ('.js', '.jsx', '.ts', '.tsx', '.json'):
                     candidates.append(candidate / f'index{ext}')
 
             return any(path.exists() for path in candidates)
 
         def normalize_to_src(import_path: str) -> Optional[Path]:
+            """Convert a relative import path to an absolute path relative to src/.
+            
+            Strips leading ./ and ../ to get the path within the src directory.
+            Used to correlate imports with the export_map built from src files.
+            """
             parts = list(Path(import_path).as_posix().split('/'))
             while parts and parts[0] in ('.', '..'):
                 parts.pop(0)
@@ -405,6 +420,7 @@ class DependencyHealer:
                 continue
             
             # Determine if this file is in a subdirectory of src (pages/, components/, etc.)
+            # This affects which import patterns we consider as "common mistakes"
             try:
                 rel_to_src = file_path.parent.relative_to(src_dir)
                 is_in_subdir = len(rel_to_src.parts) > 0 and rel_to_src.parts[0] in {'pages', 'components', 'hooks', 'utils'}
@@ -415,19 +431,27 @@ class DependencyHealer:
             original_content = content
 
             def replace(match: re.Match) -> str:
+                """Replace function called for each import match.
+                
+                Performs two-stage import resolution:
+                1. Quick fix for known LLM mistakes (pattern-based)
+                2. Fallback resolution for other import issues
+                """
                 nonlocal updated, fixed_count
                 import_path = match.group('path')
 
                 if not import_path.startswith('.'):
+                    # Skip absolute imports (npm packages, etc.)
                     return match.group(0)
 
                 file_dir = file_path.parent
                 
                 # Quick fix for common LLM mistakes when in subdirectory
+                # These are high-confidence fixes based on observed patterns
                 if is_in_subdir:
                     for wrong, correct in common_mistakes.items():
                         if import_path.startswith(wrong):
-                            # Check if the correct path would resolve
+                            # Verify the corrected path actually resolves before applying
                             corrected = import_path.replace(wrong, correct, 1)
                             if resolve_module(file_dir, corrected):
                                 issues.append(
@@ -440,13 +464,16 @@ class DependencyHealer:
                                 return match.group(0)
                 
                 # Original resolution logic for other cases
+                # Check if current import path resolves from file's directory
                 if resolve_module(file_dir, import_path):
                     return match.group(0)
 
+                # If not, try to find the correct relative path from src/
                 src_target = normalize_to_src(import_path)
                 if src_target is None or not resolve_module(src_dir, src_target.relative_to(src_dir).as_posix()):
                     return match.group(0)
 
+                # Calculate correct relative path from current file to target
                 new_rel = os.path.relpath(src_target, file_dir).replace('\\', '/')
                 if not new_rel.startswith('.'):
                     new_rel = f'./{new_rel}'
@@ -1178,7 +1205,13 @@ class DependencyHealer:
             logger.info(f"[DependencyHealer] Updated index.js export pattern for {export_name}")
 
     def _ensure_api_exports(self, src_dir: Path, api_js_path: Path, auto_fix: bool) -> Dict[str, Any]:
-        """Ensure functions imported from services/api.js are exported there."""
+        """Ensure functions imported from services/api.js are exported there.
+        
+        This method prevents Vite build failures by ensuring that any API functions
+        imported by pages (like AdminPage.jsx, UserPage.jsx) are actually exported
+        from the services/api.js file. If missing, it auto-generates reasonable
+        API function stubs based on function naming conventions.
+        """
         issues: List[str] = []
         changes: List[str] = []
         fixed_count = 0
@@ -1194,6 +1227,7 @@ class DependencyHealer:
         content_modified = False
 
         # Remove invalid self-reexports that duplicate named exports (e.g. export { api } from './api')
+        # These cause "duplicate export" errors in ES modules
         self_reexport_pattern = re.compile(
             r"^\s*export\s*\{[^}]*\}\s*from\s*['\"]\./api['\"];?\s*$",
             re.MULTILINE
@@ -1212,27 +1246,32 @@ class DependencyHealer:
             except Exception as e:
                 issues.append(f"Failed to write api.js: {e}")
 
+        # Find all currently exported functions in api.js
         exported = set()
         for match in re.finditer(r'export\s+(?:const|function)\s+(\w+)', api_content):
             exported.add(match.group(1))
 
         def _collect_imports(file_path: Path) -> List[str]:
+            """Extract API function names imported from services/api.js in a page file."""
             try:
                 content = file_path.read_text(encoding='utf-8')
             except Exception:
                 return []
             imports = []
+            # Match: import { functionName, otherFunc } from '../services/api'
+            # Also matches: import { func } from '../../services/api' etc.
             for match in re.finditer(
                 r"import\s*\{([^}]+)\}\s*from\s*['\"](?:\.{1,2}/)*services/api['\"]",
                 content
             ):
                 names = match.group(1)
                 for name in names.split(','):
-                    clean = name.strip().split(' as ')[0]
+                    clean = name.strip().split(' as ')[0]  # Handle 'func as alias'
                     if clean:
                         imports.append(clean)
             return imports
 
+        # Collect API functions needed by AdminPage and UserPage
         wanted_admin = set()
         wanted_user = set()
         admin_path = src_dir / 'pages' / 'AdminPage.jsx'
@@ -1244,6 +1283,7 @@ class DependencyHealer:
 
         wanted = wanted_admin | wanted_user
 
+        # Find missing exports
         missing = sorted(name for name in wanted if name not in exported)
         if not missing and not content_modified:
             return {'issues': issues, 'changes': changes, 'fixed_count': fixed_count}
@@ -1254,8 +1294,10 @@ class DependencyHealer:
         if auto_fix:
             additions = []
             for name in missing:
+                # Infer API endpoint details from function name
                 is_admin = name in wanted_admin
                 endpoint = self._infer_endpoint(name, is_admin=is_admin)
+                # Generate: export const functionName = (payload) => api.method('path', payload);
                 additions.append(
                     f"export const {name} = (payload) => api.{endpoint['method']}('{endpoint['path']}', payload);"
                 )
@@ -1270,12 +1312,22 @@ class DependencyHealer:
         return {'issues': issues, 'changes': changes, 'fixed_count': fixed_count}
 
     def _infer_endpoint(self, function_name: str, is_admin: bool) -> Dict[str, str]:
-        """Infer a reasonable endpoint path for a missing API export."""
+        """Infer a reasonable endpoint path for a missing API export.
+        
+        Uses naming conventions to guess the HTTP method and URL path:
+        - Function names starting with 'create', 'add', 'post' → POST method
+        - Names with 'update', 'edit', 'put' → PUT method  
+        - Names with 'delete', 'remove' → DELETE method
+        - Others default to GET
+        
+        Resource detection looks for keywords like 'todos', 'validations', etc.
+        Special cases for 'stats' (always GET) and 'toggle'/'bulk' operations.
+        """
         name = function_name
-        method = 'get'
-        path = '/admin' if is_admin else ''
+        method = 'get'  # Default HTTP method
+        path = '/admin' if is_admin else ''  # Base path with admin prefix if needed
 
-        # Determine method
+        # Determine HTTP method from function name prefixes
         if re.search(r'^(create|add|post)', name, re.IGNORECASE):
             method = 'post'
         elif re.search(r'^(update|edit|put)', name, re.IGNORECASE):
@@ -1283,26 +1335,31 @@ class DependencyHealer:
         elif re.search(r'^(delete|remove)', name, re.IGNORECASE):
             method = 'delete'
 
-        # Determine resource
+        # Determine resource type from function name keywords
         resource = None
         for candidate in ['todos', 'validations', 'conversions', 'items', 'stats']:
             if re.search(candidate, name, re.IGNORECASE):
                 resource = candidate
                 break
 
+        # Special handling for stats (always admin/user stats endpoint)
         if 'stats' in name.lower():
             path = '/admin/stats' if is_admin else '/stats'
-            method = 'get'
+            method = 'get'  # Stats are always GET requests
         elif resource:
+            # Standard resource endpoint: /admin/{resource} or /{resource}
             prefix = '/admin' if is_admin else ''
             path = f"{prefix}/{resource}"
 
+        # Special path modifications for specific operation types
         if 'toggle' in name.lower():
+            # Toggle operations: /resource/{id}/toggle
             path = f"{path}/{{id}}/toggle"
-            method = 'post'
+            method = 'post'  # Toggles are typically POST
         if 'bulk' in name.lower():
+            # Bulk operations: /resource/bulk-delete
             path = f"{path}/bulk-delete"
-            method = 'post'
+            method = 'post'  # Bulk ops are typically POST
 
         return {'method': method, 'path': path}
 

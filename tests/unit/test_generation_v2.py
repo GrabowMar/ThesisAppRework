@@ -1,7 +1,22 @@
-"""Test script for generation_v2 package.
+"""
+Unit Tests for Generation V2 Package
+====================================
+
+This module contains comprehensive unit tests for the generation_v2 package.
+
+Tests cover:
+- GenerationConfig creation and validation
+- GenerationResult error handling
+- ScaffoldingManager initialization and functionality
+- CodeGenerator prompt building and system prompt retrieval
+- Template catalog loading and validation
+- Application generation workflow
 
 Run from project root:
     python -m pytest tests/unit/test_generation_v2.py -v
+
+Run specific test:
+    python -m pytest tests/unit/test_generation_v2.py::test_generation_config_basic -v
 """
 
 import pytest

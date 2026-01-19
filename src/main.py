@@ -4,6 +4,29 @@ Main Application Entry Point
 
 Main entry point for the Thesis App with Celery integration
 and analyzer orchestration capabilities.
+
+This module serves as the primary entry point for the Flask web application.
+It handles application initialization, configuration loading, and server startup.
+The app supports both development and production modes with different execution
+backends (threading vs Celery distributed tasks).
+
+Key Features:
+- Flask web application with SocketIO real-time features
+- Celery distributed task processing for analysis workloads
+- Containerized analyzer services integration
+- Comprehensive logging and error handling
+- UTF-8 encoding support for Windows compatibility
+
+Environment Variables:
+    FLASK_ENV: Application environment (development/production)
+    PORT: Server port (default: 5000)
+    HOST: Server host (default: 0.0.0.0)
+    DEBUG: Enable debug mode (default: true in development)
+    USE_CELERY_ANALYSIS: Use Celery for analysis tasks (default: false)
+    LOG_LEVEL: Logging level configuration
+
+The application provides REST APIs for health checks, task management,
+and analyzer control, along with real-time WebSocket updates for analysis progress.
 """
 
 import os
@@ -28,7 +51,19 @@ except Exception as e:
     logger.debug(f"Log cleanup at startup skipped: {e}")
 
 def main():
-    """Main application entry point."""
+    """Main application entry point.
+    
+    Initializes and starts the Flask application with the following steps:
+    1. Sets up UTF-8 encoding for cross-platform compatibility
+    2. Loads environment variables and configuration
+    3. Creates Flask application instance
+    4. Configures logging and startup banner
+    5. Starts the web server (with or without SocketIO)
+    6. Handles graceful shutdown on interrupt
+    
+    Returns:
+        int: Exit code (0 for success, 1 for failure)
+    """
     
     # Add src directory to path (current directory)
     src_dir = Path(__file__).parent

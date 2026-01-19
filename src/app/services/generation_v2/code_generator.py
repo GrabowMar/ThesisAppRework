@@ -193,12 +193,12 @@ class CodeGenerator:
         """
         results = {}
         
-        # Load template requirements
+        # Load template requirements - defines app structure, endpoints, models
         requirements = self._load_requirements(config.template_slug)
         if not requirements:
             raise RuntimeError(f"Template not found: {config.template_slug}")
         
-        # Get OpenRouter model ID
+        # Get OpenRouter model ID from database - maps slug to actual API model identifier
         openrouter_model = self._get_openrouter_model(config.model_slug)
         if not openrouter_model:
             raise RuntimeError(f"Model not found in database: {config.model_slug}")
@@ -207,11 +207,11 @@ class CodeGenerator:
         logger.info(f"  Template: {config.template_slug}")
         logger.info(f"  Model ID: {openrouter_model}")
 
-        # Calculate safe max_tokens based on model's context window
+        # Calculate safe max_tokens based on model's context window to avoid truncation
         max_tokens = self._calculate_max_tokens(config.model_slug)
         logger.info(f"  Max tokens: {max_tokens}")
 
-        # Step 1: Generate Backend
+        # Step 1: Generate Backend - produces Flask app with models, auth, routes
         logger.info("  → Query 1: Backend")
         backend_prompt = self._build_backend_prompt(requirements)
         backend_system = self._get_backend_system_prompt()
@@ -246,13 +246,13 @@ class CodeGenerator:
         results['backend'] = backend_code
         logger.info(f"    ✓ Backend: {len(backend_code)} chars")
         
-        # Step 2: Scan backend for API context
+        # Step 2: Scan backend for API context - extract endpoints, models for frontend generation
         logger.info("  → Scanning backend for API context...")
         scan_result = scan_backend_response(backend_code)
         backend_api_context = scan_result.to_frontend_context()
         logger.info(f"    ✓ Found {len(scan_result.endpoints)} endpoints, {len(scan_result.models)} models")
         
-        # Step 3: Generate Frontend with backend context
+        # Step 3: Generate Frontend with backend context - React app that matches backend API
         logger.info("  → Query 2: Frontend")
         frontend_prompt = self._build_frontend_prompt(requirements, backend_api_context)
         frontend_system = self._get_frontend_system_prompt()
@@ -286,6 +286,7 @@ class CodeGenerator:
         frontend_code = self._extract_content(response)
         frontend_finish = self._get_finish_reason(response)
 
+        # Handle truncated responses by requesting continuation from model
         if frontend_finish == 'length':
             logger.warning("Frontend response truncated (finish_reason=length); requesting continuation")
             frontend_code = await self._continue_frontend(
@@ -296,7 +297,7 @@ class CodeGenerator:
                 max_tokens,
             )
 
-        # Check if model is asking for confirmation instead of generating code
+        # Some models ask for confirmation instead of generating code - handle this edge case
         if self._is_confirmation_seeking(frontend_code):
             logger.warning("Model asking for confirmation; responding with 'Yes, proceed'")
             # Continue the conversation by responding "Yes"
@@ -322,6 +323,7 @@ class CodeGenerator:
                 frontend_code = self._extract_content(response)
                 frontend_finish = self._get_finish_reason(response)
 
+                # Handle continuation again if needed after confirmation response
                 if frontend_finish == 'length':
                     logger.warning("Frontend confirm response truncated; requesting continuation")
                     frontend_code = await self._continue_frontend(
@@ -332,6 +334,7 @@ class CodeGenerator:
                         max_tokens,
                     )
 
+        # If frontend still doesn't have proper JSX code block, try strict retry with lower temperature
         if not self._has_frontend_code_block(frontend_code):
             logger.warning("Frontend response missing JSX code block; retrying with strict prompt")
             strict_system = (
@@ -376,7 +379,7 @@ class CodeGenerator:
             frontend_code = self._extract_content(response)
             frontend_finish = self._get_finish_reason(response)
 
-            # Check if model is still asking for confirmation after strict prompt
+            # Handle confirmation seeking even in strict mode
             if self._is_confirmation_seeking(frontend_code):
                 logger.warning("Model still asking for confirmation after strict prompt; responding with 'Yes'")
                 messages.append({"role": "assistant", "content": frontend_code})
@@ -401,6 +404,7 @@ class CodeGenerator:
                     frontend_code = self._extract_content(response)
                     frontend_finish = self._get_finish_reason(response)
 
+            # Handle continuation after strict retry if needed
             if frontend_finish == 'length':
                 logger.warning("Frontend retry truncated (finish_reason=length); requesting continuation")
                 frontend_code = await self._continue_frontend(
@@ -411,15 +415,18 @@ class CodeGenerator:
                     max_tokens,
                 )
 
+        # Final fallback: try to coerce malformed output into proper JSX format
         if not self._has_frontend_code_block(frontend_code):
             coerced = self._coerce_frontend_output(frontend_code)
             if coerced:
                 logger.warning("Coerced frontend output into JSX code block")
                 frontend_code = coerced
 
+        # Final validation - ensure we have proper JSX code block
         if not self._has_frontend_code_block(frontend_code):
             raise RuntimeError("Frontend generation produced no JSX code block")
 
+        # Clean up any trailing text after code fence that model might have added
         frontend_code = self._sanitize_frontend_output(frontend_code)
 
         results['frontend'] = frontend_code
@@ -1391,11 +1398,18 @@ Output ONLY the code block. No explanations before or after."""
         max_tokens: int,
         max_continuations: int = 2,
     ) -> str:
-        """Request continuation for truncated frontend output and stitch code blocks."""
+        """Request continuation for truncated frontend output and stitch code blocks.
+        
+        When the model response is truncated (finish_reason='length'), we need to
+        request continuation to get the complete code. This method handles the
+        complex logic of stitching multiple response fragments together.
+        """
+        # Extract any existing JSX code from the base response to start stitching
         stitched_code = self._extract_app_jsx_code(base_content)
         if stitched_code is None:
             stitched_code = ""
 
+        # Prompt for continuation - ask model to pick up where it left off
         continuation_prompt = (
             "Continue the App.jsx output from where you left off. "
             "Return ONLY the remaining code, wrapped in a single code block: "
@@ -1404,6 +1418,7 @@ Output ONLY the code block. No explanations before or after."""
 
         content = base_content
         for idx in range(max_continuations):
+            # Build conversation history: original messages + previous response + continuation request
             messages = (
                 list(base_messages)
                 + [{"role": "assistant", "content": content},
@@ -1413,7 +1428,7 @@ Output ONLY the code block. No explanations before or after."""
             success, response, status = await self.client.chat_completion(
                 model=model,
                 messages=messages,
-                temperature=min(config.temperature, 0.2),
+                temperature=min(config.temperature, 0.2),  # Lower temp for more consistent continuation
                 max_tokens=max_tokens,
                 timeout=config.timeout,
             )
@@ -1430,22 +1445,28 @@ Output ONLY the code block. No explanations before or after."""
             continuation_content = self._extract_content(response)
             continuation_code = self._extract_app_jsx_code(continuation_content) or ""
 
+            # Merge the continuation with existing code, handling overlaps
             stitched_code = self._merge_continuation(stitched_code, continuation_code)
             content = continuation_content
 
+            # Check if this continuation completed the response (not truncated)
             finish = self._get_finish_reason(response)
             if finish != 'length':
                 break
 
+        # If we couldn't extract any code, return the original response
         if not stitched_code.strip():
             return base_content
 
+        # Wrap the stitched code in proper JSX code block format
         return f"```jsx:App.jsx\n{stitched_code.strip()}\n```"
 
     def _extract_app_jsx_code(self, content: str) -> Optional[str]:
         """Extract App.jsx code from a fenced JSX block; allow missing closing fence."""
         if not content:
             return None
+        
+        # Match opening fence with JSX language specifier and optional filename
         match = re.search(
             r"```\s*(jsx|javascript|js|tsx|typescript|ts)(?::([^\n\r`]+))?\s*[\r\n]+",
             content,
@@ -1453,15 +1474,32 @@ Output ONLY the code block. No explanations before or after."""
         )
         if not match:
             return None
+        
         start = match.end()
+        
+        # Find corresponding closing fence, but allow for missing closing fence
         end_match = re.search(r"```", content[start:])
         if end_match:
             end = start + end_match.start()
             return content[start:end].strip()
+        
+        # If no closing fence found, return everything after opening fence
         return content[start:].strip()
 
     def _merge_continuation(self, base_code: str, continuation: str) -> str:
-        """Merge continuation code, trimming overlapping tail/head lines."""
+        """Merge continuation code, trimming overlapping tail/head lines.
+        
+        When stitching multiple response fragments, there may be overlapping lines
+        where the previous response ended and the continuation begins. This method
+        detects and removes such overlaps to avoid duplicate code.
+        
+        Args:
+            base_code: The accumulated code from previous responses
+            continuation: The new code fragment to append
+            
+        Returns:
+            Merged code with overlaps removed
+        """
         if not base_code.strip():
             return continuation
         if not continuation.strip():
@@ -1470,11 +1508,18 @@ Output ONLY the code block. No explanations before or after."""
         base_lines = base_code.splitlines()
         cont_lines = continuation.splitlines()
 
+        # Find maximum possible overlap (don't check more than 50 lines or half the content)
         max_overlap = min(50, len(base_lines), len(cont_lines))
         overlap = 0
+        
+        # Check for overlap by comparing tail of base_code with head of continuation
+        # Start with largest possible overlap and work down to find exact match
         for i in range(1, max_overlap + 1):
             if base_lines[-i:] == cont_lines[:i]:
                 overlap = i
+                break
+                
+        # Remove the overlapping lines from the beginning of continuation
         if overlap:
             cont_lines = cont_lines[overlap:]
 
@@ -1527,7 +1572,19 @@ Output ONLY the code block. No explanations before or after."""
         return None
 
     def _sanitize_frontend_output(self, content: str) -> str:
-        """Strip trailing requirement text accidentally appended after code fence."""
+        """Strip trailing requirement text accidentally appended after code fence.
+        
+        Sometimes the model includes extra text after the closing ``` code fence.
+        This method finds the proper code block boundaries and strips everything
+        after the closing fence, ensuring we only return the actual code.
+        
+        Args:
+            content: Raw model response that may contain extra text after code
+            
+        Returns:
+            Cleaned content containing only the code block
+        """
+        # Find the opening fence with optional language specifier
         match = re.search(
             r"```(?:\s*(?:jsx|javascript|js|tsx|typescript|ts)(?::[^\n\r`]*)?)?\s*[\r\n]+",
             content,
@@ -1537,11 +1594,14 @@ Output ONLY the code block. No explanations before or after."""
             return content
 
         start = match.start()
+        
+        # Find the corresponding closing fence after the opening fence
         end_match = re.search(r"```", content[match.end():])
         if not end_match:
             return content
 
-        end = match.end() + end_match.start() + 3
+        # Extract only the content between the fences (including the fences themselves)
+        end = match.end() + end_match.start() + 3  # +3 for the ``` characters
         return content[start:end].strip()
 
 

@@ -1,4 +1,25 @@
-"""Health check for static analyzer service."""
+"""
+Health Check for Static Analyzer Service
+========================================
+
+This script performs a health check on the Static Analyzer WebSocket service.
+
+The health check:
+- Connects to the Static Analyzer service on the configured WebSocket port (default: 2001)
+- Sends a health_check message
+- Validates the response indicates service health
+- Returns appropriate exit codes for monitoring systems
+
+Usage:
+    python health_check.py
+
+Exit Codes:
+    0: Service is healthy
+    1: Service is unhealthy or unreachable
+
+This script is used by Docker health checks, monitoring systems, and deployment
+scripts to verify the Static Analyzer service is running correctly.
+"""
 import sys
 import asyncio
 import websockets

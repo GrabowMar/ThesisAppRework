@@ -451,8 +451,18 @@ class APIRateLimiter:
     def _calculate_backoff(self) -> float:
         """Calculate backoff delay with exponential increase and jitter.
         
+        Implements exponential backoff: base_delay * (2 ^ (failures - 1))
+        With jitter to prevent thundering herd: ±25% randomization
+        
+        Examples:
+        - 0 failures: 0 delay
+        - 1 failure: 2.0s ± 0.5s jitter
+        - 2 failures: 4.0s ± 1.0s jitter  
+        - 3 failures: 8.0s ± 2.0s jitter
+        - Capped at max_backoff (60s)
+        
         Returns:
-            Delay in seconds before next retry
+            Delay in seconds before next retry (0 if no failures)
         """
         import random
         
@@ -465,7 +475,8 @@ class APIRateLimiter:
             self._base_backoff * (2 ** (self._consecutive_failures - 1))
         )
         
-        # Add jitter (±25%)
+        # Add jitter (±25%) to prevent synchronized retries
+        # random.random() returns 0.0-1.0, so (2*random-1) gives -1.0 to +1.0
         jitter = delay * 0.25 * (2 * random.random() - 1)
         return max(0, delay + jitter)
     
@@ -486,7 +497,7 @@ class APIRateLimiter:
         """
         start_time = time.time()
         
-        # Check circuit breaker first
+        # Step 1: Check circuit breaker - fail fast if circuit is open
         if not self._circuit.can_execute():
             stats = self._circuit.get_stats()
             logger.warning(
@@ -495,13 +506,15 @@ class APIRateLimiter:
             )
             return False
         
-        # Apply backoff delay if recovering from failures
+        # Step 2: Apply exponential backoff delay if recovering from consecutive failures
+        # This prevents thundering herd when service starts recovering
         backoff = self._calculate_backoff()
         if backoff > 0:
             logger.debug(f"Applying {backoff:.1f}s backoff delay after failures")
             await asyncio.sleep(backoff)
         
-        # Wait for concurrent request slot
+        # Step 3: Wait for available concurrent request slot
+        # Poll until we get a slot or timeout
         while True:
             if self._acquire_slot():
                 break
@@ -511,26 +524,27 @@ class APIRateLimiter:
                 logger.warning(f"Timeout waiting for concurrent request slot")
                 return False
             
-            await asyncio.sleep(0.5)  # Poll for slot
+            await asyncio.sleep(0.5)  # Poll every 500ms for slot availability
         
-        # Wait for rate limit token
+        # Step 4: Wait for rate limit token from token bucket
+        # This ensures we don't exceed sustained request rate
         try:
             remaining_timeout = None
             if timeout:
                 remaining_timeout = timeout - (time.time() - start_time)
                 if remaining_timeout <= 0:
-                    self._release_slot()
+                    self._release_slot()  # Cleanup on timeout
                     return False
             
             if not await self._bucket.async_wait_for_token(timeout=remaining_timeout):
-                self._release_slot()
+                self._release_slot()  # Cleanup on timeout
                 logger.warning(f"Timeout waiting for rate limit token")
                 return False
             
-            return True
+            return True  # All checks passed, permission granted
             
         except Exception as e:
-            self._release_slot()
+            self._release_slot()  # Cleanup on exception
             raise
     
     def release(self, success: bool, error: Optional[str] = None, duration: float = 0.0) -> None:

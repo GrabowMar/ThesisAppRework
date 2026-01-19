@@ -1,6 +1,36 @@
 #!/usr/bin/env python3
 """
-Deep validation of requirements file structure and design quality
+Validate Requirements Structure and Design Quality
+==================================================
+
+This script performs deep validation of requirement file structure and design quality.
+
+The script validates:
+- JSON syntax and required fields
+- Slug/filename consistency
+- Backend and frontend requirements structure
+- API endpoint definitions and HTTP methods
+- Data model specifications
+- Admin requirements and endpoints
+- Design quality metrics (complexity, completeness)
+
+Checks performed:
+- Required fields presence and types
+- API endpoint method validation
+- Cross-reference integrity
+- Design pattern compliance
+- Complexity and quality metrics
+
+Usage:
+    python scripts/validate_requirements_structure.py
+
+Outputs:
+- Detailed validation report with issues and warnings
+- Statistics on requirements coverage
+- Quality metrics for each requirement file
+
+This script ensures requirement files are well-structured and follow
+consistent design patterns for reliable application generation.
 """
 
 import json

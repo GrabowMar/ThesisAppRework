@@ -1,4 +1,17 @@
-import pytest
+"""
+Smoke Tests for Core Application Routes
+=======================================
+
+This module contains smoke tests that verify basic routing and page access.
+
+Tests cover:
+- Dashboard/root route accessibility and authentication redirects
+- Login page direct access and content validation
+- Basic route structure and response codes
+
+These tests ensure that the fundamental web routes are working correctly
+and provide a foundation for more detailed UI testing.
+"""
 
 @pytest.mark.smoke
 def test_dashboard_access(client):

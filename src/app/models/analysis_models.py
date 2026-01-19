@@ -1,5 +1,16 @@
 """
 Analysis-related database models.
+=================================
+
+This module contains SQLAlchemy models for analysis tasks, results, and configurations.
+
+Key models:
+- AnalyzerConfiguration: Tool configurations and profiles for analysis
+- AnalysisTask: Individual analysis tasks with lifecycle tracking
+- AnalysisResult: Detailed findings from analyzer runs
+
+These models support the distributed analysis pipeline with Celery workers
+and provide comprehensive tracking of analysis operations.
 """
 import json
 from datetime import datetime, timezone

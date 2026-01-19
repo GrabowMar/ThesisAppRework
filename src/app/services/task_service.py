@@ -104,7 +104,7 @@ class AnalysisTaskService:
             db.session.add(analyzer_config)
             db.session.flush()
 
-        # Use a generic/custom analysis type as the old enum is deprecated
+        # Use a generic/custom analysis type for custom tasks
         at_enum = AnalysisType.CUSTOM
         pr_enum = next((pr for pr in Priority if pr.value == priority), None) or Priority.NORMAL
 
@@ -589,9 +589,9 @@ class AnalysisTaskService:
         
         type_counts = {}
         for analysis_type in AnalysisType:
-            # Note: AnalysisTask no longer has analysis_type column, using task_name instead
+            # Note: AnalysisTask uses task_name for analysis type, but has compatibility property
             # This query will return 0 for all types - consider removing or refactoring
-            count = 0  # Placeholder - analysis_type field removed from model
+            count = 0  # Placeholder - analysis_type compatibility property maps to task_name
             type_counts[analysis_type.value] = count
         
         # Calculate average durations
@@ -659,11 +659,11 @@ class TaskQueueService:
         if limit is None:
             limit = self.queue_config['max_concurrent_tasks']
         
-        # Get currently running tasks
+        # Get currently running tasks to check concurrency limits
         running_tasks = AnalysisTaskService.get_active_tasks()
         running_count = len([t for t in running_tasks if t.status == AnalysisStatus.RUNNING])
         
-        # Calculate available slots
+        # Calculate available slots based on global concurrency limit
         available_slots = max(0, self.queue_config['max_concurrent_tasks'] - running_count)
         # Ensure limit is within bounds
         limit_int = int(limit) if limit is not None else self.queue_config['max_concurrent_tasks']
@@ -678,8 +678,7 @@ class TaskQueueService:
             logger.debug("[QUEUE] No available slots - returning empty list")
             return []
         
-        # Get pending tasks ordered by priority
-        # ONLY get main tasks (subtasks are handled by their parent task's executor)
+        # Get pending tasks ordered by priority - only main tasks (subtasks handled separately)
         # Include tasks where is_main_task is None for backward compatibility
         pending_tasks = AnalysisTask.query.filter(
             AnalysisTask.status == AnalysisStatus.PENDING,  # type: ignore[arg-type]
@@ -700,6 +699,7 @@ class TaskQueueService:
             )
         
         # Filter based on per-type concurrency limits
+        # Count currently running tasks by analysis type
         running_by_type = {}
         for task in running_tasks:
             if task.status == AnalysisStatus.RUNNING:
@@ -714,10 +714,12 @@ class TaskQueueService:
         selected_by_type = {}
         filtered_count = 0
         
+        # Select tasks while respecting per-type concurrency limits
         for task in pending_tasks:
             if len(selected_tasks) >= available_slots:
                 break
             
+            # Check if adding this task would exceed per-type limit
             current_type_count = running_by_type.get(task.analysis_type, 0) + selected_by_type.get(task.analysis_type, 0)
             max_per_type = self.queue_config['max_concurrent_per_type']
             

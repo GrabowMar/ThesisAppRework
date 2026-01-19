@@ -1,6 +1,19 @@
-import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+"""
+Unit Tests for Report Generators
+================================
+
+This module contains unit tests for the report generation services.
+
+Tests cover:
+- AppReportGenerator: Application-specific report generation and validation
+- ModelReportGenerator: Model comparison report generation and validation
+- Configuration validation for required parameters
+- Template resolution and file handling
+- Error handling for invalid configurations
+
+These tests ensure that report generation works correctly for both individual
+application analysis and model comparison scenarios.
+"""
 from app.services.reports.app_report_generator import AppReportGenerator
 from app.services.reports.model_report_generator import ModelReportGenerator
 from app.services.service_base import ValidationError

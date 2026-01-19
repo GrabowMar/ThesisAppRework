@@ -1,4 +1,29 @@
-"""Create a new pipeline to re-analyze fixed apps."""
+"""
+Create Re-Analysis Pipeline
+===========================
+
+This script creates a new pipeline to re-analyze existing applications.
+
+The script creates a pipeline configuration for re-running analysis on previously
+generated applications without regenerating the code. This is useful for:
+
+- Testing new analysis tools on existing apps
+- Re-running failed analyses
+- Comparing analysis results over time
+- Validating fixes to analysis tools
+
+Configuration:
+- Uses existing applications (no regeneration)
+- Runs full analysis suite (static, dynamic, performance, AI)
+- Parallel execution with configurable concurrency
+- Auto-starts analysis containers
+
+Usage:
+    python scripts/create_reanalysis_pipeline.py
+
+The pipeline will be created with admin user ownership and can be started
+manually or through the web interface.
+"""
 import sys
 sys.path.insert(0, 'src')
 

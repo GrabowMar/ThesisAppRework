@@ -1,4 +1,19 @@
-"""Tests for async utilities."""
+"""
+Unit Tests for Async Utilities
+==============================
+
+This module contains unit tests for async utility functions in app.utils.async_utils.
+
+Tests cover:
+- run_async_safely: Safe execution of coroutines with proper event loop management
+- run_async_with_timeout: Coroutine execution with timeout handling
+- is_event_loop_running: Event loop state detection
+- Thread safety and concurrent execution scenarios
+- Exception propagation and error handling
+
+These utilities are critical for reliable async operations in the Flask application
+and background task processing.
+"""
 import asyncio
 import threading
 import time

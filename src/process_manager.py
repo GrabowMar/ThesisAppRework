@@ -1,7 +1,34 @@
-#!/usr/bin/env python3
 """
-Process manager CLI for database-based process tracking.
+Process Manager CLI for Database-Based Process Tracking
+========================================================
+
 Replacement for PID file operations in start scripts.
+
+This module provides a command-line interface for managing process tracking
+in the database. It replaces traditional PID files with database-backed process
+registration, allowing for better process monitoring and coordination across
+containerized environments.
+
+Features:
+- Register running processes with metadata
+- Query process status and PIDs
+- Mark processes as stopped
+- Clean up dead/stale processes
+- Support for service hierarchies (main/worker processes)
+
+Commands:
+    register: Register a new process
+    pid: Get PID for a service
+    running: Check if service is running
+    stop: Mark process as stopped
+    heartbeat: Update process heartbeat
+    status: Get status of services
+    cleanup: Remove dead processes
+
+Usage:
+    python src/process_manager.py register flask_app --type main --pid 1234
+    python src/process_manager.py status
+    python src/process_manager.py cleanup
 """
 import sys
 import argparse
@@ -16,7 +43,21 @@ from app.services.process_tracking_service import ProcessTrackingService
 
 
 def register_process(args):
-    """Register a process in the database."""
+    """Register a process in the database.
+    
+    Args:
+        args: Parsed command-line arguments containing:
+            - service: Service name (e.g., flask_app, celery_worker)
+            - type: Service type (default: main)
+            - pid: Process ID (optional, defaults to current process)
+            - host: Host name (optional)
+            - port: Port number (optional)
+            - command: Command line (optional)
+            - metadata: Key=value metadata pairs (optional)
+    
+    Returns:
+        int: Exit code (0 for success, 1 for failure)
+    """
     app = create_app()
     with app.app_context():
         metadata = {}
@@ -46,7 +87,16 @@ def register_process(args):
 
 
 def get_pid(args):
-    """Get PID for a service (equivalent to reading PID file)."""
+    """Get PID for a service (equivalent to reading PID file).
+    
+    Args:
+        args: Parsed command-line arguments containing:
+            - service: Service name
+            - type: Service type (default: main)
+    
+    Returns:
+        int: Exit code (0 for success, 1 for failure)
+    """
     app = create_app()
     with app.app_context():
         pid = ProcessTrackingService.get_process_id(args.service, args.type)
@@ -58,7 +108,16 @@ def get_pid(args):
 
 
 def check_running(args):
-    """Check if a service is running."""
+    """Check if a service is running.
+    
+    Args:
+        args: Parsed command-line arguments containing:
+            - service: Service name
+            - type: Service type (default: main)
+    
+    Returns:
+        int: Exit code (0 if running, 1 if not running)
+    """
     app = create_app()
     with app.app_context():
         pid = ProcessTrackingService.get_process_id(args.service, args.type)
@@ -71,7 +130,16 @@ def check_running(args):
 
 
 def stop_process(args):
-    """Mark a process as stopped."""
+    """Mark a process as stopped.
+    
+    Args:
+        args: Parsed command-line arguments containing:
+            - service: Service name
+            - type: Service type (default: main)
+    
+    Returns:
+        int: Exit code (0 for success, 1 for failure)
+    """
     app = create_app()
     with app.app_context():
         success = ProcessTrackingService.mark_stopped(args.service, args.type)
@@ -84,7 +152,16 @@ def stop_process(args):
 
 
 def heartbeat(args):
-    """Update heartbeat for a service."""
+    """Update heartbeat for a service.
+    
+    Args:
+        args: Parsed command-line arguments containing:
+            - service: Service name
+            - type: Service type (default: main)
+    
+    Returns:
+        int: Exit code (0 for success, 1 for failure)
+    """
     app = create_app()
     with app.app_context():
         success = ProcessTrackingService.update_heartbeat(args.service, args.type)
@@ -95,7 +172,16 @@ def heartbeat(args):
 
 
 def status(args):
-    """Get status of all services or a specific service."""
+    """Get status of all services or a specific service.
+    
+    Args:
+        args: Parsed command-line arguments containing:
+            - service: Service name (optional, shows all if omitted)
+            - type: Service type (default: main)
+    
+    Returns:
+        int: Exit code (0 for success, 1 for failure)
+    """
     app = create_app()
     with app.app_context():
         if args.service:
@@ -124,7 +210,13 @@ def status(args):
 
 
 def cleanup(args):
-    """Clean up dead processes."""
+    """Clean up dead processes.
+    
+    Removes database entries for processes that are no longer running.
+    
+    Returns:
+        int: Exit code (0 for success)
+    """
     app = create_app()
     with app.app_context():
         cleaned = ProcessTrackingService.cleanup_dead_processes()
@@ -133,8 +225,15 @@ def cleanup(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Database-based process tracking manager')
-    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    """Main entry point for the process manager CLI.
+    
+    Parses command-line arguments and executes the appropriate command.
+    Supports subcommands for process registration, status checking,
+    and cleanup operations.
+    
+    Returns:
+        int: Exit code (0 for success, 1 for failure)
+    """
     
     # Register command
     register_parser = subparsers.add_parser('register', help='Register a process')

@@ -1,4 +1,27 @@
-"""Start a pending pipeline by setting its status to running."""
+"""
+Start Pending Pipeline Execution
+================================
+
+This script manually starts a pending pipeline by changing its status to RUNNING.
+
+The script is used for pipeline management and debugging. It allows administrators
+to manually trigger pipeline execution when automatic scheduling is not desired.
+
+Usage:
+    python scripts/start_pipeline.py <pipeline_id>
+
+Arguments:
+    pipeline_id: The unique identifier of the pipeline to start
+
+The script will:
+1. Look up the pipeline by ID
+2. Display current pipeline status and configuration
+3. Change status from PENDING to RUNNING if applicable
+4. Commit the status change to the database
+
+Note: This script should only be used for debugging or manual pipeline management.
+Normal pipeline execution should be handled by the automated pipeline scheduler.
+"""
 import sys
 sys.path.insert(0, 'src')
 

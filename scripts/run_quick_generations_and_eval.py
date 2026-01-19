@@ -1,4 +1,30 @@
-"""Generate a few apps with cheap models and run basic evaluation checks."""
+"""
+Quick Generation and Evaluation
+===============================
+
+This script generates applications using lightweight models and performs basic evaluation.
+
+The script uses smaller, faster AI models to quickly generate applications for
+multiple templates, then runs basic validation checks to ensure generation quality.
+
+Features:
+- Uses lightweight models (Llama 3.2 3B, Ministral 3B, Gemma 3 4B)
+- Tests multiple template types (CRUD, validation, utility)
+- Performs basic structural validation
+- Checks for clarification questions in AI responses
+- Validates file structure and basic code presence
+
+Outputs:
+- Generated applications in generated/apps/<model>/app<N>/
+- Console output with evaluation results
+- Raw API responses for analysis
+
+Usage:
+    python scripts/run_quick_generations_and_eval.py
+
+This script is useful for quick validation of the generation pipeline and
+catching obvious issues with new models or templates.
+"""
 from __future__ import annotations
 
 import json
