@@ -1,17 +1,11 @@
-{# Prompts & Responses - Explorer Layout (4-Query System Support) #}
-{# 4-query keys #}
-{% set has_backend_user_prompt = prompts.backend_user if prompts is defined else false %}
-{% set has_backend_admin_prompt = prompts.backend_admin if prompts is defined else false %}
-{% set has_frontend_user_prompt = prompts.frontend_user if prompts is defined else false %}
-{% set has_frontend_admin_prompt = prompts.frontend_admin if prompts is defined else false %}
-{% set has_backend_user_response = responses.backend_user if responses is defined else false %}
-{% set has_backend_admin_response = responses.backend_admin if responses is defined else false %}
-{% set has_frontend_user_response = responses.frontend_user if responses is defined else false %}
-{% set has_frontend_admin_response = responses.frontend_admin if responses is defined else false %}
-{# Determine if we have the new 4-query format #}
-{% set has_4query = has_backend_user_prompt or has_backend_admin_prompt or has_frontend_user_prompt or has_frontend_admin_prompt %}
+{# Prompts & Responses - Explorer Layout (2-Prompt System) #}
+{# 2-prompt keys #}
+{% set has_backend_prompt = prompts.backend if prompts is defined else false %}
+{% set has_frontend_prompt = prompts.frontend if prompts is defined else false %}
+{% set has_backend_response = responses.backend if responses is defined else false %}
+{% set has_frontend_response = responses.frontend if responses is defined else false %}
 {# Determine if we have any content at all #}
-{% set has_any_content = has_4query or has_backend_user_response or has_backend_admin_response or has_frontend_user_response or has_frontend_admin_response %}
+{% set has_any_content = has_backend_prompt or has_frontend_prompt or has_backend_response or has_frontend_response %}
 
 <div class="row g-2">
   {# Source Legend #}
@@ -20,10 +14,10 @@
       <div class="card-body py-2">
         <div class="d-flex align-items-center flex-wrap gap-2">
           <span class="text-muted small fw-bold">Sources:</span>
-          <span class="badge prompt-source-template" style="font-size: 0.65rem;"><i class="fas fa-file-code"></i> Template</span>
-          <span class="badge prompt-source-requirements" style="font-size: 0.65rem;"><i class="fas fa-list-check"></i> Requirements</span>
-          <span class="badge prompt-source-scaffolding" style="font-size: 0.65rem;"><i class="fas fa-cubes"></i> Scaffolding</span>
-          <span class="badge prompt-source-metadata" style="font-size: 0.65rem;"><i class="fas fa-info-circle"></i> Metadata</span>
+          <span class="badge prompt-source-template badge-xs"><i class="fas fa-file-code"></i> Template</span>
+          <span class="badge prompt-source-requirements badge-xs"><i class="fas fa-list-check"></i> Requirements</span>
+          <span class="badge prompt-source-scaffolding badge-xs"><i class="fas fa-cubes"></i> Scaffolding</span>
+          <span class="badge prompt-source-metadata badge-xs"><i class="fas fa-info-circle"></i> Metadata</span>
         </div>
       </div>
     </div>
@@ -36,83 +30,46 @@
         <div class="d-flex align-items-center">
           <i class="fas fa-file-lines text-primary me-2"></i>
           <span class="fw-bold">Explorer</span>
-          {% if has_4query %}
-          <span class="badge bg-primary-lt ms-2" style="font-size: 0.6rem;">4-Query</span>
-          {% endif %}
         </div>
-        <button class="btn btn-ghost-primary btn-sm py-0" id="prompt-copy-btn" onclick="copyCurrentPrompt()" style="display:none;"><i class="fas fa-copy me-1"></i>Copy</button>
+        <button class="btn btn-ghost-primary btn-sm py-0 d-none" id="prompt-copy-btn" onclick="copyCurrentPrompt()"><i class="fas fa-copy me-1"></i>Copy</button>
       </div>
       <div class="card-body p-0">
         <div class="row g-0">
           {# Left: File List #}
-          <div class="col-md-4 border-end" style="max-height: 450px; overflow-y: auto;">
+          <div class="col-md-4 border-end prompt-file-tree">
             <div class="list-group list-group-flush" id="prompt-file-tree">
-              {% if has_4query %}
-                {# === BACKEND SECTION === #}
-                <div class="list-group-item py-1 px-2 bg-light-lt small fw-bold text-muted">
-                  <i class="fas fa-server me-1"></i>Backend
-                </div>
-                {# Backend User Prompt #}
-                {% if has_backend_user_prompt %}
-                <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small active" data-prompt-id="backend-user-prompt" data-prompt-content="{{ prompts.backend_user|e }}">
-                  <span><i class="fas fa-user me-1 text-success"></i>User Prompt</span>
-                  <span class="badge bg-success-lt" style="font-size:0.6rem;">Q1</span>
-                </button>
-                {% endif %}
-                {# Backend User Response #}
-                {% if has_backend_user_response %}
-                <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="backend-user-response" data-prompt-content="{{ responses.backend_user|e }}">
-                  <span><i class="fas fa-reply me-1 text-success"></i>User Response</span>
-                  <span class="badge bg-success-lt" style="font-size:0.6rem;">R1</span>
-                </button>
-                {% endif %}
-                {# Backend Admin Prompt #}
-                {% if has_backend_admin_prompt %}
-                <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="backend-admin-prompt" data-prompt-content="{{ prompts.backend_admin|e }}">
-                  <span><i class="fas fa-user-shield me-1 text-warning"></i>Admin Prompt</span>
-                  <span class="badge bg-warning-lt" style="font-size:0.6rem;">Q2</span>
-                </button>
-                {% endif %}
-                {# Backend Admin Response #}
-                {% if has_backend_admin_response %}
-                <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="backend-admin-response" data-prompt-content="{{ responses.backend_admin|e }}">
-                  <span><i class="fas fa-reply me-1 text-warning"></i>Admin Response</span>
-                  <span class="badge bg-warning-lt" style="font-size:0.6rem;">R2</span>
-                </button>
-                {% endif %}
+              {# === BACKEND SECTION === #}
+              <div class="list-group-item py-1 px-2 bg-light-lt small fw-bold text-muted">
+                <i class="fas fa-server me-1"></i>Backend
+              </div>
+              {% if has_backend_prompt %}
+              <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small active" data-prompt-id="backend-prompt" data-prompt-content="{{ prompts.backend|e }}">
+                <span><i class="fas fa-file-lines me-1 text-success"></i>Prompt</span>
+                <span class="badge bg-success-lt badge-xxs">Q1</span>
+              </button>
+              {% endif %}
+              {% if has_backend_response %}
+              <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="backend-response" data-prompt-content="{{ responses.backend|e }}">
+                <span><i class="fas fa-reply me-1 text-success"></i>Response</span>
+                <span class="badge bg-success-lt badge-xxs">R1</span>
+              </button>
+              {% endif %}
 
-                {# === FRONTEND SECTION === #}
-                <div class="list-group-item py-1 px-2 bg-light-lt small fw-bold text-muted">
-                  <i class="fas fa-desktop me-1"></i>Frontend
-                </div>
-                {# Frontend User Prompt #}
-                {% if has_frontend_user_prompt %}
-                <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="frontend-user-prompt" data-prompt-content="{{ prompts.frontend_user|e }}">
-                  <span><i class="fas fa-user me-1 text-info"></i>User Prompt</span>
-                  <span class="badge bg-info-lt" style="font-size:0.6rem;">Q3</span>
-                </button>
-                {% endif %}
-                {# Frontend User Response #}
-                {% if has_frontend_user_response %}
-                <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="frontend-user-response" data-prompt-content="{{ responses.frontend_user|e }}">
-                  <span><i class="fas fa-reply me-1 text-info"></i>User Response</span>
-                  <span class="badge bg-info-lt" style="font-size:0.6rem;">R3</span>
-                </button>
-                {% endif %}
-                {# Frontend Admin Prompt #}
-                {% if has_frontend_admin_prompt %}
-                <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="frontend-admin-prompt" data-prompt-content="{{ prompts.frontend_admin|e }}">
-                  <span><i class="fas fa-user-shield me-1 text-purple"></i>Admin Prompt</span>
-                  <span class="badge bg-purple-lt" style="font-size:0.6rem;">Q4</span>
-                </button>
-                {% endif %}
-                {# Frontend Admin Response #}
-                {% if has_frontend_admin_response %}
-                <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="frontend-admin-response" data-prompt-content="{{ responses.frontend_admin|e }}">
-                  <span><i class="fas fa-reply me-1 text-purple"></i>Admin Response</span>
-                  <span class="badge bg-purple-lt" style="font-size:0.6rem;">R4</span>
-                </button>
-                {% endif %}
+              {# === FRONTEND SECTION === #}
+              <div class="list-group-item py-1 px-2 bg-light-lt small fw-bold text-muted">
+                <i class="fas fa-desktop me-1"></i>Frontend
+              </div>
+              {% if has_frontend_prompt %}
+              <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="frontend-prompt" data-prompt-content="{{ prompts.frontend|e }}">
+                <span><i class="fas fa-file-lines me-1 text-info"></i>Prompt</span>
+                <span class="badge bg-info-lt badge-xxs">Q2</span>
+              </button>
+              {% endif %}
+              {% if has_frontend_response %}
+              <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="frontend-response" data-prompt-content="{{ responses.frontend|e }}">
+                <span><i class="fas fa-reply me-1 text-info"></i>Response</span>
+                <span class="badge bg-info-lt badge-xxs">R2</span>
+              </button>
               {% endif %}
               {% if not has_any_content %}
               <div class="list-group-item py-2 text-muted small text-center">
@@ -124,15 +81,15 @@
           {# Right: Content Preview #}
           <div class="col-md-8">
             <div id="prompt-preview" class="prompt-preview-container">
-              {% if has_backend_user_prompt %}
-              <div class="prompt-preview-header"><span>Backend User Prompt</span></div>
-              <div class="prompt-initial-content" data-content="{{ prompts.backend_user|e }}"></div>
+              {% if has_backend_prompt %}
+              <div class="prompt-preview-header"><span>Backend Prompt</span></div>
+              <div class="prompt-initial-content" data-content="{{ prompts.backend|e }}"></div>
               {% elif not has_any_content %}
               {# Empty state with explanation #}
               <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted py-4 px-3">
                 <i class="fas fa-file-circle-xmark fa-3x mb-3 text-warning"></i>
                 <h6 class="mb-2">Prompt Exchange Not Recorded</h6>
-                <p class="small text-center mb-3" style="max-width: 350px;">
+                <p class="small text-center mb-3 prompt-empty-text">
                   The prompts and responses for this application were not saved during generation.
                   This typically happens for apps generated before the prompt logging feature was enabled.
                 </p>
@@ -157,6 +114,10 @@
 .prompt-source-requirements { background-color: rgba(72, 187, 120, 0.15); color: #38a169; border: 1px solid rgba(72, 187, 120, 0.3); }
 .prompt-source-scaffolding { background-color: rgba(237, 137, 54, 0.15); color: #dd6b20; border: 1px solid rgba(237, 137, 54, 0.3); }
 .prompt-source-metadata { background-color: rgba(159, 122, 234, 0.15); color: #805ad5; border: 1px solid rgba(159, 122, 234, 0.3); }
+.badge-xs { font-size: 0.65rem; }
+.badge-xxs { font-size: 0.6rem; }
+.prompt-file-tree { max-height: 450px; overflow-y: auto; }
+.prompt-empty-text { max-width: 350px; }
 [data-bs-theme='dark'] .prompt-source-template { background-color: rgba(66, 153, 225, 0.2); color: #63b3ed; }
 [data-bs-theme='dark'] .prompt-source-requirements { background-color: rgba(72, 187, 120, 0.2); color: #68d391; }
 [data-bs-theme='dark'] .prompt-source-scaffolding { background-color: rgba(237, 137, 54, 0.2); color: #f6ad55; }
@@ -212,7 +173,6 @@
       // SCAFFOLDING - From misc/scaffolding/ context files (orange)
       { pattern: /^## (Reference|Technical Reference)\s*$/, type: 'scaffolding' },
       { pattern: /^# (Backend|Frontend) Context/, type: 'scaffolding' },
-      { pattern: /^## Architecture \(4-Query System\)/, type: 'scaffolding' },
       { pattern: /^## (Environment|Stack|Authentication \(PRE-BUILT\)|Rules|Patterns|Gotchas|Pre-built Components)/i, type: 'scaffolding' },
       // TEMPLATE - From misc/templates/*.md.jinja2 (blue)
       { pattern: /^# .+ - (Backend|Frontend) Application/i, type: 'template' },
@@ -250,16 +210,15 @@
   }
   
   // Show copy button if content exists
-  if (tree.querySelector('.list-group-item-action')) copyBtn.style.display = '';
+  if (tree.querySelector('.list-group-item-action')) copyBtn.classList.remove('d-none');
   
   // Render initial content if there's a placeholder div
   const initialDiv = preview.querySelector('.prompt-initial-content');
   if (initialDiv) {
     const ta = document.createElement('textarea'); ta.innerHTML = initialDiv.dataset.content;
     currentContent = ta.value;
-    // Detect 4-query format by checking the initial label
     const headerSpan = preview.querySelector('.prompt-preview-header span');
-    const initialLabel = headerSpan ? headerSpan.textContent : 'Backend User Prompt';
+    const initialLabel = headerSpan ? headerSpan.textContent : 'Backend Prompt';
     renderPreview(initialLabel, currentContent, true);
   }
   

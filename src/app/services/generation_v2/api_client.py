@@ -188,8 +188,21 @@ class OpenRouterClient:
                             error_msg = error_obj.get('message', str(data))
                         else:
                             error_msg = str(error_obj)
-                        
-                        logger.warning(f"API error {status_code}: {error_msg}")
+
+                        try:
+                            logger.warning(
+                                "API error %s (%s): %s",
+                                status_code,
+                                short_model,
+                                error_msg,
+                            )
+                            logger.error(
+                                "API error payload (%s): %s",
+                                status_code,
+                                json.dumps(data, ensure_ascii=False)[:4000],
+                            )
+                        except Exception:
+                            logger.warning(f"API error {status_code}: {error_msg}")
                         
                         # Retry on 5xx errors
                         if status_code in (408, 409, 429, 500, 502, 503, 504) and attempt < max_retries:

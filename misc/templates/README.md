@@ -6,14 +6,9 @@ This directory contains Jinja2 templates for generating AI prompts.
 
 ```
 templates/
-├── four-query/
-│   ├── backend_user.md.jinja2      # Query 1: models + user routes
-│   ├── backend_admin.md.jinja2     # Query 2: admin routes (uses models from Q1)
-│   ├── frontend_user.md.jinja2     # Query 3: user page + API functions
-│   └── frontend_admin.md.jinja2    # Query 4: admin page + admin API functions
 ├── two-query/
-│   ├── backend.md.jinja2           # Legacy fallback (backend)
-│   └── frontend.md.jinja2          # Legacy fallback (frontend)
+│   ├── backend.md.jinja2           # Backend prompt (single-file app.py)
+│   └── frontend.md.jinja2          # Frontend prompt (single-file App.jsx)
 └── unguarded/
     ├── backend.md.jinja2           # Single-file backend prompt
     ├── frontend.md.jinja2          # Minimal-file frontend prompt
@@ -22,12 +17,10 @@ templates/
 
 ## Template Types
 
-### four-query (recommended)
-A four-step, single-file generation approach:
-1. Backend user prompt → generates complete `app.py` (models + user routes + auth)
-2. Backend admin prompt → merges admin routes into same `app.py`
-3. Frontend user prompt → generates complete `App.jsx` (all components + HomePage + LoginPage + auth)
-4. Frontend admin prompt → merges AdminPage into same `App.jsx`
+### two-query (recommended)
+A two-step, single-file generation approach:
+1. Backend prompt → generates complete `app.py` (models + user/admin routes + auth)
+2. Frontend prompt → generates complete `App.jsx` (all components + Admin views + auth)
 
 **Single-File Architecture:**
 - Backend: ONE `app.py` file with ALL code (~500-800 lines)
@@ -38,17 +31,11 @@ The HomePage (in App.jsx) serves **both public and logged-in users** via conditi
 - Public users: read-only view of ALL data with "Sign in" CTAs
 - Logged-in users: same content + create/edit/delete buttons + additional features
 
-### two-query
-A two-step generation approach:
-1. **Backend First**: Generate backend code with API endpoints
-2. **Frontend Second**: Generate frontend that consumes the backend API
-
 ### unguarded
 Looser prompts intended for simpler “single-file/minimal-file” generation where scaffolding rules differ.
 
 ### Template Selection
-The generation service prefers the 4-query templates in guarded mode for consistent quality and strong constraint enforcement.
-The 2-query templates remain as a backward-compatible fallback.
+The generation service uses the two-query templates for consistent quality and strong constraint enforcement.
 
 ## Template Variables
 

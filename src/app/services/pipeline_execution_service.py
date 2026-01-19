@@ -2117,7 +2117,6 @@ class PipelineExecutionService:
         """Execute a single generation job.
         
         Uses the same parameters as the Sample Generator API to ensure 100% parity:
-        - generation_mode='guarded' (4-query mode)
         - app_num=None (let service handle atomic allocation)
         - All other standard parameters
         
@@ -2193,7 +2192,6 @@ class PipelineExecutionService:
             
             # Run generation with SAME parameters as Sample Generator API
             # Key: app_num=None lets service handle atomic reservation (prevents race conditions)
-            # Key: generation_mode='guarded' uses the 4-query system for quality output
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
@@ -2207,7 +2205,6 @@ class PipelineExecutionService:
                         batch_id=batch_id,
                         parent_app_id=None,
                         version=1,
-                        generation_mode='guarded',  # Always use 4-query mode for quality
                         use_auto_fix=use_auto_fix,
                     )
                 )

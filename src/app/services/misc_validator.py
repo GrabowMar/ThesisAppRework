@@ -154,12 +154,6 @@ def validate_misc_inputs() -> Dict[str, Any]:
     # Templates
     tpl_dir = MISC_DIR / "templates"
     expected = {
-        "four-query": [
-            "backend_user.md.jinja2",
-            "backend_admin.md.jinja2",
-            "frontend_user.md.jinja2",
-            "frontend_admin.md.jinja2",
-        ],
         "two-query": ["backend.md.jinja2", "frontend.md.jinja2"],
         "unguarded": ["backend.md.jinja2", "frontend.md.jinja2", "fullstack.md.jinja2"],
     }
@@ -182,10 +176,8 @@ def validate_misc_inputs() -> Dict[str, Any]:
     prompt_dir = MISC_DIR / "prompts" / "system"
     for fname in [
         "backend_user.md",
-        "backend_admin.md",
         "backend_unguarded.md",
         "frontend_user.md",
-        "frontend_admin.md",
         "frontend_unguarded.md",
         "fullstack_unguarded.md",
     ]:

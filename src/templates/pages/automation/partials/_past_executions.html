@@ -98,8 +98,8 @@
                 <a href="{{ url_for('analysis.analysis_index') }}" class="btn btn-sm btn-ghost-success" title="View Results">
                   <i class="fas fa-chart-bar"></i>
                 </a>
-                {% elif pipeline.status == 'failed' %}
-                <button class="btn btn-sm btn-ghost-secondary" onclick="viewPipelineError('{{ pipeline.id }}')" title="View Error">
+                {% elif pipeline.status in ['failed', 'partial_success'] %}
+                <button class="btn btn-sm btn-ghost-secondary" onclick="viewPipelineError('{{ pipeline.id }}')" title="View Error Details">
                   <i class="fas fa-exclamation-triangle"></i>
                 </button>
                 {% endif %}
@@ -180,16 +180,55 @@
   
   // View pipeline error details
   function viewPipelineError(pipelineId) {
-    fetch(`/automation/api/pipeline/${pipelineId}/status`, {
+    fetch(`/automation/api/pipeline/${pipelineId}/detailed-status`, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
     .then(response => response.json())
     .then(data => {
-      if (data.success && data.data) {
-        const error = data.data.error_message || 'Unknown error';
-        alert(`Pipeline Error:\n\n${error}`);
+      if (!data.success || !data.data) {
+        alert('Error fetching pipeline details');
+        return;
       }
+
+      const details = data.data;
+      const lines = [];
+
+      if (details.error_message) {
+        lines.push(`Pipeline error: ${details.error_message}`);
+      }
+
+      const generationFailures = (details.generation_jobs || []).filter(job => job && job.success === false);
+      if (generationFailures.length > 0) {
+        lines.push('');
+        lines.push(`Generation failures (${generationFailures.length}):`);
+        generationFailures.forEach(job => {
+          const label = `${job.model_slug || 'unknown'} / ${job.template_slug || 'unknown'} (app ${job.app_number ?? 'n/a'})`;
+          const reason = job.error || 'Unknown error';
+          lines.push(`- ${label}: ${reason}`);
+        });
+      }
+
+      const analysisFailures = (details.analysis_tasks || []).filter(task => {
+        const status = (task.status || '').toLowerCase();
+        return status === 'failed' || status === 'cancelled' || status === 'skipped';
+      });
+
+      if (analysisFailures.length > 0) {
+        lines.push('');
+        lines.push(`Analysis failures (${analysisFailures.length}):`);
+        analysisFailures.forEach(task => {
+          const label = `${task.target_model || 'unknown'} app ${task.target_app_number ?? 'n/a'}`;
+          const reason = task.error_message || task.task_name || 'Unknown error';
+          lines.push(`- ${label}: ${reason}`);
+        });
+      }
+
+      if (lines.length === 0) {
+        lines.push('No error details found for this pipeline.');
+      }
+
+      alert(`Pipeline Details:\n\n${lines.join('\n')}`);
     })
-    .catch(err => alert('Error fetching pipeline details'));
+    .catch(() => alert('Error fetching pipeline details'));
   }
 </script>

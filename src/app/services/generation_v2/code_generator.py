@@ -272,6 +272,12 @@ class CodeGenerator:
                 )
 
         if not self._has_frontend_code_block(frontend_code):
+            coerced = self._coerce_frontend_output(frontend_code)
+            if coerced:
+                logger.warning("Coerced frontend output into JSX code block")
+                frontend_code = coerced
+
+        if not self._has_frontend_code_block(frontend_code):
             raise RuntimeError("Frontend generation produced no JSX code block")
 
         results['frontend'] = frontend_code
@@ -693,7 +699,47 @@ react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, da
         """Return True if the content includes a JSX code block."""
         if not content:
             return False
-        return re.search(r"```\s*(jsx|javascript|js|tsx|typescript|ts)(?::[^\n\r`]*)?\s*[\r\n]+", content, re.IGNORECASE) is not None
+        if re.search(r"```\s*(jsx|javascript|js|tsx|typescript|ts)(?::[^\n\r`]*)?\s*[\r\n]+", content, re.IGNORECASE):
+            return True
+
+        # Accept unlabeled fenced blocks if they look like JSX
+        fence_match = re.search(r"```\s*[\r\n]+(.*?)```", content, re.DOTALL)
+        if fence_match:
+            return self._looks_like_jsx(fence_match.group(1))
+
+        return False
+
+    def _looks_like_jsx(self, code: str) -> bool:
+        """Heuristic check for JSX/React code presence."""
+        if not code:
+            return False
+        signals = (
+            r"\bimport\s+React\b",
+            r"from\s+['\"]react['\"]",
+            r"\bfunction\s+App\b",
+            r"\bconst\s+App\b",
+            r"\bexport\s+default\s+App\b",
+            r"<div[^>]*>",
+            r"return\s*\("
+        )
+        return any(re.search(pattern, code) for pattern in signals)
+
+    def _coerce_frontend_output(self, content: str) -> Optional[str]:
+        """Coerce frontend output into a JSX code block if possible."""
+        if not content:
+            return None
+
+        # Prefer fenced blocks if present (even without language)
+        for match in re.finditer(r"```(?:[a-zA-Z0-9_+-]+)?(?::[^\n\r`]*)?\s*[\r\n]+(.*?)```", content, re.DOTALL):
+            code = (match.group(1) or '').strip()
+            if self._looks_like_jsx(code):
+                return f"```jsx:App.jsx\n{code}\n```"
+
+        # Fallback: treat entire content as code if it looks like JSX
+        if self._looks_like_jsx(content):
+            return f"```jsx:App.jsx\n{content.strip()}\n```"
+
+        return None
 
 
 # Singleton

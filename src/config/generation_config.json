@@ -46,28 +46,6 @@
     "qwen/qwen-2.5-72b-instruct": 16384
   },
   "validation_rules": {
-    "guarded": {
-      "backend_user": {
-        "required_files": ["models.py", "routes/user.py"],
-        "forbidden_patterns": [],
-        "required_patterns": ["Blueprint", "to_dict"]
-      },
-      "backend_admin": {
-        "required_files": ["routes/admin.py"],
-        "forbidden_patterns": [],
-        "required_patterns": ["Blueprint", "/admin"]
-      },
-      "frontend_user": {
-        "required_files": ["pages/UserPage.jsx", "services/api.js"],
-        "forbidden_patterns": [],
-        "required_patterns": ["export default"]
-      },
-      "frontend_admin": {
-        "required_files": ["pages/AdminPage.jsx"],
-        "forbidden_patterns": [],
-        "required_patterns": ["export default"]
-      }
-    },
     "unguarded": {
       "backend": {
         "required_files": ["app.py"],

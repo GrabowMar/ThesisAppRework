@@ -457,14 +457,12 @@ def _format_response_content(data: Dict[str, Any]) -> str:
 def _collect_app_prompts(app_number: int, model_slug: Optional[str] = None) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str], str]:
     """
     Collect FULL prompts and responses from generated/raw/{payloads,responses}/{model_slug}/app{number}/*.json files.
-    Supports the 4-query system: backend_user, backend_admin, frontend_user, frontend_admin.
+    Supports the 2-prompt system: backend, frontend.
     Returns: (prompts, responses, template_files, source_dir)
     
     Keys in prompts/responses dicts:
-    - backend_user: First backend query (user functionality)
-    - backend_admin: Second backend query (admin functionality)
-    - frontend_user: First frontend query (user pages)
-    - frontend_admin: Second frontend query (admin pages)
+    - backend: Backend generation query
+    - frontend: Frontend generation query
     """
     prompts: Dict[str, str] = {}
     responses: Dict[str, str] = {}
@@ -483,36 +481,35 @@ def _collect_app_prompts(app_number: int, model_slug: Optional[str] = None) -> T
         if payloads_dir.exists():
             try:
                 import json
-                # Sort files by timestamp in filename to determine user vs admin
+                # Sort files by timestamp in filename
                 # Format: {model}_app{N}_{component}_{timestamp}_payload.json
-                # Earlier timestamp = user query, later timestamp = admin query
                 backend_files = sorted(payloads_dir.glob(f'*_app{app_number}_backend_*_payload.json'))
                 frontend_files = sorted(payloads_dir.glob(f'*_app{app_number}_frontend_*_payload.json'))
                 current_app.logger.info(f"Found backend files: {len(backend_files)}, frontend files: {len(frontend_files)}")
-                
-                # Process backend files (user = first, admin = second)
-                for idx, backend_file in enumerate(backend_files[:2]):  # Max 2 backend queries
-                    query_type = 'backend_user' if idx == 0 else 'backend_admin'
-                    template_files[f'{query_type}_file'] = backend_file.name
+
+                # Process backend files (use latest)
+                if backend_files:
+                    backend_file = backend_files[-1]
+                    template_files['backend_file'] = backend_file.name
                     try:
                         with open(backend_file, 'r', encoding='utf-8') as f:
                             data = json.load(f)
-                            prompts[query_type] = _format_payload_content(data)
-                            current_app.logger.info(f"Loaded {query_type} prompt, length: {len(prompts[query_type])}")
+                            prompts['backend'] = _format_payload_content(data)
+                            current_app.logger.info(f"Loaded backend prompt, length: {len(prompts['backend'])}")
                     except Exception as err:
-                        current_app.logger.warning(f"Failed to load {query_type} prompt: {err}")
-                
-                # Process frontend files (user = first, admin = second)
-                for idx, frontend_file in enumerate(frontend_files[:2]):  # Max 2 frontend queries
-                    query_type = 'frontend_user' if idx == 0 else 'frontend_admin'
-                    template_files[f'{query_type}_file'] = frontend_file.name
+                        current_app.logger.warning(f"Failed to load backend prompt: {err}")
+
+                # Process frontend files (use latest)
+                if frontend_files:
+                    frontend_file = frontend_files[-1]
+                    template_files['frontend_file'] = frontend_file.name
                     try:
                         with open(frontend_file, 'r', encoding='utf-8') as f:
                             data = json.load(f)
-                            prompts[query_type] = _format_payload_content(data)
-                            current_app.logger.info(f"Loaded {query_type} prompt, length: {len(prompts[query_type])}")
+                            prompts['frontend'] = _format_payload_content(data)
+                            current_app.logger.info(f"Loaded frontend prompt, length: {len(prompts['frontend'])}")
                     except Exception as err:
-                        current_app.logger.warning(f"Failed to load {query_type} prompt: {err}")
+                        current_app.logger.warning(f"Failed to load frontend prompt: {err}")
                 
             except Exception as err:
                 current_app.logger.warning("Failed to load prompts from raw payloads for %s/app%s: %s", model_slug, app_number, err)
@@ -523,28 +520,28 @@ def _collect_app_prompts(app_number: int, model_slug: Optional[str] = None) -> T
                 import json
                 backend_resp_files = sorted(responses_dir.glob(f'*_app{app_number}_backend_*_response.json'))
                 frontend_resp_files = sorted(responses_dir.glob(f'*_app{app_number}_frontend_*_response.json'))
-                
-                # Process backend response files (user = first, admin = second)
-                for idx, resp_file in enumerate(backend_resp_files[:2]):
-                    query_type = 'backend_user' if idx == 0 else 'backend_admin'
+
+                # Process backend response files (use latest)
+                if backend_resp_files:
+                    resp_file = backend_resp_files[-1]
                     try:
                         with open(resp_file, 'r', encoding='utf-8') as f:
                             data = json.load(f)
-                            responses[query_type] = _format_response_content(data)
-                            current_app.logger.info(f"Loaded {query_type} response, length: {len(responses[query_type])}")
+                            responses['backend'] = _format_response_content(data)
+                            current_app.logger.info(f"Loaded backend response, length: {len(responses['backend'])}")
                     except Exception as err:
-                        current_app.logger.warning(f"Failed to load {query_type} response: {err}")
-                
-                # Process frontend response files (user = first, admin = second)
-                for idx, resp_file in enumerate(frontend_resp_files[:2]):
-                    query_type = 'frontend_user' if idx == 0 else 'frontend_admin'
+                        current_app.logger.warning(f"Failed to load backend response: {err}")
+
+                # Process frontend response files (use latest)
+                if frontend_resp_files:
+                    resp_file = frontend_resp_files[-1]
                     try:
                         with open(resp_file, 'r', encoding='utf-8') as f:
                             data = json.load(f)
-                            responses[query_type] = _format_response_content(data)
-                            current_app.logger.info(f"Loaded {query_type} response, length: {len(responses[query_type])}")
+                            responses['frontend'] = _format_response_content(data)
+                            current_app.logger.info(f"Loaded frontend response, length: {len(responses['frontend'])}")
                     except Exception as err:
-                        current_app.logger.warning(f"Failed to load {query_type} response: {err}")
+                        current_app.logger.warning(f"Failed to load frontend response: {err}")
                 
             except Exception as err:
                 current_app.logger.warning("Failed to load responses for %s/app%s: %s", model_slug, app_number, err)

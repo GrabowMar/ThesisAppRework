@@ -1,85 +1,9 @@
 """DEPRECATED - TO BE REMOVED
-============================================
 
-PHILOSOPHY:
-1. Scaffolding is SACRED - never overwrite it
-2. AI generates ONLY application code files
-3. Generated apps MUST look like scaffolding + app code
-
-STRUCTURE:
-generated/apps/{model}/app{N}/
-├── [SCAFFOLDING - NEVER TOUCH]
-│   ├── docker-compose.yml
-│   ├── .env.example
-│   ├── backend/Dockerfile
-│   ├── backend/.dockerignore  
-│   ├── backend/requirements.txt (base)
-│   ├── frontend/Dockerfile
-│   ├── frontend/.dockerignore
-│   ├── frontend/nginx.conf
-│   ├── frontend/vite.config.js
-│   ├── frontend/package.json (base)
-│   └── frontend/index.html (base)
-│
-└── [AI GENERATED - APPLICATION CODE]
-    ├── backend/app_generated.py (merged into app.py)
-    ├── backend/models.py (if needed)
-    ├── backend/routes.py (if needed)
-    ├── frontend/src/App.jsx (application)
-    └── frontend/src/App.css (application)
+Legacy generation module. Use app.services.generation_v2 instead.
 """
 
 raise RuntimeError("Legacy generation module removed; use app.services.generation_v2 instead.")
-
-import ast
-import asyncio
-import hashlib
-import json
-import logging
-import os
-import re
-import shutil
-import textwrap
-import time
-import sys
-import threading
-from queue import Queue, Empty
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Optional, Tuple, Dict, List, Set, Any, Union
-
-import aiohttp
-from sqlalchemy.exc import SQLAlchemyError
-
-from app.paths import (
-    GENERATED_APPS_DIR,
-    SCAFFOLDING_DIR,
-    REQUIREMENTS_DIR,
-    GENERATED_RAW_API_PAYLOADS_DIR,
-    GENERATED_RAW_API_RESPONSES_DIR,
-    GENERATED_INDICES_DIR,
-    GENERATED_MARKDOWN_DIR,
-    TEMPLATES_V2_DIR,
-    MISC_DIR,
-)
-from app.services.port_allocation_service import get_port_allocation_service
-from app.services.openrouter_chat_service import get_openrouter_chat_service
-from app.config.config_manager import get_config
-from app.extensions import db
-from app.models import GeneratedApplication, ModelCapability, AnalysisStatus, GenerationMode
-from app.utils.time import utc_now
-from app.utils.async_utils import run_async_safely
-
-logger = logging.getLogger(__name__)
-
-
-def _ensure_timezone_aware(dt: Optional[datetime]) -> Optional[datetime]:
-    """Ensure a datetime is timezone-aware (UTC).
-    
-    Args:
-        dt: Datetime object that might be naive or aware
-        
     Returns:
         Timezone-aware datetime in UTC, or None if input was None
     """

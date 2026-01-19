@@ -2,7 +2,6 @@
 
 Outputs:
 - generated/prompts/two-query/<template_slug>/*.md
-- generated/prompts/four-query/<template_slug>/*.md
 - reports/prompts_analysis.md
 """
 from __future__ import annotations
@@ -81,38 +80,6 @@ def _render_two_query_prompts(reqs: Dict, env: Environment) -> Dict[str, str]:
     }
 
 
-def _render_four_query_prompts(reqs: Dict, env: Environment, scaffolding_context: Dict[str, str]) -> Dict[str, str]:
-    prompts = {}
-    context_base = {
-        "name": reqs.get("name", "Application"),
-        "description": reqs.get("description", ""),
-        "backend_requirements": reqs.get("backend_requirements", []),
-        "frontend_requirements": reqs.get("frontend_requirements", []),
-        "admin_requirements": reqs.get("admin_requirements", []),
-        "api_endpoints": _format_endpoints(reqs.get("api_endpoints", [])),
-        "admin_api_endpoints": _format_endpoints(reqs.get("admin_api_endpoints", [])),
-        "existing_models_summary": "No models defined yet.",
-        **scaffolding_context,
-    }
-
-    prompts["backend_user"] = env.get_template("four-query/backend_user.md.jinja2").render(context_base)
-    prompts["backend_admin"] = env.get_template("four-query/backend_admin.md.jinja2").render(context_base)
-    prompts["frontend_user"] = env.get_template("four-query/frontend_user.md.jinja2").render(context_base)
-    prompts["frontend_admin"] = env.get_template("four-query/frontend_admin.md.jinja2").render(context_base)
-
-    return prompts
-
-
-def _load_scaffolding_context() -> Dict[str, str]:
-    scaffold_dir = MISC_DIR / "scaffolding" / "react-flask"
-    backend_ctx = (scaffold_dir / "backend" / "SCAFFOLDING_CONTEXT.md").read_text(encoding="utf-8")
-    frontend_ctx = (scaffold_dir / "frontend" / "SCAFFOLDING_CONTEXT.md").read_text(encoding="utf-8")
-    return {
-        "scaffolding_backend_context": backend_ctx,
-        "scaffolding_frontend_context": frontend_ctx,
-    }
-
-
 def _write_prompt_files(base_dir: Path, template_slug: str, prompt_map: Dict[str, str], system_map: Dict[str, str]) -> None:
     out_dir = base_dir / template_slug
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -161,13 +128,9 @@ def main() -> None:
         lstrip_blocks=True,
     )
 
-    scaffolding_context = _load_scaffolding_context()
-
     out_root = GENERATED_ROOT / "prompts"
     two_query_dir = out_root / "two-query"
-    four_query_dir = out_root / "four-query"
     two_query_dir.mkdir(parents=True, exist_ok=True)
-    four_query_dir.mkdir(parents=True, exist_ok=True)
 
     # System prompts (2-query) extracted from generation_v2 source
     v2_source = (Path(__file__).parent.parent / "src" / "app" / "services" / "generation_v2" / "code_generator.py").read_text(encoding="utf-8")
@@ -183,20 +146,9 @@ def main() -> None:
         two_prompts = _render_two_query_prompts(reqs, env)
         _write_prompt_files(two_query_dir, slug, two_prompts, system_two)
 
-        # four-query
-        four_prompts = _render_four_query_prompts(reqs, env, scaffolding_context)
-        # load system prompts for guarded 4-query
-        system_four = {
-            "backend_user": (MISC_DIR / "prompts" / "system" / "backend_user.md").read_text(encoding="utf-8"),
-            "backend_admin": (MISC_DIR / "prompts" / "system" / "backend_admin.md").read_text(encoding="utf-8"),
-            "frontend_user": (MISC_DIR / "prompts" / "system" / "frontend_user.md").read_text(encoding="utf-8"),
-            "frontend_admin": (MISC_DIR / "prompts" / "system" / "frontend_admin.md").read_text(encoding="utf-8"),
-        }
-        _write_prompt_files(four_query_dir, slug, four_prompts, system_four)
-
         # analysis
         report_lines.append(f"### {slug}")
-        for key, prompt_text in {**two_prompts, **four_prompts}.items():
+        for key, prompt_text in two_prompts.items():
             issues = _analyze_prompt(prompt_text)
             if issues:
                 report_lines.append(f"- {key}: " + "; ".join(issues))
