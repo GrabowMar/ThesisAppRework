@@ -44,7 +44,8 @@ CONFIRMATION_REGEX = re.compile(
     re.IGNORECASE
 )
 
-# Patterns that indicate placeholder or incomplete code
+# Patterns that indicate placeholder or incomplete code (case-insensitive)
+# Note: \bplaceholder\b(?!=) excludes HTML placeholder= attributes which are legitimate code
 PLACEHOLDER_PATTERNS = [
   r"rest of the components",
   r"components remain the same",
@@ -53,14 +54,16 @@ PLACEHOLDER_PATTERNS = [
   r"left as an exercise",
   r"to be implemented",
   r"implement (the )?rest",
-  r"\bTODO\b",
-  r"\bplaceholder\b",
+  r"\bplaceholder\b(?!=)",  # Exclude HTML placeholder= attribute
 ]
 
 PLACEHOLDER_REGEX = re.compile(
   '|'.join(PLACEHOLDER_PATTERNS),
   re.IGNORECASE
 )
+
+# TODO pattern must be uppercase only (case-sensitive) to avoid matching "Todo" in app names
+TODO_REGEX = re.compile(r'\bTODO\b')
 
 # Directory for saving prompts/responses
 RAW_PAYLOADS_DIR = Path(__file__).parent.parent.parent.parent.parent / 'generated' / 'raw' / 'payloads'
@@ -163,8 +166,16 @@ class CodeGenerator:
         if not content:
             return False
 
-        # Look for known placeholder phrases
-        return bool(PLACEHOLDER_REGEX.search(content))
+        # Look for known placeholder phrases (case-insensitive)
+        if PLACEHOLDER_REGEX.search(content):
+            return True
+
+        # Check for uppercase TODO separately (case-sensitive)
+        # to avoid false positives with "Todo" in app names like "Todo List"
+        if TODO_REGEX.search(content):
+            return True
+
+        return False
 
     def _get_model_context_window(self, model_slug: str) -> int:
         """Get model's context window size from database.

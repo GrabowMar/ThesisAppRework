@@ -12,10 +12,15 @@ import logging
 import os
 import sys
 import time
+import zipfile
+import json
+import shutil
 from pathlib import Path
+from datetime import datetime
 
-from flask import Blueprint, current_app, request
+from flask import Blueprint, current_app, request, send_file
 from flask_login import current_user
+from werkzeug.utils import secure_filename
 
 from app.extensions import db
 from app.models import AnalysisTask, PipelineExecution, PipelineExecutionStatus, PipelineSettings
@@ -619,4 +624,306 @@ def api_analyzer_health():
 
     except Exception as exc:
         logger.exception("Error checking analyzer health")
+        return api_error(str(exc), 500)
+
+
+# ---------------------------------------------------------------------------
+# Results Import/Export
+# ---------------------------------------------------------------------------
+
+
+@automation_api_bp.route('/results/export', methods=['POST'])
+def api_export_results():
+    """Export results and generated apps to a ZIP file.
+
+    Request body (optional filters):
+    {
+        "models": ["model_slug1", "model_slug2"],  // Optional: specific models
+        "pipeline_id": "pipeline_xxx",              // Optional: specific pipeline
+        "include_metadata": true,                   // Include export metadata (default: true)
+        "include_apps": true,                       // Include generated app source code (default: true)
+        "include_results": true                     // Include analysis results (default: true)
+    }
+    """
+    try:
+        data = request.get_json() or {}
+        models_filter = data.get('models', [])
+        pipeline_id = data.get('pipeline_id')
+        include_metadata = data.get('include_metadata', True)
+        include_apps = data.get('include_apps', True)
+        include_results = data.get('include_results', True)
+
+        # Get directories
+        project_root = Path(current_app.root_path).parent.parent
+        results_dir = project_root / 'results'
+        apps_dir = project_root / 'generated' / 'apps'
+
+        # Create temporary ZIP file
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        zip_filename = f'thesis_export_{timestamp}.zip'
+        zip_path = project_root / zip_filename
+
+        exported_results_count = 0
+        exported_apps_count = 0
+        exported_files = []
+
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Export analysis results
+            if include_results and results_dir.exists():
+                for model_dir in results_dir.iterdir():
+                    if not model_dir.is_dir():
+                        continue
+
+                    model_slug = model_dir.name
+
+                    # Apply model filter if specified
+                    if models_filter and model_slug not in models_filter:
+                        continue
+
+                    # Iterate through app directories
+                    for app_dir in model_dir.iterdir():
+                        if not app_dir.is_dir():
+                            continue
+
+                        # Iterate through task directories
+                        for task_dir in app_dir.iterdir():
+                            if not task_dir.is_dir():
+                                continue
+
+                            # Add all files in task directory
+                            for file_path in task_dir.rglob('*'):
+                                if file_path.is_file():
+                                    # Calculate relative path for ZIP structure
+                                    rel_path = file_path.relative_to(results_dir)
+                                    zipf.write(file_path, arcname=f'results/{rel_path}')
+                                    exported_results_count += 1
+
+                                    if include_metadata:
+                                        exported_files.append(f'results/{rel_path}')
+
+            # Export generated apps source code
+            if include_apps and apps_dir.exists():
+                for model_dir in apps_dir.iterdir():
+                    if not model_dir.is_dir():
+                        continue
+
+                    model_slug = model_dir.name
+
+                    # Apply model filter if specified
+                    if models_filter and model_slug not in models_filter:
+                        continue
+
+                    # Iterate through app directories
+                    for app_dir in model_dir.iterdir():
+                        if not app_dir.is_dir():
+                            continue
+
+                        # Add all files in app directory
+                        for file_path in app_dir.rglob('*'):
+                            if file_path.is_file():
+                                # Skip certain directories to reduce size
+                                skip_dirs = {'node_modules', '.venv', 'venv', '__pycache__', '.git',
+                                           '.mypy_cache', '.pytest_cache', 'dist', 'build', '.eggs'}
+                                if any(skip_dir in file_path.parts for skip_dir in skip_dirs):
+                                    continue
+
+                                # Calculate relative path for ZIP structure
+                                rel_path = file_path.relative_to(apps_dir)
+                                zipf.write(file_path, arcname=f'generated/apps/{rel_path}')
+                                exported_apps_count += 1
+
+                                if include_metadata:
+                                    exported_files.append(f'generated/apps/{rel_path}')
+
+            # Add metadata file
+            if include_metadata:
+                metadata = {
+                    'export_timestamp': datetime.utcnow().isoformat(),
+                    'export_user_id': current_user.id,
+                    'export_version': '1.0',
+                    'filters': {
+                        'models': models_filter,
+                        'pipeline_id': pipeline_id,
+                    },
+                    'options': {
+                        'include_apps': include_apps,
+                        'include_results': include_results,
+                    },
+                    'statistics': {
+                        'total_files': exported_results_count + exported_apps_count,
+                        'results_files': exported_results_count,
+                        'apps_files': exported_apps_count,
+                    },
+                    'exported_files': exported_files[:100] if len(exported_files) > 100 else exported_files,  # Limit to first 100 for size
+                }
+                zipf.writestr('export_metadata.json', json.dumps(metadata, indent=2))
+
+        # Send file and clean up
+        return send_file(
+            zip_path,
+            as_attachment=True,
+            download_name=zip_filename,
+            mimetype='application/zip',
+        )
+
+    except Exception as exc:
+        logger.exception("Error exporting results")
+        # Clean up ZIP file if it exists
+        if 'zip_path' in locals() and zip_path.exists():
+            zip_path.unlink()
+        return api_error(str(exc), 500)
+
+
+@automation_api_bp.route('/results/import', methods=['POST'])
+def api_import_results():
+    """Import results and generated apps from a ZIP file.
+
+    Form data:
+    - file: ZIP file containing results and/or apps
+    - overwrite: "true" to overwrite existing results (default: false)
+    - backup: "true" to backup existing data before import (default: true)
+    """
+    try:
+        # Check if file is present
+        if 'file' not in request.files:
+            return api_error('No file provided', 400)
+
+        file = request.files['file']
+        if file.filename == '':
+            return api_error('No file selected', 400)
+
+        if not file.filename.endswith('.zip'):
+            return api_error('File must be a ZIP archive', 400)
+
+        overwrite = request.form.get('overwrite', 'false').lower() == 'true'
+        backup = request.form.get('backup', 'true').lower() == 'true'
+
+        # Get directories
+        project_root = Path(current_app.root_path).parent.parent
+        results_dir = project_root / 'results'
+        apps_dir = project_root / 'generated' / 'apps'
+
+        # Backup existing data if requested
+        backup_paths = []
+        if backup:
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+
+            if results_dir.exists():
+                backup_filename = f'results_backup_before_import_{timestamp}.tar.gz'
+                backup_path = project_root / backup_filename
+                logger.info(f"Creating results backup at {backup_path}")
+                shutil.make_archive(
+                    str(backup_path).replace('.tar.gz', ''),
+                    'gztar',
+                    root_dir=results_dir.parent,
+                    base_dir=results_dir.name,
+                )
+                backup_paths.append(str(backup_path))
+
+            if apps_dir.exists():
+                backup_filename = f'apps_backup_before_import_{timestamp}.tar.gz'
+                backup_path = project_root / backup_filename
+                logger.info(f"Creating apps backup at {backup_path}")
+                shutil.make_archive(
+                    str(backup_path).replace('.tar.gz', ''),
+                    'gztar',
+                    root_dir=apps_dir.parent,
+                    base_dir=apps_dir.name,
+                )
+                backup_paths.append(str(backup_path))
+
+        # Save uploaded file temporarily
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        temp_zip = project_root / f'temp_import_{timestamp}.zip'
+        file.save(temp_zip)
+
+        imported_results_count = 0
+        imported_apps_count = 0
+        skipped_count = 0
+        conflicts = []
+
+        try:
+            # Extract ZIP file
+            with zipfile.ZipFile(temp_zip, 'r') as zipf:
+                # Validate ZIP structure
+                namelist = zipf.namelist()
+
+                # Check for metadata file
+                metadata = None
+                if 'export_metadata.json' in namelist:
+                    with zipf.open('export_metadata.json') as meta_file:
+                        metadata = json.loads(meta_file.read())
+
+                # Extract files
+                for zip_info in zipf.infolist():
+                    if zip_info.is_dir():
+                        continue
+
+                    # Skip metadata file
+                    if zip_info.filename == 'export_metadata.json':
+                        continue
+
+                    # Determine target based on path prefix
+                    target_path = None
+                    is_result = False
+                    is_app = False
+
+                    if zip_info.filename.startswith('results/'):
+                        rel_path = Path(zip_info.filename).relative_to('results')
+                        target_path = results_dir / rel_path
+                        is_result = True
+                    elif zip_info.filename.startswith('generated/apps/'):
+                        rel_path = Path(zip_info.filename).relative_to('generated/apps')
+                        target_path = apps_dir / rel_path
+                        is_app = True
+                    else:
+                        # Unknown file, skip
+                        continue
+
+                    # Check for conflicts
+                    if target_path.exists() and not overwrite:
+                        skipped_count += 1
+                        conflicts.append(zip_info.filename)
+                        continue
+
+                    # Create parent directories
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    # Extract file
+                    with zipf.open(zip_info) as source, open(target_path, 'wb') as target:
+                        shutil.copyfileobj(source, target)
+
+                    if is_result:
+                        imported_results_count += 1
+                    elif is_app:
+                        imported_apps_count += 1
+
+        finally:
+            # Clean up temporary file
+            temp_zip.unlink()
+
+        imported_count = imported_results_count + imported_apps_count
+        message = f'Imported {imported_count} files ({imported_results_count} results, {imported_apps_count} apps)'
+        if skipped_count > 0:
+            message += f', skipped {skipped_count} existing files'
+
+        return api_success(
+            data={
+                'imported': imported_count,
+                'imported_results': imported_results_count,
+                'imported_apps': imported_apps_count,
+                'skipped': skipped_count,
+                'conflicts': conflicts[:10] if conflicts else [],  # Show first 10 conflicts
+                'total_conflicts': len(conflicts),
+                'metadata': metadata,
+                'backup_paths': backup_paths,
+            },
+            message=message,
+        )
+
+    except Exception as exc:
+        logger.exception("Error importing results")
+        # Clean up temporary file if it exists
+        if 'temp_zip' in locals() and temp_zip.exists():
+            temp_zip.unlink()
         return api_error(str(exc), 500)
