@@ -510,14 +510,19 @@ def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, too
                 
                 while time.time() < deadline:
                     try:
-                        resp = await asyncio.wait_for(ws.recv(), timeout=5.0)
+                        resp = await asyncio.wait_for(ws.recv(), timeout=10.0)  # Increased from 5s to 10s
                         frame = json.loads(resp)
-                        
+
                         # Check for terminal frame
                         ftype = str(frame.get('type', '')).lower()
                         has_analysis = isinstance(frame.get('analysis'), dict)
                         fstatus = str(frame.get('status', '')).lower()
-                        
+
+                        # Ignore non-terminal messages (status updates, progress)
+                        if ftype in ('status_update', 'progress_update', 'progress'):
+                            logger.debug(f"[CELERY] Received {ftype}: {frame.get('message', 'N/A')}")
+                            continue
+
                         # Terminal detection: result frames OR frames with analysis data
                         is_terminal = (
                             ('analysis_result' in ftype) or
@@ -526,15 +531,17 @@ def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, too
                             (fstatus in ('success', 'completed') and has_analysis) or
                             (ftype == 'result' and has_analysis)
                         )
-                        
+
                         if is_terminal:
                             terminal_result = {
                                 'status': frame.get('status', 'success'),
                                 'payload': frame.get('analysis', frame),
                                 'error': frame.get('error')
                             }
+                            logger.info(f"[CELERY] Received terminal result from {service_name}")
                             break
                     except asyncio.TimeoutError:
+                        # No message in 10 seconds - continue waiting
                         continue
                     except ConnectionClosed as cc:
                         # Close code 1000 means normal closure - this is OK

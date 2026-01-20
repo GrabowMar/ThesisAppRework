@@ -1778,7 +1778,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         """Handle incoming WebSocket messages."""
         try:
             msg_type = message_data.get("type", "unknown")
-            
+
             if msg_type == "static_analyze":
                 model_slug = message_data.get("model_slug", "unknown")
                 app_number = message_data.get("app_number", 1)
@@ -1786,15 +1786,26 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 analysis_id = message_data.get("id")
                 # Tool selection normalized
                 tools = list(self.extract_selected_tools(message_data) or [])
-                
+
                 self.log.info(f"Starting static analysis for {model_slug} app {app_number}")
                 if config:
                     self.log.info(f"Using custom configuration: {list(config.keys())}")
-                
+
+                # Send initial status to keep connection alive
+                try:
+                    await websocket.send(json.dumps({
+                        'type': 'status_update',
+                        'stage': 'started',
+                        'message': f"Starting static analysis for {model_slug} app {app_number}",
+                        'analysis_id': analysis_id
+                    }))
+                except Exception as e:
+                    self.log.warning(f"Failed to send initial status: {e}")
+
                 analysis_results = await self.analyze_model_code(
                     model_slug, app_number, config, analysis_id=analysis_id, selected_tools=tools
                 )
-                
+
                 response = {
                     "type": "static_analysis_result",
                     "status": "success",
