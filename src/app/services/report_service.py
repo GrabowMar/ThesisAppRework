@@ -449,8 +449,8 @@ class ReportService:
                 elif status == 'failed':
                     stats['failed'] += 1
                 
-                stats['total_findings'] += tool_data.get('total_issues', 0)
-                stats['total_duration'] += tool_data.get('duration_seconds', 0)
+                stats['total_findings'] += tool_data.get('total_issues', 0) or 0
+                stats['total_duration'] += tool_data.get('duration_seconds', 0) or 0
         
         report.update_progress(80)
         db.session.commit()
@@ -2405,7 +2405,7 @@ class ReportService:
         return {
             'status': status,
             'total_issues': tool_data.get('total_issues') or tool_data.get('issue_count', 0),
-            'duration_seconds': tool_data.get('duration_seconds', 0),
+            'duration_seconds': tool_data.get('duration_seconds', 0) or 0,
             'issues': tool_data.get('issues', []),
             'executed': tool_data.get('executed', True)
         }
