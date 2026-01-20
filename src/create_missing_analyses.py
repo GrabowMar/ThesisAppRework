@@ -37,7 +37,7 @@ def create_analysis_tasks_for_app(model_slug: str, app_number: int, batch_id: st
         is_main_task=True,
         service_name=None,
         analyzer_config_id=analyzer_config_id,
-        status=AnalysisStatus.CREATED,
+        status=AnalysisStatus.PENDING,  # PENDING so task executor picks it up
         priority=JobPriority.NORMAL,
         target_model=model_slug,
         target_app_number=app_number,
@@ -66,7 +66,7 @@ def create_analysis_tasks_for_app(model_slug: str, app_number: int, batch_id: st
             is_main_task=False,
             service_name=service_name,
             analyzer_config_id=analyzer_config_id,
-            status=AnalysisStatus.CREATED,
+            status=AnalysisStatus.PENDING,  # PENDING so task executor picks it up
             priority=JobPriority.NORMAL,
             target_model=model_slug,
             target_app_number=app_number,

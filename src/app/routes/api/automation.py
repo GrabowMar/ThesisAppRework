@@ -759,12 +759,23 @@ def api_export_results():
                 zipf.writestr('export_metadata.json', json.dumps(metadata, indent=2))
 
         # Send file and clean up
-        return send_file(
+        response = send_file(
             zip_path,
             as_attachment=True,
             download_name=zip_filename,
             mimetype='application/zip',
         )
+        
+        # Clean up temporary ZIP file after response is sent
+        @response.call_on_close
+        def cleanup():
+            try:
+                if zip_path.exists():
+                    zip_path.unlink()
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to cleanup export file {zip_path}: {cleanup_error}")
+        
+        return response
 
     except Exception as exc:
         logger.exception("Error exporting results")

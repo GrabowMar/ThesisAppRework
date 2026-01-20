@@ -2035,7 +2035,15 @@ class PipelineExecutionService:
         Uses main_task_ids (not subtasks) for accurate job completion tracking.
         Subtasks are handled by their parent main task.
         
-        Returns True if all main tasks have reached a terminal state and marks pipeline complete.
+        CRITICAL: This method checks BOTH:
+        1. All expected jobs have been submitted (job_index >= expected_jobs)
+        2. All created tasks have reached terminal state (completed/failed/cancelled)
+        
+        Bug Fix (Jan 2026): Previously only checked (2), causing pipeline to complete
+        prematurely when all created tasks finished but more jobs remained to submit.
+        Now checks both conditions to prevent incomplete pipelines.
+        
+        Returns True if all jobs submitted AND all tasks terminal, marks pipeline complete.
         """
         progress = pipeline.progress
         
@@ -2102,11 +2110,21 @@ class PipelineExecutionService:
         total_main_tasks = len(main_task_ids)
         terminal_count = completed_count + failed_count
         
+        # CRITICAL FIX: Check if we've created tasks for ALL expected jobs
+        # If job_index < expected_jobs, there are still jobs to be submitted
+        jobs_remaining = expected_jobs - pipeline.current_job_index
+        
         self._log(
-            "ANAL", f"Pipeline {pipeline.pipeline_id} analysis status: {terminal_count}/{total_main_tasks} main tasks terminal (completed={completed_count}, failed={failed_count}, pending={pending_count})"
+            "ANAL", f"Pipeline {pipeline.pipeline_id} analysis status: {terminal_count}/{total_main_tasks} main tasks terminal (completed={completed_count}, failed={failed_count}, pending={pending_count}), jobs_remaining={jobs_remaining}"
         )
         
-        # Must wait for ALL main tasks to reach terminal state
+        # Must wait for ALL jobs to be submitted AND all tasks to reach terminal state
+        if jobs_remaining > 0:
+            self._log(
+                "ANAL", f"Pipeline {pipeline.pipeline_id}: Cannot complete - {jobs_remaining} jobs not yet submitted (index={pipeline.current_job_index}, expected={expected_jobs})"
+            )
+            return False
+        
         if pending_count > 0:
             return False
         

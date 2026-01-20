@@ -1725,6 +1725,26 @@ document.addEventListener('DOMContentLoaded', async function() {
             e.preventDefault();
             showManageSettingsModal();
         }
+        // Export results button
+        if (e.target.matches('#export-results-btn, #export-results-btn *')) {
+            e.preventDefault();
+            showExportResultsModal();
+        }
+        // Import results button
+        if (e.target.matches('#import-results-btn, #import-results-btn *')) {
+            e.preventDefault();
+            showImportResultsModal();
+        }
+        // Export confirm button
+        if (e.target.matches('#export-confirm, #export-confirm *')) {
+            e.preventDefault();
+            executeExport();
+        }
+        // Import confirm button
+        if (e.target.matches('#import-confirm, #import-confirm *')) {
+            e.preventDefault();
+            executeImport();
+        }
     });
     
     // Setup search input handlers
@@ -2416,6 +2436,206 @@ window.showSaveSettingsModal = showSaveSettingsModal;
 window.showLoadSettingsModal = showLoadSettingsModal;
 window.showManageSettingsModal = showManageSettingsModal;
 window.loadPipelineSettingsAndClose = loadPipelineSettingsAndClose;
+
+// ============================================================================
+// Export/Import Results Functions
+// ============================================================================
+
+/**
+ * Show export results modal
+ */
+function showExportResultsModal() {
+    const modal = new bootstrap.Modal(document.getElementById('exportResultsModal'));
+    
+    // Reset form
+    document.getElementById('export-results').checked = true;
+    document.getElementById('export-apps').checked = true;
+    document.getElementById('export-metadata').checked = true;
+    document.getElementById('export-progress').style.display = 'none';
+    
+    // Load available models for filtering (optional enhancement)
+    fetch('/api/automation/pipelines?limit=1', { credentials: 'include' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.data.length > 0) {
+                const modelSelect = document.getElementById('export-model-filter');
+                // You could populate this with actual models from the latest pipeline
+                // For now, we'll keep it simple
+            }
+        })
+        .catch(err => console.error('Error loading models:', err));
+    
+    modal.show();
+}
+
+/**
+ * Show import results modal
+ */
+function showImportResultsModal() {
+    const modal = new bootstrap.Modal(document.getElementById('importResultsModal'));
+    
+    // Reset form
+    document.getElementById('import-file').value = '';
+    document.getElementById('import-overwrite').checked = false;
+    document.getElementById('import-backup').checked = true;
+    document.getElementById('import-progress').style.display = 'none';
+    document.getElementById('import-result').style.display = 'none';
+    
+    modal.show();
+}
+
+/**
+ * Execute export operation
+ */
+function executeExport() {
+    const btn = document.getElementById('export-confirm');
+    const progress = document.getElementById('export-progress');
+    
+    // Validate at least one option is selected
+    const includeResults = document.getElementById('export-results').checked;
+    const includeApps = document.getElementById('export-apps').checked;
+    
+    if (!includeResults && !includeApps) {
+        showNotification('Please select at least one option to export', 'warning');
+        return;
+    }
+    
+    btn.disabled = true;
+    progress.style.display = 'block';
+    
+    const exportData = {
+        models: [], // Could be populated from select
+        include_metadata: document.getElementById('export-metadata').checked,
+        include_results: includeResults,
+        include_apps: includeApps
+    };
+    
+    fetch('/api/automation/results/export', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(exportData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => {
+                throw new Error(err.message || 'Export failed');
+            });
+        }
+        return response.blob();
+    })
+    .then(blob => {
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `thesis_export_${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        progress.style.display = 'none';
+        btn.disabled = false;
+        
+        // Hide modal
+        bootstrap.Modal.getInstance(document.getElementById('exportResultsModal')).hide();
+        
+        // Show success notification
+        showNotification('Export successful! File downloaded.', 'success');
+    })
+    .catch(error => {
+        console.error('Export error:', error);
+        progress.style.display = 'none';
+        btn.disabled = false;
+        showNotification('Export failed: ' + error.message, 'danger');
+    });
+}
+
+/**
+ * Execute import operation
+ */
+function executeImport() {
+    const btn = document.getElementById('import-confirm');
+    const fileInput = document.getElementById('import-file');
+    const progress = document.getElementById('import-progress');
+    const resultDiv = document.getElementById('import-result');
+    
+    if (!fileInput.files || fileInput.files.length === 0) {
+        showNotification('Please select a file to import', 'warning');
+        return;
+    }
+    
+    btn.disabled = true;
+    progress.style.display = 'block';
+    resultDiv.style.display = 'none';
+    
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('overwrite', document.getElementById('import-overwrite').checked ? 'true' : 'false');
+    formData.append('backup', document.getElementById('import-backup').checked ? 'true' : 'false');
+    
+    fetch('/api/automation/results/import', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        progress.style.display = 'none';
+        btn.disabled = false;
+        
+        if (data.success) {
+            resultDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>Import successful!</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Total files imported: ${data.data.imported}</li>
+                        ${data.data.imported_results > 0 ? `<li>Analysis results: ${data.data.imported_results} files</li>` : ''}
+                        ${data.data.imported_apps > 0 ? `<li>Generated apps: ${data.data.imported_apps} files</li>` : ''}
+                        ${data.data.skipped > 0 ? `<li>Skipped: ${data.data.skipped} existing files</li>` : ''}
+                    </ul>
+                </div>
+            `;
+            resultDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                bootstrap.Modal.getInstance(document.getElementById('importResultsModal')).hide();
+                showNotification('Data imported successfully!', 'success');
+            }, 2000);
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <strong>Import failed:</strong> ${data.message}
+                </div>
+            `;
+            resultDiv.style.display = 'block';
+        }
+    })
+    .catch(error => {
+        console.error('Import error:', error);
+        progress.style.display = 'none';
+        btn.disabled = false;
+        
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                <strong>Import failed:</strong> ${error.message}
+            </div>
+        `;
+        resultDiv.style.display = 'block';
+    });
+}
+
+// Expose export/import functions globally
+window.showExportResultsModal = showExportResultsModal;
+window.showImportResultsModal = showImportResultsModal;
+window.executeExport = executeExport;
+window.executeImport = executeImport;
 
 } // End of AutomationWizard guard block
 
