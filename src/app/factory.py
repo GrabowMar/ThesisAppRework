@@ -131,10 +131,27 @@ def create_app(config_name: str = 'default') -> Flask:
             db_file = Path(db_uri[10:])
             db_file.parent.mkdir(parents=True, exist_ok=True)
 
+    # Configure SQLAlchemy engine options for SQLite concurrent access
+    engine_options = {}
+    if db_uri.startswith('sqlite:///'):
+        # SQLite-specific settings for concurrent access (multiple background services)
+        engine_options = {
+            'connect_args': {
+                'timeout': 30,  # Wait up to 30 seconds for locks instead of immediate fail
+                'check_same_thread': False,  # Allow access from multiple threads
+            },
+            'pool_size': 10,  # Connection pool size
+            'max_overflow': 20,  # Additional connections when pool is exhausted
+            'pool_pre_ping': True,  # Verify connections before using
+            'pool_recycle': 3600,  # Recycle connections after 1 hour
+            'echo': False  # Disable SQL echo for performance
+        }
+
     app.config.update(
         SECRET_KEY=secret_key,
         SQLALCHEMY_DATABASE_URI=db_uri,
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        SQLALCHEMY_ENGINE_OPTIONS=engine_options,
         # Ensure templates are always reloaded to avoid stale caches in tests/dev
         TEMPLATES_AUTO_RELOAD=True,
         
@@ -243,6 +260,19 @@ def create_app(config_name: str = 'default') -> Flask:
                 logger.warning(f"Could not import app.models before DB init: {_imp_err}")
             db.create_all()
             logger.info("Database initialized successfully")
+            
+            # Enable WAL mode for SQLite to improve concurrent access
+            if db_uri.startswith('sqlite:///'):
+                try:
+                    from sqlalchemy import text
+                    with db.engine.connect() as conn:
+                        conn.execute(text("PRAGMA journal_mode=WAL"))
+                        conn.execute(text("PRAGMA synchronous=NORMAL"))  # Faster writes, still safe
+                        conn.execute(text("PRAGMA busy_timeout=30000"))  # 30 second timeout for locks
+                        conn.commit()
+                    logger.info("SQLite WAL mode enabled for concurrent access")
+                except Exception as wal_err:
+                    logger.warning(f"Failed to enable SQLite WAL mode: {wal_err}")
             
             # Clean up old/stuck tasks from previous runs (conservative approach)
             try:
