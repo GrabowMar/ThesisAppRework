@@ -41,8 +41,16 @@
         {% if tool_name.lower() not in metadata_keys and lang.lower() != 'structure' and tool_data is mapping and ('tool' in tool_data or 'executed' in tool_data or 'status' in tool_data) and (include.tools|length == 0 or tool_norm in include.tools) %}
           {% if tool_data.executed %}
             {% set ns.tools_executed = ns.tools_executed + 1 %}
-            {# Count ALL issues from raw tool data #}
-            {% set issue_count = tool_data.issue_count|default(tool_data.total_issues)|default(tool_data.issues|length if tool_data.issues else 0) %}
+            {# Count ALL issues from raw tool data - use proper fallback that preserves explicit zeros #}
+            {% if tool_data.issue_count is not undefined %}
+              {% set issue_count = tool_data.issue_count %}
+            {% elif tool_data.total_issues is not undefined %}
+              {% set issue_count = tool_data.total_issues %}
+            {% elif tool_data.issues %}
+              {% set issue_count = tool_data.issues|length %}
+            {% else %}
+              {% set issue_count = 0 %}
+            {% endif %}
             {% set ns.total_issues = ns.total_issues + issue_count %}
             {% if issue_count > 0 %}
               {% set ns.tools_with_issues = ns.tools_with_issues + 1 %}

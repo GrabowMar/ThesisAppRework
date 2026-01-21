@@ -149,6 +149,9 @@ def analysis_tasks_table():
     def _select_result_descriptor(task: AnalysisTask) -> Optional[DescriptorDict]:
         """Create result descriptor from task DB columns (fast)."""
         if task.status in [AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS, AnalysisStatus.FAILED]:
+            # Use proper fallback that preserves explicit zeros
+            total_findings = task.issues_found if task.issues_found is not None else 0
+            
             return DescriptorDict({
                 'identifier': task.task_id,
                 'task_id': task.task_id,
@@ -157,7 +160,7 @@ def analysis_tasks_table():
                 'model_slug': task.target_model,
                 'app_number': task.target_app_number,
                 'status': task.status.value if task.status else 'unknown',
-                'total_findings': task.issues_found or 0,
+                'total_findings': total_findings,
                 'severity_breakdown': task.get_severity_breakdown(),
                 'tools_executed': 0, 
                 'tools_failed': 0,

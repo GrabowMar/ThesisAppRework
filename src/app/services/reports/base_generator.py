@@ -160,6 +160,60 @@ class BaseReportGenerator(ABC):
         data['tool_display_info'] = get_tool_display_info()
         return data
     
+    def should_include_service(self, service_name: str) -> bool:
+        """
+        Check if a service should be included based on filter_mode.
+        
+        Args:
+            service_name: Name of the analyzer service (e.g., 'static', 'dynamic', 'performance', 'ai')
+            
+        Returns:
+            True if service should be included, False otherwise
+        """
+        from ...constants import ReportFilterMode
+        
+        filter_mode = self.config.get('filter_mode', 'all')
+        
+        # Normalize filter_mode to enum
+        if isinstance(filter_mode, str):
+            try:
+                filter_mode = ReportFilterMode(filter_mode)
+            except ValueError:
+                filter_mode = ReportFilterMode.ALL_ANALYZERS
+        
+        # Normalize service name
+        service_name_lower = service_name.lower().replace('-', '_')
+        
+        if filter_mode == ReportFilterMode.ALL_ANALYZERS:
+            return True
+        elif filter_mode == ReportFilterMode.EXCLUDE_DYNAMIC_PERF:
+            # Exclude dynamic and performance analyzers
+            return service_name_lower not in ['dynamic', 'dynamic_analyzer', 'performance', 'performance_tester']
+        elif filter_mode == ReportFilterMode.ONLY_DYNAMIC_PERF:
+            # Include only dynamic and performance analyzers
+            return service_name_lower in ['dynamic', 'dynamic_analyzer', 'performance', 'performance_tester']
+        
+        return True
+    
+    def filter_services_data(self, services: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Filter services dictionary based on filter_mode.
+        
+        Args:
+            services: Dictionary of service_name -> service_data
+            
+        Returns:
+            Filtered dictionary with only included services
+        """
+        if not services:
+            return {}
+        
+        return {
+            service_name: service_data
+            for service_name, service_data in services.items()
+            if self.should_include_service(service_name)
+        }
+    
     @abstractmethod
     def collect_data(self) -> Dict[str, Any]:
         """

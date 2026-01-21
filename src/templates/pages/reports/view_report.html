@@ -85,6 +85,9 @@
           {{ report.description }}
         </div>
         {% endif %}
+        <div class="research-header-subtitle mt-2" id="filter-mode-display">
+          {# Will be populated by JavaScript from report config #}
+        </div>
       </div>
       <div class="research-header-actions">
         <a href="{{ url_for('reports.reports_index') }}" class="btn btn-ghost-secondary">
@@ -142,6 +145,26 @@
   let severityChart = null;
   let toolsChart = null;
   
+  // Display filter mode badge
+  function displayFilterMode(filterMode) {
+    const display = document.getElementById('filter-mode-display');
+    if (!display) return;
+    
+    const modes = {
+      'all': { text: 'All Analyzers', icon: 'fa-layer-group', color: 'primary' },
+      'exclude_dynamic_perf': { text: 'Static & AI Only', icon: 'fa-shield-halved', color: 'info' },
+      'only_dynamic_perf': { text: 'Dynamic & Performance Only', icon: 'fa-gauge-high', color: 'warning' }
+    };
+    
+    const mode = modes[filterMode] || modes['all'];
+    display.innerHTML = `
+      <span class="badge bg-${mode.color}-lt">
+        <i class="fa-solid ${mode.icon} me-1"></i>
+        Filter Mode: ${mode.text}
+      </span>
+    `;
+  }
+  
   // Fetch report data
   async function loadReport() {
     try {
@@ -153,6 +176,10 @@
       }
       
       reportData = result.data;
+      
+      // Display filter mode if present
+      displayFilterMode(reportData.config?.filter_mode);
+      
       loadingState.classList.add('d-none');
       reportContent.classList.remove('d-none');
       renderReport();

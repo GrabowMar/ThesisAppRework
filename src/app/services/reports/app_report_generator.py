@@ -151,7 +151,12 @@ class AppReportGenerator(BaseReportGenerator):
         
         Handles the nested structure from analyzer results:
         services -> static-analyzer -> analysis -> tool_results -> bandit -> {status, issues}
+        
+        Applies filter_mode from config to exclude/include specific analyzer services.
         """
+        # Apply filter mode first
+        services = self.filter_services_data(services)
+        
         flat_tools = {}
         
         if not isinstance(services, dict):
@@ -191,7 +196,12 @@ class AppReportGenerator(BaseReportGenerator):
         - services -> {service} -> findings
         - services -> {service} -> analysis -> findings
         - services -> {service} -> results -> {lang} -> {tool} -> issues
+        
+        Applies filter_mode from config to exclude/include specific analyzer services.
         """
+        # Apply filter mode first
+        services = self.filter_services_data(services)
+        
         all_findings = []
         
         if not isinstance(services, dict):

@@ -162,6 +162,7 @@ class ToolReportGenerator(BaseReportGenerator):
         """Extract flattened tool results from nested service structures.
         
         Handles multiple result formats from analyzer_manager.
+        Applies filter_mode from config to exclude/include specific analyzer services.
         """
         tools = {}
         
@@ -175,8 +176,9 @@ class ToolReportGenerator(BaseReportGenerator):
             if 'tools' in results:
                 tools.update(results['tools'])
             
-            # Tool results nested under services
+            # Tool results nested under services - apply filter here
             services = results.get('services', {})
+            services = self.filter_services_data(services)
             if isinstance(services, dict):
                 for service_name, service_data in services.items():
                     if isinstance(service_data, dict):
@@ -207,6 +209,7 @@ class ToolReportGenerator(BaseReportGenerator):
         """Extract findings from nested service structures.
         
         Handles multiple result formats and deduplicates.
+        Applies filter_mode from config to exclude/include specific analyzer services.
         """
         findings = []
         seen_signatures = set()
@@ -222,15 +225,16 @@ class ToolReportGenerator(BaseReportGenerator):
             for f in raw_data['findings']:
                 add_finding(f)
         
-        # Nested in results
+        # Nested in results - apply filter to services
         results = raw_data.get('results', {})
         if isinstance(results, dict):
             if 'findings' in results and isinstance(results['findings'], list):
                 for f in results['findings']:
                     add_finding(f)
             
-            # Findings nested under services
+            # Findings nested under services - apply filter
             services = results.get('services', {})
+            services = self.filter_services_data(services)
             if isinstance(services, dict):
                 for service_data in services.values():
                     if isinstance(service_data, dict):
@@ -239,9 +243,10 @@ class ToolReportGenerator(BaseReportGenerator):
                             for f in svc_findings:
                                 add_finding(f)
         
-        # Services at top level
+        # Services at top level - apply filter
         if 'services' in raw_data:
-            for service_data in raw_data.get('services', {}).values():
+            services = self.filter_services_data(raw_data.get('services', {}))
+            for service_data in services.values():
                 if isinstance(service_data, dict):
                     svc_findings = service_data.get('findings', [])
                     if isinstance(svc_findings, list):

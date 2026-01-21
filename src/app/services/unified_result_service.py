@@ -351,8 +351,6 @@ class UnifiedResultService:
         summary = payload.get('summary', {})
         # Get total from summary, fallback to counting from tools if no top-level findings
         total_findings = summary.get('total_findings', 0)
-        task.issues_found = total_findings
-        task.set_severity_breakdown(summary.get('severity_breakdown', {}))
         
         # Extract findings - prefer top-level 'findings' for backward compat,
         # but also extract from 'tools' for new slim format
@@ -360,6 +358,14 @@ class UnifiedResultService:
         if not findings:
             # New slim format: extract from tools section
             findings = self._extract_findings_from_tools(payload)
+        
+        # If total_findings is 0 but we have findings, trust the actual count
+        # This handles cases where SARIF was hydrated but summary wasn't updated
+        if total_findings == 0 and findings:
+            total_findings = len(findings)
+        
+        task.issues_found = total_findings
+        task.set_severity_breakdown(summary.get('severity_breakdown', {}))
         
         for idx, finding in enumerate(findings[:100]):  # Limit to 100 findings
             if not isinstance(finding, dict):

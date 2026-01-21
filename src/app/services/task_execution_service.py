@@ -2073,19 +2073,9 @@ class TaskExecutionService:
                 status = str(result.get('status', '')).lower()
                 success = status in ('success', 'completed', 'ok', 'partial')
                 is_partial = status == 'partial'
-
-                if success:
-                    self._record_service_success(service_name)
-                elif status in ('error', 'timeout', 'failed', 'targets_unreachable', 'partial_connectivity'):
-                    self._record_service_failure(service_name)
                 
-                # Store result and mark complete (partial is still a success - results were generated)
-                subtask.status = AnalysisStatus.PARTIAL_SUCCESS if is_partial else (AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED)
-                subtask.completed_at = datetime.now(timezone.utc)
-                subtask.progress_percentage = 100.0
-                
-                # CRITICAL FIX: Extract analysis data from payload for template compatibility
-                # WebSocket returns {status, payload: {...}} but template expects {status, analysis: {...}}
+                # CRITICAL: Extract analysis data BEFORE checking success
+                # We need to verify that "success" actually means data was collected
                 raw_payload = result.get('payload', {})
                 
                 # Normalize to 'analysis' structure expected by templates
@@ -2101,6 +2091,25 @@ class TaskExecutionService:
                     else:
                         analysis_data = raw_payload
                 
+                # Override success if no actual data collected
+                # This handles cases where service reports "success" but collected nothing
+                # (e.g., dynamic analyzer when all targets are unreachable)
+                if success and not analysis_data:
+                    self._log(f"[SUBTASK] Service {service_name} reported success but has no analysis data, treating as failure")
+                    success = False
+                    status = 'error'
+                    is_partial = False
+
+                if success:
+                    self._record_service_success(service_name)
+                elif status in ('error', 'timeout', 'failed', 'targets_unreachable', 'partial_connectivity'):
+                    self._record_service_failure(service_name)
+                
+                # Store result and mark complete (partial is still a success - results were generated)
+                subtask.status = AnalysisStatus.PARTIAL_SUCCESS if is_partial else (AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED)
+                subtask.completed_at = datetime.now(timezone.utc)
+                subtask.progress_percentage = 100.0
+                
                 if raw_payload:
                     subtask.set_result_summary(raw_payload)
                 
@@ -2109,8 +2118,11 @@ class TaskExecutionService:
                     subtask.error_message = result['error']
                 elif not success and not subtask.error_message:
                     # If task failed but no error message set, generate one from status
-                    error_reason = result.get('status', 'unknown')
-                    subtask.error_message = f'Analysis failed with status: {error_reason}'
+                    if not analysis_data:
+                        error_reason = 'No analysis data collected (possible connectivity issues)'
+                    else:
+                        error_reason = result.get('status', 'unknown')
+                    subtask.error_message = f'Analysis failed: {error_reason}'
                 
                 db.session.commit()
                 
@@ -2236,6 +2248,21 @@ class TaskExecutionService:
                     # Track success/failure for overall status
                     # Note: 'partial' counts as success (some results were obtained)
                     # But 'targets_unreachable' and 'partial_connectivity' are failures
+                    # ALSO: If status is 'success' but analysis is empty, treat as failure
+                    analysis_data = result.get('analysis', {})
+                    payload_data = result.get('payload', {})
+                    
+                    # If analysis is empty but payload has data, use payload
+                    if not analysis_data and payload_data:
+                        analysis_data = payload_data
+                    
+                    # Override success status if no actual data was collected
+                    if result_status in ('success', 'completed', 'ok') and not analysis_data:
+                        self._log(f"[AGGREGATE] Service {service_name} reported success but has no analysis data, treating as failure")
+                        result_status = 'error'
+                        # Update the result status for storage
+                        result['status'] = 'error'
+                    
                     if result_status in ('success', 'completed', 'ok', 'partial'):
                         any_succeeded = True
                     elif result_status in ('error', 'failed', 'timeout', 'targets_unreachable', 'partial_connectivity'):
@@ -2246,12 +2273,6 @@ class TaskExecutionService:
                     
                     # CRITICAL FIX: Store service data with 'analysis' key for template compatibility
                     # Templates expect: services[name].analysis.results, not services[name].payload.results
-                    analysis_data = result.get('analysis', {})
-                    payload_data = result.get('payload', {})
-                    
-                    # If analysis is empty but payload has data, use payload
-                    if not analysis_data and payload_data:
-                        analysis_data = payload_data
                     
                     all_services[service_name] = {
                         'status': result.get('status', 'error'),
@@ -2299,6 +2320,71 @@ class TaskExecutionService:
                                                             issue['tool'] = maybe_tool
                                                             issue['service'] = service_name
                                                             all_findings.append(issue)
+                
+                # CRITICAL FIX: Hydrate SARIF files from disk for each service
+                # The in-memory analysis_data doesn't include SARIF references, so we need to
+                # load the service JSON files from disk which have the SARIF paths
+                import os
+                from pathlib import Path
+                from app.utils.sarif_utils import load_sarif_from_reference, extract_issues_from_sarif, is_ruff_sarif, remap_ruff_sarif_severity
+                
+                task_dir = Path('results') / main_task.target_model / f'app{main_task.target_app_number}' / main_task_id
+                if task_dir.exists():
+                    services_dir = task_dir / 'services'
+                    if services_dir.exists():
+                        self._log(f"[AGGREGATE] Hydrating SARIF files from {services_dir}")
+                        
+                        for service_name in list(all_services.keys()):
+                            service_json_path = services_dir / f'{service_name}.json'
+                            if service_json_path.exists():
+                                try:
+                                    import json
+                                    with open(service_json_path) as f:
+                                        disk_service_data = json.load(f)
+                                    
+                                    # Check for tools with SARIF references
+                                    if 'results' in disk_service_data:
+                                        results = disk_service_data['results']
+                                        if isinstance(results, dict):
+                                            # Iterate through language groups (for static-analyzer)
+                                            for lang_key, lang_tools in results.items():
+                                                if isinstance(lang_tools, dict):
+                                                    for tool_name, tool_data in lang_tools.items():
+                                                        if isinstance(tool_data, dict):
+                                                            sarif_ref = tool_data.get('sarif_file') or tool_data.get('sarif')
+                                                            if sarif_ref and (not tool_data.get('issues') or len(tool_data.get('issues', [])) == 0):
+                                                                # Load SARIF and extract issues
+                                                                sarif_data = load_sarif_from_reference(sarif_ref, task_dir)
+                                                                if sarif_data:
+                                                                    if is_ruff_sarif(tool_name, sarif_data):
+                                                                        remap_ruff_sarif_severity(sarif_data)
+                                                                    
+                                                                    extracted_issues = extract_issues_from_sarif(sarif_data)
+                                                                    if extracted_issues:
+                                                                        self._log(f"[AGGREGATE] Hydrated {len(extracted_issues)} issues from {tool_name} SARIF")
+                                                                        # Add to all_findings
+                                                                        for issue in extracted_issues:
+                                                                            issue['service'] = service_name
+                                                                            issue['tool'] = tool_name
+                                                                            all_findings.append(issue)
+                                                                        
+                                                                        # Update the analysis data in all_services
+                                                                        if service_name in all_services:
+                                                                            analysis = all_services[service_name].get('analysis', {})
+                                                                            if 'results' not in analysis:
+                                                                                analysis['results'] = {}
+                                                                            if lang_key not in analysis['results']:
+                                                                                analysis['results'][lang_key] = {}
+                                                                            if tool_name not in analysis['results'][lang_key]:
+                                                                                analysis['results'][lang_key][tool_name] = {}
+                                                                            
+                                                                            analysis['results'][lang_key][tool_name]['issues'] = extracted_issues
+                                                                            analysis['results'][lang_key][tool_name]['total_issues'] = len(extracted_issues)
+                                                                            analysis['results'][lang_key][tool_name]['sarif'] = sarif_ref
+                                except Exception as e:
+                                    self._log(f"[AGGREGATE] Failed to hydrate SARIF for {service_name}: {e}", level='warning')
+                        
+                        self._log(f"[AGGREGATE] After SARIF hydration: {len(all_findings)} total findings")
                 
                 # Determine overall status
                 if any_succeeded and not any_failed:

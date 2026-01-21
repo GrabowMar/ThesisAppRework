@@ -52,6 +52,20 @@
             <input type="text" class="form-control" id="title" name="title" placeholder="Leave blank for auto-generated title">
           </div>
           
+          {# Filter Mode #}
+          <div class="mb-3">
+            <label for="filter-mode" class="form-label">Analyzer Filter Mode</label>
+            <select class="form-select" id="filter-mode" name="filter_mode">
+              <option value="all" selected>All Analyzers (Static + Dynamic + Performance + AI)</option>
+              <option value="exclude_dynamic_perf">Exclude Dynamic & Performance (Static + AI only)</option>
+              <option value="only_dynamic_perf">Only Dynamic & Performance</option>
+            </select>
+            <div class="form-text">
+              <i class="fa-solid fa-info-circle me-1"></i>
+              Use "Exclude Dynamic & Performance" when runtime tests don't work for all apps. This ensures methodologically consistent comparisons.
+            </div>
+          </div>
+          
           {# Optional Description #}
           <div class="mb-3">
             <label for="description" class="form-label">Description (Optional)</label>
@@ -298,6 +312,7 @@
         report_type: reportType,
         title: formData.get('title') || null,
         description: formData.get('description') || null,
+        filter_mode: formData.get('filter_mode') || 'all',
         config: {}
       };
       

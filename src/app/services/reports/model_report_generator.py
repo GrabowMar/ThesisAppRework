@@ -237,7 +237,8 @@ class ModelReportGenerator(BaseReportGenerator):
                 else:
                     stats['failed'] += 1
                 
-                stats['total_findings'] += tool_data.get('total_issues') or 0
+                # Use nested .get() to preserve explicit zeros
+                stats['total_findings'] += tool_data.get('total_issues', tool_data.get('issue_count', 0))
                 stats['total_duration'] += tool_data.get('duration_seconds') or 0.0
             
             # Get app metadata
@@ -401,8 +402,13 @@ class ModelReportGenerator(BaseReportGenerator):
         - services -> {service_type} -> analysis -> results -> {language} -> {tool}
         - services -> {service_type} -> payload -> tools_used (list of tool names)
         
+        Applies filter_mode from config to exclude/include specific analyzer services.
+        
         Returns a flat dict: {tool_name: {status, total_issues, duration_seconds, service, language}}
         """
+        # Apply filter mode first
+        services = self.filter_services_data(services)
+        
         tools = {}
         
         for service_type, service_data in services.items():
@@ -455,7 +461,7 @@ class ModelReportGenerator(BaseReportGenerator):
                                 
                                 tools[tool_name] = {
                                     'status': tool_status,
-                                    'total_issues': tool_data.get('total_issues') or tool_data.get('issue_count') or 0,
+                                    'total_issues': tool_data.get('total_issues', tool_data.get('issue_count', 0)),
                                     'duration_seconds': tool_data.get('duration_seconds') or 0.0,
                                     'service': service_type,
                                     'language': lang_or_tool,
@@ -473,7 +479,7 @@ class ModelReportGenerator(BaseReportGenerator):
                         
                         tools[lang_or_tool] = {
                             'status': tool_status,
-                            'total_issues': lang_data.get('total_issues') or lang_data.get('issue_count') or 0,
+                            'total_issues': lang_data.get('total_issues', lang_data.get('issue_count', 0)),
                             'duration_seconds': lang_data.get('duration_seconds') or 0.0,
                             'service': service_type,
                             'language': self.KNOWN_TOOLS.get(lang_or_tool, {}).get('language', 'unknown'),
@@ -502,7 +508,11 @@ class ModelReportGenerator(BaseReportGenerator):
         Extract all findings from nested services structure.
         
         Flattens findings from all services into a unified list with standardized format.
+        Applies filter_mode from config to exclude/include specific analyzer services.
         """
+        # Apply filter mode first
+        services = self.filter_services_data(services)
+        
         findings = []
         
         for service_type, service_data in services.items():

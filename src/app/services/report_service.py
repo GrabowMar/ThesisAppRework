@@ -23,7 +23,7 @@ from ..models import (
     Report, AnalysisTask, GeneratedApplication, ModelCapability,
     PerformanceTest, SecurityAnalysis, OpenRouterAnalysis
 )
-from ..constants import AnalysisStatus
+from ..constants import AnalysisStatus, ReportFilterMode
 from ..utils.time import utc_now
 from ..utils.slug_utils import normalize_model_slug, generate_slug_variants
 from .unified_result_service import UnifiedResultService
@@ -171,7 +171,8 @@ class ReportService:
         title: Optional[str] = None,
         description: Optional[str] = None,
         user_id: Optional[int] = None,
-        expires_in_days: int = 30
+        expires_in_days: int = 30,
+        filter_mode: ReportFilterMode = ReportFilterMode.ALL_ANALYZERS
     ) -> Report:
         """
         Generate a report and store data in database.
@@ -183,12 +184,16 @@ class ReportService:
             description: Optional description
             user_id: ID of user creating report
             expires_in_days: Days until report expires
+            filter_mode: Analyzer filter mode (all/exclude_dynamic_perf/only_dynamic_perf)
             
         Returns:
             Report model instance with data populated
         """
         # Validate config
         self._validate_config(report_type, config)
+        
+        # Add filter_mode to config for generators
+        config['filter_mode'] = filter_mode.value if isinstance(filter_mode, ReportFilterMode) else filter_mode
         
         # Generate unique ID
         report_id = f"report_{uuid.uuid4().hex[:12]}"

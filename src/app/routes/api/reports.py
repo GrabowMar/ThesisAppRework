@@ -72,10 +72,13 @@ def generate_report():
             "filter_app": 1  // optional
         },
         "title": "Custom title",  // optional
-        "description": "Description"  // optional
+        "description": "Description",  // optional
+        "filter_mode": "all|exclude_dynamic_perf|only_dynamic_perf"  // optional, default: all
     }
     """
     try:
+        from ...constants import ReportFilterMode
+        
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'error': 'Request body required'}), 400
@@ -104,6 +107,16 @@ def generate_report():
             return jsonify({'success': False, 'error': 'template_slug required'}), 400
         # generation_analytics has no required config - analyzes all models
         
+        # Parse filter_mode
+        filter_mode_str = data.get('filter_mode', 'all')
+        try:
+            filter_mode = ReportFilterMode(filter_mode_str)
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'error': f'filter_mode must be one of: all, exclude_dynamic_perf, only_dynamic_perf'
+            }), 400
+        
         service = get_report_service()
         user_id = current_user.id if current_user.is_authenticated else None
         
@@ -113,7 +126,8 @@ def generate_report():
             title=data.get('title'),
             description=data.get('description'),
             user_id=user_id,
-            expires_in_days=data.get('expires_in_days', 30)
+            expires_in_days=data.get('expires_in_days', 30),
+            filter_mode=filter_mode
         )
         
         return jsonify({

@@ -132,6 +132,29 @@ class GenerationMode(BaseEnum):
     UNGUARDED = "unguarded"
 
 
+class ReportFilterMode(BaseEnum):
+    """Filter mode for report generation.
+    
+    Controls which analyzers are included in generated reports.
+    Useful for methodological control when dynamic/performance analyzers
+    don't work for all applications.
+    
+    ALL_ANALYZERS: Include all analyzers (static, dynamic, performance, AI).
+                   Default mode for comprehensive reporting.
+    
+    EXCLUDE_DYNAMIC_PERF: Include only static and AI analyzers.
+                          Excludes dynamic and performance analyzers.
+                          Use when dynamic/perf tests fail for some apps.
+    
+    ONLY_DYNAMIC_PERF: Include only dynamic and performance analyzers.
+                       Excludes static and AI analyzers.
+                       Use for focused runtime/performance analysis.
+    """
+    ALL_ANALYZERS = "all"
+    EXCLUDE_DYNAMIC_PERF = "exclude_dynamic_perf"
+    ONLY_DYNAMIC_PERF = "only_dynamic_perf"
+
+
 # (Pruned legacy enum: ToolCategory)
 
 

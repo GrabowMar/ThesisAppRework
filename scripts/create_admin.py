@@ -12,7 +12,7 @@ The script will:
 
 Default Credentials:
 - Username: admin
-- Password: admin2025
+- Password: admin2705
 - Email: admin@thesis-app.local
 
 Usage:
@@ -40,17 +40,17 @@ def main():
         if admin:
             print(f'Admin user already exists (id={admin.id})')
             # Reset password anyway
-            admin.set_password('admin2025')
+            admin.set_password('admin2705')
             admin.is_admin = True
             db.session.commit()
-            print('Password has been reset to: admin2025')
+            print('Password has been reset to: admin2705')
         else:
             # Create admin user - note: is_admin must be set after creation
             admin = User(
                 username='admin',
                 email='admin@thesis-app.local',
             )
-            admin.set_password('admin2025')
+            admin.set_password('admin2705')
             admin.is_admin = True
             db.session.add(admin)
             db.session.commit()
@@ -61,7 +61,7 @@ def main():
         print('Admin Login Credentials:')
         print('=' * 40)
         print('  Username: admin')
-        print('  Password: admin2025')
+        print('  Password: admin2705')
         print('  Email: admin@thesis-app.local')
         print('=' * 40)
 
