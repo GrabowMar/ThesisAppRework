@@ -1237,7 +1237,7 @@ Generate the Flask API code:"""
                     requirements_lines.extend([f"- {req}" for req in reqs['stylistic_requirements']])
                 
                 # Fall back to frontend_requirements if new format not available
-                if not requirements_lines and 'frontend_requirements' in reqs:
+                if reqs and not requirements_lines and 'frontend_requirements' in reqs:
                     requirements_lines.append("FRONTEND REQUIREMENTS:")
                     requirements_lines.extend([f"- {req}" for req in reqs['frontend_requirements']])
                 
