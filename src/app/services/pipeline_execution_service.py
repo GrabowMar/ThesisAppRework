@@ -45,7 +45,7 @@ _pipeline_state_lock = threading.RLock()
 # =============================================================================
 
 # Feature flag for new generation system
-USE_GENERATION_V2: bool = True
+
 
 # Parallelism limits
 # NOTE: Pipeline generation uses parallel execution like the original working implementation
