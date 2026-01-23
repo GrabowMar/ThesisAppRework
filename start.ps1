@@ -73,23 +73,23 @@ $Script:RUN_DIR = Join-Path $ROOT_DIR "run"
 
 # Service configuration
 $Script:CONFIG = @{
-    Flask = @{
-        Name = "Flask"
-        PidFile = Join-Path $RUN_DIR "flask.pid"
-        LogFile = Join-Path $LOGS_DIR "app.log"
-        Port = $Port
+    Flask     = @{
+        Name           = "Flask"
+        PidFile        = Join-Path $RUN_DIR "flask.pid"
+        LogFile        = Join-Path $LOGS_DIR "app.log"
+        Port           = $Port
         HealthEndpoint = "http://127.0.0.1:$Port/api/health"
-        StartupTime = 10
-        Color = "Cyan"
+        StartupTime    = 10
+        Color          = "Cyan"
     }
     Analyzers = @{
-        Name = "Analyzers"
-        PidFile = Join-Path $RUN_DIR "analyzer.pid"
-        LogFile = Join-Path $LOGS_DIR "analyzer.log"
-        Services = @('static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer')
-        Ports = @(2001, 2002, 2003, 2004)
+        Name        = "Analyzers"
+        PidFile     = Join-Path $RUN_DIR "analyzer.pid"
+        LogFile     = Join-Path $LOGS_DIR "analyzer.log"
+        Services    = @('static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer')
+        Ports       = @(2001, 2002, 2003, 2004)
         StartupTime = 15
-        Color = "Green"
+        Color       = "Green"
     }
 }
 
@@ -203,7 +203,8 @@ class HealthMonitor {
             }
             $state.UpdateStatus('Degraded', 'Unhealthy')
             return $true
-        } catch {
+        }
+        catch {
             return $false
         }
     }
@@ -220,7 +221,8 @@ class HealthMonitor {
                 return $true
             }
             return $false
-        } catch {
+        }
+        catch {
             Pop-Location -ErrorAction SilentlyContinue
             return $false
         }
@@ -258,8 +260,8 @@ class LogAggregator {
                         [PSCustomObject]@{
                             Service = $ServiceName
                             Message = $_
-                            Color = $Color
-                            Time = Get-Date -Format 'HH:mm:ss'
+                            Color   = $Color
+                            Time    = Get-Date -Format 'HH:mm:ss'
                         }
                     }
                 } -ArgumentList $logFile, $key, $color
@@ -280,7 +282,8 @@ class LogAggregator {
                 }
                 Start-Sleep -Milliseconds 100
             }
-        } finally {
+        }
+        finally {
             $this.Stop()
         }
     }
@@ -300,7 +303,8 @@ class LogAggregator {
                     Write-Host "  $_" -ForegroundColor Gray
                 }
                 Write-Host ""
-            } else {
+            }
+            else {
                 Write-Host "━━━ $key " -ForegroundColor $color -NoNewline
                 Write-Host ("━" * (70 - $key.Length)) -ForegroundColor DarkGray
                 Write-Host "  (No log file found)" -ForegroundColor DarkGray
@@ -334,7 +338,8 @@ function Write-Banner {
             # Leave a small safety margin; wrapping at the right edge looks like a broken box.
             $innerWidth = [Math]::Min($defaultInnerWidth, [Math]::Max(20, $windowWidth - 4))
         }
-    } catch {
+    }
+    catch {
         $innerWidth = $defaultInnerWidth
     }
 
@@ -388,10 +393,12 @@ function Initialize-Environment {
         if (-not $networkExists) {
             docker network create thesis-apps-network 2>$null | Out-Null
             Write-Status "  Created shared network: thesis-apps-network" "Success"
-        } else {
+        }
+        else {
             Write-Status "  Shared network exists: thesis-apps-network" "Success"
         }
-    } catch {
+    }
+    catch {
         Write-Status "  Warning: Could not create shared network (Docker may not be running)" "Warning"
     }
 
@@ -406,7 +413,7 @@ function Initialize-Environment {
     # Initialize service states
     $Script:Services = @{
         Analyzers = [ServiceState]::new('Analyzers')
-        Flask = [ServiceState]::new('Flask')
+        Flask     = [ServiceState]::new('Flask')
     }
 
     # Initialize health monitor
@@ -425,10 +432,12 @@ function Test-Dependencies {
     if (Test-Path $venvPython) {
         Write-Status "  Python: .venv virtual environment found" "Success"
         $Script:PYTHON_CMD = $venvPython
-    } elseif (Get-Command python -ErrorAction SilentlyContinue) {
+    }
+    elseif (Get-Command python -ErrorAction SilentlyContinue) {
         Write-Status "  Python: System Python found" "Warning"
         $Script:PYTHON_CMD = "python"
-    } else {
+    }
+    else {
         $issues += "Python not found (neither .venv nor system)"
     }
 
@@ -437,10 +446,12 @@ function Test-Dependencies {
         docker info 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Status "  Docker: Running" "Success"
-        } else {
+        }
+        else {
             $issues += "Docker is not running"
         }
-    } catch {
+    }
+    catch {
         $issues += "Docker not found"
     }
 
@@ -509,7 +520,8 @@ function Start-AnalyzerServices {
         Write-Host ""
         Write-Status "  Some analyzer services may not have started" "Warning"
         return $true
-    } finally {
+    }
+    finally {
         Pop-Location
     }
 }
@@ -546,7 +558,8 @@ function Start-FlaskApp {
             
             Write-Status "  Flask started in background (PID: $($process.Id))" "Success"
             Write-Host "    URL: http://127.0.0.1:$Port" -ForegroundColor Gray
-        } else {
+        }
+        else {
             Write-Status "  Flask starting in foreground..." "Success"
             Write-Host "    URL: http://127.0.0.1:$Port" -ForegroundColor Gray
             Write-Host "    Press Ctrl+C to stop all services`n" -ForegroundColor Yellow
@@ -557,7 +570,8 @@ function Start-FlaskApp {
 
         $Script:Services.Flask.UpdateStatus('Running', 'Healthy')
         return $true
-    } catch {
+    }
+    catch {
         Write-Status "  Failed to start Flask: $_" "Error"
         return $false
     }
@@ -576,14 +590,16 @@ function Stop-Service {
         try {
             docker-compose stop 2>$null | Out-Null
             Write-Status "  $ServiceName stopped" "Success"
-        } finally {
+        }
+        finally {
             Pop-Location
         }
         
         if ($config.PidFile -and (Test-Path $config.PidFile)) {
             Remove-Item $config.PidFile -Force
         }
-    } else {
+    }
+    else {
         # Process-based services (Flask)
         $stopped = $false
         
@@ -602,7 +618,8 @@ function Stop-Service {
                         $process.WaitForExit(5000)
                         $stopped = $true
                         Write-Status "  $ServiceName stopped" "Success"
-                    } catch {
+                    }
+                    catch {
                         Write-Status "  Warning: Could not kill process $processId" "Warning"
                     }
                 }
@@ -618,7 +635,8 @@ function Stop-Service {
                     try {
                         $cmdLine = (Get-CimInstance Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue).CommandLine
                         $cmdLine -and $cmdLine -like "*main.py*"
-                    } catch { $false }
+                    }
+                    catch { $false }
                 }
                 
                 if ($flaskProcesses) {
@@ -627,7 +645,8 @@ function Stop-Service {
                         try {
                             $proc | Stop-Process -Force -ErrorAction SilentlyContinue
                             $stopped = $true
-                        } catch {
+                        }
+                        catch {
                             # Process might have already exited
                         }
                     }
@@ -635,7 +654,8 @@ function Stop-Service {
                         Write-Status "  $ServiceName stopped" "Success"
                     }
                 }
-            } catch {
+            }
+            catch {
                 # Ignore errors in fallback cleanup
             }
         }
@@ -798,13 +818,17 @@ function Start-DockerStack {
             $line = $_
             if ($line -match "error|failed|fatal" -and $line -notmatch "errorhandler") {
                 Write-Host $line -ForegroundColor Red
-            } elseif ($line -match "warning") {
+            }
+            elseif ($line -match "warning") {
                 Write-Host $line -ForegroundColor Yellow
-            } elseif ($line -match "Started|Running|Created|Built|Pulled") {
+            }
+            elseif ($line -match "Started|Running|Created|Built|Pulled") {
                 Write-Host $line -ForegroundColor Green
-            } elseif ($line -match "Building|Downloading|Extracting") {
+            }
+            elseif ($line -match "Building|Downloading|Extracting") {
                 Write-Host $line -ForegroundColor Cyan
-            } else {
+            }
+            else {
                 Write-Host $line -ForegroundColor Gray
             }
         }
@@ -839,7 +863,8 @@ function Start-DockerStack {
                     Write-Status "All services are ready! (${waited}s)" "Success"
                     break
                 }
-            } catch {
+            }
+            catch {
                 # Not ready yet, continue waiting
             }
         }
@@ -874,7 +899,8 @@ function Start-DockerStack {
         "docker-compose" | Out-File -FilePath (Join-Path $Script:RUN_DIR "docker.mode") -Encoding ASCII
         
         return $true
-    } finally {
+    }
+    finally {
         Pop-Location
     }
 }
@@ -888,7 +914,8 @@ function Stop-DockerStack {
         
         if ($LASTEXITCODE -eq 0) {
             Write-Status "Docker stack stopped" "Success"
-        } else {
+        }
+        else {
             Write-Status "Warning: Some containers may not have stopped cleanly" "Warning"
         }
         
@@ -897,7 +924,8 @@ function Stop-DockerStack {
         if (Test-Path $modeFile) {
             Remove-Item $modeFile -Force
         }
-    } finally {
+    }
+    finally {
         Pop-Location
     }
 }
@@ -964,9 +992,11 @@ with app.app_context():
             Write-Host "$devPassword" -ForegroundColor Green
             Write-Host ""
         }
-    } catch {
+    }
+    catch {
         Write-Status "Warning: Could not set dev password" "Warning"
-    } finally {
+    }
+    finally {
         if (Test-Path $tempScript) {
             Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
         }
@@ -1033,7 +1063,7 @@ function Show-InteractiveMenu {
         }
         'L' {
             $logFiles = @{
-                Flask = $Script:CONFIG.Flask.LogFile
+                Flask     = $Script:CONFIG.Flask.LogFile
                 Analyzers = $Script:CONFIG.Analyzers.LogFile
             }
             $aggregator = [LogAggregator]::new($logFiles, (-not $NoFollow))
@@ -1151,19 +1181,23 @@ function Invoke-RebuildContainers {
                     
                     # Mark Docker mode
                     "docker-compose" | Out-File -FilePath (Join-Path $Script:RUN_DIR "docker.mode") -Encoding ASCII
-                } else {
+                }
+                else {
                     Write-Status "Failed to start services" "Error"
                 }
-            } else {
+            }
+            else {
                 Write-Status "Services not started - use [S] Start to launch them later" "Info"
             }
             
             return $true
-        } else {
+        }
+        else {
             Write-Status "Rebuild failed" "Error"
             return $false
         }
-    } finally {
+    }
+    finally {
         Pop-Location
     }
 }
@@ -1211,11 +1245,13 @@ function Invoke-CleanRebuild {
             Write-Banner "✅ Clean Rebuild Complete" "Green"
             Write-Status "All caches rebuilt - subsequent builds will be fast again" "Success"
             return $true
-        } else {
+        }
+        else {
             Write-Status "Clean rebuild failed" "Error"
             return $false
         }
-    } finally {
+    }
+    finally {
         Pop-Location
     }
 }
@@ -1291,7 +1327,51 @@ if __name__ == '__main__':
     try {
         Write-Status "Resetting admin password..." "Info"
         
-        $output = & $Script:PYTHON_CMD $tempScript 2>&1
+        $output = $null
+        $dockerModeFile = Join-Path $Script:RUN_DIR "docker.mode"
+        
+        if (Test-Path $dockerModeFile) {
+            Write-Status "Detected Docker environment - executing inside container..." "Info"
+            
+            # Need to run docker commands from root where compose file is
+            Push-Location $Script:ROOT_DIR
+            try {
+                # Get the container ID for the web service
+                $containerId = docker compose ps -q web 2>$null
+                
+                if ([string]::IsNullOrWhiteSpace($containerId)) {
+                    throw "Could not find running 'web' container. Ensure the stack is running with [S] Start."
+                }
+                $containerId = $containerId.Trim()
+                
+                # Copy the temp script into the container
+                # Note: We can't write directly to /app because it's not a volume mount of root
+                $containerScriptPath = "/app/temp_reset_password.py"
+                docker cp "temp_reset_password.py" "$($containerId):$containerScriptPath"
+                
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Failed to copy password reset script to container"
+                }
+                
+                # Execute the script inside the container
+                $output = docker exec $containerId python $containerScriptPath 2>&1
+                
+                # Cleanup script inside container
+                docker exec $containerId rm $containerScriptPath 2>$null | Out-Null
+                
+            }
+            catch {
+                $output = "Docker Error: $_"
+                $LASTEXITCODE = 1
+            }
+            finally {
+                Pop-Location
+            }
+        }
+        else {
+            # Local execution
+            $output = & $Script:PYTHON_CMD $tempScript 2>&1
+        }
         
         # Debug output to diagnose issue
         Write-Host ""
@@ -1300,7 +1380,7 @@ if __name__ == '__main__':
         Write-Host "DEBUG - Password Length: $($newPassword.Length)" -ForegroundColor Cyan
         Write-Host ""
         
-        if ($LASTEXITCODE -eq 0 -and ($output -match 'SUCCESS' -or $output -match 'CREATED')) {
+        if (($LASTEXITCODE -eq 0) -and ($output -match 'SUCCESS' -or $output -match 'CREATED')) {
             $action = if ($output -match 'CREATED') { "Created and Set" } else { "Reset" }
             Write-Host ""
             Write-Banner "✅ Password $action Successfully" "Green"
@@ -1313,13 +1393,16 @@ if __name__ == '__main__':
             Write-Host ""
             Write-Host "⚠️  IMPORTANT: Save this password now! It will not be shown again." -ForegroundColor Yellow
             Write-Host ""
-        } else {
+        }
+        else {
             Write-Status "Failed to reset password" "Error"
             Write-Host "Output: $output" -ForegroundColor Red
         }
-    } catch {
+    }
+    catch {
         Write-Status "Error resetting password: $($_.Exception.Message)" "Error"
-    } finally {
+    }
+    finally {
         # Clean up temporary script
         if (Test-Path $tempScript) {
             Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
@@ -1350,13 +1433,15 @@ function Invoke-Reload {
             try {
                 $cmdLine = (Get-CimInstance Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue).CommandLine
                 $cmdLine -and ($cmdLine -like "*$($Script:ROOT_DIR)*" -or $cmdLine -like "*main.py*")
-            } catch { $false }
+            }
+            catch { $false }
         } | ForEach-Object {
             Write-Host "    Killing process $($_.Id) ($($_.ProcessName))..." -ForegroundColor DarkGray
             $_ | Stop-Process -Force -ErrorAction SilentlyContinue
             $killedCount++
         }
-    } catch {
+    }
+    catch {
         Write-Host "    Warning: Could not check for orphan processes" -ForegroundColor DarkYellow
     }
     
@@ -1395,7 +1480,8 @@ function Invoke-Reload {
         Write-Host "⚡ All services restarted with latest code" -ForegroundColor Gray
         Write-Host ""
         return $true
-    } else {
+    }
+    else {
         Write-Status "Reload failed - check logs for details" "Error"
         return $false
     }
@@ -1424,7 +1510,8 @@ function Invoke-Cleanup {
         if ($response -eq 'Y' -or $response -eq 'y') {
             Stop-AllServices
             Start-Sleep -Seconds 2
-        } else {
+        }
+        else {
             Write-Status "Cleanup cancelled - stop services first with [X] Stop" "Warning"
             return
         }
@@ -1447,7 +1534,8 @@ function Invoke-Cleanup {
             # Try to move current log
             Move-Item $_.FullName $archive -Force -ErrorAction Stop
             $rotated++
-        } catch {
+        }
+        catch {
             Write-Host "  Skipped $($_.Name) (file in use)" -ForegroundColor DarkGray
             $skipped++
         }
@@ -1519,10 +1607,12 @@ with app.app_context():
         if ($LASTEXITCODE -eq 0) {
             Write-Host ""
             Write-Status "Maintenance cleanup completed successfully" "Success"
-        } else {
+        }
+        else {
             Write-Status "Maintenance cleanup failed with exit code $LASTEXITCODE" "Error"
         }
-    } finally {
+    }
+    finally {
         if (Test-Path $tempScript) {
             Remove-Item -Path $tempScript -Force -ErrorAction SilentlyContinue
         }
@@ -1552,24 +1642,25 @@ function Stop-BlockingProcesses {
     # 1. Kill any Python processes in the project directory
     try {
         $projectPythonProcs = Get-Process -Name "python", "pythonw" -ErrorAction SilentlyContinue | 
-            Where-Object { 
-                $_.Path -like "*ThesisAppRework*" -or 
-                $_.CommandLine -like "*ThesisAppRework*" 
-            }
+        Where-Object { 
+            $_.Path -like "*ThesisAppRework*" -or 
+            $_.CommandLine -like "*ThesisAppRework*" 
+        }
         
         foreach ($proc in $projectPythonProcs) {
             Write-Host "    • Killing Python process PID $($proc.Id): $($proc.Path)" -ForegroundColor Gray
             Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
             $killedCount++
         }
-    } catch {
+    }
+    catch {
         # Silently continue if no processes found
     }
     
     # 2. Kill any processes using python.exe from the .venv specifically
     try {
         $venvPythonProcs = Get-Process -Name "python", "pythonw" -ErrorAction SilentlyContinue |
-            Where-Object { $_.Path -like "*$($Script:ROOT_DIR)*" }
+        Where-Object { $_.Path -like "*$($Script:ROOT_DIR)*" }
         
         foreach ($proc in $venvPythonProcs) {
             if ($proc.Id -notin $projectPythonProcs.Id) {
@@ -1578,21 +1669,23 @@ function Stop-BlockingProcesses {
                 $killedCount++
             }
         }
-    } catch {
+    }
+    catch {
         # Silently continue
     }
     
     # 3. Kill Flask processes (they may hold DB connections)
     try {
         $flaskProcs = Get-Process -ErrorAction SilentlyContinue |
-            Where-Object { $_.ProcessName -like "*python*" -and $_.MainWindowTitle -like "*Flask*" }
+        Where-Object { $_.ProcessName -like "*python*" -and $_.MainWindowTitle -like "*Flask*" }
         
         foreach ($proc in $flaskProcs) {
             Write-Host "    • Killing Flask process PID $($proc.Id)" -ForegroundColor Gray
             Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
             $killedCount++
         }
-    } catch {
+    }
+    catch {
         # Silently continue
     }
     
@@ -1603,7 +1696,8 @@ function Stop-BlockingProcesses {
         Write-Status "  Killed $killedCount process(es)" "Success"
         # Give OS time to release file handles
         Start-Sleep -Seconds 2
-    } else {
+    }
+    else {
         Write-Status "  No blocking processes found" "Info"
     }
     
@@ -1633,11 +1727,13 @@ function Stop-AllBlockingProcesses {
                 Write-Host "    • Force killing Python PID $($proc.Id)" -ForegroundColor Gray
                 Stop-Process -Id $proc.Id -Force -ErrorAction Stop
                 $killedCount++
-            } catch {
+            }
+            catch {
                 # Process may have already exited
             }
         }
-    } catch {
+    }
+    catch {
         # No processes found
     }
     
@@ -1736,13 +1832,16 @@ function Invoke-Wipeout {
             
             if ($removedCount -gt 0) {
                 Write-Status "  Removed $removedCount container(s)" "Success"
-            } else {
+            }
+            else {
                 Write-Status "  No non-analyzer containers to remove" "Info"
             }
-        } else {
+        }
+        else {
             Write-Status "  No containers found" "Info"
         }
-    } catch {
+    }
+    catch {
         Write-Status "  Error removing containers: $_" "Warning"
     }
     
@@ -1800,10 +1899,12 @@ function Invoke-Wipeout {
             
             if ($removedCount -gt 0) {
                 Write-Status "  Removed $removedCount image(s)" "Success"
-            } else {
+            }
+            else {
                 Write-Status "  No non-analyzer images to remove" "Info"
             }
-        } else {
+        }
+        else {
             Write-Status "  No images found" "Info"
         }
         
@@ -1812,7 +1913,8 @@ function Invoke-Wipeout {
         docker image prune -f 2>$null | Out-Null
         Write-Status "  Dangling images cleaned" "Success"
         
-    } catch {
+    }
+    catch {
         Write-Status "  Error removing images: $_" "Warning"
     }
     
@@ -1860,10 +1962,12 @@ function Invoke-Wipeout {
             
             if ($removedCount -gt 0) {
                 Write-Status "  Removed $removedCount volume(s)" "Success"
-            } else {
+            }
+            else {
                 Write-Status "  No non-analyzer volumes to remove" "Info"
             }
-        } else {
+        }
+        else {
             Write-Status "  No volumes found" "Info"
         }
         
@@ -1872,7 +1976,8 @@ function Invoke-Wipeout {
         docker volume prune -f 2>$null | Out-Null
         Write-Status "  Dangling volumes cleaned" "Success"
         
-    } catch {
+    }
+    catch {
         Write-Status "  Error removing volumes: $_" "Warning"
     }
     
@@ -1890,7 +1995,8 @@ function Invoke-Wipeout {
                 Write-Status "  Database removed" "Success"
                 $dbRemoved = $true
                 break
-            } catch {
+            }
+            catch {
                 $errorMsg = $_.Exception.Message
                 Write-Status "  Attempt $attempt/$maxAttempts failed: $errorMsg" "Warning"
                 
@@ -1901,7 +2007,8 @@ function Invoke-Wipeout {
                     if ($attempt -eq 1) {
                         # First retry: kill project-specific Python processes
                         Stop-BlockingProcesses
-                    } else {
+                    }
+                    else {
                         # Second retry: kill ALL Python processes
                         Stop-AllBlockingProcesses
                     }
@@ -1926,7 +2033,8 @@ function Invoke-Wipeout {
         try {
             Get-ChildItem -Path $generatedDir -Exclude ".migration_done" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction Stop
             Write-Status "  Generated apps removed" "Success"
-        } catch {
+        }
+        catch {
             Write-Status "  Failed to remove generated apps: $_" "Error"
         }
     }
@@ -1939,7 +2047,8 @@ function Invoke-Wipeout {
             Remove-Item -Path $resultsDir -Recurse -Force -ErrorAction Stop
             New-Item -ItemType Directory -Path $resultsDir -Force | Out-Null
             Write-Status "  Results removed" "Success"
-        } catch {
+        }
+        catch {
             Write-Status "  Failed to remove results: $_" "Error"
         }
     }
@@ -1952,7 +2061,8 @@ function Invoke-Wipeout {
             Remove-Item -Path $reportsDir -Recurse -Force -ErrorAction Stop
             New-Item -ItemType Directory -Path $reportsDir -Force | Out-Null
             Write-Status "  Reports removed" "Success"
-        } catch {
+        }
+        catch {
             Write-Status "  Failed to remove reports: $_" "Error"
         }
     }
@@ -1986,13 +2096,16 @@ function Invoke-Wipeout {
             & $Script:PYTHON_CMD $initDbScript 2>&1 | Out-Null
             if ($LASTEXITCODE -eq 0) {
                 Write-Status "  Database tables and data initialized" "Success"
-            } else {
+            }
+            else {
                 Write-Status "  Warning: Database init returned non-zero exit code" "Warning"
             }
-        } catch {
+        }
+        catch {
             Write-Status "  Error running init_db.py: $_" "Warning"
         }
-    } else {
+    }
+    else {
         Write-Status "  init_db.py not found - database may not be fully initialized" "Warning"
     }
     
@@ -2058,13 +2171,16 @@ if __name__ == '__main__':
         if ($LASTEXITCODE -eq 0 -and ($output -match 'SUCCESS' -or $output -match 'CREATED')) {
             Write-Status "  Admin user created successfully" "Success"
             $adminCreated = $true
-        } else {
+        }
+        else {
             Write-Status "  Warning: Could not create admin user" "Warning"
             Write-Host "  Output: $output" -ForegroundColor DarkGray
         }
-    } catch {
+    }
+    catch {
         Write-Status "  Error creating admin user: $($_.Exception.Message)" "Warning"
-    } finally {
+    }
+    finally {
         # Clean up temporary script
         if (Test-Path $tempScript) {
             Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
@@ -2091,7 +2207,8 @@ if __name__ == '__main__':
         Write-Host "🌐 Application URL: " -NoNewline -ForegroundColor Cyan
         Write-Host "http://127.0.0.1:$Port" -ForegroundColor White
         Write-Host ""
-    } else {
+    }
+    else {
         Write-Host ""
         Write-Status "Application restart failed - try [S] Start manually" "Warning"
     }
@@ -2112,7 +2229,8 @@ if __name__ == '__main__':
         Write-Host ""
         Write-Host "⚠️  IMPORTANT: Save this password now! It will not be shown again." -ForegroundColor Yellow
         Write-Host ""
-    } else {
+    }
+    else {
         Write-Host ""
         Write-Host "⚠️  Admin user could not be created automatically." -ForegroundColor Yellow
         Write-Host "   Run [P] Password reset after starting the app." -ForegroundColor Yellow
@@ -2247,11 +2365,13 @@ try {
                         while ($true) {
                             Start-Sleep -Seconds 60
                         }
-                    } finally {
+                    }
+                    finally {
                         Stop-AllServices
                     }
                 }
-            } else {
+            }
+            else {
                 exit 1
             }
         }
@@ -2272,7 +2392,7 @@ try {
         }
         'Logs' {
             $logFiles = @{
-                Flask = $Script:CONFIG.Flask.LogFile
+                Flask     = $Script:CONFIG.Flask.LogFile
                 Analyzers = $Script:CONFIG.Analyzers.LogFile
             }
             $aggregator = [LogAggregator]::new($logFiles, (-not $NoFollow))
@@ -2306,11 +2426,13 @@ try {
                         while ($true) {
                             Start-Sleep -Seconds 60
                         }
-                    } finally {
+                    }
+                    finally {
                         Stop-DockerStack
                     }
                 }
-            } else {
+            }
+            else {
                 exit 1
             }
         }
@@ -2324,11 +2446,13 @@ try {
                         while ($true) {
                             Start-Sleep -Seconds 60
                         }
-                    } finally {
+                    }
+                    finally {
                         Stop-AllServices
                     }
                 }
-            } else {
+            }
+            else {
                 exit 1
             }
         }
@@ -2336,11 +2460,13 @@ try {
             Show-Help
         }
     }
-} catch {
+}
+catch {
     Write-Status "Fatal error: $_" "Error"
     Write-Host $_.ScriptStackTrace -ForegroundColor Red
     exit 1
-} finally {
+}
+finally {
     # Cleanup on exit
     if ($Script:HealthMonitor) {
         $Script:HealthMonitor.Stop()
