@@ -33,256 +33,7 @@ logger = logging.getLogger(__name__)
 #          CanAiCode, SEAL Leaderboards (scale.com), LLM Stats (llm-stats.com)
 # =============================================================================
 
-STATIC_BFCL_DATA = {
-    # Berkeley Function-Calling Leaderboard (Dec 2025 - Jan 2026)
-    # Overall Accuracy percentages
-    'claude-opus-4.5': 77.47,
-    'claude-sonnet-4.5': 73.24,
-    'gemini-3-pro-preview': 72.51,
-    'glm-4.6': 72.38,
-    'grok-4': 69.57,
-    'claude-sonnet-4': 68.5,
-    'claude-opus-4': 70.2,
-    'gpt-5': 67.8,
-    'gpt-5-mini': 65.2,
-    'gemini-2.5-pro': 66.8,
-    'gemini-2.5-flash': 62.4,
-    'deepseek-r1': 64.5,
-    'deepseek-v3': 61.2,
-    'o3-mini': 63.8,
-    'o1': 60.5,
-    'qwen-2.5-coder-32b': 58.4,
-    'llama-3.3-70b': 55.2,
-    'gpt-4o': 54.8,
-    'gpt-4o-mini': 52.1,
-    'claude-3.5-sonnet': 58.2,
-    'mistral-large': 48.5,
-}
-
-STATIC_WEBDEV_ARENA_DATA = {
-    # WebDev Arena Elo Scores (Oct 2025)
-    # Elo range: ~800-1500
-    'gpt-5': 1476,
-    'claude-opus-4': 1472,
-    'claude-opus-4.1': 1460,
-    'gemini-2.5-pro': 1402,
-    'deepseek-r1': 1394,
-    'claude-sonnet-4': 1385,
-    'o3-mini': 1365,
-    'gpt-5-mini': 1345,
-    'gemini-2.5-flash': 1320,
-    'claude-3.5-sonnet': 1298,
-    'deepseek-v3': 1285,
-    'gpt-4o': 1265,
-    'qwen-2.5-coder-32b': 1245,
-    'llama-3.3-70b': 1215,
-    'gpt-4o-mini': 1195,
-    'mistral-large': 1165,
-    'gemini-1.5-pro': 1145,
-}
-
-STATIC_ARC_AGI_DATA = {
-    # ARC-AGI-2 Pass Rate (Jan 2026)
-    # Percentage scores
-    'gpt-5.2-pro': 54.2,
-    'gemini-3-pro': 54.0,
-    'gpt-5.2': 52.9,
-    'claude-opus-4.5': 37.6,
-    'claude-opus-4': 35.2,
-    'o3-mini': 32.5,
-    'gpt-5': 30.8,
-    'deepseek-r1': 28.4,
-    'gemini-2.5-pro': 26.5,
-    'claude-sonnet-4': 24.2,
-    'gpt-4o': 18.5,
-    'claude-3.5-sonnet': 16.8,
-    'deepseek-v3': 15.2,
-    'llama-3.3-70b': 12.4,
-    'qwen-2.5-coder-32b': 14.5,
-}
-
-STATIC_SIMPLEBENCH_DATA = {
-    # SimpleBench AVG@5 Scores (Jan 2026)
-    # Percentage accuracy (Human baseline: 83.7%)
-    'gemini-3-pro-preview': 76.4,
-    'gemini-2.5-pro': 62.4,
-    'claude-opus-4.5': 62.0,
-    'gpt-5-pro': 61.6,
-    'grok-4': 60.5,
-    'claude-opus-4': 58.2,
-    'o3-mini': 55.8,
-    'deepseek-r1': 54.2,
-    'gpt-5': 52.5,
-    'claude-sonnet-4': 50.8,
-    'gpt-4o': 45.2,
-    'claude-3.5-sonnet': 43.5,
-    'deepseek-v3': 42.8,
-    'gemini-2.5-flash': 41.2,
-    'llama-3.3-70b': 38.5,
-    'qwen-2.5-coder-32b': 36.2,
-}
-
-STATIC_CANAICODE_DATA = {
-    # CanAiCode Senior Interview Scores (Oct 2025)
-    # Score out of 148 (normalized to 0-100)
-    'qwen3-32b': 100.0,  # 148/148
-    'deepseek-r1': 100.0,
-    'o1-preview': 100.0,
-    'o1-mini': 100.0,
-    'o3-mini': 100.0,
-    'gpt-5': 98.6,
-    'claude-opus-4': 97.3,
-    'gemini-2.5-pro': 96.8,
-    'claude-sonnet-4': 95.2,
-    'deepseek-v3': 94.5,
-    'gpt-4o': 92.8,
-    'claude-3.5-sonnet': 91.2,
-    'qwen-2.5-coder-32b': 94.8,
-    'llama-3.3-70b': 88.5,
-    'gemini-2.5-flash': 89.2,
-    'gpt-4o-mini': 85.4,
-    'mistral-large': 82.1,
-}
-
-STATIC_SEAL_SHOWDOWN_DATA = {
-    # SEAL MCP Atlas Scores (Jan 2026)
-    # Percentage scores
-    'claude-opus-4.5': 62.30,
-    'gpt-5.2': 60.57,
-    'claude-opus-4': 58.5,
-    'gemini-3-pro-preview': 55.2,
-    'o3-mini': 52.8,
-    'deepseek-r1': 50.4,
-    'gpt-5': 48.2,
-    'claude-sonnet-4': 46.5,
-    'gemini-2.5-pro': 44.8,
-    'deepseek-v3': 42.2,
-    'gpt-4o': 38.5,
-    'claude-3.5-sonnet': 40.2,
-    'llama-3.3-70b': 35.8,
-    'qwen-2.5-coder-32b': 38.5,
-}
-
-STATIC_GPQA_DATA = {
-    # GPQA Accuracy (Jan 2026) from LLM Stats
-    # Percentage accuracy
-    'gpt-5.2': 92.4,
-    'gemini-3-pro': 91.9,
-    'grok-4-heavy': 88.4,
-    'claude-opus-4.5': 87.0,
-    'grok-4': 87.5,
-    'o3-mini': 85.2,
-    'gpt-5': 84.5,
-    'claude-opus-4': 82.8,
-    'deepseek-r1': 80.5,
-    'gemini-2.5-pro': 78.2,
-    'claude-sonnet-4': 76.5,
-    'gpt-4o': 72.4,
-    'claude-3.5-sonnet': 70.8,
-    'deepseek-v3': 68.5,
-    'llama-3.3-70b': 65.2,
-    'qwen-2.5-coder-32b': 62.8,
-    'gemini-2.5-flash': 68.5,
-}
-
-STATIC_LIVEBENCH_DATA = {
-    # LiveBench Global Average and Coding (Dec 2025 - Jan 2026)
-    'claude-opus-4.5': {'livebench_coding': 72.5, 'livebench_global': 76.20},
-    'gpt-5.1-codex-max': {'livebench_coding': 74.2, 'livebench_global': 75.63},
-    'gemini-3-pro-preview': {'livebench_coding': 73.8, 'livebench_global': 75.22},
-    'gpt-5.2': {'livebench_coding': 71.5, 'livebench_global': 74.12},
-    'gpt-5-pro': {'livebench_coding': 70.8, 'livebench_global': 73.82},
-    'claude-opus-4': {'livebench_coding': 68.5, 'livebench_global': 72.5},
-    'o3-mini': {'livebench_coding': 68.5, 'livebench_global': 71.2},
-    'deepseek-r1': {'livebench_coding': 65.8, 'livebench_global': 68.5},
-    'gemini-2.5-pro': {'livebench_coding': 64.5, 'livebench_global': 67.2},
-    'claude-sonnet-4': {'livebench_coding': 65.2, 'livebench_global': 66.8},
-    'gpt-5': {'livebench_coding': 62.5, 'livebench_global': 65.4},
-    'deepseek-v3': {'livebench_coding': 58.4, 'livebench_global': 62.8},
-    'gpt-4o': {'livebench_coding': 52.4, 'livebench_global': 58.5},
-    'claude-3.5-sonnet': {'livebench_coding': 58.2, 'livebench_global': 61.5},
-    'qwen-2.5-coder-32b': {'livebench_coding': 55.8, 'livebench_global': 58.2},
-    'llama-3.3-70b': {'livebench_coding': 48.2, 'livebench_global': 54.5},
-    'gemini-2.5-flash': {'livebench_coding': 55.8, 'livebench_global': 60.2},
-    'gpt-4o-mini': {'livebench_coding': 42.8, 'livebench_global': 50.4},
-}
-
-STATIC_LIVECODEBENCH_DATA = {
-    # LiveCodeBench Pass@1 (Aug 2024 - May 2025, 454 problems)
-    'o4-mini-high': 80.2,
-    'o3-high': 75.8,
-    'o4-mini-medium': 74.2,
-    'gemini-2.5-pro': 73.6,
-    'deepseek-r1': 73.1,
-    'o3-mini': 68.5,
-    'claude-opus-4': 65.2,
-    'gpt-5': 62.8,
-    'claude-sonnet-4': 58.5,
-    'deepseek-v3': 55.2,
-    'gpt-4o': 45.8,
-    'claude-3.5-sonnet': 48.5,
-    'qwen-2.5-coder-32b': 52.8,
-    'llama-3.3-70b': 42.5,
-    'gemini-2.5-flash': 48.2,
-    'gpt-4o-mini': 38.5,
-}
-
-# OpenRouter Programming Category Rankings (Sep-Oct 2025)
-STATIC_OPENROUTER_PROGRAMMING_RANKS = {
-    'gpt-4o-mini': 1,
-    'claude-3.5-sonnet': 2,
-    'gemini-2.5-flash': 3,
-    'deepseek-chat': 4,
-    'gpt-4o': 5,
-    'glm-4.6': 6,
-    'claude-3.5-haiku': 7,
-    'deepseek-r1': 8,
-    'qwen3-coder-30b': 9,
-    'deepseek-r1-0528': 10,
-    'gemini-2.5-pro': 11,
-    'claude-sonnet-4': 12,
-    'llama-3.3-70b': 15,
-    'qwen-2.5-coder-32b': 18,
-    'mistral-large': 22,
-    'o3-mini': 25,
-    'gpt-5-mini': 28,
-    'gpt-5': 30,
-    'claude-opus-4': 35,
-}
-
-# Model Accessibility Metadata
-STATIC_ACCESSIBILITY_DATA = {
-    # {model_key: {license_type, api_stability, documentation_quality}}
-    # License types: apache, mit, llama, commercial, api-only, proprietary
-    # Stability: stable, production, reliable, beta, experimental
-    # Docs quality: comprehensive, excellent, good, basic, minimal
-    'gpt-4o': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'comprehensive'},
-    'gpt-4o-mini': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'comprehensive'},
-    'gpt-5': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'comprehensive'},
-    'gpt-5-mini': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'comprehensive'},
-    'o1': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'comprehensive'},
-    'o1-mini': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'comprehensive'},
-    'o3-mini': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'comprehensive'},
-    'claude-3.5-sonnet': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'comprehensive'},
-    'claude-3.5-haiku': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'comprehensive'},
-    'claude-sonnet-4': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'comprehensive'},
-    'claude-opus-4': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'comprehensive'},
-    'claude-opus-4.5': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'comprehensive'},
-    'gemini-2.5-pro': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'comprehensive'},
-    'gemini-2.5-flash': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'comprehensive'},
-    'deepseek-r1': {'license_type': 'mit', 'api_stability': 'stable', 'documentation_quality': 'good'},
-    'deepseek-v3': {'license_type': 'mit', 'api_stability': 'stable', 'documentation_quality': 'good'},
-    'deepseek-chat': {'license_type': 'mit', 'api_stability': 'stable', 'documentation_quality': 'good'},
-    'qwen-2.5-coder-32b': {'license_type': 'apache', 'api_stability': 'stable', 'documentation_quality': 'good'},
-    'qwen3-coder-30b': {'license_type': 'apache', 'api_stability': 'stable', 'documentation_quality': 'good'},
-    'qwen-2.5-72b': {'license_type': 'apache', 'api_stability': 'stable', 'documentation_quality': 'good'},
-    'llama-3.3-70b': {'license_type': 'llama', 'api_stability': 'stable', 'documentation_quality': 'good'},
-    'llama-3.1-405b': {'license_type': 'llama', 'api_stability': 'stable', 'documentation_quality': 'good'},
-    'mistral-large': {'license_type': 'apache', 'api_stability': 'stable', 'documentation_quality': 'good'},
-    'mistral-small': {'license_type': 'apache', 'api_stability': 'stable', 'documentation_quality': 'basic'},
-    'glm-4.6': {'license_type': 'mit', 'api_stability': 'stable', 'documentation_quality': 'basic'},
-    'grok-4': {'license_type': 'api-only', 'api_stability': 'stable', 'documentation_quality': 'basic'},
-}
+# Static data removed to enforce fail-fast behavior and prevent stale/mock data usage.
 
 
 class BenchmarkFetcher:
@@ -336,8 +87,8 @@ class HuggingFaceBenchmarkFetcher(BenchmarkFetcher):
 
             if response.status_code == 404:
                 # Fallback: scrape from leaderboard HTML or use alternative endpoint
-                self.logger.warning("EvalPlus data.json not found, using fallback...")
-                return self._fetch_evalplus_fallback()
+                self.logger.warning("EvalPlus data.json not found")
+                return {}
 
             response.raise_for_status()
             data = response.json()
@@ -361,13 +112,9 @@ class HuggingFaceBenchmarkFetcher(BenchmarkFetcher):
         except Exception as e:
             self.logger.error(f"Error fetching EvalPlus leaderboard: {e}")
             self._last_error = str(e)
-            return self._fetch_evalplus_fallback()
+            return {}
 
-    def _fetch_evalplus_fallback(self) -> Dict[str, Dict[str, float]]:
-        """Fallback to curated EvalPlus data (Jan 2025)."""
-        # This is the existing fallback data from model_rankings_service.py
-        # We keep it as a safety net
-        return {}  # Import from existing service if needed
+    # _fetch_evalplus_fallback removed
 
     def fetch_bigcodebench_leaderboard(self) -> Dict[str, Dict[str, float]]:
         """
@@ -578,8 +325,8 @@ class ArtificialAnalysisFetcher(BenchmarkFetcher):
             response = requests.get(url, headers=headers, timeout=self.timeout)
 
             if response.status_code == 404:
-                self.logger.warning("Artificial Analysis data not available via API, using fallback...")
-                return self._fetch_performance_fallback()
+                self.logger.warning("Artificial Analysis data not available via API")
+                return {}
 
             response.raise_for_status()
             data = response.json()
@@ -605,84 +352,9 @@ class ArtificialAnalysisFetcher(BenchmarkFetcher):
         except Exception as e:
             self.logger.error(f"Error fetching Artificial Analysis metrics: {e}")
             self._last_error = str(e)
-            return self._fetch_performance_fallback()
+            return {}
 
-    def _fetch_performance_fallback(self) -> Dict[str, Dict[str, float]]:
-        """
-        Fallback performance data (manually curated from Artificial Analysis website).
-
-        NOTE: This should be updated periodically (every 2-4 weeks).
-        Source: https://artificialanalysis.ai/leaderboards/models (Jan 2026)
-        """
-        fallback_data = {
-            # OpenAI models (fast APIs)
-            'gpt-4o': {
-                'ttft_median': 0.35, 'ttft_p95': 0.85,
-                'throughput_median': 95, 'throughput_p95': 120,
-                'quality_index': 85.2
-            },
-            'gpt-4o-mini': {
-                'ttft_median': 0.25, 'ttft_p95': 0.65,
-                'throughput_median': 125, 'throughput_p95': 155,
-                'quality_index': 78.5
-            },
-            'o1': {
-                'ttft_median': 2.5, 'ttft_p95': 5.2,  # Reasoning models are slower
-                'throughput_median': 45, 'throughput_p95': 65,
-                'quality_index': 92.5
-            },
-            'o1-mini': {
-                'ttft_median': 1.8, 'ttft_p95': 3.5,
-                'throughput_median': 68, 'throughput_p95': 85,
-                'quality_index': 88.2
-            },
-
-            # Anthropic Claude (very fast)
-            'claude-3.5-sonnet': {
-                'ttft_median': 0.42, 'ttft_p95': 0.95,
-                'throughput_median': 88, 'throughput_p95': 110,
-                'quality_index': 87.8
-            },
-            'claude-sonnet-4': {
-                'ttft_median': 0.45, 'ttft_p95': 1.05,
-                'throughput_median': 92, 'throughput_p95': 115,
-                'quality_index': 91.5
-            },
-
-            # DeepSeek (very fast, cost-effective)
-            'deepseek-v3': {
-                'ttft_median': 0.28, 'ttft_p95': 0.72,
-                'throughput_median': 142, 'throughput_p95': 175,
-                'quality_index': 82.5
-            },
-            'deepseek-r1': {
-                'ttft_median': 1.5, 'ttft_p95': 3.2,
-                'throughput_median': 75, 'throughput_p95': 95,
-                'quality_index': 89.5
-            },
-
-            # Google Gemini (fast)
-            'gemini-2.0-flash': {
-                'ttft_median': 0.32, 'ttft_p95': 0.78,
-                'throughput_median': 108, 'throughput_p95': 135,
-                'quality_index': 81.2
-            },
-            'gemini-2.5-pro': {
-                'ttft_median': 0.55, 'ttft_p95': 1.25,
-                'throughput_median': 78, 'throughput_p95': 98,
-                'quality_index': 88.5
-            },
-
-            # Qwen (fast, good quality)
-            'qwen-2.5-coder-32b': {
-                'ttft_median': 0.38, 'ttft_p95': 0.88,
-                'throughput_median': 98, 'throughput_p95': 122,
-                'quality_index': 83.8
-            },
-        }
-
-        self.logger.info(f"Using fallback performance data for {len(fallback_data)} models")
-        return fallback_data
+    # _fetch_performance_fallback removed
 
 
 class Chapter4BenchmarkFetcher(BenchmarkFetcher):
@@ -1117,11 +789,11 @@ class CombinedBenchmarkAggregator:
     def get_static_benchmarks(self) -> Dict[str, Any]:
         """
         Get all benchmark data from static curated sources.
-        Instant, no network calls. Aligned with Chapter 4 thesis methodology.
         
-        Returns normalized data structure matching fetch_all_benchmarks output.
+        NOTE: Static data has been removed to enforce fail-fast behavior.
+        This method now returns an empty structure.
         """
-        self.logger.info("Loading static benchmark data (Chapter 4 methodology)...")
+        self.logger.info("Loading static benchmark data (empty/removed)...")
         
         results = {
             'evalplus': {},
@@ -1144,69 +816,10 @@ class CombinedBenchmarkAggregator:
             'data_date': 'Jan 2026'
         }
         
-        # BFCL
-        for model, score in STATIC_BFCL_DATA.items():
-            results['bfcl'][model] = {'bfcl_score': score}
-        results['fetch_status']['bfcl'] = {'status': 'ok', 'source': 'static', 'count': len(STATIC_BFCL_DATA)}
-        
-        # WebDev Arena
-        for model, score in STATIC_WEBDEV_ARENA_DATA.items():
-            results['webdev_arena'][model] = {'webdev_elo': score}
-        results['fetch_status']['webdev_arena'] = {'status': 'ok', 'source': 'static', 'count': len(STATIC_WEBDEV_ARENA_DATA)}
-        
-        # ARC-AGI
-        for model, score in STATIC_ARC_AGI_DATA.items():
-            results['arc_agi'][model] = {'arc_agi_score': score}
-        results['fetch_status']['arc_agi'] = {'status': 'ok', 'source': 'static', 'count': len(STATIC_ARC_AGI_DATA)}
-        
-        # SimpleBench
-        for model, score in STATIC_SIMPLEBENCH_DATA.items():
-            results['simplebench'][model] = {'simplebench_score': score}
-        results['fetch_status']['simplebench'] = {'status': 'ok', 'source': 'static', 'count': len(STATIC_SIMPLEBENCH_DATA)}
-        
-        # CanAiCode
-        for model, score in STATIC_CANAICODE_DATA.items():
-            results['canaicode'][model] = {'canaicode_score': score}
-        results['fetch_status']['canaicode'] = {'status': 'ok', 'source': 'static', 'count': len(STATIC_CANAICODE_DATA)}
-        
-        # SEAL Showdown
-        for model, score in STATIC_SEAL_SHOWDOWN_DATA.items():
-            results['seal_showdown'][model] = {'seal_coding_score': score}
-        results['fetch_status']['seal_showdown'] = {'status': 'ok', 'source': 'static', 'count': len(STATIC_SEAL_SHOWDOWN_DATA)}
-        
-        # GPQA
-        for model, score in STATIC_GPQA_DATA.items():
-            results['gpqa'][model] = {'gpqa_score': score}
-        results['fetch_status']['gpqa'] = {'status': 'ok', 'source': 'static', 'count': len(STATIC_GPQA_DATA)}
-        
-        # LiveBench (has nested structure)
-        for model, scores in STATIC_LIVEBENCH_DATA.items():
-            results['livebench'][model] = scores
-        results['fetch_status']['livebench'] = {'status': 'ok', 'source': 'static', 'count': len(STATIC_LIVEBENCH_DATA)}
-        
-        # LiveCodeBench
-        for model, score in STATIC_LIVECODEBENCH_DATA.items():
-            results['livecodebench'][model] = {'livecodebench': score}
-        results['fetch_status']['livecodebench'] = {'status': 'ok', 'source': 'static', 'count': len(STATIC_LIVECODEBENCH_DATA)}
-        
-        # OpenRouter Programming Rankings
-        for model, rank in STATIC_OPENROUTER_PROGRAMMING_RANKS.items():
-            results['adoption'][model] = {'programming_rank': rank}
-        results['fetch_status']['adoption'] = {'status': 'ok', 'source': 'static', 'count': len(STATIC_OPENROUTER_PROGRAMMING_RANKS)}
-        
-        # Accessibility Metadata
-        for model, data in STATIC_ACCESSIBILITY_DATA.items():
-            results['accessibility'][model] = data
-        results['fetch_status']['accessibility'] = {'status': 'ok', 'source': 'static', 'count': len(STATIC_ACCESSIBILITY_DATA)}
-        
-        # Performance data uses existing fallback
-        results['performance'] = self.performance_fetcher._fetch_performance_fallback()
-        results['fetch_status']['performance'] = {'status': 'ok', 'source': 'static', 'count': len(results['performance'])}
-        
-        total_benchmarks = sum(len(results[k]) for k in ['bfcl', 'webdev_arena', 'arc_agi', 'simplebench', 
-                                                          'canaicode', 'seal_showdown', 'gpqa', 'livebench',
-                                                          'livecodebench', 'adoption'])
-        self.logger.info(f"Loaded static benchmark data: {total_benchmarks} entries across all sources")
+        # Static data removed - ensuring empty results
+        for key in results.keys():
+            if key not in ['fetch_status', 'data_source', 'data_date']:
+                results['fetch_status'][key] = {'status': 'ok', 'source': 'static', 'count': 0}
         
         return results
 

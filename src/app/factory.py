@@ -470,35 +470,18 @@ def create_app(config_name: str = 'default') -> Flask:
                 components.set_websocket_service(websocket_service_local)
                 logger.info("WebSocket service active: celery_websocket (SocketIO=%s)", bool(sio))
 
-            def _init_mock_ws():
-                from app.services.mock_websocket_service import initialize_mock_websocket_service
-                websocket_service_local = initialize_mock_websocket_service()
-                components.set_websocket_service(websocket_service_local)
-                logger.info("WebSocket service active: mock_websocket (forced=%s)", service_pref == 'mock')
-
-            if service_pref == 'mock' and not strict_mode:
-                _init_mock_ws()
-            else:
+            if service_pref != 'mock':
                 try:
                     _init_celery_ws()
                 except Exception as ce:
                     if strict_mode or service_pref == 'celery':
                         logger.exception(
-                            "Celery-backed WebSocket service init failed and strict/celery mode is enabled; "
-                            "mock fallback disabled. Error: %s", ce
+                            "Celery-backed WebSocket service init failed and strict/celery mode is enabled. Error: %s", ce
                         )
                         raise
-                    logger.warning("Celery-backed WebSocket service init failed, falling back to mock: %s", ce)
-                    _init_mock_ws()
-
-            # Sanity check in strict mode: ensure active service is celery_websocket
-            if strict_mode:
-                ws = components.websocket_service
-                status = ws.get_status() if ws and hasattr(ws, 'get_status') else {}
-                active_service = status.get('service') if isinstance(status, dict) else None
-                if active_service != 'celery_websocket':
-                    raise RuntimeError(f"Strict mode requires celery_websocket, got: {active_service}")
-
+                    logger.warning("Celery-backed WebSocket service init failed: %s", ce)
+            else:
+                 logger.warning("Mock WebSocket service requested but it has been removed. No WebSocket service will be active.")
         except Exception as e:
             logger.exception(f"Failed to initialize WebSocket service: {e}")
             # In strict mode, do not swallow the error

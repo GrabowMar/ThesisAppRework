@@ -13,10 +13,7 @@ from .orchestrator import AnalysisOrchestrator, get_analysis_orchestrator, reset
 from .container_tool_registry import get_container_tool_registry, AnalyzerContainer, ContainerTool
 
 # Import container-based tool implementations
-from . import static      # Static analyzer container tools  # noqa: F401
-from . import dynamic     # Dynamic analyzer container tools  # noqa: F401
-from . import ai          # AI analyzer container tools  # noqa: F401
-from . import performance # Performance tester container tools  # noqa: F401
+
 
 __all__ = [
     # Main orchestrator

@@ -13,6 +13,8 @@ These tests run quickly and provide confidence that the core application
 is functioning before running more comprehensive tests.
 """
 
+import pytest
+
 @pytest.mark.smoke
 def test_app_exists(app):
     """Check if the app is created successfully."""

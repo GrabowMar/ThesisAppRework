@@ -29,6 +29,8 @@ from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List, Set
 
+from app.decorators import log_execution
+
 from app.utils.logging_config import get_logger
 from app.extensions import db, get_components
 from app.models import PipelineExecution, PipelineExecutionStatus, GeneratedApplication, AnalysisTask
@@ -403,6 +405,7 @@ class PipelineExecutionService:
             self._analyzer_healthy = None
             self._log("HEALTH", "Invalidated all health caches", level='debug')
     
+    @log_execution()
     def start(self):
         """Start the background execution thread."""
         if self._running:
@@ -428,6 +431,7 @@ class PipelineExecutionService:
         self._thread.start()
         self._log("INIT", "PipelineExecutionService started")
     
+    @log_execution()
     def stop(self):
         """Stop the background execution thread with graceful shutdown.
         

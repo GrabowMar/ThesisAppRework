@@ -14,6 +14,8 @@ Tests cover:
 These tests ensure that report generation works correctly for both individual
 application analysis and model comparison scenarios.
 """
+import pytest
+from unittest.mock import patch
 from app.services.reports.app_report_generator import AppReportGenerator
 from app.services.reports.model_report_generator import ModelReportGenerator
 from app.services.service_base import ValidationError

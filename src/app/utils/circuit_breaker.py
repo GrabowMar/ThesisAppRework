@@ -16,6 +16,8 @@ from functools import wraps
 from threading import Lock
 from typing import Any, Callable, Dict, Optional, TypeVar, Generic
 
+from app.decorators import retry_with_backoff
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
@@ -214,69 +216,7 @@ class CircuitBreakerOpenError(Exception):
     pass
 
 
-def retry_with_backoff(
-    max_retries: int = 3,
-    base_delay: float = 1.0,
-    max_delay: float = 30.0,
-    exponential_base: float = 2.0,
-    retryable_exceptions: tuple = (Exception,),
-    on_retry: Optional[Callable[[int, Exception], None]] = None
-) -> Callable[[Callable[..., T]], Callable[..., T]]:
-    """Decorator for retry with exponential backoff.
-    
-    Args:
-        max_retries: Maximum number of retry attempts
-        base_delay: Initial delay between retries in seconds
-        max_delay: Maximum delay between retries
-        exponential_base: Base for exponential backoff calculation
-        retryable_exceptions: Tuple of exceptions that should trigger retry
-        on_retry: Optional callback called on each retry with (attempt, exception)
-    
-    Usage:
-        @retry_with_backoff(max_retries=3, base_delay=1.0)
-        def call_service():
-            return service.request()
-    """
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
-        @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> T:
-            last_exception = None
-            
-            for attempt in range(max_retries + 1):
-                try:
-                    return func(*args, **kwargs)
-                except retryable_exceptions as e:
-                    last_exception = e
-                    
-                    if attempt >= max_retries:
-                        logger.error(
-                            f"Retry exhausted after {max_retries + 1} attempts: {e}"
-                        )
-                        raise
-                    
-                    # Calculate delay with exponential backoff
-                    delay = min(
-                        base_delay * (exponential_base ** attempt),
-                        max_delay
-                    )
-                    
-                    logger.warning(
-                        f"Attempt {attempt + 1}/{max_retries + 1} failed: {e}. "
-                        f"Retrying in {delay:.1f}s..."
-                    )
-                    
-                    if on_retry:
-                        on_retry(attempt + 1, e)
-                    
-                    time.sleep(delay)
-            
-            # Should never reach here, but for type safety
-            if last_exception:
-                raise last_exception
-            raise RuntimeError("Retry logic error")
-        
-        return wrapper
-    return decorator
+
 
 
 # Pre-configured circuit breakers for common services

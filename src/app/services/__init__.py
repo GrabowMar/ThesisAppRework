@@ -13,7 +13,7 @@ from .model_service import ModelService
 
 # Legacy services removed: AnalyzerService, analysis_orchestrator, websocket_integration, container_service,
 # huggingface_service, batch_service, batch_scheduler, analyzer_config*, analysis_config_models, results_*.
-# Prefer celery_websocket_service in production and mock_websocket_service in tests.
+# Prefer celery_websocket_service in production.
 
 __all__ = [
     'ServiceLocator',

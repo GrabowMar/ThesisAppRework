@@ -73,24 +73,6 @@ def get_websocket_service():
     """Get WebSocket service from app components."""
     components = get_components()
     svc = components.websocket_service if components else None
-    # Use mock service only
-    try:
-        if not components:
-            return None
-
-        # If no service initialized, create mock service
-        if svc is None:
-            from app.services.mock_websocket_service import MockWebSocketService
-            try:
-                new_svc = MockWebSocketService()
-                components.set_websocket_service(new_svc)
-                return new_svc
-            except Exception:
-                # Return None if we can't create service
-                return None
-    except Exception:
-        # Best-effort enforcement; if anything fails, return what we have
-        pass
     return svc
 
 # Configure requests for containerized services

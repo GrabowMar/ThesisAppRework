@@ -32,7 +32,7 @@ from .api.results import results_api_bp
 # Research comparison API (removed)
 # from .api.research import research_bp
 
-from .websockets import websocket_api_bp, register_websocket_routes, register_error_handlers
+from .websockets import websocket_api_bp
 from .shared_utils import register_template_globals_and_filters
 
 __all__ = [
@@ -73,8 +73,6 @@ __all__ = [
 
     # WebSocket blueprints and functions
     'websocket_api_bp',
-    'register_websocket_routes',
-    'register_error_handlers',
 
     # Shared utilities
     'register_template_globals_and_filters',
@@ -118,10 +116,6 @@ def register_blueprints(app):
 
     # Register WebSocket API blueprint under the /ws-api prefix
     app.register_blueprint(websocket_api_bp)
-
-    # Register WebSocket routes and error handlers
-    register_websocket_routes(app)
-    register_error_handlers(app)
 
     # Register template globals and filters
     register_template_globals_and_filters(app)

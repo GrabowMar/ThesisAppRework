@@ -428,16 +428,14 @@ def create_success_response(data: Any = None, message: str = "Success") -> Dict[
 
 
 def retry_operation(operation, max_retries: int = 3, delay: float = 1.0):
-    """Retry an operation with exponential backoff."""
-    for attempt in range(max_retries):
-        try:
-            return operation()
-        except Exception as e:
-            if attempt == max_retries - 1:
-                raise
-            
-            logger.warning(f"Operation failed (attempt {attempt + 1}/{max_retries}): {e}")
-            time.sleep(delay * (2 ** attempt))
+    """Retry an operation with exponential backoff (wrapper around retry_with_backoff)."""
+    from app.decorators import retry_with_backoff as _retry_decorator
+    
+    @_retry_decorator(max_retries=max_retries, base_delay=delay)
+    def _wrapper():
+        return operation()
+        
+    return _wrapper()
 
 
 class Timer:

@@ -2,7 +2,7 @@
 {% extends 'layouts/base_smart.html' %}
 {% set page_title = 'Import Models' %}
 {% set page_icon = 'fa-solid fa-upload' %}
-{% set page_subtitle = 'Upload JSON export or OpenRouter payload to add/update models' %}
+{% set page_subtitle = 'Upload JSON export or ZIP archive to restore data' %}
 {% set active_page = 'models' %}
 
 {% block content %}
@@ -33,9 +33,9 @@
   </div>
   <div class="card-body">
     <div class="mb-3">
-      <label class="form-label">JSON File</label>
-      <input type="file" id="models-file" class="form-control" accept="application/json" />
-      <small class="form-hint">Upload a JSON export or OpenRouter payload to add/update models.</small>
+      <label class="form-label">Import File</label>
+      <input type="file" id="models-file" class="form-control" accept=".json,.zip,application/json,application/zip" />
+      <small class="form-hint">Upload a JSON export for models, or a ZIP archive to restore full export (results, apps, metadata).</small>
     </div>
     <div class="d-flex gap-2">
       <button class="btn btn-primary" onclick="importModels()"><i class="fa-solid fa-upload me-1"></i>Import</button>
@@ -48,7 +48,58 @@
 {% block scripts %}
 {{ super() }}
 <script>
-async function importModels(){const input=document.getElementById('models-file');const out=document.getElementById('import-result');out.innerHTML='';if(!input.files||!input.files[0]){out.innerHTML='<div class="alert alert-warning">Choose a JSON file.</div>';return;}try{const text=await input.files[0].text();const json=JSON.parse(text);const res=await fetch('/api/models/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(json)});const data=await res.json();if(!res.ok||data.success===false){out.innerHTML=`<div class="alert alert-danger">Import failed: ${data.error||res.statusText}</div>`;}else{out.innerHTML=`<div class="alert alert-success">Imported. Created: ${data.created} Updated: ${data.updated}</div>`;}}catch(e){out.innerHTML=`<div class="alert alert-danger">Error: ${e}</div>`;}}
+async function importModels() {
+    const input = document.getElementById('models-file');
+    const out = document.getElementById('import-result');
+    out.innerHTML = '';
+    
+    if (!input.files || !input.files[0]) {
+        out.innerHTML = '<div class="alert alert-warning">Choose a file (.json or .zip).</div>';
+        return;
+    }
+    
+    const file = input.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    // Show loading
+    out.innerHTML = '<div class="d-flex align-items-center text-primary"><div class="spinner-border spinner-border-sm me-2" role="status"></div>Importing... This may take a moment for large ZIP files.</div>';
+    
+    try {
+        const res = await fetch('/api/models/import', {
+            method: 'POST',
+            body: formData
+        });
+        
+        let data;
+        try {
+            data = await res.json();
+        } catch (err) {
+            throw new Error(`Invalid response from server (${res.status})`);
+        }
+        
+        if (!res.ok || data.success === false) {
+             const msg = (data.error && data.error.message) || data.error || data.message || res.statusText;
+             out.innerHTML = `<div class="alert alert-danger">Import failed: ${msg}</div>`;
+        } else {
+             if (data.restored) {
+                 // ZIP result
+                 out.innerHTML = `<div class="alert alert-success">
+                    <h4 class="alert-title">Import Successful</h4>
+                    <div class="text-secondary">
+                        Restored: <strong>${data.restored.generated || 0}</strong> apps/files, <strong>${data.restored.results || 0}</strong> results.<br>
+                        Sync: ${data.sync_result ? data.sync_result.created_apps + ' apps created' : 'Done'}
+                    </div>
+                 </div>`;
+             } else {
+                 // JSON result
+                 out.innerHTML = `<div class="alert alert-success">Imported. ${data.message}</div>`;
+             }
+        }
+    } catch (e) {
+        out.innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`;
+    }
+}
 </script>
 {% endblock %}
 

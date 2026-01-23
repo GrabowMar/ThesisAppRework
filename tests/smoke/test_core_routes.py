@@ -13,6 +13,8 @@ These tests ensure that the fundamental web routes are working correctly
 and provide a foundation for more detailed UI testing.
 """
 
+import pytest
+
 @pytest.mark.smoke
 def test_dashboard_access(client):
     """Check the dashboard endpoint (root)."""

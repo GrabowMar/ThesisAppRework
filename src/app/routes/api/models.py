@@ -6,7 +6,13 @@ Endpoints for model management, OpenRouter integration, and model metadata.
 """
 
 import os
+import json
+import shutil
+import zipfile
+import tempfile
+from pathlib import Path
 from flask import Blueprint, request, current_app, jsonify
+from werkzeug.utils import secure_filename
 
 from app.models import ModelCapability, GeneratedApplication
 from app.services.data_initialization import data_init_service
@@ -643,6 +649,96 @@ def models_export():
     except Exception as e:
         current_app.logger.error(f"Models export failed: {e}")
         return api_success({'format': 'json', 'count': 0, 'models': []})
+
+
+@models_bp.route('/import', methods=['POST'])
+def api_models_import():
+    """Import models/apps from JSON or ZIP."""
+    try:
+        if 'file' not in request.files:
+            return api_error('No file part', status=400)
+        file = request.files['file']
+        if file.filename == '':
+            return api_error('No selected file', status=400)
+
+        filename = secure_filename(file.filename)
+        
+        # JSON Import
+        if filename.endswith('.json'):
+            try:
+                data = json.load(file)
+                # If list, iterate. If dict, single.
+                items = data if isinstance(data, list) else [data]
+                upserted = _upsert_openrouter_models(items)
+                return api_success({'upserted': upserted, 'message': f'Imported {upserted} models'})
+            except Exception as e:
+                return api_error(f'Invalid JSON: {str(e)}', status=400)
+
+        # ZIP Import
+        elif filename.endswith('.zip'):
+             
+             with tempfile.TemporaryDirectory() as tmp_dir:
+                 tmp_path = Path(tmp_dir)
+                 zip_path = tmp_path / filename
+                 file.save(str(zip_path))
+                 
+                 with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                     zip_ref.extractall(tmp_path)
+                 
+                 # Check for export_metadata.json
+                 metadata_path = tmp_path / 'export_metadata.json'
+                 metadata = {}
+                 if metadata_path.exists():
+                     with open(metadata_path, 'r') as f:
+                         metadata = json.load(f)
+                 
+                 # Restore folders
+                 from app.paths import PROJECT_ROOT, GENERATED_ROOT, RESULTS_DIR
+                 
+                 restored_stats = {'results': 0, 'generated': 0}
+                 
+                 # 1. results folder
+                 src_results = tmp_path / 'results'
+                 if src_results.exists():
+                     if not RESULTS_DIR.exists():
+                         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+                     for item in src_results.iterdir():
+                         if item.is_dir():
+                             dest = RESULTS_DIR / item.name
+                             # Copy and overwrite/merge
+                             shutil.copytree(item, dest, dirs_exist_ok=True)
+                             restored_stats['results'] += 1
+                             
+                 # 2. generated folder
+                 src_generated = tmp_path / 'generated'
+                 if src_generated.exists():
+                     if not GENERATED_ROOT.exists():
+                         GENERATED_ROOT.mkdir(parents=True, exist_ok=True)
+                     for item in src_generated.iterdir():
+                          dest = GENERATED_ROOT / item.name
+                          if item.is_dir():
+                              shutil.copytree(item, dest, dirs_exist_ok=True)
+                          else:
+                              shutil.copy2(item, dest)
+                          restored_stats['generated'] += 1
+
+                 # 3. Sync
+                 from app.services.model_sync_service import sync_models_from_filesystem
+                 sync_res = sync_models_from_filesystem()
+                 
+                 return api_success({
+                     'success': True,
+                     'restored': restored_stats,
+                     'sync_result': sync_res,
+                     'metadata': metadata
+                 }, message="Imported ZIP successfully")
+
+        else:
+            return api_error('Allowed file types: .json, .zip', status=400)
+
+    except Exception as e:
+        current_app.logger.error(f"Import failed: {e}", exc_info=True)
+        return api_error(f"Import failed: {str(e)}", status=500)
 
 
 @models_bp.route('/load-openrouter', methods=['POST'])

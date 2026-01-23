@@ -14,6 +14,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from flask import Flask
 
+from app.decorators import retry_with_backoff, log_execution
+
 logger = logging.getLogger(__name__)
 # Module-level guard to emit the missing-API-key message only once per process
 _OPENROUTER_KEY_WARNED: bool = False
@@ -65,6 +67,7 @@ class OpenRouterService:
         self._memory_cache = {model.get('id', ''): model for model in models if model.get('id')}
         self._memory_cache_expiry = datetime.now(timezone.utc) + timedelta(minutes=5)  # 5-minute memory cache
     
+    @retry_with_backoff(max_retries=3, base_delay=2.0, retryable_exceptions=(requests.exceptions.RequestException,))
     def _fetch_from_api(self) -> List[Dict[str, Any]]:
         """Fetch models directly from OpenRouter API."""
         if not self.api_key:
@@ -195,6 +198,7 @@ class OpenRouterService:
             self.logger.error(f"Error reading from database cache: {e}")
             return []
     
+    @log_execution(level=logging.INFO)
     def fetch_all_models(self) -> list[dict[str, Any]]:
         """
         Fetch all available models from cache or OpenRouter API.
@@ -217,6 +221,7 @@ class OpenRouterService:
         # Finally fetch from API
         return self._fetch_from_api()
     
+    @log_execution(level=logging.DEBUG)
     def fetch_model_by_id(self, model_id: str) -> Optional[Dict[str, Any]]:
         """
         Fetch detailed information for a specific model.

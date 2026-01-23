@@ -1,0 +1,317 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.0, pytest-9.0.1, pluggy-1.6.0
+rootdir: C:\Users\grabowmar\Desktop\ThesisAppRework
+configfile: pytest.ini
+plugins: anyio-4.7.0, pyfakefs-5.8.0, asyncio-1.3.0, cov-4.1.0, flask-1.3.0, mock-3.14.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 130 items
+
+tests\unit\test_async_utils.py ...........                               [  8%]
+tests\unit\test_circuit_breaker.py ...................                   [ 23%]
+tests\unit\test_dependency_healer.py ...............................     [ 46%]
+tests\unit\test_docker_status_cache.py ..............                    [ 57%]
+tests\unit\test_generation_v2.py ........F.....                          [ 68%]
+tests\unit\test_parallel_generation.py ..........                        [ 76%]
+tests\unit\test_pipeline_duplicate_prevention.py ............            [ 85%]
+tests\unit\test_report_generator.py ............                         [ 94%]
+tests\unit\test_ruff_severity_mapping.py ......                          [ 99%]
+tests\unit\test_unified_result_service_ruff_sarif_remap.py .E            [100%]
+
+=================================== ERRORS ====================================
+_ ERROR at teardown of test_unified_result_service_remaps_ruff_sarif_severity _
+
+self = <sqlalchemy.engine.base.Connection object at 0x0000017E7932B1D0>
+dialect = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x0000017E7738B490>
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x0000017E79328950>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteDDLCompiler object at 0x0000017E79328A50>
+parameters = [()]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\engine\base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x0000017E7738B490>
+cursor = <sqlite3.Cursor object at 0x0000017E7928EC40>
+statement = '\nDROP TABLE analysis_results_cache', parameters = ()
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x0000017E79328950>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlite3.DatabaseError: database disk image is malformed
+
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\engine\default.py:922: DatabaseError
+
+The above exception was the direct cause of the following exception:
+
+isolation_id = '3769595b'
+
+    @pytest.fixture(scope='session')
+    def app(isolation_id):
+        """Create application for the tests with isolated database."""
+        # Set testing environment variables
+        os.environ['FLASK_ENV'] = 'testing'
+        os.environ['TESTING'] = 'true'
+        os.environ['ANALYZER_AUTO_START'] = 'false'
+        os.environ['MAINTENANCE_AUTO_START'] = 'false'
+        os.environ['WEBSOCKET_SERVICE'] = 'mock'
+    
+        # Create temporary database file per test session for isolation
+        temp_dir = Path(tempfile.gettempdir()) / 'thesis_tests' / isolation_id
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        db_path = temp_dir / 'test_db.sqlite'
+    
+        app = create_app('testing')
+        app.config.update({
+            'TESTING': True,
+            'SQLALCHEMY_DATABASE_URI': f'sqlite:///{db_path}',
+            'WTF_CSRF_ENABLED': False,
+            'ANALYZER_AUTO_START': False,
+            'MAINTENANCE_AUTO_START': False
+        })
+    
+        # Create tables
+        with app.app_context():
+            _db.create_all()
+            yield app
+>           _db.drop_all()
+
+tests\conftest.py:65: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\..\AppData\Roaming\Python\Python311\site-packages\flask_sqlalchemy\extension.py:917: in drop_all
+    self._call_for_binds(bind_key, "drop_all")
+..\..\AppData\Roaming\Python\Python311\site-packages\flask_sqlalchemy\extension.py:881: in _call_for_binds
+    getattr(metadata, op_name)(bind=engine)
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\sql\schema.py:5860: in drop_all
+    bind._run_ddl_visitor(
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\engine\base.py:3244: in _run_ddl_visitor
+    conn._run_ddl_visitor(visitorcallable, element, **kwargs)
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\engine\base.py:2448: in _run_ddl_visitor
+    visitorcallable(self.dialect, self, **kwargs).traverse_single(element)
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\sql\visitors.py:671: in traverse_single
+    return meth(obj, **kw)
+[PIPELINE:ERROR] Pipeline execution loop error: (sqlite3.OperationalError) no such table: pipeline_executions
+[SQL: SELECT pipeline_executions.id AS pipeline_executions_id, pipeline_executions.pipeline_id AS pipeline_executions_pipeline_id, pipeline_executions.user_id AS pipeline_executions_user_id, pipeline_executions.name AS pipeline_executions_name, pipeline_executions.status AS pipeline_executions_status, pipeline_executions.current_stage AS pipeline_executions_current_stage, pipeline_executions.current_job_index AS pipeline_executions_current_job_index, pipeline_executions.config_json AS pipeline_executions_config_json, pipeline_executions.progress_json AS pipeline_executions_progress_json, pipeline_executions.error_message AS pipeline_executions_error_message, pipeline_executions.created_at AS pipeline_executions_created_at, pipeline_executions.started_at AS pipeline_executions_started_at, pipeline_executions.completed_at AS pipeline_executions_completed_at, pipeline_executions.updated_at AS pipeline_executions_updated_at 
+FROM pipeline_executions 
+WHERE pipeline_executions.status = ?]
+[parameters: ('running',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+           ^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\sql\ddl.py:1075: in visit_metadata
+    self.traverse_single(
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\sql\visitors.py:671: in traverse_single
+    return meth(obj, **kw)
+           ^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\sql\ddl.py:1142: in visit_table
+    DropTable(table)._invoke_with(self.connection)
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\sql\ddl.py:315: in _invoke_with
+    return bind.execute(self)
+           ^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\engine\base.py:1416: in execute
+    return meth(
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\sql\ddl.py:181: in _execute_on_connection
+    return connection._execute_ddl(
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\engine\base.py:1528: in _execute_ddl
+    ret = self._execute_context(
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\engine\base.py:1848: in _execute_context
+    return self._exec_single_context(
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\engine\base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\engine\base.py:2344: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\engine\base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x0000017E7738B490>
+cursor = <sqlite3.Cursor object at 0x0000017E7928EC40>
+statement = '\nDROP TABLE analysis_results_cache', parameters = ()
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x0000017E79328950>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.DatabaseError: (sqlite3.DatabaseError) database disk image is malformed
+E       [SQL: 
+E       DROP TABLE analysis_results_cache]
+E       (Background on this error at: https://sqlalche.me/e/20/4xp6)
+
+..\..\AppData\Roaming\Python\Python311\site-packages\sqlalchemy\engine\default.py:922: DatabaseError
+---------------------------- Captured log teardown ----------------------------
+ERROR    ThesisApp.pipeline_executor:logging_config.py:72 [PIPELINE:ERROR] Pipeline execution loop error: (sqlite3.OperationalError) no such table: pipeline_executions
+[SQL: SELECT pipeline_executions.id AS pipeline_executions_id, pipeline_executions.pipeline_id AS pipeline_executions_pipeline_id, pipeline_executions.user_id AS pipeline_executions_user_id, pipeline_executions.name AS pipeline_executions_name, pipeline_executions.status AS pipeline_executions_status, pipeline_executions.current_stage AS pipeline_executions_current_stage, pipeline_executions.current_job_index AS pipeline_executions_current_job_index, pipeline_executions.config_json AS pipeline_executions_config_json, pipeline_executions.progress_json AS pipeline_executions_progress_json, pipeline_executions.error_message AS pipeline_executions_error_message, pipeline_executions.created_at AS pipeline_executions_created_at, pipeline_executions.started_at AS pipeline_executions_started_at, pipeline_executions.completed_at AS pipeline_executions_completed_at, pipeline_executions.updated_at AS pipeline_executions_updated_at 
+FROM pipeline_executions 
+WHERE pipeline_executions.status = ?]
+[parameters: ('running',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+ERROR    ThesisApp.task_executor_thread:logging_config.py:72 TaskExecutionService loop error: (sqlite3.OperationalError) no such table: analysis_tasks
+[SQL: SELECT analysis_tasks.id AS analysis_tasks_id, analysis_tasks.task_id AS analysis_tasks_task_id, analysis_tasks.parent_task_id AS analysis_tasks_parent_task_id, analysis_tasks.is_main_task AS analysis_tasks_is_main_task, analysis_tasks.service_name AS analysis_tasks_service_name, analysis_tasks.analyzer_config_id AS analysis_tasks_analyzer_config_id, analysis_tasks.status AS analysis_tasks_status, analysis_tasks.priority AS analysis_tasks_priority, analysis_tasks.target_model AS analysis_tasks_target_model, analysis_tasks.target_app_number AS analysis_tasks_target_app_number, analysis_tasks.target_path AS analysis_tasks_target_path, analysis_tasks.task_name AS analysis_tasks_task_name, analysis_tasks.description AS analysis_tasks_description, analysis_tasks.task_metadata AS analysis_tasks_task_metadata, analysis_tasks.progress_percentage AS analysis_tasks_progress_percentage, analysis_tasks.current_step AS analysis_tasks_current_step, analysis_tasks.total_steps AS analysis_tasks_total_steps, analysis_tasks.completed_steps AS analysis_tasks_completed_steps, analysis_tasks.batch_id AS analysis_tasks_batch_id, analysis_tasks.assigned_worker AS analysis_tasks_assigned_worker, analysis_tasks.execution_context AS analysis_tasks_execution_context, analysis_tasks.result_summary AS analysis_tasks_result_summary, analysis_tasks.issues_found AS analysis_tasks_issues_found, analysis_tasks.severity_breakdown AS analysis_tasks_severity_breakdown, analysis_tasks.estimated_duration AS analysis_tasks_estimated_duration, analysis_tasks.actual_duration AS analysis_tasks_actual_duration, analysis_tasks.queue_time AS analysis_tasks_queue_time, analysis_tasks.error_message AS analysis_tasks_error_message, analysis_tasks.retry_count AS analysis_tasks_retry_count, analysis_tasks.max_retries AS analysis_tasks_max_retries, analysis_tasks.created_at AS analysis_tasks_created_at, analysis_tasks.updated_at AS analysis_tasks_updated_at, analysis_tasks.started_at AS analysis_tasks_started_at, analysis_tasks.completed_at AS analysis_tasks_completed_at 
+FROM analysis_tasks 
+WHERE analysis_tasks.status IN (?, ?) ORDER BY analysis_tasks.created_at DESC]
+[parameters: ('pending', 'running')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+================================== FAILURES ===================================
+_______________________ test_code_merger_merge_backend ________________________
+
+tmp_path = WindowsPath('C:/Users/grabowmar/AppData/Local/Temp/pytest-of-grabowmar/pytest-329/test_code_merger_merge_backend0')
+
+    @pytest.mark.unit
+    def test_code_merger_merge_backend(tmp_path):
+        """Test merging backend code blocks."""
+        from app.services.generation_v2 import CodeMerger
+    
+        # Create backend directory
+        backend_dir = tmp_path / "backend"
+        backend_dir.mkdir(parents=True)
+    
+        merger = CodeMerger(tmp_path)
+    
+        code = {
+            'backend': '''
+    ```python:app.py
+    from flask import Flask
+    app = Flask(__name__)
+    ```
+    
+    ```python:models.py
+    from flask_sqlalchemy import SQLAlchemy
+    db = SQLAlchemy()
+    ```
+    ''',
+            'frontend': ''
+        }
+    
+        result = merger.merge(code)
+    
+        # Check files were created
+        assert (tmp_path / "backend" / "app.py").exists()
+>       assert (tmp_path / "backend" / "models.py").exists()
+E       AssertionError: assert False
+E        +  where False = exists()
+E        +    where exists = ((WindowsPath('C:/Users/grabowmar/AppData/Local/Temp/pytest-of-grabowmar/pytest-329/test_code_merger_merge_backend0') / 'backend') / 'models.py').exists
+
+tests\unit\test_generation_v2.py:180: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  app.services.generation_v2.code_merger:logging_config.py:72 Backend requirements.txt missing at C:\Users\grabowmar\AppData\Local\Temp\pytest-of-grabowmar\pytest-329\test_code_merger_merge_backend0\backend\requirements.txt
+=========================== short test summary info ===========================
+FAILED tests/unit/test_generation_v2.py::test_code_merger_merge_backend - Ass...
+ERROR tests/unit/test_unified_result_service_ruff_sarif_remap.py::test_unified_result_service_remaps_ruff_sarif_severity
+=================== 1 failed, 129 passed, 1 error in 13.34s ===================
