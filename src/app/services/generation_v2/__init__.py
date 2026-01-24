@@ -25,6 +25,12 @@ from .code_merger import CodeMerger
 from .backend_scanner import BackendScanner, get_backend_scanner, scan_backend_response
 from .api_client import OpenRouterClient, get_api_client
 from .job_executor import JobExecutor, get_job_executor, start_job_executor, stop_job_executor
+from .concurrent_runner import (
+    ConcurrentGenerationRunner, 
+    GenerationJob,
+    ConcurrentJobResult,
+    generate_apps_concurrent,
+)
 
 # Re-export GenerationMode from constants for convenience
 from app.constants import GenerationMode
@@ -54,4 +60,10 @@ __all__ = [
     'get_job_executor',
     'start_job_executor',
     'stop_job_executor',
+    # Concurrent Generation
+    'ConcurrentGenerationRunner',
+    'GenerationJob',
+    'ConcurrentJobResult',
+    'generate_apps_concurrent',
 ]
+

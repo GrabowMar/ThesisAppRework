@@ -36,6 +36,7 @@ from app.extensions import db, get_components
 from app.models import PipelineExecution, PipelineExecutionStatus, GeneratedApplication, AnalysisTask
 from app.constants import AnalysisStatus
 from app.services.service_locator import ServiceLocator
+from app.services.generation_v2.concurrent_runner import ConcurrentGenerationRunner, GenerationJob
 
 logger = get_logger("pipeline_executor")
 
@@ -593,165 +594,164 @@ class PipelineExecutionService:
         self._check_stage_transition(pipeline)
     
     def _process_generation_stage(self, pipeline: PipelineExecution):
-        """Process generation stage with parallel execution.
+        """Process generation stage using ConcurrentGenerationRunner.
         
-        This method:
-        1. Submits generation jobs up to parallelism limit
-        2. Tracks in-flight jobs and polls for completion
-        3. Transitions to analysis stage when all jobs complete
+        This is a simplified implementation that:
+        1. Checks if generation is already complete
+        2. If not started, runs all jobs as a batch using ConcurrentGenerationRunner
+        3. Records all results and transitions to analysis stage
+        
+        The new approach uses asyncio.Semaphore for clean concurrency control
+        instead of the complex ThreadPoolExecutor state tracking.
         """
         pipeline_id = pipeline.pipeline_id
         progress = pipeline.progress
         config = pipeline.config
         
-        # Log entry to this method for debugging
-        total = progress.get('generation', {}).get('total', 0)
-        completed = progress.get('generation', {}).get('completed', 0)
-        failed = progress.get('generation', {}).get('failed', 0)
+        # Check current state
+        gen_progress = progress.get('generation', {})
+        total = gen_progress.get('total', 0)
+        completed = gen_progress.get('completed', 0)
+        failed = gen_progress.get('failed', 0)
+        status = gen_progress.get('status', 'pending')
+        
         self._log(
-            "GEN", f"Processing generation stage: job_index={pipeline.current_job_index}, total={total}, completed={completed}, failed={failed}"
+            "GEN", f"Processing generation stage: status={status}, completed={completed}/{total}, failed={failed}"
         )
         
-        # Get parallelism settings from config
-        # NOTE: Parallel generation works fine - circuit breaker protects against API failures
+        # If already completed, transition to analysis
+        if status == 'completed' or (completed + failed >= total and total > 0):
+            self._log("GEN", f"Generation already complete, transitioning to analysis")
+            self._transition_to_analysis(pipeline)
+            return
+        
+        # If in-progress, we're waiting for async batch to complete
+        if status == 'in_progress':
+            self._log("GEN", "Generation in progress, waiting for completion", level='debug')
+            return
+        
+        # Get generation config
         gen_config = config.get('generation', {})
         gen_options = gen_config.get('options', {})
-        use_parallel = gen_options.get('parallel', True)  # Default to parallel (original working config)
+        models = gen_config.get('models', [])
+        templates = gen_config.get('templates', [])
+        
+        # Check if using 'existing' mode (no generation needed)
+        generation_mode = gen_config.get('mode', 'generate')
+        if generation_mode == 'existing':
+            self._log("GEN", "Existing mode - skipping generation, transitioning to analysis")
+            self._transition_to_analysis(pipeline)
+            return
+        
+        if not models or not templates:
+            self._log("GEN", "No models or templates configured, transitioning to analysis")
+            self._transition_to_analysis(pipeline)
+            return
+        
+        # Mark as in-progress before starting
+        progress['generation']['status'] = 'in_progress'
+        pipeline.progress = progress
+        db.session.commit()
+        
+        # Get concurrency settings
+        use_parallel = gen_options.get('parallel', True)
         max_concurrent = gen_options.get('maxConcurrentTasks', DEFAULT_MAX_CONCURRENT_GENERATION) if use_parallel else 1
         
-        # Initialize tracking for this pipeline (thread-safe)
-        with _pipeline_state_lock:
-            if pipeline_id not in self._in_flight_generation:
-                self._in_flight_generation[pipeline_id] = set()
-            if pipeline_id not in self._generation_futures:
-                self._generation_futures[pipeline_id] = {}
+        self._log(
+            "GEN", f"Starting batch generation: {len(models)} models × {len(templates)} templates = {len(models) * len(templates)} jobs (max_concurrent={max_concurrent})"
+        )
         
-        # STEP 1: Check completed in-flight generation jobs
-        self._check_completed_generation_jobs(pipeline)
+        # Build job list
+        jobs = []
+        job_index = 0
+        for model_slug in models:
+            for template_slug in templates:
+                jobs.append(GenerationJob(
+                    model_slug=model_slug,
+                    template_slug=template_slug,
+                    batch_id=pipeline_id,
+                ))
+                job_index += 1
         
-        # STEP 2: Submit new jobs up to parallelism limit
-        with _pipeline_state_lock:
-            in_flight_count = len(self._in_flight_generation.get(pipeline_id, set()))
-            in_flight_jobs = list(self._in_flight_generation.get(pipeline_id, set()))
-        
-        submitted_any = False
-        jobs_remaining = total - (completed + failed) - in_flight_count
-        
-        # Log when at capacity with jobs waiting
-        if in_flight_count >= max_concurrent and jobs_remaining > 0:
-            self._log(
-                "GEN", f"At capacity ({in_flight_count}/{max_concurrent}), waiting for in-flight jobs to complete. {jobs_remaining} jobs remaining to submit. In-flight: {in_flight_jobs}",
-                level='debug'
+        # Run batch generation using the clean ConcurrentGenerationRunner
+        try:
+            runner = ConcurrentGenerationRunner(
+                max_concurrent=max_concurrent,
+                inter_job_delay=1.0,  # Small delay between job starts
             )
-        
-        # Submit jobs up to max_concurrent limit
-        while in_flight_count < max_concurrent:
-            job = pipeline.get_next_job()
-            if job is None:
-                break  # No more jobs to submit
             
-            if job['stage'] != 'generation':
-                # Shouldn't happen but safety check
-                break
+            # Run async batch - this blocks until all jobs complete
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                results = loop.run_until_complete(runner.generate_batch(jobs, batch_id=pipeline_id))
+            finally:
+                loop.close()
             
-            # Get job key for duplicate tracking
-            job_index = job.get('job_index', 0)
-            model_slug = job.get('model_slug')
-            template_slug = job.get('template_slug')
-            job_key = f"{job_index}:{model_slug}:{template_slug}"
+            # Record all results
+            succeeded = 0
+            failures = 0
+            result_records = []
             
-            # Check if already in-flight (thread-safe)
-            with _pipeline_state_lock:
-                if job_key in self._in_flight_generation.get(pipeline_id, set()):
-                    self._log(
-                        "GEN", f"Skipping duplicate generation job {job_key} (already in-flight)",
-                        level='debug'
-                    )
-                    # Advance index to avoid infinite loop
-                    pipeline.advance_job_index()
-                    db.session.commit()
-                    continue
+            for i, result in enumerate(results):
+                record = {
+                    'job_index': result.job_index,
+                    'model_slug': result.model_slug,
+                    'template_slug': result.template_slug,
+                    'app_number': result.app_number,
+                    'success': result.success,
+                }
+                if result.error:
+                    record['error'] = result.error
+                
+                result_records.append(record)
+                
+                if result.success:
+                    succeeded += 1
+                else:
+                    failures += 1
+                
+                self._log(
+                    "GEN", f"Job {result.job_index}: {result.model_slug}/app{result.app_number} - {'SUCCESS' if result.success else 'FAILED'}"
+                )
             
-            # Check if already completed (in results) - refresh from DB to get latest state
+            # Update progress in DB
             db.session.refresh(pipeline)
-            fresh_progress = pipeline.progress
-            existing_results = fresh_progress.get('generation', {}).get('results', [])
-            already_done = any(
-                r.get('job_index') == job_index for r in existing_results
-            )
-            if already_done:
-                self._log(
-                    "GEN", f"Skipping generation job {job_index} (already completed)",
-                    level='debug'
-                )
-                pipeline.advance_job_index()
-                db.session.commit()
-                continue
-            
-            # Submit generation job to thread pool FIRST
-            # This adds to _in_flight_generation before we advance the index
-            self._submit_generation_job(pipeline_id, job)
-            
-            # Only advance job_index AFTER job is successfully added to in-flight tracking
-            # This prevents the index from advancing without the job being tracked
-            pipeline.advance_job_index()
-            db.session.commit()
-            submitted_any = True
-            
-            self._log(
-                "GEN", f"Job {job_index} ({model_slug} + {template_slug}) submitted successfully, job_index now {pipeline.current_job_index}"
-            )
-            
-            with _pipeline_state_lock:
-                in_flight_count = len(self._in_flight_generation.get(pipeline_id, set()))
-        
-        # STEP 3: Check if all generation is complete
-        with _pipeline_state_lock:
-            in_flight_count = len(self._in_flight_generation.get(pipeline_id, set()))
-        
-        # Refresh progress from DB
-        db.session.refresh(pipeline)
-        progress = pipeline.progress
-        
-        total = progress.get('generation', {}).get('total', 0)
-        completed = progress.get('generation', {}).get('completed', 0)
-        failed = progress.get('generation', {}).get('failed', 0)
-        done = completed + failed
-        
-        if done >= total and in_flight_count == 0:
-            # All generation complete - transition to analysis
-            self._log(
-                "GEN", f"Generation complete for {pipeline_id}: {completed}/{total} succeeded, {failed} failed (total results: {len(progress.get('generation', {}).get('results', []))})"
-            )
-            
-            # NEW: Apply batch cooldown before transitioning to analysis
-            # This gives the API time to stabilize after heavy generation workload
-            batch_cooldown = gen_options.get('batchCooldown', GENERATION_BATCH_COOLDOWN)
-            if batch_cooldown > 0:
-                self._log(
-                    "GEN", f"Applying {batch_cooldown}s cooldown before analysis stage"
-                )
-                time.sleep(batch_cooldown)
-            
+            progress = pipeline.progress
+            progress['generation']['results'] = result_records
+            progress['generation']['completed'] = succeeded
+            progress['generation']['failed'] = failures
             progress['generation']['status'] = 'completed'
             pipeline.progress = progress
-            pipeline.current_stage = 'analysis'
-            pipeline.current_job_index = 0
             db.session.commit()
             
-            # Clean up generation tracking
-            with _pipeline_state_lock:
-                self._in_flight_generation.pop(pipeline_id, None)
-                self._generation_futures.pop(pipeline_id, None)
-        else:
-            # Log detailed state to help debug early completion issues
             self._log(
-                "GEN", f"Generation progress for {pipeline_id}: done={done}/{total}, in_flight={in_flight_count}, results={len(progress.get('generation', {}).get('results', []))}",
-                level='debug'
+                "GEN", f"Batch generation complete: {succeeded}/{len(jobs)} succeeded, {failures} failed"
             )
+            
+        except Exception as e:
+            self._log("GEN", f"Batch generation failed: {e}", level='error')
+            # Mark as failed
+            db.session.refresh(pipeline)
+            progress = pipeline.progress
+            progress['generation']['status'] = 'failed'
+            progress['generation']['error'] = str(e)
+            pipeline.progress = progress
+            db.session.commit()
+            raise
         
-        if submitted_any or done > 0:
-            self._emit_progress_update(pipeline)
+        # Transition to analysis
+        self._transition_to_analysis(pipeline)
+        self._emit_progress_update(pipeline)
+    
+    def _transition_to_analysis(self, pipeline: PipelineExecution):
+        """Transition pipeline from generation to analysis stage."""
+        pipeline.current_stage = 'analysis'
+        pipeline.current_job_index = 0
+        db.session.commit()
+        self._log("GEN", f"Transitioned to analysis stage")
+
     
     def _submit_generation_job(self, pipeline_id: str, job: Dict[str, Any]) -> None:
         """Submit a generation job to the thread pool.

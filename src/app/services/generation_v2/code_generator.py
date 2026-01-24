@@ -45,7 +45,8 @@ CONFIRMATION_REGEX = re.compile(
 )
 
 # Patterns that indicate placeholder or incomplete code (case-insensitive)
-# Note: \bplaceholder\b(?!=) excludes HTML placeholder= attributes which are legitimate code
+# These patterns detect when LLM is being lazy and not generating complete code
+# IMPORTANT: Do NOT match legitimate HTML/JSX placeholder= attributes
 PLACEHOLDER_PATTERNS = [
   r"rest of the components",
   r"components remain the same",
@@ -54,7 +55,11 @@ PLACEHOLDER_PATTERNS = [
   r"left as an exercise",
   r"to be implemented",
   r"implement (the )?rest",
-  r"\bplaceholder\b(?!=)",  # Exclude HTML placeholder= attribute
+  r"add your .* here",  # "add your code here", "add your logic here", etc.
+  r"placeholder (text|content|code|logic)",  # Only match "placeholder" as descriptor
+  r"// placeholder\b",  # Comment with placeholder
+  r"# placeholder\b",   # Python comment with placeholder
+  r"\* placeholder\b",  # Block comment with placeholder
 ]
 
 PLACEHOLDER_REGEX = re.compile(
@@ -254,6 +259,7 @@ class CodeGenerator:
 
         # Step 1: Generate Backend - produces Flask app with models, auth, routes
         logger.info("  → Query 1: Backend")
+        start_time = time.time()
         backend_prompt = self._build_backend_prompt(requirements)
         backend_system = self._get_backend_system_prompt()
 
@@ -285,7 +291,8 @@ class CodeGenerator:
         
         backend_code = self._extract_content(response)
         results['backend'] = backend_code
-        logger.info(f"    ✓ Backend: {len(backend_code)} chars")
+        backend_duration = time.time() - start_time
+        logger.info(f"    ✓ Backend: {len(backend_code)} chars (took {backend_duration:.1f}s)")
         
         # Step 2: Scan backend for API context - extract endpoints, models for frontend generation
         logger.info("  → Scanning backend for API context...")
@@ -295,6 +302,7 @@ class CodeGenerator:
         
         # Step 3: Generate Frontend with backend context - React app that matches backend API
         logger.info("  → Query 2: Frontend")
+        start_time = time.time()
         frontend_prompt = self._build_frontend_prompt(requirements, backend_api_context)
         frontend_system = self._get_frontend_system_prompt()
 
@@ -483,8 +491,12 @@ class CodeGenerator:
         if self._has_placeholder_content(frontend_code):
           raise RuntimeError("Frontend generation produced placeholder content")
 
+        if self._has_placeholder_content(frontend_code):
+          raise RuntimeError("Frontend generation produced placeholder content")
+
         results['frontend'] = frontend_code
-        logger.info(f"    ✓ Frontend: {len(frontend_code)} chars")
+        frontend_duration = time.time() - start_time
+        logger.info(f"    ✓ Frontend: {len(frontend_code)} chars (took {frontend_duration:.1f}s)")
         
         return results
     
@@ -610,16 +622,10 @@ Output ONLY the code block. No explanations before or after."""
     
     def _get_frontend_system_prompt(self) -> str:
         """Get system prompt for frontend generation."""
-        template_code = self._read_scaffolding_file('frontend/src/App.jsx')
+        # Note: We no longer embed the scaffolding template since models copy the placeholder comments
+        # Instead, we rely on explicit instructions about what to generate
         
-        # Remove placeholder comments from the example to prevent model from copying them
-        cleaned_code = []
-        for line in template_code.splitlines():
-            if '// Implement' not in line:
-                cleaned_code.append(line)
-        template_code = '\n'.join(cleaned_code)
-        
-        return f"""You are an expert React frontend developer. Generate a COMPLETE, PRODUCTION-READY React application.
+        return """You are an expert React frontend developer. Generate a COMPLETE, PRODUCTION-READY React application.
 
 CRITICAL INSTRUCTION: Generate the code IMMEDIATELY. Do NOT ask for confirmation. Do NOT ask "Would you like me to...?" or "Shall I proceed?". Just output the complete code block directly. This is a non-interactive code generation task.
 
@@ -629,27 +635,33 @@ Generate EXACTLY ONE code block with this format:
 [complete code here - 400-600 lines]
 ```
 
-## COMPLETE WORKING EXAMPLE STRUCTURE
-
-```jsx:App.jsx
-{template_code}
-```
-
 ## CRITICAL REQUIREMENTS
 
 1. **SINGLE FILE**: ALL code in ONE App.jsx file
-2. **NO PLACEHOLDERS**: The example above has placeholders for brevity, but YOUR OUTPUT MUST BE FULLY IMPLEMENTED.
+2. **FULLY IMPLEMENTED**: Every function body MUST have complete implementation logic. NO placeholder comments.
 3. **NO BrowserRouter**: main.jsx already provides it - DO NOT wrap App in BrowserRouter
-4. **WORKING AUTH**: localStorage token, AuthContext, login/register/logout functions
+4. **WORKING AUTH**: localStorage token, AuthContext, login/register/logout functions with complete implementations
 5. **PUBLIC READ**: HomePage fetches data without auth, shows read-only for guests
+6. **COMPLETE FORMS**: All forms must have state, onChange handlers, onSubmit handlers, and error handling
+
+## FORBIDDEN PATTERNS - YOUR CODE MUST NOT CONTAIN:
+- ❌ "// Implement" comments - NEVER write these
+- ❌ "// TODO" comments - NEVER write these
+- ❌ Empty function bodies with just a placeholder comment
+- ❌ `return <div>Login</div>` with no actual form fields
+- ❌ Comments like "add your code here" or "implement this"
+- ❌ Wrapping App in BrowserRouter
+- ❌ Importing packages not in the allowed list
+
+## REQUIRED PATTERNS - YOUR CODE MUST FOLLOW:
+- ✅ Complete function bodies with actual logic
+- ✅ Forms with input fields, onChange handlers, state management
+- ✅ API calls with proper loading states and error handling
+- ✅ Proper toast notifications for success/error states
+- ✅ Navigation with useNavigate() after successful login/register
 
 ## AVAILABLE PACKAGES (ONLY these)
 react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, date-fns, clsx, uuid
-
-## FORBIDDEN PATTERNS
-- ❌ Wrapping App in BrowserRouter
-- ❌ Placeholders like "// implement here" in YOUR output
-- ❌ Importing packages not in the list above
 
 ## RESPONSE FORMAT
 Output ONLY the code block. No explanations before or after."""

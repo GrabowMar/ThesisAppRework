@@ -58,6 +58,8 @@ async def main():
                 slug = app_def['template']
                 num = app_def['app_num']
                 print(f"\n--- Generating {slug} (App {num}) ---")
+                import time
+                app_start_time = time.time()
                 
                 config = GenerationConfig(
                     model_slug='qwen_qwen3-coder-30b-a3b-instruct',
@@ -89,6 +91,7 @@ async def main():
                     print(f"SUCCESS: App generated at {app_dir}")
                     print(f"Backend size: {len(results['backend'])} chars")
                     print(f"Frontend size: {len(results['frontend'])} chars")
+                    print(f"Total time: {time.time() - app_start_time:.1f}s")
                     
                 except Exception as e:
                     print(f"FAILED: {e}")
