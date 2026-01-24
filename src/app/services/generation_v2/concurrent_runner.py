@@ -245,7 +245,6 @@ class ConcurrentGenerationRunner:
                 model_slug=job.model_slug,
                 template_slug=job.template_slug,
                 app_num=job.allocated_app_num,
-                mode=GenerationMode.GUARDED,
             )
             
             # STEP 1: Create scaffolding

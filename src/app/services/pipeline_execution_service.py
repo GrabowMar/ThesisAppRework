@@ -37,6 +37,7 @@ from app.models import PipelineExecution, PipelineExecutionStatus, GeneratedAppl
 from app.constants import AnalysisStatus
 from app.services.service_locator import ServiceLocator
 from app.services.generation_v2.concurrent_runner import ConcurrentGenerationRunner, GenerationJob
+from app.services.generation_v2.concurrent_analysis_runner import ConcurrentAnalysisRunner, AnalysisJobSpec
 
 logger = get_logger("pipeline_executor")
 
@@ -1015,212 +1016,191 @@ class PipelineExecutionService:
         self._log("CLEANUP", f"Cleaned up generation tracking for pipeline {pipeline_id}", level='debug')
     
     def _process_analysis_stage(self, pipeline: PipelineExecution):
-        """Process analysis stage with parallel execution.
+        """Process analysis stage using ConcurrentAnalysisRunner.
         
-        This method:
-        1. Clears health cache for new pipelines (prevents stale health data)
-        2. Starts analyzer containers if needed (first time in analysis stage)
-        3. Submits analysis tasks SEQUENTIALLY (one at a time) because:
-           - Each app needs its Docker containers built and started
-           - Parallel builds can overwhelm the server
-           - Apps may have port conflicts if started simultaneously
-        4. Tracks in-flight tasks and polls for completion
-        5. Transitions to done stage when all tasks complete
+        This is a simplified implementation that:
+        1. Checks if analysis is already complete
+        2. If not started, runs all jobs as a batch using ConcurrentAnalysisRunner
+        3. Records all results and transitions to done stage
+        
+        The new approach uses asyncio.Semaphore for clean concurrency control
+        and pre-builds containers before analysis starts.
         """
         pipeline_id = pipeline.pipeline_id
         progress = pipeline.progress
         config = pipeline.config
         
-        # Get parallelism settings
-        # IMPORTANT: Analysis runs sequentially (max_concurrent=1) because each app needs
-        # container builds which are resource-intensive. User config is capped at 1.
-        analysis_opts = config.get('analysis', {}).get('options', {})
-        user_max_concurrent = progress.get('analysis', {}).get('max_concurrent', DEFAULT_MAX_CONCURRENT_TASKS)
-        # Respect user configuration for concurrency (defaulting to 1 if not set)
-        # WARNING: Running >1 concurrent analysis task requires significant resources
-        # due to parallel Docker builds/containers.
-        max_concurrent = user_max_concurrent
+        # Check current state
+        analysis_progress = progress.get('analysis', {})
+        total = analysis_progress.get('total', 0)
+        completed = analysis_progress.get('completed', 0)
+        failed = analysis_progress.get('failed', 0)
+        status = analysis_progress.get('status', 'pending')
         
-        if max_concurrent > 1:
-            self._log(
-                "ANAL", f"Parallel analysis enabled (max_concurrent={max_concurrent}). This may consume significant resources.",
-                level='warning'
+        self._log(
+            "ANAL", f"Processing analysis stage: status={status}, completed={completed}/{total}, failed={failed}"
+        )
+        
+        # If already completed, transition to done
+        if status == 'completed' or (completed + failed >= total and total > 0):
+            self._log("ANAL", "Analysis already complete, transitioning to done")
+            self._transition_to_done(pipeline)
+            return
+        
+        # If in-progress, we're waiting for async batch to complete
+        if status == 'in_progress':
+            self._log("ANAL", "Analysis in progress, waiting for completion", level='debug')
+            return
+        
+        # Get analysis config
+        analysis_config = config.get('analysis', {})
+        if not analysis_config.get('enabled', True):
+            self._log("ANAL", "Analysis disabled, transitioning to done")
+            self._transition_to_done(pipeline)
+            return
+        
+        # Get concurrency settings
+        analysis_opts = analysis_config.get('options', {})
+        max_concurrent = analysis_opts.get('maxConcurrentTasks', DEFAULT_MAX_CONCURRENT_TASKS)
+        tools = analysis_config.get('tools', [])
+        auto_start_containers = analysis_opts.get('autoStartContainers', True)
+        
+        # Collect apps to analyze from generation results
+        gen_results = progress.get('generation', {}).get('results', [])
+        apps_to_analyze = []
+        
+        for result in gen_results:
+            if result.get('success'):
+                apps_to_analyze.append({
+                    'model_slug': result.get('model_slug'),
+                    'app_number': result.get('app_number'),
+                })
+        
+        if not apps_to_analyze:
+            self._log("ANAL", "No successful generated apps to analyze, transitioning to done")
+            self._transition_to_done(pipeline)
+            return
+        
+        # Mark as in-progress before starting
+        progress['analysis']['status'] = 'in_progress'
+        progress['analysis']['total'] = len(apps_to_analyze)
+        pipeline.progress = progress
+        db.session.commit()
+        
+        self._log(
+            "ANAL", f"Starting batch analysis: {len(apps_to_analyze)} apps (max_concurrent={max_concurrent})"
+        )
+        
+        # Build job list
+        jobs = []
+        for app in apps_to_analyze:
+            jobs.append(AnalysisJobSpec(
+                model_slug=app['model_slug'],
+                app_number=app['app_number'],
+                tools=tools if tools else None,
+                pipeline_id=pipeline_id,
+            ))
+        
+        # Run batch analysis using ConcurrentAnalysisRunner
+        try:
+            runner = ConcurrentAnalysisRunner(
+                max_concurrent_analysis=max_concurrent,
+                max_concurrent_container_builds=2,  # Limit container builds
             )
-        
-        # Initialize tracking for this pipeline (thread-safe)
-        with _pipeline_state_lock:
-            if pipeline_id not in self._in_flight_tasks:
-                self._in_flight_tasks[pipeline_id] = set()
-                # FIX: Clear health cache when starting a new pipeline's analysis
-                # This prevents stale health data from previous pipelines affecting this one
-                self._invalidate_health_cache()
-                self._log("ANAL", f"Cleared health cache for new pipeline analysis stage (max_concurrent={max_concurrent})")
-        
-        # STEP 1: Start analyzer containers if this is the first analysis job
-        # NOTE: Analyzer container startup is a "soft requirement" - we warn but continue
-        # Individual tasks will naturally succeed (static analysis) or skip (dynamic/perf)
-        # based on container availability. This prevents pipeline abort on transient failures.
-        with _pipeline_state_lock:
-            containers_already_started = pipeline_id in self._containers_started_for
-        
-        if pipeline.current_job_index == 0 and not containers_already_started:
-            # Check if selected tools actually require analyzer containers
-            tools = config.get('analysis', {}).get('tools', [])
-            needs_containers = self._requires_analyzer_containers(tools)
-
-            if not needs_containers:
-                # Static analysis only - skip container startup entirely
-                self._log(
-                    "ANAL", f"Skipping analyzer container startup for {pipeline_id} - static analysis tools only ({', '.join(tools)})"
+            
+            # Run async batch - this blocks until all jobs complete
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                results = loop.run_until_complete(
+                    runner.analyze_batch(
+                        jobs, 
+                        pipeline_id=pipeline_id,
+                        tools=tools,
+                        auto_start_app_containers=auto_start_containers,
+                    )
                 )
-                with _pipeline_state_lock:
-                    self._containers_started_for.add(pipeline_id)
-            else:
-                auto_start = analysis_opts.get('autoStartContainers', True)  # Default to True for pipelines
-                if auto_start:
-                    # Try to start analyzers with longer timeout (180s default)
-                    analyzers_ready = self._ensure_analyzers_healthy(pipeline)
-
-                    if analyzers_ready:
-                        with _pipeline_state_lock:
-                            self._containers_started_for.add(pipeline_id)
-                        # Additional stabilization delay after startup to ensure ports are fully bound
-                        time.sleep(5)
-                        self._log("ANAL", "Analyzer containers ready, added 5s stabilization delay")
-                    else:
-                        # Retry once more after a longer delay (containers may still be starting)
-                        self._log(
-                            "ANAL", "First analyzer startup attempt failed, retrying after 30s delay...",
-                            level='warning'
-                        )
-                        time.sleep(30)
-
-                        # Second attempt - reset cache to force fresh check
-                        self._analyzer_healthy = None
-                        analyzers_ready = self._ensure_analyzers_healthy(pipeline)
-
-                        if analyzers_ready:
-                            with _pipeline_state_lock:
-                                self._containers_started_for.add(pipeline_id)
-                            time.sleep(5)  # Stabilization delay
-                            self._log("ANAL", "Analyzer containers ready on retry")
-                        else:
-                            # Log warning but continue - static analysis and individual tasks
-                            # will handle their own dependencies
-                            self._log(
-                                "ANAL", "WARNING: Analyzer containers could not be started after retry. "
-                                "Static analysis will continue. Dynamic/performance analysis "
-                                "will skip or fail for apps without running containers.",
-                                level='warning'
-                            )
-                            # Still mark as "attempted" to avoid retry on every poll
-                            with _pipeline_state_lock:
-                                self._containers_started_for.add(pipeline_id)
+            finally:
+                loop.close()
+            
+            # Record all results
+            succeeded = 0
+            failures = 0
+            total_findings = 0
+            result_records = []
+            
+            for result in results:
+                record = {
+                    'job_index': result.job_index,
+                    'model_slug': result.model_slug,
+                    'app_number': result.app_number,
+                    'task_id': result.task_id,
+                    'success': result.success,
+                    'findings_count': result.findings_count,
+                    'status': result.status,
+                }
+                if result.error:
+                    record['error'] = result.error
+                
+                result_records.append(record)
+                total_findings += result.findings_count
+                
+                if result.success:
+                    succeeded += 1
                 else:
-                    # Auto-start disabled - check if containers are healthy anyway
-                    if not self._check_analyzers_running():
-                        # Log warning but continue - let tasks handle their own dependencies
-                        self._log(
-                            "ANAL", "WARNING: Analyzer services not running and auto-start disabled. "
-                            "Analysis tasks may partially succeed or skip dynamic/performance tests. "
-                            "To enable all analysis types, start containers via: ./start.ps1 -Mode Start",
-                            level='warning'
-                        )
-        
-        # STEP 2: Check completed in-flight tasks
-        self._check_completed_analysis_tasks(pipeline)
-        
-        # STEP 3: Submit new tasks up to parallelism limit (thread-safe read)
-        with _pipeline_state_lock:
-            in_flight_count = len(self._in_flight_tasks.get(pipeline_id, set()))
-        
-        while in_flight_count < max_concurrent:
-            job = pipeline.get_next_job()
-            if job is None:
-                break  # No more jobs to submit
+                    failures += 1
+                
+                self._log(
+                    "ANAL", f"Job {result.job_index}: {result.model_slug}/app{result.app_number} - "
+                    f"{result.status.upper()} ({result.findings_count} findings)"
+                )
             
-            # Get job key for duplicate tracking
-            model_slug = job.get('model_slug')
-            app_number = job.get('app_number')
-            job_key = f"{model_slug}:{app_number}"
-            
-            # Skip if generation failed for this job
-            if not job.get('success', False):
-                # Advance job_index and mark skipped atomically
-                pipeline.advance_job_index()
-                pipeline.add_analysis_task_id('skipped:generation_failed', success=False,
-                                              model_slug=model_slug, app_number=app_number)
-                db.session.commit()
-                self._log("ANAL", f"Skipping analysis for {model_slug} app {app_number} - generation failed")
-                continue
-            
-            # FIX: Check if this model:app combo was already submitted (duplicate guard)
+            # Update progress in DB
+            db.session.refresh(pipeline)
             progress = pipeline.progress
-            submitted_apps = progress.get('analysis', {}).get('submitted_apps', [])
-            
-            if job_key in submitted_apps:
-                # Already submitted - just advance the index
-                pipeline.advance_job_index()
-                db.session.commit()
-                self._log("ANAL", f"Skipping duplicate analysis submission for {model_slug} app {app_number} (already in submitted_apps)")
-                continue
-            
-            # Double-check against existing main_task_ids (belt-and-suspenders)
-            main_task_ids = progress.get('analysis', {}).get('main_task_ids', [])
-            already_submitted = False
-            for task_id in main_task_ids:
-                if task_id.startswith('skipped') or task_id.startswith('error:'):
-                    continue
-                existing_task = AnalysisTask.query.filter_by(task_id=task_id).first()
-                if (existing_task and 
-                    existing_task.target_model == model_slug and 
-                    existing_task.target_app_number == app_number):
-                    self._log("ANAL", f"Skipping duplicate analysis for {model_slug} app {app_number} (already have task {task_id})")
-                    already_submitted = True
-                    break
-            
-            if already_submitted:
-                pipeline.advance_job_index()
-                db.session.commit()
-                continue
-            
-            # FIX TRANSACTION BOUNDARY: Advance job_index AFTER successful task creation
-            # We'll use a savepoint pattern to rollback only the job_index if task creation fails
-            saved_job_index = pipeline.current_job_index
-            
-            # Submit analysis task (this creates the task in DB)
-            task_id = self._submit_analysis_task(pipeline, job)
-            
-            # Only advance job_index if task was successfully created
-            if task_id and not task_id.startswith('error:') and not task_id.startswith('skipped'):
-                pipeline.advance_job_index()
-                with _pipeline_state_lock:
-                    self._in_flight_tasks[pipeline_id].add(task_id)
-                in_flight_count += 1
-                db.session.commit()
-            elif task_id and task_id.startswith('skipped'):
-                # Skipped tasks still advance the index (they're "handled")
-                pipeline.advance_job_index()
-                db.session.commit()
-            else:
-                # Error creating task - still advance index to avoid infinite loop
-                # but mark as retryable in progress if it was a transient error
-                pipeline.advance_job_index()
-                # Check if this was a transient error that should allow retry
-                if task_id and 'transient' in task_id.lower() and model_slug is not None and app_number is not None:
-                    # Remove from submitted_apps to allow retry
-                    self._mark_job_retryable(pipeline, model_slug, app_number)
-                db.session.commit()
-                self._log("ANAL", f"Task creation failed for {model_slug} app {app_number}: {task_id}", level='warning')
-        
-        # STEP 4: Check if all analysis is complete
-        if self._check_analysis_tasks_completion(pipeline):
-            # Analysis complete - commit completion status and stop containers
+            progress['analysis']['results'] = result_records
+            progress['analysis']['completed'] = succeeded
+            progress['analysis']['failed'] = failures
+            progress['analysis']['total_findings'] = total_findings
+            progress['analysis']['status'] = 'completed'
+            pipeline.progress = progress
             db.session.commit()
-            self._stop_all_app_containers_for_pipeline(pipeline)
-            self._cleanup_pipeline_containers(pipeline_id)
+            
+            self._log(
+                "ANAL", f"Batch analysis complete: {succeeded}/{len(jobs)} succeeded, "
+                f"{failures} failed, {total_findings} total findings"
+            )
+            
+        except Exception as e:
+            self._log("ANAL", f"Batch analysis failed: {e}", level='error')
+            # Mark as failed
+            db.session.refresh(pipeline)
+            progress = pipeline.progress
+            progress['analysis']['status'] = 'failed'
+            progress['analysis']['error'] = str(e)
+            pipeline.progress = progress
+            db.session.commit()
+            raise
         
+        # Transition to done
+        self._transition_to_done(pipeline)
         self._emit_progress_update(pipeline)
+    
+    def _transition_to_done(self, pipeline: PipelineExecution):
+        """Transition pipeline from analysis to done stage."""
+        from app.models import PipelineExecutionStatus
+        
+        pipeline.current_stage = 'done'
+        pipeline.status = PipelineExecutionStatus.COMPLETED
+        pipeline.completed_at = datetime.now(timezone.utc)
+        db.session.commit()
+        
+        # Cleanup containers for this pipeline
+        self._stop_all_app_containers_for_pipeline(pipeline)
+        self._cleanup_pipeline_containers(pipeline.pipeline_id)
+        
+        self._log("ANAL", "Pipeline completed successfully")
     
     def _mark_job_retryable(self, pipeline: PipelineExecution, model_slug: str, app_number: int) -> None:
         """Mark a job as retryable by removing it from submitted_apps.

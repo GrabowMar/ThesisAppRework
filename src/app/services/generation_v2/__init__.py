@@ -31,6 +31,12 @@ from .concurrent_runner import (
     ConcurrentJobResult,
     generate_apps_concurrent,
 )
+from .concurrent_analysis_runner import (
+    ConcurrentAnalysisRunner,
+    AnalysisJobSpec,
+    AnalysisJobResult,
+    analyze_apps_concurrent,
+)
 
 # Re-export GenerationMode from constants for convenience
 from app.constants import GenerationMode
@@ -65,5 +71,11 @@ __all__ = [
     'GenerationJob',
     'ConcurrentJobResult',
     'generate_apps_concurrent',
+    # Concurrent Analysis
+    'ConcurrentAnalysisRunner',
+    'AnalysisJobSpec',
+    'AnalysisJobResult',
+    'analyze_apps_concurrent',
 ]
+
 

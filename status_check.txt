@@ -1,0 +1,47 @@
+Pipeline ID: pipeline_937407575190
+Status: completed
+Stage: done
+--------------------------------------------------
+Progress:
+{
+  "generation": {
+    "total": 2,
+    "completed": 0,
+    "failed": 2,
+    "status": "completed",
+    "results": [
+      {
+        "job_index": 0,
+        "model_slug": "google/gemini-2.0-flash-exp:free",
+        "template_slug": "react-flask",
+        "app_number": 1,
+        "success": false,
+        "error": "GenerationConfig.__init__() got an unexpected keyword argument 'mode'"
+      },
+      {
+        "job_index": 1,
+        "model_slug": "google/gemini-2.0-flash-exp:free",
+        "template_slug": "react-flask",
+        "app_number": 2,
+        "success": false,
+        "error": "GenerationConfig.__init__() got an unexpected keyword argument 'mode'"
+      }
+    ],
+    "max_concurrent": 2,
+    "in_flight": 0
+  },
+  "analysis": {
+    "total": 2,
+    "completed": 0,
+    "failed": 0,
+    "status": "pending",
+    "main_task_ids": [],
+    "subtask_ids": [],
+    "task_ids": [],
+    "submitted_apps": [],
+    "retryable_apps": [],
+    "max_concurrent": 2,
+    "in_flight": 0
+  }
+}
+--------------------------------------------------
