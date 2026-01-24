@@ -24,16 +24,32 @@ from typing import List, Dict, Any, Optional, Callable
 
 logger = logging.getLogger(__name__)
 
-# Tools that can run without app containers (static analysis)
+# Tools that can run without app containers (static analysis + AI analysis)
+# These tools analyze source code and don't require running application containers
 STATIC_ANALYSIS_TOOLS = {
-    'semgrep',
+    # Python static analysis
     'bandit',
-    'eslint',
+    'pylint',
     'flake8',
     'mypy',
-    'pylint',
+    'vulture',
+    'ruff',
     'safety',
     'pip-audit',
+
+    # JavaScript/CSS static analysis
+    'eslint',
+    'jshint',
+    'stylelint',
+    'npm-audit',
+
+    # Multi-language security
+    'semgrep',
+
+    # AI-powered analysis (analyzes source code, not running apps)
+    'requirements-scanner',
+    'code-quality-analyzer',
+    'curl-endpoint-tester',  # Note: This actually needs endpoints, will fail gracefully
 }
 
 
@@ -314,25 +330,32 @@ class ConcurrentAnalysisRunner:
             try:
                 # Check if containers are ready; if not, downgrade to static analysis only
                 final_tools = job.tools or []
-                
-                if not job.containers_ready:
+
+                if not job.containers_ready and final_tools:
                     # Filter to only keep static tools
                     original_count = len(final_tools)
                     final_tools = [t for t in final_tools if t.lower() in STATIC_ANALYSIS_TOOLS]
-                    
+
                     if original_count > len(final_tools):
                         logger.warning(
                             f"Containers not ready for {job.model_slug}/app{job.app_number} - "
-                            f"downgraded to static analysis only (dropped {original_count - len(final_tools)} tools)"
+                            f"downgraded to static analysis only (kept {len(final_tools)}/{original_count} tools)"
                         )
-                    
-                    # If no tools remain, skip this job
+
+                    # If no tools remain after filtering, log warning but continue with empty list
+                    # The analyzer will use all available static tools as fallback
                     if not final_tools:
-                        logger.error(
-                            f"Skipping {job.model_slug}/app{job.app_number}: containers failed and no static tools selected"
+                        logger.warning(
+                            f"{job.model_slug}/app{job.app_number}: No static tools in selection, "
+                            f"will use all available static tools as fallback"
                         )
-                        job.task_id = None # Signal failure
-                        continue
+                        # Don't set task_id to None - let it proceed with empty tool list (= all static tools)
+                elif not job.containers_ready:
+                    # No tools specified but containers failed - use all static tools
+                    logger.info(
+                        f"{job.model_slug}/app{job.app_number}: No tools specified, "
+                        f"containers not ready - will use all available static tools"
+                    )
 
                 logger.debug(f"Creating task for {job.model_slug}/app{job.app_number}...")
                 
@@ -410,19 +433,29 @@ class ConcurrentAnalysisRunner:
             max_polls = int(self.analysis_timeout / poll_interval)
             
             for poll_count in range(max_polls):
-                # Fetch fresh task state from DB
-                task = AnalysisTask.query.filter_by(task_id=job.task_id).first()
+                # Fetch fresh task state from DB with retry on connection issues
+                try:
+                    task = AnalysisTask.query.filter_by(task_id=job.task_id).first()
+                except Exception as db_error:
+                    logger.warning(f"[Job {job_index}] Database query error (will retry): {db_error}")
+                    await asyncio.sleep(poll_interval)
+                    continue
+
                 if not task:
-                    result.error = f"Task {job.task_id} not found in database"
+                    # Task not found - check if it was deleted or never created
+                    if poll_count == 0:
+                        result.error = f"Task {job.task_id} not found in database (never created)"
+                    else:
+                        result.error = f"Task {job.task_id} disappeared from database after {poll_count} polls"
                     result.status = 'failed'
                     return result
-                
+
                 # Check if task reached terminal state
-                if task.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS, 
+                if task.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS,
                                    AnalysisStatus.FAILED, AnalysisStatus.CANCELLED):
                     # Task finished
                     result.duration_seconds = time.time() - start_time
-                    
+
                     if task.status == AnalysisStatus.COMPLETED:
                         result.success = True
                         result.status = 'completed'
@@ -433,29 +466,30 @@ class ConcurrentAnalysisRunner:
                         result.success = False
                         result.status = 'failed'
                         result.error = task.error_message or 'Task failed'
-                    
+
                     # Try to get findings count from task results
                     try:
                         summary = task.get_result_summary() if hasattr(task, 'get_result_summary') else {}
                         if isinstance(summary, dict):
                             result.findings_count = summary.get('total_findings', 0)
-                    except Exception:
-                        pass
-                    
+                    except Exception as e:
+                        logger.debug(f"[Job {job_index}] Could not extract findings count: {e}")
+
                     logger.info(
                         f"[Job {job_index}] {result.status.upper()}: {job.model_slug}/app{job.app_number} "
                         f"in {result.duration_seconds:.1f}s ({result.findings_count or 0} findings)"
                     )
                     break
-                
+
                 # Task still running - wait and poll again
                 if poll_count % 12 == 0 and poll_count > 0:  # Log every ~minute
                     elapsed = time.time() - start_time
-                    logger.debug(
-                        f"[Job {job_index}] Waiting for {job.model_slug}/app{job.app_number} "
-                        f"({elapsed:.0f}s elapsed, status={task.status.value if task.status else 'unknown'})"
+                    logger.info(
+                        f"[Job {job_index}] Still waiting for {job.model_slug}/app{job.app_number} "
+                        f"({elapsed:.0f}s elapsed, status={task.status.value if task.status else 'unknown'}, "
+                        f"progress={task.progress_percentage if hasattr(task, 'progress_percentage') else 0:.0f}%)"
                     )
-                
+
                 await asyncio.sleep(poll_interval)
             else:
                 # Timeout - max polls reached

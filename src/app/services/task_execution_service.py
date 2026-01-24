@@ -933,8 +933,28 @@ class TaskExecutionService:
             # Extract tool names and container management options from metadata
             meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
             custom_options = meta.get('custom_options', {})
-            tool_names = custom_options.get('tools') or custom_options.get('selected_tool_names') or []
+            # CRITICAL FIX: Check multiple possible locations for tools in metadata
+            # Tools can be stored as 'tools', 'selected_tool_names', or at meta root level
+            tool_names = (
+                custom_options.get('selected_tool_names') or
+                custom_options.get('tools') or
+                meta.get('tools') or
+                []
+            )
             container_opts = custom_options.get('container_management', {})
+
+            # DEBUG: Log tool extraction for troubleshooting
+            if tool_names:
+                self._log(
+                    "[EXEC] Task %s: Extracted tools from metadata: %s",
+                    task.task_id, tool_names, level='debug'
+                )
+            else:
+                self._log(
+                    "[EXEC] Task %s: No tools found in metadata (will use all available tools). "
+                    "Metadata keys: custom_options=%s, meta_root=%s",
+                    task.task_id, list(custom_options.keys()), list(meta.keys()), level='warning'
+                )
             
             # =================================================================
             # SMART CONTAINER MANAGEMENT: Start/build containers before analysis

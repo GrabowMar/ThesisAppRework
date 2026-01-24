@@ -54,9 +54,10 @@ _pipeline_state_lock = threading.RLock()
 # Parallelism limits
 # NOTE: Pipeline generation uses parallel execution like the original working implementation
 # The circuit breaker in rate_limiter.py protects against cascading API failures
-# IMPORTANT: Analysis is sequential (1 at a time) because each app needs containers built/started
-# and running multiple container builds in parallel can overwhelm the server
-DEFAULT_MAX_CONCURRENT_TASKS: int = 1  # Sequential analysis (container builds are heavy)
+# IMPORTANT: Analysis concurrency is limited to avoid overwhelming the server with container builds
+# The ConcurrentAnalysisRunner has smart semaphore-based batching for container builds (max 2)
+# so we can safely run 2-3 analyses concurrently without resource exhaustion
+DEFAULT_MAX_CONCURRENT_TASKS: int = 2  # Moderate concurrency for analysis (up from 1)
 DEFAULT_MAX_CONCURRENT_GENERATION: int = 2  # Parallel generation (original working config)
 MAX_ANALYSIS_WORKERS: int = 4  # ThreadPool size for analysis
 MAX_GENERATION_WORKERS: int = 4  # ThreadPool size for generation
@@ -1160,13 +1161,38 @@ class PipelineExecutionService:
                 pipeline_id=pipeline_id,
             ))
         
-        # Run batch analysis using ConcurrentAnalysisRunner
+        # Run batch analysis using ConcurrentAnalysisRunner with progress tracking
         try:
+            # Progress callback to update pipeline status during analysis
+            def on_analysis_progress(completed: int, total: int, result: Any):
+                """Update pipeline progress as analyses complete."""
+                try:
+                    # Re-fetch pipeline to get fresh state
+                    from app.extensions import db
+                    fresh_pipeline = PipelineExecution.query.filter_by(pipeline_id=pipeline_id).first()
+                    if not fresh_pipeline:
+                        return
+
+                    prog = fresh_pipeline.progress
+                    prog['analysis']['completed'] = completed
+                    prog['analysis']['status'] = 'in_progress'
+                    fresh_pipeline.progress = prog
+                    db.session.commit()
+
+                    self._log(
+                        "ANAL", f"Progress update: {completed}/{total} analyses complete",
+                        level='debug'
+                    )
+                    self._emit_progress_update(fresh_pipeline)
+                except Exception as e:
+                    self._log("ANAL", f"Progress callback error: {e}", level='warning')
+
             runner = ConcurrentAnalysisRunner(
                 max_concurrent_analysis=max_concurrent,
                 max_concurrent_container_builds=2,  # Limit container builds
+                on_progress=on_analysis_progress,  # Add progress callback
             )
-            
+
             # Run async batch - this blocks until all jobs complete
             import asyncio
             loop = asyncio.new_event_loop()
@@ -1174,7 +1200,7 @@ class PipelineExecutionService:
             try:
                 results = loop.run_until_complete(
                     runner.analyze_batch(
-                        jobs, 
+                        jobs,
                         pipeline_id=pipeline_id,
                         tools=tools,
                         auto_start_app_containers=auto_start_containers,
@@ -1183,12 +1209,13 @@ class PipelineExecutionService:
             finally:
                 loop.close()
             
-            # Record all results
+            # Record all results with detailed status tracking
             succeeded = 0
             failures = 0
+            partial_success = 0
             total_findings = 0
             result_records = []
-            
+
             for result in results:
                 record = {
                     'job_index': result.job_index,
@@ -1201,46 +1228,71 @@ class PipelineExecutionService:
                 }
                 if result.error:
                     record['error'] = result.error
-                
+
                 result_records.append(record)
                 total_findings += result.findings_count
-                
-                if result.success:
+
+                # Track success types separately
+                if result.status == 'completed':
                     succeeded += 1
+                elif result.status == 'partial':
+                    partial_success += 1
+                    succeeded += 1  # Count partials as success for overall stats
                 else:
                     failures += 1
-                
+
+                # Enhanced logging with duration
+                duration_str = f"{result.duration_seconds:.1f}s" if hasattr(result, 'duration_seconds') else "N/A"
                 self._log(
                     "ANAL", f"Job {result.job_index}: {result.model_slug}/app{result.app_number} - "
-                    f"{result.status.upper()} ({result.findings_count} findings)"
+                    f"{result.status.upper()} in {duration_str} ({result.findings_count} findings)"
                 )
             
-            # Update progress in DB
+            # Update progress in DB with comprehensive status
             db.session.refresh(pipeline)
             progress = pipeline.progress
             progress['analysis']['results'] = result_records
             progress['analysis']['completed'] = succeeded
             progress['analysis']['failed'] = failures
+            progress['analysis']['partial_success'] = partial_success
             progress['analysis']['total_findings'] = total_findings
             progress['analysis']['status'] = 'completed'
             pipeline.progress = progress
             db.session.commit()
-            
+
+            # Enhanced completion logging
             self._log(
-                "ANAL", f"Batch analysis complete: {succeeded}/{len(jobs)} succeeded, "
-                f"{failures} failed, {total_findings} total findings"
+                "ANAL", f"Batch analysis complete: {succeeded}/{len(jobs)} succeeded "
+                f"({partial_success} partial), {failures} failed, {total_findings} total findings"
             )
-            
+
         except Exception as e:
-            self._log("ANAL", f"Batch analysis failed: {e}", level='error')
-            # Mark as failed
-            db.session.refresh(pipeline)
-            progress = pipeline.progress
-            progress['analysis']['status'] = 'failed'
-            progress['analysis']['error'] = str(e)
-            pipeline.progress = progress
-            db.session.commit()
-            raise
+            import traceback
+            error_details = traceback.format_exc()
+            self._log("ANAL", f"Batch analysis failed: {e}\n{error_details}", level='error')
+
+            # Mark as failed but preserve any partial results
+            try:
+                db.session.refresh(pipeline)
+                progress = pipeline.progress
+                progress['analysis']['status'] = 'failed'
+                progress['analysis']['error'] = str(e)
+
+                # If we have any partial results from before the crash, preserve them
+                if 'results' in progress.get('analysis', {}) and progress['analysis']['results']:
+                    self._log(
+                        "ANAL", f"Preserving {len(progress['analysis']['results'])} partial results despite failure",
+                        level='warning'
+                    )
+
+                pipeline.progress = progress
+                db.session.commit()
+            except Exception as db_error:
+                self._log("ANAL", f"Failed to update pipeline status: {db_error}", level='error')
+
+            # Don't re-raise - transition to done anyway to allow pipeline cleanup
+            # The error is already recorded in progress
+            self._log("ANAL", "Transitioning to done stage despite analysis failure", level='warning')
         
         # Transition to done
         self._transition_to_done(pipeline)

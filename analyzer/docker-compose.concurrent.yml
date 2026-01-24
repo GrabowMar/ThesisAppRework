@@ -1,0 +1,362 @@
+# Concurrent Analyzer Architecture - Horizontal Scaling
+# ======================================================
+#
+# This docker-compose runs MULTIPLE REPLICAS of each analyzer service
+# for true concurrent analysis processing.
+#
+# Architecture:
+# - 3 replicas of static-analyzer (ports 2001-2003)
+# - 2 replicas of dynamic-analyzer (ports 2011-2012)
+# - 2 replicas of performance-tester (ports 2021-2022)
+# - 2 replicas of ai-analyzer (ports 2031-2032)
+#
+# Each replica can handle 2-3 concurrent analyses internally.
+# Total capacity: ~20-30 concurrent analyses across all services.
+#
+# Usage:
+#   cd analyzer
+#   docker compose -f docker-compose.concurrent.yml up -d
+
+services:
+  # ===== STATIC ANALYZER REPLICAS (3x) =====
+  static-analyzer-1:
+    build:
+      context: ..
+      dockerfile: analyzer/services/static-analyzer/Dockerfile
+    ports:
+      - "2001:2001"
+    container_name: "static-analyzer-1"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2001
+      - MAX_CONCURRENT_ANALYSES=2
+      - PYTHONPATH=/app
+    volumes:
+      - ../generated/apps:/app/sources:ro
+      - ../results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  static-analyzer-2:
+    build:
+      context: ..
+      dockerfile: analyzer/services/static-analyzer/Dockerfile
+    ports:
+      - "2002:2001"
+    container_name: "static-analyzer-2"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2001
+      - MAX_CONCURRENT_ANALYSES=2
+      - PYTHONPATH=/app
+    volumes:
+      - ../generated/apps:/app/sources:ro
+      - ../results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  static-analyzer-3:
+    build:
+      context: ..
+      dockerfile: analyzer/services/static-analyzer/Dockerfile
+    ports:
+      - "2003:2001"
+    container_name: "static-analyzer-3"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2001
+      - MAX_CONCURRENT_ANALYSES=2
+      - PYTHONPATH=/app
+    volumes:
+      - ../generated/apps:/app/sources:ro
+      - ../results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # ===== DYNAMIC ANALYZER REPLICAS (2x) =====
+  dynamic-analyzer-1:
+    build:
+      context: ..
+      dockerfile: analyzer/services/dynamic-analyzer/Dockerfile
+    ports:
+      - "2011:2002"
+    container_name: "dynamic-analyzer-1"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2002
+      - MAX_CONCURRENT_ANALYSES=2
+      - PYTHONPATH=/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+      - thesis-apps-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  dynamic-analyzer-2:
+    build:
+      context: ..
+      dockerfile: analyzer/services/dynamic-analyzer/Dockerfile
+    ports:
+      - "2012:2002"
+    container_name: "dynamic-analyzer-2"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2002
+      - MAX_CONCURRENT_ANALYSES=2
+      - PYTHONPATH=/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+      - thesis-apps-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # ===== PERFORMANCE TESTER REPLICAS (2x) =====
+  performance-tester-1:
+    build:
+      context: ..
+      dockerfile: analyzer/services/performance-tester/Dockerfile
+    ports:
+      - "2021:2003"
+    container_name: "performance-tester-1"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2003
+      - MAX_CONCURRENT_ANALYSES=2
+      - PYTHONPATH=/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../results:/app/reports
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+      - thesis-apps-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  performance-tester-2:
+    build:
+      context: ..
+      dockerfile: analyzer/services/performance-tester/Dockerfile
+    ports:
+      - "2022:2003"
+    container_name: "performance-tester-2"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2003
+      - MAX_CONCURRENT_ANALYSES=2
+      - PYTHONPATH=/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../results:/app/reports
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+      - thesis-apps-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  # ===== AI ANALYZER REPLICAS (2x) =====
+  ai-analyzer-1:
+    build:
+      context: ..
+      dockerfile: analyzer/services/ai-analyzer/Dockerfile
+    ports:
+      - "2031:2004"
+    container_name: "ai-analyzer-1"
+    env_file:
+      - ../.env
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2004
+      - MAX_CONCURRENT_ANALYSES=2
+      - PYTHONPATH=/app
+    volumes:
+      - ../generated/apps:/app/sources:ro
+      - ../results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  ai-analyzer-2:
+    build:
+      context: ..
+      dockerfile: analyzer/services/ai-analyzer/Dockerfile
+    ports:
+      - "2032:2004"
+    container_name: "ai-analyzer-2"
+    env_file:
+      - ../.env
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2004
+      - MAX_CONCURRENT_ANALYSES=2
+      - PYTHONPATH=/app
+    volumes:
+      - ../generated/apps:/app/sources:ro
+      - ../results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  # ===== REDIS FOR TASK COORDINATION =====
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"
+    container_name: "analyzer-redis"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.2'
+
+networks:
+  analyzer-network:
+    name: "analyzer-network"
+    driver: bridge
+  thesis-apps-network:
+    external: true
+
+
+# ==================================================================
+# TOTAL CAPACITY WITH THIS ARCHITECTURE:
+# ==================================================================
+# Static Analysis:  3 replicas × 2 concurrent = 6 concurrent static analyses
+# Dynamic Analysis: 2 replicas × 2 concurrent = 4 concurrent dynamic analyses
+# Performance Test: 2 replicas × 2 concurrent = 4 concurrent perf tests
+# AI Analysis:      2 replicas × 2 concurrent = 4 concurrent AI analyses
+#
+# TOTAL: Up to 18 analyses running concurrently across all types
+# ==================================================================
