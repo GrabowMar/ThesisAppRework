@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Optional, Tuple, Dict, Any, List
 from dataclasses import dataclass
 import json
+import socket
+
 
 from app.extensions import db
 from app.models import PortConfiguration
@@ -192,10 +194,15 @@ class PortAllocationService:
         frontend_candidate = self.BASE_FRONTEND_PORT
         
         while backend_candidate < self.MAX_PORT and frontend_candidate < self.MAX_PORT:
-            # Check if both ports are free
+            # Check if both ports are free directly in DB *AND* on host OS
             if (backend_candidate not in used_backend_ports and 
                 frontend_candidate not in used_frontend_ports):
-                return backend_candidate, frontend_candidate
+                
+                # Perform OS-level check to ensure port is definitely free
+                # (prevents conflicts with other running apps/services)
+                if (self._is_port_free_on_host(backend_candidate) and 
+                    self._is_port_free_on_host(frontend_candidate)):
+                    return backend_candidate, frontend_candidate
             
             # Move to next port pair
             backend_candidate += self.PORT_STEP
@@ -204,6 +211,27 @@ class PortAllocationService:
         # Fallback: if we somehow exhausted the range, use a very high port
         logger.error("Exhausted standard port range, using fallback high ports")
         return 60000, 63000
+    
+    def _is_port_free_on_host(self, port: int) -> bool:
+        """Check if a port is free on the host OS by attempting to bind to it.
+        
+        Args:
+            port: Port number to check
+            
+        Returns:
+            True if port is free, False otherwise
+        """
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                # Set SO_REUSEADDR to avoid false negatives from TIME_WAIT states
+                # if we were the ones who just closed it (though here we want to know if it's busy)
+                # Actually, for checking availability, we generally don't want REUSEADDR
+                # because we want to know if *anyone* is using it.
+                s.bind(('0.0.0.0', port))
+                return True
+        except socket.error:
+            return False
+
     
     def _register_ports(self, model_name: str, app_num: int, 
                        backend_port: int, frontend_port: int) -> None:

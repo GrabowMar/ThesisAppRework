@@ -80,6 +80,18 @@ ANALYZER_SERVICE_PORTS: Dict[str, int] = {
     'ai-analyzer': 2004
 }
 
+# Tools that can run without app containers (static analysis)
+STATIC_ANALYSIS_TOOLS: Set[str] = {
+    'semgrep',
+    'bandit',
+    'eslint',
+    'flake8',
+    'mypy',
+    'pylint',
+    'safety',
+    'pip-audit',
+}
+
 
 class PipelineExecutionService:
     """Background service for executing automation pipelines.
@@ -1024,8 +1036,16 @@ class PipelineExecutionService:
         # container builds which are resource-intensive. User config is capped at 1.
         analysis_opts = config.get('analysis', {}).get('options', {})
         user_max_concurrent = progress.get('analysis', {}).get('max_concurrent', DEFAULT_MAX_CONCURRENT_TASKS)
-        # Force sequential for analysis (container builds are heavy)
-        max_concurrent = min(user_max_concurrent, 1)
+        # Respect user configuration for concurrency (defaulting to 1 if not set)
+        # WARNING: Running >1 concurrent analysis task requires significant resources
+        # due to parallel Docker builds/containers.
+        max_concurrent = user_max_concurrent
+        
+        if max_concurrent > 1:
+            self._log(
+                "ANAL", f"Parallel analysis enabled (max_concurrent={max_concurrent}). This may consume significant resources.",
+                level='warning'
+            )
         
         # Initialize tracking for this pipeline (thread-safe)
         with _pipeline_state_lock:
@@ -1377,6 +1397,28 @@ class PipelineExecutionService:
             if not tools:
                 tools = [t.name for t in all_tools.values() if t.available]
             
+            # [FALLBACK] If containers failed to build/start, downgrade to static analysis only
+            if container_failed:
+                original_tool_count = len(tools)
+                # Filter to only keep static tools (case-insensitive check)
+                tools = [t for t in tools if t.lower() in STATIC_ANALYSIS_TOOLS]
+                
+                self._log(
+                    "ANAL", 
+                    f"Container startup failed - downgrading to static analysis only. "
+                    f"Filtered tools from {original_tool_count} to {len(tools)} (kept: {', '.join(tools)})", 
+                    level='warning'
+                )
+                
+                if not tools:
+                    # If no tools remain (i.e., user only selected dynamic tools), we must fail the task
+                    self._log("ANAL", "No static tools selected and containers failed - cannot proceed.", level='error')
+                    task_registry.release_claim(model_slug, app_number, pipeline_id)
+                    error_marker = 'error:containers_failed_no_static_tools'
+                    pipeline.add_analysis_task_id(error_marker, success=False,
+                                                  model_slug=model_slug, app_number=app_number)
+                    return error_marker
+
             # ========== MATCH API BEHAVIOR: Resolve tools and group by service ==========
             # Build lookup: name (case-insensitive) -> tool object
             tools_lookup = {t.name.lower(): t for t in all_tools.values()}
@@ -1519,17 +1561,9 @@ class PipelineExecutionService:
             True if any tool requires analyzer containers, False if all are static
         """
         # Tools that run without analyzer containers (static analysis)
-        STATIC_TOOLS = {
-            'semgrep',
-            'bandit',
-            'eslint',
-            'flake8',
-            'mypy',
-            'pylint',
-            'safety',
-            'pip-audit',
-        }
-
+        # Tools that run without analyzer containers (static analysis)
+        # Uses module-level constant STATIC_ANALYSIS_TOOLS
+        
         # If no tools specified, assume containers needed (conservative)
         if not tools:
             return True
@@ -1538,7 +1572,7 @@ class PipelineExecutionService:
         selected_tool_set = set(tools)
 
         # If all selected tools are static, no containers needed
-        return not selected_tool_set.issubset(STATIC_TOOLS)
+        return not selected_tool_set.issubset(STATIC_ANALYSIS_TOOLS)
 
     def _check_analyzers_running(self) -> bool:
         """Quick check if analyzer containers are running (no auto-start)."""
