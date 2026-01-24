@@ -83,7 +83,7 @@ class ConcurrentGenerationRunner:
     
     def __init__(
         self, 
-        max_concurrent: int = 2,
+        max_concurrent: int = 5,
         inter_job_delay: float = 1.0,
         on_progress: Optional[Callable[[int, int, ConcurrentJobResult], None]] = None
     ):

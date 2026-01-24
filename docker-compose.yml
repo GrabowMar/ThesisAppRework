@@ -9,7 +9,7 @@ services:
       dockerfile: Dockerfile
     # Grant access to Docker socket (socket is owned by root:root on most hosts)
     group_add:
-      - "0"  # root group for Docker socket access
+      - "0" # root group for Docker socket access
     ports:
       - "5000:5000"
     environment:
@@ -23,6 +23,11 @@ services:
       - PYTHONUNBUFFERED=1
       # Docker environment flag for inter-container communication
       - IN_DOCKER=true
+      # Load balancing configuration
+      - STATIC_ANALYZER_URLS=ws://static-analyzer:2001,ws://static-analyzer-2:2001,ws://static-analyzer-3:2001
+      - DYNAMIC_ANALYZER_URLS=ws://dynamic-analyzer:2002,ws://dynamic-analyzer-2:2002
+      - PERF_TESTER_URLS=ws://performance-tester:2003,ws://performance-tester-2:2003
+      - AI_ANALYZER_URLS=ws://ai-analyzer:2004,ws://ai-analyzer-2:2004
       # Celery configuration for Docker environment
       - USE_CELERY_ANALYSIS=true
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -44,7 +49,7 @@ services:
       # Docker socket for managing generated app containers (rw required for container operations)
       - /var/run/docker.sock:/var/run/docker.sock:rw
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:5000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -67,7 +72,7 @@ services:
     ports:
       - "6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -82,7 +87,7 @@ services:
       dockerfile: Dockerfile
     # Grant access to Docker socket (socket is owned by root:root on most hosts)
     group_add:
-      - "0"  # root group for Docker socket access
+      - "0" # root group for Docker socket access
     command: >
       bash -c "
         echo 'Waiting for database initialization...';
@@ -106,6 +111,11 @@ services:
       - PYTHONUNBUFFERED=1
       # Docker environment flag for inter-container communication
       - IN_DOCKER=true
+      # Load balancing configuration
+      - STATIC_ANALYZER_URLS=ws://static-analyzer:2001,ws://static-analyzer-2:2001,ws://static-analyzer-3:2001
+      - DYNAMIC_ANALYZER_URLS=ws://dynamic-analyzer:2002,ws://dynamic-analyzer-2:2002
+      - PERF_TESTER_URLS=ws://performance-tester:2003,ws://performance-tester-2:2003
+      - AI_ANALYZER_URLS=ws://ai-analyzer:2004,ws://ai-analyzer-2:2004
       # Enable pipeline service in celery-worker - this is the ONLY container that should process pipelines
       - ENABLE_PIPELINE_SERVICE=true
     volumes:
@@ -123,7 +133,7 @@ services:
       web:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "celery -A app.celery_worker.celery inspect ping --timeout 10 | grep -q 'pong'"]
+      test: [ "CMD-SHELL", "celery -A app.celery_worker.celery inspect ping --timeout 10 | grep -q 'pong'" ]
       interval: 30s
       timeout: 15s
       retries: 5
@@ -159,7 +169,7 @@ services:
       - performance-tester
       - ai-analyzer
     healthcheck:
-      test: ["CMD", "python", "-c", "import asyncio, websockets; asyncio.run(websockets.connect('ws://localhost:8765').__aenter__())"]
+      test: [ "CMD", "python", "-c", "import asyncio, websockets; asyncio.run(websockets.connect('ws://localhost:8765').__aenter__())" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -190,7 +200,7 @@ services:
       - ./generated/apps:/app/sources:ro
       - ./results:/app/results
     healthcheck:
-      test: ["CMD", "python", "health_check.py"]
+      test: [ "CMD", "python", "health_check.py" ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -222,7 +232,7 @@ services:
     volumes:
       - ./results:/app/results
     healthcheck:
-      test: ["CMD", "python", "health_check.py"]
+      test: [ "CMD", "python", "health_check.py" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -255,7 +265,7 @@ services:
     volumes:
       - ./results:/app/reports
     healthcheck:
-      test: ["CMD", "python", "health_check.py"]
+      test: [ "CMD", "python", "health_check.py" ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -288,11 +298,158 @@ services:
       - ./generated/apps:/app/sources:ro
       - ./results:/app/results
     healthcheck:
-      test: ["CMD", "python", "health_check.py"]
+      test: [ "CMD", "python", "health_check.py" ]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 20s
+    restart: unless-stopped
+    networks:
+      - thesis-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  # ===== REPLICAS FOR CONCURRENCY =====
+
+  static-analyzer-2:
+    build:
+      context: .
+      dockerfile: analyzer/services/static-analyzer/Dockerfile
+    ports:
+      - "2051:2001"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2001
+      - PYTHONPATH=/app
+    volumes:
+      - ./generated/apps:/app/sources:ro
+      - ./results:/app/results
+    healthcheck:
+      test: [ "CMD", "python", "health_check.py" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - thesis-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  static-analyzer-3:
+    build:
+      context: .
+      dockerfile: analyzer/services/static-analyzer/Dockerfile
+    ports:
+      - "2052:2001"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2001
+      - PYTHONPATH=/app
+    volumes:
+      - ./generated/apps:/app/sources:ro
+      - ./results:/app/results
+    healthcheck:
+      test: [ "CMD", "python", "health_check.py" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - thesis-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  dynamic-analyzer-2:
+    build:
+      context: .
+      dockerfile: analyzer/services/dynamic-analyzer/Dockerfile
+    ports:
+      - "2053:2002"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2002
+      - PYTHONPATH=/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./results:/app/results
+    healthcheck:
+      test: [ "CMD", "python", "health_check.py" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - thesis-network
+      - thesis-apps-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  performance-tester-2:
+    build:
+      context: .
+      dockerfile: analyzer/services/performance-tester/Dockerfile
+    ports:
+      - "2054:2003"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2003
+      - PYTHONPATH=/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./results:/app/reports
+    healthcheck:
+      test: [ "CMD", "python", "health_check.py" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - thesis-network
+      - thesis-apps-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  ai-analyzer-2:
+    build:
+      context: .
+      dockerfile: analyzer/services/ai-analyzer/Dockerfile
+    ports:
+      - "2055:2004"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2004
+      - PYTHONPATH=/app
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    volumes:
+      - ./generated/apps:/app/sources:ro
+      - ./results:/app/results
+    healthcheck:
+      test: [ "CMD", "python", "health_check.py" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
     networks:
       - thesis-network

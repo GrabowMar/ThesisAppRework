@@ -25,6 +25,11 @@
 .PARAMETER Background
     Run services in background without interactive console
 
+.PARAMETER Concurrent
+    Start analyzer services in concurrent mode with horizontal scaling.
+    Deploys multiple replicas: 3x static, 2x dynamic, 2x performance, 2x AI analyzers.
+    Total capacity: ~18 simultaneous analyses vs ~4 in standard mode.
+
 .PARAMETER Port
     Flask application port (default: 5000)
 
@@ -38,6 +43,10 @@
 .EXAMPLE
     .\start.ps1 -Mode Start
     # Start full stack with live monitoring
+
+.EXAMPLE
+    .\start.ps1 -Mode Start -Concurrent
+    # Start with concurrent analyzer mode (9 replicas, high capacity)
 
 .EXAMPLE
     .\start.ps1 -Mode Dev -NoAnalyzer
@@ -57,6 +66,7 @@ param(
     [switch]$NoAnalyzer,
     [switch]$NoFollow,
     [switch]$Background,
+    [switch]$Concurrent,
     [int]$Port = 5000
 )
 
@@ -83,13 +93,21 @@ $Script:CONFIG = @{
         Color          = "Cyan"
     }
     Analyzers = @{
-        Name        = "Analyzers"
-        PidFile     = Join-Path $RUN_DIR "analyzer.pid"
-        LogFile     = Join-Path $LOGS_DIR "analyzer.log"
-        Services    = @('static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer')
-        Ports       = @(2001, 2002, 2003, 2004)
-        StartupTime = 15
-        Color       = "Green"
+        Name                  = "Analyzers"
+        PidFile               = Join-Path $RUN_DIR "analyzer.pid"
+        LogFile               = Join-Path $LOGS_DIR "analyzer.log"
+        Services              = @('static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer')
+        Ports                 = @(2001, 2002, 2003, 2004)
+        StartupTime           = 15
+        Color                 = "Green"
+        # Concurrent mode configuration for horizontal scaling
+        ConcurrentPorts       = @{
+            'static-analyzer'    = @(2001, 2002, 2003)
+            'dynamic-analyzer'   = @(2011, 2012)
+            'performance-tester' = @(2021, 2022)
+            'ai-analyzer'        = @(2031, 2032)
+        }
+        ConcurrentComposeFile = "docker-compose.concurrent.yml"
     }
 }
 
@@ -479,12 +497,67 @@ function Start-AnalyzerServices {
         return $true
     }
 
-    Write-Status "Starting analyzer microservices..." "Info"
+    # Determine compose file and target directory
+    $composeFile = "docker-compose.yml"
+    $targetDir = $Script:ROOT_DIR
+    $expectedServices = 4
+    $modeLabel = "Standard"
+    $servicesToStart = @()
     
-    Push-Location $Script:ANALYZER_DIR
+    if ($Concurrent) {
+        $targetDir = $Script:ANALYZER_DIR
+        $composeFile = $Script:CONFIG.Analyzers.ConcurrentComposeFile
+        $expectedServices = 9  # 3+2+2+2 replicas
+        $modeLabel = "Concurrent (Horizontal Scaling)"
+        
+        Write-Status "Starting analyzers in CONCURRENT mode with horizontal scaling..." "Info"
+        Write-Host "  📊 Deploying 9 analyzer replicas:" -ForegroundColor Cyan
+        Write-Host "     • 3× static-analyzer  (ports 2001-2003)" -ForegroundColor Gray
+        Write-Host "     • 2× dynamic-analyzer (ports 2011-2012)" -ForegroundColor Gray
+        Write-Host "     • 2× performance-tester (ports 2021-2022)" -ForegroundColor Gray
+        Write-Host "     • 2× ai-analyzer (ports 2031-2032)" -ForegroundColor Gray
+        Write-Host ""
+        
+        # Set environment variables for pooled connections
+        $env:STATIC_ANALYZER_URLS = "ws://localhost:2001,ws://localhost:2002,ws://localhost:2003"
+        $env:DYNAMIC_ANALYZER_URLS = "ws://localhost:2011,ws://localhost:2012"
+        $env:PERF_TESTER_URLS = "ws://localhost:2021,ws://localhost:2022"
+        $env:AI_ANALYZER_URLS = "ws://localhost:2031,ws://localhost:2032"
+    }
+    else {
+        Write-Status "Starting analyzer microservices (Standard mode via Root Stack)..." "Info"
+        # In Standard mode, we use the root compose but only start analyzer services + redis
+        $servicesToStart = @('analyzer-gateway', 'static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer', 'redis')
+    }
+    
+    # CLEANUP: Ensure legacy analyzer stack is down
+    if (Test-Path (Join-Path $Script:ANALYZER_DIR "docker-compose.yml")) {
+        Push-Location $Script:ANALYZER_DIR
+        docker compose -f docker-compose.yml down --remove-orphans 2>$null | Out-Null
+        Pop-Location
+    }
+    
+    # Also stop concurrent stack if we are in standard mode
+    if (-not $Concurrent -and (Test-Path (Join-Path $Script:ANALYZER_DIR $Script:CONFIG.Analyzers.ConcurrentComposeFile))) {
+        Push-Location $Script:ANALYZER_DIR
+        docker compose -f $Script:CONFIG.Analyzers.ConcurrentComposeFile down --remove-orphans 2>$null | Out-Null
+        Pop-Location
+    }
+
+    Push-Location $targetDir
     try {
-        # Start all analyzer services
-        docker-compose up -d 2>&1 | Out-File -FilePath $Script:CONFIG.Analyzers.LogFile -Append
+        # Check if compose file exists
+        if (-not (Test-Path $composeFile)) {
+            Write-Status "  Compose file not found: $composeFile (in $targetDir)" "Error"
+            return $false
+        }
+        
+        # Start analyzer services
+        # Note: In concurrent mode $servicesToStart is empty so it starts all (which is correct for that file)
+        # In standard mode it lists specific services to avoid starting 'web' and 'celery-worker'
+        $cmdArgs = @("compose", "-f", $composeFile, "up", "-d") + $servicesToStart
+        
+        docker @cmdArgs 2>&1 | Out-File -FilePath $Script:CONFIG.Analyzers.LogFile -Append
         
         if ($LASTEXITCODE -ne 0) {
             Write-Status "  Failed to start analyzer services" "Error"
@@ -492,7 +565,7 @@ function Start-AnalyzerServices {
         }
 
         # Wait for services to be ready
-        $maxWait = $Script:CONFIG.Analyzers.StartupTime
+        $maxWait = if ($Concurrent) { 30 } else { $Script:CONFIG.Analyzers.StartupTime }
         $waited = 0
         
         Write-Host "  Waiting for services" -NoNewline -ForegroundColor Cyan
@@ -501,30 +574,49 @@ function Start-AnalyzerServices {
             $waited++
             Write-Host "." -NoNewline -ForegroundColor Yellow
             
-            $services = docker-compose ps --services --filter status=running 2>$null
-            if ($services -and $services.Count -ge 4) {
+            $services = docker compose -f $composeFile ps --services --filter status=running 2>$null
+            $runningCount = if ($services) { ($services | Measure-Object).Count } else { 0 }
+            
+            if ($runningCount -ge $expectedServices) {
                 Write-Host ""
-                Write-Status "  Analyzer services started (${waited}s)" "Success"
+                Write-Status "  Analyzer services started (${waited}s) - Mode: $modeLabel" "Success"
                 
                 # Show service status
                 $services | ForEach-Object {
                     Write-Host "    • $_" -ForegroundColor Green
                 }
                 
+                if ($Concurrent) {
+                    Write-Host ""
+                    Write-Host "  🚀 Total concurrent analysis capacity: ~18 simultaneous analyses" -ForegroundColor Cyan
+                }
+                
+                # Store PID/mode info
                 $Script:Services.Analyzers.UpdateStatus('Running', 'Healthy')
-                "analyzer-compose" | Out-File -FilePath $Script:CONFIG.Analyzers.PidFile -Encoding ASCII
+                $Script:Services.Analyzers.Metadata['Mode'] = $modeLabel
+                $Script:Services.Analyzers.Metadata['ServiceCount'] = $runningCount
+                
+                # Save mode info to pid file for stop command
+                $modeInfo = @{
+                    compose_file = $composeFile
+                    directory    = $targetDir  # Need directory to knowing where to stop from
+                    mode         = if ($Concurrent) { "concurrent" } else { "standard" }
+                } | ConvertTo-Json -Compress
+                $modeInfo | Out-File -FilePath $Script:CONFIG.Analyzers.PidFile -Encoding ASCII
+                
                 return $true
             }
         }
 
         Write-Host ""
-        Write-Status "  Some analyzer services may not have started" "Warning"
+        Write-Status "  Some analyzer services may not have started (got $runningCount/$expectedServices)" "Warning"
         return $true
     }
     finally {
         Pop-Location
     }
 }
+
 
 function Start-FlaskApp {
     Write-Status "Starting Flask application..." "Info"
@@ -585,11 +677,53 @@ function Stop-Service {
     $config = $Script:CONFIG[$ServiceName]
     
     if ($ServiceName -eq 'Analyzers') {
-        # Docker services
-        Push-Location $Script:ANALYZER_DIR
+        # Docker services - read mode info from pid file
+        $composeFile = "docker-compose.yml"
+        $targetDir = $Script:ANALYZER_DIR
+        
+        if ($config.PidFile -and (Test-Path $config.PidFile)) {
+            try {
+                $modeInfo = Get-Content $config.PidFile -Raw | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($modeInfo.compose_file) {
+                    $composeFile = $modeInfo.compose_file
+                }
+                if ($modeInfo.directory) {
+                    $targetDir = $modeInfo.directory
+                }
+            }
+            catch {
+                # Fall back to default if JSON parsing fails
+            }
+        }
+        
+        Push-Location $targetDir
         try {
-            docker-compose stop 2>$null | Out-Null
-            Write-Status "  $ServiceName stopped" "Success"
+            # Use specific services if we are in standard mode (Root stack) to avoid stopping web/celery?
+            # Actually 'stop' stops specific services if listed?
+            # But earlier we did 'up -d service1 service2'.
+            # If we run 'docker compose stop', it stops ALL services defined in the file that are running.
+            # If we are using Root Compose, 'stop' might stop web/celery?
+            # Yes, if they are running.
+            
+            # BUT 'Stop-Service Analyzers' is usually called when stopping just Analyzers.
+            # If we are in 'Local' mode, Web is running as a PROCESS, not container.
+            # So stopping Root Compose containers won't affect Web Process.
+            # If we are in 'Start' mode (Full Docker), 'Stop-AllServices' calls 'Stop-DockerStack' anyway?
+            
+            # Let's see Stop-AllServices (line 778):
+            # if (Test-Path $modeFile) { Stop-DockerStack }
+            # else { Stop-Service Flask; Stop-Service Analyzers }
+            
+            # If we are in Local mode (Start-LocalStack):
+            # We used Start-AnalyzerServices (which now uses Root Compose).
+            # We want to stop ONLY analyzer containers?
+            # 'docker compose stop' stops defined services.
+            # If 'web' is not running (because we didn't start it), 'stop' does nothing to it.
+            # If 'web' IS running (e.g. from a previous Start run), 'stop' will stop it.
+            # This is probably fine. 'Stop-Service Analyzers' implies stopping the containers.
+            
+            docker compose -f $composeFile stop 2>$null | Out-Null
+            Write-Status "  $ServiceName stopped (compose: $composeFile)" "Success"
         }
         finally {
             Pop-Location

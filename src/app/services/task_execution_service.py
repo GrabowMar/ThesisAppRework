@@ -79,7 +79,13 @@ class TaskExecutionService:
     In tests we shorten delays to keep suite fast (< 1s per task).
     """
 
-    def __init__(self, poll_interval: float = 5.0, batch_size: int = 5, app=None, max_workers: int = 8):
+    def __init__(
+        self, 
+        poll_interval: float = 5.0, 
+        batch_size: int = 5, 
+        app=None, 
+        max_workers: int = 20  # Increased to support concurrent analyzer pool
+    ):
         self.poll_interval = poll_interval
         self.batch_size = batch_size
         self.max_workers = max_workers

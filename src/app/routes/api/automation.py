@@ -481,6 +481,49 @@ def api_get_tools():
         return api_error(str(exc), 500)
 
 
+@automation_api_bp.route('/capacity', methods=['GET'])
+def api_get_capacity():
+    """Get analysis concurrency capacity based on available replicas."""
+    try:
+        total_capacity = 0
+        breakdown = {}
+        
+        # Check environment variables for replica URLs
+        # Format: ws://host:port,ws://host2:port2,...
+        env_vars = {
+            'static': 'STATIC_ANALYZER_URLS', 
+            'dynamic': 'DYNAMIC_ANALYZER_URLS',
+            'performance': 'PERF_TESTER_URLS',
+            'ai': 'AI_ANALYZER_URLS'
+        }
+        
+        for key, env_var in env_vars.items():
+            val = os.environ.get(env_var, '')
+            if val:
+                urls = [u for u in val.split(',') if u.strip()]
+                count = len(urls)
+            else:
+                # Default to 1 if not specified (assuming standard single container)
+                count = 1
+            
+            breakdown[key] = count
+            total_capacity += count
+            
+        # Minimal sanity check
+        if total_capacity < 1:
+            total_capacity = 1
+
+        return api_success(data={
+            'total': total_capacity, 
+            'breakdown': breakdown,
+            'recommended_max': total_capacity  # Simple heuristic
+        })
+
+    except Exception as exc:
+        logger.exception("Error calculating capacity")
+        return api_error(str(exc), 500)
+
+
 @automation_api_bp.route('/analyzer/status', methods=['GET'])
 def api_analyzer_status():
     """Get status of analyzer containers."""

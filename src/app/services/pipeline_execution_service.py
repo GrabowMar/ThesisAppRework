@@ -57,10 +57,10 @@ _pipeline_state_lock = threading.RLock()
 # IMPORTANT: Analysis concurrency is limited to avoid overwhelming the server with container builds
 # The ConcurrentAnalysisRunner has smart semaphore-based batching for container builds (max 2)
 # so we can safely run 2-3 analyses concurrently without resource exhaustion
-DEFAULT_MAX_CONCURRENT_TASKS: int = 2  # Moderate concurrency for analysis (up from 1)
-DEFAULT_MAX_CONCURRENT_GENERATION: int = 2  # Parallel generation (original working config)
-MAX_ANALYSIS_WORKERS: int = 4  # ThreadPool size for analysis
-MAX_GENERATION_WORKERS: int = 4  # ThreadPool size for generation
+DEFAULT_MAX_CONCURRENT_TASKS: int = 2  # Default analysis concurrency (overridden by dynamic capacity)
+DEFAULT_MAX_CONCURRENT_GENERATION: int = 5  # Increased default for parallel generation
+MAX_ANALYSIS_WORKERS: int = 20  # Increased thread pool to support high concurrency
+MAX_GENERATION_WORKERS: int = 10  # Increased thread pool for generation
 
 # Timing constants (seconds)
 DEFAULT_POLL_INTERVAL: float = 3.0  # Polling interval for work
@@ -1075,6 +1075,53 @@ class PipelineExecutionService:
         
         self._log("CLEANUP", f"Cleaned up generation tracking for pipeline {pipeline_id}", level='debug')
     
+    def _get_dynamic_analysis_capacity(self) -> int:
+        """Calculate analysis capacity based on available container resources.
+        
+        Dynamically adjusts concurrency based on the number of active analyzer replicas.
+        """
+        try:
+            from app.services.analyzer_manager_wrapper import AnalyzerManager
+            
+            # Check if using PooledAnalyzerManager (has get_pool_stats)
+            if AnalyzerManager and hasattr(AnalyzerManager, 'get_pool_stats'):
+                # Instantiate manager to access pool stats
+                manager = AnalyzerManager()
+                
+                # Execute async method synchronously
+                import asyncio
+                if asyncio.iscoroutinefunction(manager.get_pool_stats):
+                    stats = asyncio.run(manager.get_pool_stats())
+                else:
+                    stats = manager.get_pool_stats()
+                
+                if isinstance(stats, dict) and 'error' not in stats:
+                    # Sum up healthy endpoints across all services
+                    total_capacity = 0
+                    for service_name, service_stats in stats.items():
+                        if isinstance(service_stats, dict):
+                            # We can run parallel tasks equal to total healthy endpoints
+                            # e.g. 3 static + 2 dynamic + 2 perf + 2 ai = 9 concurrent slots
+                            total_capacity += service_stats.get('healthy_endpoints', 0)
+                    
+                    if total_capacity > 0:
+                        # Apply a multiplier? No, let's stick to 1:1 mapping for safety first,
+                        # but multiply by 2 since most tools are IO bound? 
+                        # Actually ConcurrentAnalysisRunner manages tasks, and tasks block on IO.
+                        # The pool manages the queuing. 
+                        # So we can set the concurrency limit high (e.g. 2x capacity)
+                        # and let the pool queue requests.
+                        # But for now, let's use exact capacity to be safe and responsive.
+                        effective_capacity = total_capacity * 2  # 2x capacity for queuing efficiency
+                        
+                        self._log("ANAL", f"Detected dynamic analysis capacity: {total_capacity} endpoints -> {effective_capacity} concurrent slots")
+                        return effective_capacity
+                        
+        except Exception as e:
+            self._log("ANAL", f"Failed to detect dynamic capacity: {e}", level='debug')
+            
+        return DEFAULT_MAX_CONCURRENT_TASKS
+
     def _process_analysis_stage(self, pipeline: PipelineExecution):
         """Process analysis stage using ConcurrentAnalysisRunner.
         
@@ -1121,7 +1168,19 @@ class PipelineExecutionService:
         
         # Get concurrency settings
         analysis_opts = analysis_config.get('options', {})
-        max_concurrent = analysis_opts.get('maxConcurrentTasks', DEFAULT_MAX_CONCURRENT_TASKS)
+        config_limit = analysis_opts.get('maxConcurrentTasks', DEFAULT_MAX_CONCURRENT_TASKS)
+        
+        # Dynamic capacity detection (use dynamic if available, otherwise config default)
+        dynamic_capacity = self._get_dynamic_analysis_capacity()
+        
+        # If dynamic capacity was detected (> default), use it.
+        # Otherwise respect the config limit (which defaults to 2).
+        # We take the MAX to allow scaling up, but if dynamic is default (2) and config is lower, use config?
+        # No, if dynamic is 18, we want 18.
+        max_concurrent = max(dynamic_capacity, config_limit)
+        
+        if max_concurrent > config_limit:
+             self._log("ANAL", f"Using dynamic concurrency: {max_concurrent} (config limit: {config_limit})")
         tools = analysis_config.get('tools', [])
         auto_start_containers = analysis_opts.get('autoStartContainers', True)
         

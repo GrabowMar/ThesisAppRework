@@ -18,10 +18,15 @@ logger = get_logger('analyzer_wrapper')
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / 'analyzer'))
 
 try:
-    from analyzer_manager import AnalyzerManager  # type: ignore[import-not-found]
-except ImportError as e:
-    logger.error(f"Failed to import analyzer_manager: {e}")
-    AnalyzerManager = None  # type: ignore
+    # Use the pooled version for concurrent analysis with load balancing
+    from analyzer_manager_pooled import PooledAnalyzerManager as AnalyzerManager  # type: ignore[import-not-found]
+except ImportError:
+    # Fall back to standard analyzer manager if pooled version not available
+    try:
+        from analyzer_manager import AnalyzerManager  # type: ignore[import-not-found]
+    except ImportError as e:
+        logger.error(f"Failed to import analyzer_manager: {e}")
+        AnalyzerManager = None  # type: ignore
 
 
 class AnalyzerManagerWrapper:
