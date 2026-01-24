@@ -24,6 +24,18 @@ from typing import List, Dict, Any, Optional, Callable
 
 logger = logging.getLogger(__name__)
 
+# Tools that can run without app containers (static analysis)
+STATIC_ANALYSIS_TOOLS = {
+    'semgrep',
+    'bandit',
+    'eslint',
+    'flake8',
+    'mypy',
+    'pylint',
+    'safety',
+    'pip-audit',
+}
+
 
 @dataclass
 class AnalysisJobSpec:
@@ -300,6 +312,28 @@ class ConcurrentAnalysisRunner:
         
         for idx, job in enumerate(jobs):
             try:
+                # Check if containers are ready; if not, downgrade to static analysis only
+                final_tools = job.tools or []
+                
+                if not job.containers_ready:
+                    # Filter to only keep static tools
+                    original_count = len(final_tools)
+                    final_tools = [t for t in final_tools if t.lower() in STATIC_ANALYSIS_TOOLS]
+                    
+                    if original_count > len(final_tools):
+                        logger.warning(
+                            f"Containers not ready for {job.model_slug}/app{job.app_number} - "
+                            f"downgraded to static analysis only (dropped {original_count - len(final_tools)} tools)"
+                        )
+                    
+                    # If no tools remain, skip this job
+                    if not final_tools:
+                        logger.error(
+                            f"Skipping {job.model_slug}/app{job.app_number}: containers failed and no static tools selected"
+                        )
+                        job.task_id = None # Signal failure
+                        continue
+
                 logger.debug(f"Creating task for {job.model_slug}/app{job.app_number}...")
                 
                 # Build custom options
@@ -307,20 +341,21 @@ class ConcurrentAnalysisRunner:
                     'source': 'concurrent_analysis_runner',
                     'pipeline_id': job.pipeline_id,
                     'container_management': {
-                        'start_before_analysis': False,  # Already built
+                        'start_before_analysis': False,  # Already built (or failed)
                         'build_if_missing': False,
                         'stop_after_analysis': True,
                     }
                 }
                 
-                if job.tools:
-                    custom_options['selected_tool_names'] = job.tools
+                # Use the filtered tool list
+                if final_tools:
+                    custom_options['selected_tool_names'] = final_tools
                 
                 # Create main task with subtasks
                 task = AnalysisTaskService.create_main_task_with_subtasks(
                     model_slug=job.model_slug,
                     app_number=job.app_number,
-                    tools=job.tools or [],
+                    tools=final_tools,
                     priority='normal',
                     custom_options=custom_options,
                     task_name=f"concurrent:{job.model_slug}:app{job.app_number}"

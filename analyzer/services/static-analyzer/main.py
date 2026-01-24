@@ -517,8 +517,12 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 confidence = bandit_config.get('confidence', 'medium')
             
             exclude_arg = ','.join(str(source_path / d) for d in exclude_dirs)
+            import uuid
+            unique_id = str(uuid.uuid4())
+            bandit_output_file = f'/tmp/bandit_output_{unique_id}.sarif'
+            
             # Use native SARIF format output
-            cmd = ['bandit', '-r', str(source_path), '-x', exclude_arg, '-f', 'sarif', '-o', '/tmp/bandit_output.sarif']
+            cmd = ['bandit', '-r', str(source_path), '-x', exclude_arg, '-f', 'sarif', '-o', bandit_output_file]
             
             # Add severity and confidence filters
             if severity and severity != 'all':
@@ -531,24 +535,31 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 cmd.extend(['--skip', ','.join(skips)])
 
             # Run and read SARIF output
+            # Run and read SARIF output
             result = await self._run_tool(cmd, 'bandit', config=bandit_config, success_exit_codes=[0, 1], skip_parser=True)
             if result.get('status') != 'error':
                 try:
-                    with open('/tmp/bandit_output.sarif', 'r') as f:
-                        sarif_data = json.load(f)
-                        result['sarif'] = sarif_data
-                        result['format'] = 'sarif'
-                        # Extract issue count from SARIF
-                        total_issues = 0
-                        if 'runs' in sarif_data:
-                            for run in sarif_data['runs']:
-                                total_issues += len(run.get('results', []))
-                        result['total_issues'] = total_issues
-                        result['issue_count'] = total_issues  # Match total_issues for consistent display
-                        # NOTE: issues[] array intentionally left empty for SARIF-native tools
-                        # Full issue details are in the SARIF file (extracted to sarif/ subdirectory)
-                        # This saves 60-80% space by avoiding duplication
-                        result['issues'] = []  # Explicit - data is in SARIF file
+                    if os.path.exists(bandit_output_file):
+                        with open(bandit_output_file, 'r') as f:
+                            sarif_data = json.load(f)
+                            result['sarif'] = sarif_data
+                            result['format'] = 'sarif'
+                            # Extract issue count from SARIF
+                            total_issues = 0
+                            if 'runs' in sarif_data:
+                                for run in sarif_data['runs']:
+                                    total_issues += len(run.get('results', []))
+                            result['total_issues'] = total_issues
+                            result['issue_count'] = total_issues
+                            result['issues'] = []
+                        
+                        # Clean up temp file
+                        try:
+                            os.unlink(bandit_output_file)
+                        except Exception:
+                            pass
+                    else:
+                        self.log.warning(f"Bandit output file not found: {bandit_output_file}")
                 except Exception as e:
                     self.log.warning(f"Could not read bandit SARIF output: {e}")
             results['bandit'] = result
@@ -705,8 +716,12 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 max_files = mypy_config.get('max_files', 10)
             
             # Build command with enhanced type checking options
+            import uuid
+            unique_id_mypy = str(uuid.uuid4())
+            mypy_cache_dir = f'/tmp/mypy_cache_{unique_id_mypy}'
+            
             cmd = ['mypy', '--output', 'json', '--show-error-codes', '--no-error-summary',
-                   '--no-incremental', '--cache-dir', '/tmp/mypy_cache']
+                   '--no-incremental', '--cache-dir', mypy_cache_dir]
             
             # Add strict mode flags
             if use_strict:
@@ -726,7 +741,18 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
 
             # MyPy with JSON format (exit codes: 0=no issues, 1=issues found, 2=fatal error)
             # Parser now handles newline-delimited JSON natively
-            results['mypy'] = await self._run_tool(cmd, 'mypy', config=mypy_config, success_exit_codes=[0, 1])
+            # MyPy with JSON format (exit codes: 0=no issues, 1=issues found, 2=fatal error)
+            # Parser now handles newline-delimited JSON natively
+            mypy_result = await self._run_tool(cmd, 'mypy', config=mypy_config, success_exit_codes=[0, 1])
+            results['mypy'] = mypy_result
+            
+            # Clean up cache dir
+            try:
+                import shutil
+                if os.path.exists(mypy_cache_dir):
+                    shutil.rmtree(mypy_cache_dir, ignore_errors=True)
+            except Exception as e:
+                self.log.debug(f"Failed to clean up mypy cache: {e}")
 
         # Find requirements file (used by both safety and pip-audit)
         requirements_locations = [

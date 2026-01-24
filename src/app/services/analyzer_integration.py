@@ -34,6 +34,13 @@ from ..models import AnalysisResult
 from ..constants import AnalysisType
 
 
+from ..constants import AnalysisType
+
+try:
+    from flask import current_app
+except ImportError:
+    current_app = None
+
 logger = get_logger('analyzer_integration')
 
 # Map analysis types to their circuit breakers
@@ -200,6 +207,46 @@ class AnalysisExecutor:
     def __init__(self, connection_manager: ConnectionManager):
         self.connection_manager = connection_manager
         self.active_analyses: Dict[str, Dict[str, Any]] = {}
+        
+        # Capture app context if we are in one (to propagate to threads)
+        self.app = None
+        if current_app:
+            try:
+                # Get the real app object, not the proxy
+                self.app = current_app._get_current_object()
+                logger.debug("Captured Flask app context for analyzer executor")
+            except Exception as e:
+                logger.warning(f"Could not capture Flask app object: {e}")
+
+    async def _run_db_op(self, func: Callable[..., Any], *args, **kwargs) -> Any:
+        """Run a DB operation in a thread with proper app context."""
+        
+        def wrapper():
+            # If we captured an app, push its context
+            ctx = None
+            if self.app:
+                ctx = self.app.app_context()
+                ctx.push()
+            elif not current_app:
+                # Fallback: try to create a new app if we have none
+                try:
+                    from app import create_app
+                    app = create_app()
+                    ctx = app.app_context()
+                    ctx.push()
+                except Exception as e:
+                    logger.warning(f"Could not create fallback app context: {e}")
+            
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                logger.error(f"DB operation failed: {e}")
+                raise
+            finally:
+                if ctx:
+                    ctx.pop()
+        
+        return await asyncio.to_thread(wrapper)
     
     async def execute_analysis(
         self,
@@ -216,8 +263,11 @@ class AnalysisExecutor:
             logger.info(f"Executing {task.analysis_type} analysis for task {task.task_id}")
             
             # Mark task as started
-            task.mark_started()
-            db.session.commit()
+            def _mark_started(t):
+                t.mark_started()
+                db.session.commit()
+            
+            await self._run_db_op(_mark_started, task)
             
             # Register active analysis
             self.active_analyses[task.task_id] = {
@@ -496,8 +546,11 @@ class AnalysisExecutor:
                         emitted.add(key)
             
             # Update task progress
-            task.update_progress(percentage, message)
-            db.session.commit()
+            def _update_progress(t, p, m):
+                t.update_progress(p, m)
+                db.session.commit()
+            
+            await self._run_db_op(_update_progress, task, percentage, message)
             
             # Call progress callback
             if progress_callback:
@@ -524,7 +577,7 @@ class AnalysisExecutor:
             if len(task.logs) > 10240:
                 task.logs = task.logs[-10240:]
             
-            db.session.commit()
+            await self._run_db_op(lambda: db.session.commit())
             
         except Exception as e:
             logger.error(f"Error handling log message: {e}")
@@ -606,14 +659,20 @@ class AnalysisExecutor:
             except Exception:
                 pass
             
-            db.session.commit()
+                pass
+            
+            await self._run_db_op(lambda: db.session.commit())
             logger.info(f"Successfully processed results for task {task.task_id}")
             
         except Exception as e:
             logger.error(f"Error processing successful result for task {task.task_id}: {e}")
             # Mark as failed if we can't process the results
-            task.mark_failed(f"Result processing error: {str(e)}")
-            db.session.commit()
+            # Mark as failed if we can't process the results
+            def _mark_failed_err(t, err):
+                t.mark_failed(f"Result processing error: {str(err)}")
+                db.session.commit()
+                
+            await self._run_db_op(_mark_failed_err, task, e)
     
     async def _process_failed_result(self, task: Any, result: Dict[str, Any]):
         """Process failed analysis result."""
@@ -633,7 +692,9 @@ class AnalysisExecutor:
             }
             task.set_metadata(metadata)
             
-            db.session.commit()
+            task.set_metadata(metadata)
+            
+            await self._run_db_op(lambda: db.session.commit())
             logger.warning(f"Analysis failed for task {task.task_id}: {error_message}")
             
         except Exception as e:
@@ -1283,7 +1344,7 @@ class AnalysisExecutor:
             }
         
         try:
-            result = self._execute_analyzer_subprocess(analysis_type, model_slug, app_number, **kwargs)
+            result = await self._execute_analyzer_subprocess(analysis_type, model_slug, app_number, **kwargs)
             
             # Check if result indicates success
             if result.get('status') != 'error':
@@ -1304,15 +1365,14 @@ class AnalysisExecutor:
             logger.error(f"Analyzer subprocess error (recorded in circuit breaker): {e}")
             raise
 
-    def _execute_analyzer_subprocess(self, analysis_type: str, model_slug: str, app_number: int, **kwargs) -> Dict[str, Any]:
-        """Execute analyzer_manager.py subprocess with proper UTF-8 handling."""
-        import subprocess
+    async def _execute_analyzer_subprocess(self, analysis_type: str, model_slug: str, app_number: int, **kwargs) -> Dict[str, Any]:
+        """Execute analyzer_manager.py subprocess using asyncio for non-blocking execution."""
         import os
         import json
         import sys
         
         logger.info(
-            "[ANALYZER-SUBPROCESS] Starting subprocess: type=%s, model=%s, app=%s, tools=%s",
+            "[ANALYZER-SUBPROCESS] Starting async subprocess: type=%s, model=%s, app=%s, tools=%s",
             analysis_type, model_slug, app_number, kwargs.get('tools')
         )
         
@@ -1323,22 +1383,18 @@ class AnalysisExecutor:
             # Get the same Python executable that's running the worker
             python_exe = sys.executable
             
-            cmd = [
-                python_exe, 'analyzer_manager.py', 'analyze',
+            args = [
+                'analyzer_manager.py', 'analyze',
                 model_slug, str(app_number), analysis_type
             ]
             
             # Add tools if specified
             if 'tools' in kwargs and kwargs['tools']:
-                cmd.extend(['--tools'] + kwargs['tools'])
+                args.extend(['--tools'] + kwargs['tools'])
             
             logger.info(
-                "[ANALYZER-SUBPROCESS] Command: %s (cwd=%s)",
-                ' '.join(cmd), analyzer_dir
-            )
-            logger.debug(
-                "[ANALYZER-SUBPROCESS] Python executable: %s",
-                python_exe
+                "[ANALYZER-SUBPROCESS] Command: %s %s (cwd=%s)",
+                python_exe, ' '.join(args), analyzer_dir
             )
             
             # Set up environment with UTF-8 encoding and JSON mode
@@ -1347,99 +1403,85 @@ class AnalysisExecutor:
             env['PYTHONUNBUFFERED'] = '1'  # Disable output buffering
             env['ANALYZER_JSON'] = '1'  # Enable JSON output mode
             
-            # Run with proper UTF-8 encoding
-            logger.debug("[ANALYZER-SUBPROCESS] Executing subprocess.run (timeout=1800s)...")
-            result = subprocess.run(
-                cmd,
+            # Create subprocess asynchronously
+            process = await asyncio.create_subprocess_exec(
+                python_exe, *args,
                 cwd=analyzer_dir,
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                env=env,
-                timeout=1800  # 30 minute timeout
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env
             )
             
-            logger.info(
-                "[ANALYZER-SUBPROCESS] Process completed: returncode=%s, stdout_len=%s, stderr_len=%s",
-                result.returncode, len(result.stdout or ''), len(result.stderr or '')
-            )
-            
-            if analysis_type == 'ai':
-                try:
-                    logger.info(
-                        "AI subprocess completed rc=%s stdout_bytes=%s stderr_bytes=%s", 
-                        result.returncode, len(result.stdout or ''), len(result.stderr or '')
-                    )
-                    if result.stdout:
-                        logger.debug("AI subprocess raw stdout (first 500 chars): %s", (result.stdout[:500]))
-                    if result.stderr:
-                        logger.debug("AI subprocess stderr (first 300 chars): %s", (result.stderr[:300]))
-                except Exception:
-                    pass
-
-            if result.returncode != 0:
-                logger.error(
-                    "[ANALYZER-SUBPROCESS] FAILED: returncode=%s, stderr=%s",
-                    result.returncode, result.stderr[:500] if result.stderr else "No stderr"
-                )
-                return {
-                    'status': 'error',
-                    'error': f"Analyzer process failed: {result.stderr}",
-                    'error_type': 'subprocess_failed',
-                    'stdout': result.stdout,
-                    'stderr': result.stderr
-                }
-            
-            # Parse JSON output (with defensive recovery for noisy stdout)
+            # Wait for completion with timeout
             try:
-                parsed_stdout = json.loads(result.stdout)
-                logger.info("Analyzer subprocess completed successfully (type=%s tools=%s)", analysis_type, kwargs.get('tools'))
-            except json.JSONDecodeError as e:
-                trimmed = (result.stdout or '').lstrip()
-                fallback_output = None
-                if trimmed:
-                    brace_idx = trimmed.find('{')
-                    bracket_idx = trimmed.find('[')
-                    candidates = [idx for idx in (brace_idx, bracket_idx) if idx != -1]
-                    if candidates:
-                        start = min(candidates)
-                        try:
-                            fallback_output = json.loads(trimmed[start:])
-                            logger.warning(
-                                "Recovered analyzer JSON by trimming %s leading chars (type=%s)",
-                                start, analysis_type
-                            )
-                        except json.JSONDecodeError:
-                            fallback_output = None
-                if fallback_output is None:
-                    logger.error(f"Failed to parse analyzer output as JSON: {e}")
+                # 30 minute timeout
+                stdout_data, stderr_data = await asyncio.wait_for(process.communicate(), timeout=1800)
+                
+                stdout_str = stdout_data.decode('utf-8', errors='replace')
+                stderr_str = stderr_data.decode('utf-8', errors='replace')
+                
+                logger.info(
+                    "[ANALYZER-SUBPROCESS] Process completed: returncode=%s, stdout_len=%s, stderr_len=%s",
+                    process.returncode, len(stdout_str), len(stderr_str)
+                )
+                
+                if process.returncode != 0:
+                    logger.error(
+                        "[ANALYZER-SUBPROCESS] FAILED: returncode=%s, stderr=%s",
+                        process.returncode, stderr_str[:500] if stderr_str else "No stderr"
+                    )
                     return {
                         'status': 'error',
-                        'error': f"Failed to parse JSON output: {e}",
-                        'stdout': result.stdout,
-                        'stderr': result.stderr
+                        'error': f"Analyzer process failed: {stderr_str}",
+                        'error_type': 'subprocess_failed',
+                        'stdout': stdout_str,
+                        'stderr': stderr_str
                     }
-                parsed_stdout = fallback_output
-
-            # Transform analyzer output into task execution service format
-            transformed_output = self._transform_analyzer_output_to_task_format(parsed_stdout, kwargs.get('tools', []))
-            if analysis_type == 'ai':
+                
+                # Parse JSON output
                 try:
-                    logger.debug(
-                        "AI transformed output keys=%s tool_results=%s", 
-                        list(transformed_output.keys()), 
-                        list(transformed_output.get('tool_results', {}).keys())
-                    )
+                    parsed_stdout = json.loads(stdout_str)
+                    logger.info("Analyzer subprocess completed successfully")
+                except json.JSONDecodeError as e:
+                    # Attempt recovery similar to synchronous version
+                    trimmed = stdout_str.lstrip()
+                    fallback_output = None
+                    if trimmed:
+                        brace_idx = trimmed.find('{')
+                        bracket_idx = trimmed.find('[')
+                        candidates = [idx for idx in (brace_idx, bracket_idx) if idx != -1]
+                        if candidates:
+                            start = min(candidates)
+                            try:
+                                fallback_output = json.loads(trimmed[start:])
+                                logger.warning("Recovered analyzer JSON by trimming characters")
+                            except json.JSONDecodeError:
+                                pass
+                    
+                    if fallback_output is None:
+                        logger.error(f"Failed to parse analyzer output as JSON: {e}")
+                        return {
+                            'status': 'error',
+                            'error': f"Failed to parse JSON output: {e}",
+                            'stdout': stdout_str,
+                            'stderr': stderr_str
+                        }
+                    parsed_stdout = fallback_output
+
+                # Transform output
+                return self._transform_analyzer_output_to_task_format(parsed_stdout, kwargs.get('tools', []))
+
+            except asyncio.TimeoutError:
+                logger.error("Analyzer subprocess timed out")
+                try:
+                    process.kill()
                 except Exception:
                     pass
-            return transformed_output
+                return {
+                    'status': 'error',
+                    'error': 'Analysis timed out after 30 minutes'
+                }
                 
-        except subprocess.TimeoutExpired:
-            logger.error("Analyzer subprocess timed out")
-            return {
-                'status': 'error',
-                'error': 'Analysis timed out after 30 minutes'
-            }
         except Exception as e:
             logger.error(f"Analyzer subprocess error: {e}")
             return {

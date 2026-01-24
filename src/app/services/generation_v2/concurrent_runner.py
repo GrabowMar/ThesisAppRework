@@ -8,6 +8,7 @@ Key features:
 - Pre-allocates app numbers atomically before generation starts
 - Proper error isolation per job
 - Progress callbacks for UI updates
+- Thread-safe database operations with explicit app context
 """
 
 from __future__ import annotations
@@ -15,9 +16,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional, Callable, TypeVar
 
 from app.services.generation_v2.code_generator import CodeGenerator
 from app.services.generation_v2.config import GenerationConfig
@@ -25,8 +27,14 @@ from app.services.generation_v2.scaffolding import ScaffoldingManager
 from app.services.generation_v2.code_merger import CodeMerger
 from app.constants import GenerationMode
 
+try:
+    from flask import current_app
+except ImportError:
+    current_app = None
+
 logger = logging.getLogger(__name__)
 
+T = TypeVar('T')
 
 @dataclass
 class GenerationJob:
@@ -99,6 +107,18 @@ class ConcurrentGenerationRunner:
         self._total = 0
         self._lock = asyncio.Lock()
         
+        # Capture app context if we are in one (to propagate to threads)
+        self.app = None
+        if current_app:
+            try:
+                # Get the real app object, not the proxy
+                self.app = current_app._get_current_object()
+                logger.debug("Captured Flask app context for worker threads")
+            except Exception as e:
+                logger.warning(f"Could not capture Flask app object: {e}")
+        else:
+            logger.warning("Initializing runner outside of Flask app context - DB ops may fail if not running standalone")
+
         logger.info(f"ConcurrentGenerationRunner initialized (max_concurrent={max_concurrent})")
     
     def _get_generator(self) -> CodeGenerator:
@@ -113,6 +133,36 @@ class ConcurrentGenerationRunner:
             self._scaffolding = ScaffoldingManager()
         return self._scaffolding
     
+    async def _run_db_op(self, func: Callable[..., T], *args, **kwargs) -> T:
+        """Run a DB operation in a thread with proper app context."""
+        
+        def wrapper():
+            # If we captured an app, push its context
+            ctx = None
+            if self.app:
+                ctx = self.app.app_context()
+                ctx.push()
+            elif not current_app:
+                # Fallback: try to create a new app if we have none (legacy/standalone mode)
+                try:
+                    from app import create_app
+                    app = create_app()
+                    ctx = app.app_context()
+                    ctx.push()
+                except Exception as e:
+                    logger.warning(f"Could not create fallback app context: {e}")
+            
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                logger.error(f"DB operation failed: {e}")
+                raise
+            finally:
+                if ctx:
+                    ctx.pop()
+        
+        return await asyncio.to_thread(wrapper)
+
     async def generate_batch(
         self, 
         jobs: List[GenerationJob],
@@ -187,37 +237,39 @@ class ConcurrentGenerationRunner:
         return results
     
     async def _preallocate_app_numbers(self, jobs: List[GenerationJob]) -> None:
-        """Pre-allocate app numbers for all jobs that need them.
+        """Pre-allocate app numbers using thread-safe DB operation."""
         
-        This runs synchronously before any generation starts to prevent
-        race conditions in app number assignment.
-        """
-        from app.models import GeneratedApplication
-        from app.extensions import db
-        
-        # Group by model to allocate sequentially per model
-        by_model: Dict[str, List[GenerationJob]] = {}
-        for job in jobs:
-            if job.app_num is None:  # Only allocate if not specified
-                by_model.setdefault(job.model_slug, []).append(job)
-        
-        for model_slug, model_jobs in by_model.items():
-            # Get current max app number for this model
-            max_app = db.session.query(
-                db.func.max(GeneratedApplication.app_number)
-            ).filter(
-                GeneratedApplication.model_slug == model_slug
-            ).scalar() or 0
+        def _allocate_sync(jobs_list: List[GenerationJob]):
+            from app.models import GeneratedApplication
+            from app.extensions import db
             
-            # Assign sequential numbers
-            for i, job in enumerate(model_jobs):
-                job.allocated_app_num = max_app + i + 1
-                logger.info(f"Pre-allocated app number {job.allocated_app_num} for {model_slug}")
-        
-        # For jobs with explicit app_num, use that
-        for job in jobs:
-            if job.app_num is not None:
-                job.allocated_app_num = job.app_num
+            # Group by model to allocate sequentially per model
+            by_model: Dict[str, List[GenerationJob]] = {}
+            for job in jobs_list:
+                if job.app_num is None:  # Only allocate if not specified
+                    by_model.setdefault(job.model_slug, []).append(job)
+            
+            for model_slug, model_jobs in by_model.items():
+                # Get current max app number for this model
+                max_app = db.session.query(
+                    db.func.max(GeneratedApplication.app_number)
+                ).filter(
+                    GeneratedApplication.model_slug == model_slug
+                ).scalar() or 0
+                
+                # Assign sequential numbers
+                for i, job in enumerate(model_jobs):
+                    job.allocated_app_num = max_app + i + 1
+                    logger.info(f"Pre-allocated app number {job.allocated_app_num} for {model_slug}")
+            
+            # For jobs with explicit app_num, use that
+            for job in jobs_list:
+                if job.app_num is not None:
+                    job.allocated_app_num = job.app_num
+                    
+        # Run allocation in thread
+        await self._run_db_op(_allocate_sync, jobs)
+
     
     async def _run_single_job(self, job_index: int, job: GenerationJob) -> ConcurrentJobResult:
         """Execute a single generation job.
@@ -249,13 +301,14 @@ class ConcurrentGenerationRunner:
             
             # STEP 1: Create scaffolding
             scaffolding = self._get_scaffolding()
-            app_dir = scaffolding.create_scaffolding(config)
+            app_dir = await asyncio.to_thread(scaffolding.create_scaffolding, config)
             
             if app_dir is None:
                 raise RuntimeError(f"Scaffolding creation failed for {config.model_slug}/app{config.app_num}")
             
             # STEP 2: Generate code
             generator = self._get_generator()
+            # Generate is typically purely async LLM call, but we should verify it doesn't block DB
             code = await generator.generate(config)
             
             result.backend_chars = len(code.get('backend', ''))
@@ -263,7 +316,8 @@ class ConcurrentGenerationRunner:
             
             # STEP 3: Merge code into scaffolding
             merger = CodeMerger(app_dir)
-            written = merger.merge(code)
+            # Merge involves file I/O, safer in thread
+            written = await asyncio.to_thread(merger.merge, code)
             
             # STEP 4: Create DB record
             await self._create_db_record(job, config, code)
@@ -299,45 +353,55 @@ class ConcurrentGenerationRunner:
         config: GenerationConfig,
         code: Dict[str, str]
     ) -> None:
-        """Create database record for generated app."""
-        from app.models import GeneratedApplication, ModelCapability
-        from app.extensions import db
+        """Create database record for generated app using thread-safe OP."""
         
-        # Get model from DB
-        model = ModelCapability.query.filter_by(canonical_slug=job.model_slug).first()
-        if not model:
-            logger.warning(f"Model {job.model_slug} not found in DB, skipping DB record")
-            return
-        
-        # Check if record already exists
-        existing = GeneratedApplication.query.filter_by(
-            model_slug=job.model_slug,
-            app_number=job.allocated_app_num
-        ).first()
-        
-        if existing:
-            # Update existing
-            existing.template_slug = job.template_slug
-            existing.backend_code = code.get('backend', '')
-            existing.frontend_code = code.get('frontend', '')
-            existing.generation_status = 'completed'
-            existing.updated_at = datetime.now(timezone.utc)
-        else:
-            # Create new
-            app_record = GeneratedApplication(
-                model_id=model.model_id,
-                model_slug=job.model_slug,
-                app_number=job.allocated_app_num,
-                template_slug=job.template_slug,
-                backend_code=code.get('backend', ''),
-                frontend_code=code.get('frontend', ''),
-                generation_status='completed',
-                version=job.version,
-            )
-            db.session.add(app_record)
-        
-        db.session.commit()
-        logger.info(f"DB record created/updated for {job.model_slug}/app{job.allocated_app_num}")
+        def _db_sync(j: GenerationJob, c_backend: str, c_frontend: str):
+            from app.models import GeneratedApplication, ModelCapability
+            from app.extensions import db
+            
+            # Get model from DB
+            model = ModelCapability.query.filter_by(canonical_slug=j.model_slug).first()
+            if not model:
+                logger.warning(f"Model {j.model_slug} not found in DB, skipping DB record")
+                return
+            
+            # Check if record already exists
+            existing = GeneratedApplication.query.filter_by(
+                model_slug=j.model_slug,
+                app_number=j.allocated_app_num
+            ).first()
+            
+            if existing:
+                # Update existing
+                existing.template_slug = j.template_slug
+                existing.backend_code = c_backend
+                existing.frontend_code = c_frontend
+                existing.generation_status = 'completed'
+                existing.updated_at = datetime.now(timezone.utc)
+            else:
+                # Create new
+                app_record = GeneratedApplication(
+                    model_id=model.model_id,
+                    model_slug=j.model_slug,
+                    app_number=j.allocated_app_num,
+                    template_slug=j.template_slug,
+                    backend_code=c_backend,
+                    frontend_code=c_frontend,
+                    generation_status='completed',
+                    version=j.version,
+                )
+                db.session.add(app_record)
+            
+            db.session.commit()
+            logger.info(f"DB record created/updated for {j.model_slug}/app{j.allocated_app_num}")
+
+        # Execute in thread
+        await self._run_db_op(
+            _db_sync, 
+            job, 
+            code.get('backend', ''), 
+            code.get('frontend', '')
+        )
 
 
 # Convenience function for simple usage

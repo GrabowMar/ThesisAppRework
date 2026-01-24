@@ -37,6 +37,12 @@ except ImportError as e:
     AnalyzerManager = None  # type: ignore
 
 
+
+try:
+    from flask import current_app
+except ImportError:
+    current_app = None
+
 class AnalyzerExecutionService:
     """Service for executing analysis via analyzer_manager."""
     
@@ -44,6 +50,46 @@ class AnalyzerExecutionService:
         self.manager = AnalyzerManager() if AnalyzerManager else None
         if not self.manager:
             logger.error("AnalyzerManager not available - analysis will fail")
+            
+        # Capture app context if we are in one (to propagate to threads)
+        self.app = None
+        if current_app:
+            try:
+                # Get the real app object, not the proxy
+                self.app = current_app._get_current_object()
+                logger.debug("Captured Flask app context for execution service")
+            except Exception as e:
+                logger.warning(f"Could not capture Flask app object: {e}")
+
+    async def _run_db_op(self, func: Any, *args, **kwargs) -> Any:
+        """Run a DB operation in a thread with proper app context."""
+        
+        def wrapper():
+            # If we captured an app, push its context
+            ctx = None
+            if self.app:
+                ctx = self.app.app_context()
+                ctx.push()
+            elif not current_app:
+                # Fallback: try to create a new app if we have none
+                try:
+                    from app import create_app
+                    app = create_app()
+                    ctx = app.app_context()
+                    ctx.push()
+                except Exception as e:
+                    logger.warning(f"Could not create fallback app context: {e}")
+            
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                logger.error(f"DB operation failed: {e}")
+                raise
+            finally:
+                if ctx:
+                    ctx.pop()
+        
+        return await asyncio.to_thread(wrapper)
     
     async def execute_comprehensive_analysis(
         self,
@@ -77,10 +123,13 @@ class AnalyzerExecutionService:
         
         try:
             # Update task status to running
-            task.status = AnalysisStatus.RUNNING
-            task.started_at = datetime.now(timezone.utc)
-            task.progress_percentage = 10
-            db.session.commit()
+            def _set_running(t):
+                t.status = AnalysisStatus.RUNNING
+                t.started_at = datetime.now(timezone.utc)
+                t.progress_percentage = 10
+                db.session.commit()
+            
+            await self._run_db_op(_set_running, task)
             
             # Run comprehensive analysis via analyzer_manager
             # This will run all services and save results to the correct location
@@ -95,15 +144,15 @@ class AnalyzerExecutionService:
             # The analyzer_manager saves results automatically
             # We just need to find the result files and create DB records
             
-            # Update task status
-            task.status = AnalysisStatus.COMPLETED
-            task.completed_at = datetime.now(timezone.utc)
-            task.progress_percentage = 100
+            # Update task status and create records
+            def _complete_task(t, res):
+                t.status = AnalysisStatus.COMPLETED
+                t.completed_at = datetime.now(timezone.utc)
+                t.progress_percentage = 100
+                self._create_result_records_sync(t, res)
+                db.session.commit()
             
-            # Create AnalysisResult records for each service
-            await self._create_result_records(task, results)
-            
-            db.session.commit()
+            await self._run_db_op(_complete_task, task, results)
             
             return {
                 'success': True,
@@ -115,10 +164,13 @@ class AnalyzerExecutionService:
             logger.exception(f"Analysis failed for task {task_id}: {e}")
             
             # Update task with error
-            task.status = AnalysisStatus.FAILED
-            task.error_message = str(e)
-            task.completed_at = datetime.now(timezone.utc)
-            db.session.commit()
+            def _fail_task(t, err_msg):
+                t.status = AnalysisStatus.FAILED
+                t.error_message = err_msg
+                t.completed_at = datetime.now(timezone.utc)
+                db.session.commit()
+            
+            await self._run_db_op(_fail_task, task, str(e))
             
             return {
                 'success': False,
@@ -158,10 +210,13 @@ class AnalyzerExecutionService:
         
         try:
             # Update task status
-            task.status = AnalysisStatus.RUNNING
-            task.started_at = datetime.now(timezone.utc)
-            task.progress_percentage = 10
-            db.session.commit()
+            def _set_running_custom(t):
+                t.status = AnalysisStatus.RUNNING
+                t.started_at = datetime.now(timezone.utc)
+                t.progress_percentage = 10
+                db.session.commit()
+                
+            await self._run_db_op(_set_running_custom, task)
             
             # Determine which services to run based on tools
             services_to_run = self._map_tools_to_services(tools)
@@ -204,9 +259,12 @@ class AnalyzerExecutionService:
                 all_results[service_name] = result
                 
                 # Update progress
+                def _update_prog(t, p):
+                    t.progress_percentage = p
+                    db.session.commit()
+                
                 progress = 10 + (80 * len(all_results) // len(services_to_run))
-                task.progress_percentage = progress
-                db.session.commit()
+                await self._run_db_op(_update_prog, task, progress)
             
             # Save consolidated results
             await self.manager.save_task_results(
@@ -216,15 +274,15 @@ class AnalyzerExecutionService:
                 consolidated_results={'services': all_results}
             )
             
-            # Update task status
-            task.status = AnalysisStatus.COMPLETED
-            task.completed_at = datetime.now(timezone.utc)
-            task.progress_percentage = 100
+            # Update task status and records
+            def _complete_custom(t, res):
+                t.status = AnalysisStatus.COMPLETED
+                t.completed_at = datetime.now(timezone.utc)
+                t.progress_percentage = 100
+                self._create_result_records_sync(t, res)
+                db.session.commit()
             
-            # Create result records
-            await self._create_result_records(task, all_results)
-            
-            db.session.commit()
+            await self._run_db_op(_complete_custom, task, all_results)
             
             return {
                 'success': True,
@@ -235,10 +293,14 @@ class AnalyzerExecutionService:
         except Exception as e:
             logger.exception(f"Custom analysis failed for task {task_id}: {e}")
             
-            task.status = AnalysisStatus.FAILED
-            task.error_message = str(e)
-            task.completed_at = datetime.now(timezone.utc)
-            db.session.commit()
+            # Update task with error
+            def _fail_custom(t, err_msg):
+                t.status = AnalysisStatus.FAILED
+                t.error_message = err_msg
+                t.completed_at = datetime.now(timezone.utc)
+                db.session.commit()
+            
+            await self._run_db_op(_fail_custom, task, str(e))
             
             return {
                 'success': False,
@@ -283,17 +345,22 @@ class AnalyzerExecutionService:
             logger.error(f"Failed to get tools for service {service_name}: {e}")
             return tools  # Return all tools as fallback
     
-    async def _create_result_records(
+    
+    def _create_result_records_sync(
         self,
         task: AnalysisTask,
         results: Dict[str, Any]
     ) -> None:
-        """Create AnalysisResult records in database for each service."""
+        """Create AnalysisResult records in database (synchronous, internal)."""
         try:
             # Find the result files created by analyzer_manager
             results_dir = PROJECT_ROOT / "results" / task.target_model.replace('/', '_') / f"app{task.target_app_number}"
             
             # Look for task directory
+            if not results_dir.exists():
+                logger.warning(f"Results dir not found: {results_dir}")
+                return
+
             task_dirs = [d for d in results_dir.iterdir() if d.is_dir() and task.task_id in d.name]
             if not task_dirs:
                 logger.warning(f"No result directory found for task {task.task_id}")
@@ -337,7 +404,7 @@ class AnalyzerExecutionService:
                 
                 db.session.add(result)
             
-            db.session.commit()
+            # Note: Commit is handled by the caller
             
         except Exception as e:
             logger.error(f"Failed to create result records: {e}")

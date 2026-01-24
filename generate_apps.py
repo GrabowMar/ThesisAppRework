@@ -21,17 +21,13 @@ if env_path.exists():
                 if key not in os.environ:
                     os.environ[key] = val.strip('"\'')
 
-from app.services.generation_v2.code_generator import CodeGenerator
-from app.services.generation_v2.config import GenerationConfig
+from app.services.generation_v2.concurrent_runner import ConcurrentGenerationRunner, GenerationJob
 from app.factory import create_cli_app
 
 # Mock DB dependencies
 # We need to patch ModelCapability used in _get_openrouter_model and _get_model_context_window
-mock_model_query = MagicMock()
-mock_db_model = MagicMock()
-mock_db_model.get_openrouter_model_id.return_value = "anthropic/claude-3-5-sonnet"
-mock_db_model.context_window = 200000
-mock_model_query.filter_by.return_value.first.return_value = mock_db_model
+from unittest.mock import MagicMock, patch
+from app.services.generation_v2.code_generator import CodeGenerator
 
 async def main():
     if 'OPENROUTER_API_KEY' not in os.environ:
@@ -42,61 +38,63 @@ async def main():
     # Use CLI app context to ensure DB and config is ready
     app = create_cli_app()
     with app.app_context():
-        # Patch CodeGenerator internal methods to bypass DB lookups
+        # Patch CodeGenerator internal methods to bypass DB lookups for CLI test
         with patch.object(CodeGenerator, '_get_openrouter_model', return_value="qwen/qwen3-coder-30b-a3b-instruct"), \
              patch.object(CodeGenerator, '_get_model_context_window', return_value=32000):
             
-            generator = CodeGenerator()
-            print("CodeGenerator ready.")
+            # Use the same runner as the pipeline!
+            # This ensures individual generation follows the exact same logic/steps.
+            runner = ConcurrentGenerationRunner(
+                max_concurrent=1,  # CLI usually sequential, but uses the same async machinery
+                inter_job_delay=0.5
+            )
+            print("ConcurrentGenerationRunner ready.")
             
             apps_to_gen = [
                 {'template': 'crud_todo_list', 'app_num': 1},
                 # {'template': 'productivity_notes', 'app_num': 2} 
             ]
             
+            # Prepare jobs
+            jobs = []
             for app_def in apps_to_gen:
                 slug = app_def['template']
                 num = app_def['app_num']
-                print(f"\n--- Generating {slug} (App {num}) ---")
-                import time
-                app_start_time = time.time()
+                print(f"Queueing job: {slug} (App {num})")
                 
-                config = GenerationConfig(
+                # Note: We use the runner's job structure
+                jobs.append(GenerationJob(
                     model_slug='qwen_qwen3-coder-30b-a3b-instruct',
                     template_slug=slug,
                     app_num=num,
-                    save_artifacts=True
-                )
-                
-                try:
-                    results = await generator.generate(config)
+                    batch_id='cli-manual-run'
+                ))
+            
+            print(f"\n--- Starting Batch Generation ({len(jobs)} jobs) ---")
+            import time
+            start_time = time.time()
+            
+            # execute via runner
+            results = await runner.generate_batch(jobs, batch_id='cli-manual-run')
+            
+            display_success = 0
+            for res in results:
+                status = "SUCCESS" if res.success else "FAILED"
+                print(f"Job {res.job_index} ({res.template_slug}): {status}")
+                if res.error:
+                    print(f"  Error: {res.error}")
+                if res.success:
+                    display_success += 1
                     
-                    # Save files
-                    app_dir = config.get_app_dir(project_root / 'generated' / 'apps')
-                    if app_dir.exists():
-                        shutil.rmtree(app_dir)
-                    app_dir.mkdir(parents=True)
-                    
-                    # Backend
-                    backend_dir = app_dir / 'backend'
-                    backend_dir.mkdir()
-                    (backend_dir / 'app.py').write_text(results['backend'], encoding='utf-8')
-                    (backend_dir / 'requirements.txt').write_text("flask\nflask-sqlalchemy\nflask-cors\npytest\n", encoding='utf-8')
-                    
-                    # Frontend
-                    frontend_dir = app_dir / 'frontend' / 'src'
-                    frontend_dir.mkdir(parents=True)
-                    (frontend_dir / 'App.jsx').write_text(results['frontend'], encoding='utf-8')
-                    
-                    print(f"SUCCESS: App generated at {app_dir}")
-                    print(f"Backend size: {len(results['backend'])} chars")
-                    print(f"Frontend size: {len(results['frontend'])} chars")
-                    print(f"Total time: {time.time() - app_start_time:.1f}s")
-                    
-                except Exception as e:
-                    print(f"FAILED: {e}")
-                    import traceback
-                    traceback.print_exc()
+                    # In CLI mode, we might want to verify files exist or move them?
+                    # The runner saves them to generated/apps/{model}/{app_name}
+                    # The original script moved them to specific paths.
+                    # ConcurrentGenerationRunner handles standard saving.
+                    # We can print path:
+                    print(f"  Artifacts saved to standard output directory.")
+            
+            print(f"\nTotal time: {time.time() - start_time:.1f}s")
+            print(f"Completed: {display_success}/{len(jobs)}")
 
 if __name__ == "__main__":
     asyncio.run(main())

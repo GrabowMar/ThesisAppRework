@@ -609,6 +609,64 @@ class PipelineExecutionService:
         progress = pipeline.progress
         config = pipeline.config
         
+        # Define progress callback
+        def on_progress(completed_count, total_count, result):
+            """Callback for generation progress."""
+            try:
+                # Update pipeline progress in DB
+                self._log("GEN", f"Progress: {completed_count}/{total_count} (Job {result.job_index} finished)")
+                
+                # We need to refresh pipeline from DB to avoid conflicts, or just update the field
+                # Since we are in the main thread (or celery worker thread), we can use the session
+                # But ConcurrentGenerationRunner runs in a loop.
+                # Actually, the runner calls this callback.
+                
+                # Fetch fresh object or update dict
+                # Note: 'pipeline' object might be detached if session was committed/removed?
+                # Best to query fresh or assume attached.
+                
+                # Update progress dict
+                p_data = pipeline.progress.copy()
+                p_gen = p_data.get('generation', {})
+                p_gen['completed'] = completed_count
+                
+                # Add result to list
+                results_list = p_gen.get('results', [])
+                
+                # Check if result already exists (retry/duplicate safety)
+                existing_idx = next((i for i, r in enumerate(results_list) if r.get('job_index') == result.job_index), None)
+                
+                record = {
+                    'job_index': result.job_index,
+                    'model_slug': result.model_slug,
+                    'template_slug': result.template_slug,
+                    'app_number': result.app_number,
+                    'success': result.success,
+                    'error': result.error,
+                    'duration': result.duration_seconds
+                }
+                
+                if existing_idx is not None:
+                    results_list[existing_idx] = record
+                else:
+                    results_list.append(record)
+                    
+                p_gen['results'] = results_list
+                
+                if not result.success:
+                    p_gen['failed'] = p_gen.get('failed', 0) + 1
+                    
+                p_data['generation'] = p_gen
+                pipeline.progress = p_data
+                
+                db.session.commit()
+                
+                # Emit socket event
+                self._emit_progress_update(pipeline)
+                
+            except Exception as e:
+                self._log("GEN", f"Error in progress callback: {e}", level='error')
+        
         # Check current state
         gen_progress = progress.get('generation', {})
         total = gen_progress.get('total', 0)
@@ -679,6 +737,7 @@ class PipelineExecutionService:
             runner = ConcurrentGenerationRunner(
                 max_concurrent=max_concurrent,
                 inter_job_delay=1.0,  # Small delay between job starts
+                on_progress=on_progress
             )
             
             # Run async batch - this blocks until all jobs complete
@@ -1949,9 +2008,22 @@ class PipelineExecutionService:
         with _pipeline_state_lock:
             started_apps = self._app_containers_started.get(pipeline_id, set()).copy()
         
+        # Fallback: if started_apps is empty (e.g. using ConcurrentAnalysisRunner which bypasses tracking),
+        # iterate through all successfully generated apps in the pipeline
         if not started_apps:
-            return
+            self._log("CONTAINER", "No specific containers tracked - falling back to all generated apps")
+            gen_results = getattr(pipeline, 'progress', {}).get('generation', {}).get('results', [])
+            for res in gen_results:
+                if res.get('success'):
+                    m = res.get('model_slug')
+                    a = res.get('app_number')
+                    if m and a is not None:
+                        started_apps.add((m, a))
         
+        if not started_apps:
+            self._log("CONTAINER", "No apps found to stop containers for")
+            return
+            
         config = pipeline.config
         analysis_config = config.get('analysis', {})
         stop_after = analysis_config.get('stopAfterAnalysis', 
@@ -1960,10 +2032,11 @@ class PipelineExecutionService:
         if not stop_after:
             self._log("CONTAINER", f"stopAfterAnalysis disabled - keeping app containers running for pipeline {pipeline_id}")
             return
-        
+            
         self._log("CONTAINER", f"Stopping {len(started_apps)} app container sets for pipeline {pipeline_id}")
         
         for model_slug, app_number in started_apps:
+            # Run in thread pool to avoid blocking if many containers (optional optimization)
             self._stop_app_containers(pipeline_id, model_slug, app_number)
     
     def _validate_app_exists(self, model_slug: str, app_number: int) -> tuple:

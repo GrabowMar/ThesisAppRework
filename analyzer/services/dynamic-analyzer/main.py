@@ -44,6 +44,9 @@ class DynamicAnalyzer(BaseWSService):
         self._zap_started = False
         # Initialize tool execution logger for comprehensive output logging
         self.tool_logger = ToolExecutionLogger(self.log)
+        
+        # Lock for synchronizing ZAP scans (ZAP daemon is single-instance per container)
+        self._zap_lock = asyncio.Lock()
 
     def _record(self, tool: str, cmd: List[str], proc: subprocess.CompletedProcess, start: float):
         duration = time.time() - start
@@ -145,15 +148,18 @@ class DynamicAnalyzer(BaseWSService):
             ZAP scan results with alerts
         """
         try:
-            # Ensure ZAP is running
-            if not self._ensure_zap_started():
-                return {
-                    'status': 'error',
-                    'error': 'Failed to start ZAP daemon',
-                    'url': url
-                }
-            
-            self.log.info(f"=" * 60)
+            # Acquire lock to ensure we don't start multiple ZAP scans on the same daemon
+            # If another scan is running, this will wait until it completes or times out
+            async with self._zap_lock:
+                # Ensure ZAP is running
+                if not self._ensure_zap_started():
+                    return {
+                        'status': 'error',
+                        'error': 'Failed to start ZAP daemon',
+                        'url': url
+                    }
+                
+                self.log.info(f"=" * 60)
             self.log.info(f"OWASP ZAP Security Scan Started")
             self.log.info(f"  Target: {url}")
             self.log.info(f"  Scan type: {scan_type}")
