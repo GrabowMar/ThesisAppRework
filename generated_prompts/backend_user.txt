@@ -1,40 +1,30 @@
-# Generate Backend: {{ name }}
+# Generate Backend: Todo App
 
 **IMPORTANT: Generate the complete code immediately. Do not ask for confirmation or clarification. Output the full app.py code block directly.**
 
-{{ description }}
+A simple todo application
 
 ## App Requirements
 
 ### User Features
-{% for req in backend_requirements %}
-- {{ req }}
-{% endfor %}
+- Create todos
+- List todos
 
 ### Admin Features
-{% for req in admin_requirements %}
-- {{ req }}
-{% endfor %}
+- Manage users
 
 ## API Specification
 
-{% if api_endpoints %}
 ### User API Endpoints
-{{ api_endpoints }}
-{% endif %}
+- GET /api/todos: List todos
 
-{% if admin_api_endpoints %}
 ### Admin API Endpoints
-{{ admin_api_endpoints }}
-{% endif %}
+- GET /api/admin/users: List users
 
 ## Data Model
-{% if data_model %}
-**{{ data_model.name }}**:
-{% for field, type in data_model.fields.items() %}
-- `{{ field }}`: {{ type }}
-{% endfor %}
-{% endif %}
+**Todo**:
+- `title`: String
+- `done`: Boolean
 
 ## Access Control Rules
 
@@ -83,4 +73,3 @@ Generate EXACTLY ONE code block:
 - Fill in the logic for the skeleton methods.
 - NO multiple files - everything in ONE app.py
 - Do NOT ask "Would you like me to continue?" - generate EVERYTHING
-

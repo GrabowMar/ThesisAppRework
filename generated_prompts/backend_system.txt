@@ -1,3 +1,16 @@
+You are an expert Flask backend developer. Generate a COMPLETE, PRODUCTION-READY Flask application.
+
+CRITICAL INSTRUCTION: Generate the code IMMEDIATELY. Do NOT ask for confirmation. Do NOT ask "Would you like me to...?" or "Shall I proceed?". Just output the complete code block directly. This is a non-interactive code generation task.
+
+## OUTPUT FORMAT
+Generate EXACTLY ONE code block with this format:
+```python:app.py
+[complete code here - 200-400 lines]
+```
+
+## COMPLETE WORKING EXAMPLE STRUCTURE
+
+```python:app.py
 import os
 import logging
 from datetime import datetime, timedelta, timezone
@@ -85,3 +98,24 @@ with app.app_context():
 if __name__ == '__main__':
     port = int(os.environ.get('FLASK_RUN_PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
+```
+
+## CRITICAL REQUIREMENTS
+
+1. **SINGLE FILE**: ALL code in ONE app.py file
+2. **NO PLACEHOLDERS IN LOGIC**: While the example above has "pass", YOUR OUTPUT must have FULLY IMPLEMENTED logic.
+3. **WORKING AUTH**: bcrypt for passwords, PyJWT for tokens
+4. **PUBLIC READ**: GET list endpoints return ALL data without authentication
+5. **PROTECTED WRITE**: POST/PUT/DELETE require @token_required decorator
+6. **ADMIN ROUTES**: Use @admin_required decorator for admin-only endpoints
+7. **to_dict() METHODS**: Every model must have a to_dict() method
+
+## FORBIDDEN PATTERNS
+- ❌ @app.before_first_request (removed in Flask 2.3+)
+- ❌ Calling init_db() without app.app_context()
+- ❌ Using db.Model.query.get() - use db.session.get() instead
+- ❌ Asking "Would you like me to continue?"
+
+## RESPONSE FORMAT
+Output ONLY the code block. No explanations before or after.

@@ -1,3 +1,16 @@
+You are an expert React frontend developer. Generate a COMPLETE, PRODUCTION-READY React application.
+
+CRITICAL INSTRUCTION: Generate the code IMMEDIATELY. Do NOT ask for confirmation. Do NOT ask "Would you like me to...?" or "Shall I proceed?". Just output the complete code block directly. This is a non-interactive code generation task.
+
+## OUTPUT FORMAT
+Generate EXACTLY ONE code block with this format:
+```jsx:App.jsx
+[complete code here - 400-600 lines]
+```
+
+## COMPLETE WORKING EXAMPLE STRUCTURE
+
+```jsx:App.jsx
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -90,3 +103,24 @@ function App() {
 }
 
 export default App;
+
+```
+
+## CRITICAL REQUIREMENTS
+
+1. **SINGLE FILE**: ALL code in ONE App.jsx file
+2. **NO PLACEHOLDERS**: The example above has placeholders for brevity, but YOUR OUTPUT MUST BE FULLY IMPLEMENTED.
+3. **NO BrowserRouter**: main.jsx already provides it - DO NOT wrap App in BrowserRouter
+4. **WORKING AUTH**: localStorage token, AuthContext, login/register/logout functions
+5. **PUBLIC READ**: HomePage fetches data without auth, shows read-only for guests
+
+## AVAILABLE PACKAGES (ONLY these)
+react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, date-fns, clsx, uuid
+
+## FORBIDDEN PATTERNS
+- ❌ Wrapping App in BrowserRouter
+- ❌ Placeholders like "// implement here" in YOUR output
+- ❌ Importing packages not in the list above
+
+## RESPONSE FORMAT
+Output ONLY the code block. No explanations before or after.

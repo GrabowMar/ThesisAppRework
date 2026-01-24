@@ -1,26 +1,21 @@
-# Generate Frontend: {{ name }}
+# Generate Frontend: Todo App
 
 **IMPORTANT: Generate the complete code immediately. Do not ask for confirmation or clarification. Output the full App.jsx code block directly.**
 
-{{ description }}
+A simple todo application
 
 ## App Requirements
 
 ### User Features
-{% for req in frontend_requirements %}
-- {{ req }}
-{% endfor %}
 
 ### Admin Features
-{% for req in admin_requirements %}
-- {{ req }}
-{% endfor %}
+- Manage users
 
 ## Backend API Context
 
 The backend has been generated with these endpoints:
 
-{{ backend_api_context }}
+Backend API Context Placeholder
 
 ## Access Control Rules
 
@@ -99,4 +94,3 @@ Generate EXACTLY ONE code block:
 - Fill in the logic for the skeleton components.
 - NO BrowserRouter wrapper (main.jsx provides it)
 - Do NOT ask "Would you like me to continue?" - generate EVERYTHING
-
