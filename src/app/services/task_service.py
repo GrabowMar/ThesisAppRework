@@ -640,6 +640,7 @@ class TaskQueueService:
         self.queue_config = {
             'max_concurrent_tasks': max_concurrent,
             'max_concurrent_per_type': max_per_type,
+            'max_per_app': 1,  # Only 1 analysis per app at a time
             'priority_weights': {
                 Priority.URGENT.value: 10,
                 Priority.HIGH.value: 5,
@@ -701,23 +702,42 @@ class TaskQueueService:
         # Filter based on per-type concurrency limits
         # Count currently running tasks by analysis type
         running_by_type = {}
+        # Also track running apps (model_slug, app_number) to enforce per-app limit
+        running_apps: set = set()
         for task in running_tasks:
             if task.status == AnalysisStatus.RUNNING:
                 running_by_type[task.analysis_type] = running_by_type.get(task.analysis_type, 0) + 1
+                # Track running apps to prevent duplicate analyses
+                if task.target_model and task.target_app_number:
+                    running_apps.add((task.target_model, task.target_app_number))
         
         logger.debug(
             "[QUEUE] Running tasks by type: %s (max_per_type=%d)",
             running_by_type, self.queue_config['max_concurrent_per_type']
         )
+        logger.debug("[QUEUE] Running apps: %s", running_apps)
         
         selected_tasks = []
         selected_by_type = {}
+        selected_apps: set = set()  # Track selected apps in this batch
         filtered_count = 0
+        filtered_by_app = 0
         
-        # Select tasks while respecting per-type concurrency limits
+        # Select tasks while respecting per-type and per-app concurrency limits
         for task in pending_tasks:
             if len(selected_tasks) >= available_slots:
                 break
+            
+            # Per-app limit: Skip if this app is already running or already selected
+            app_key = (task.target_model, task.target_app_number)
+            max_per_app = self.queue_config.get('max_per_app', 1)
+            if app_key in running_apps or app_key in selected_apps:
+                filtered_by_app += 1
+                logger.debug(
+                    "[QUEUE] Filtered task %s - app %s already busy (max_per_app=%d)",
+                    task.task_id, app_key, max_per_app
+                )
+                continue
             
             # Check if adding this task would exceed per-type limit
             current_type_count = running_by_type.get(task.analysis_type, 0) + selected_by_type.get(task.analysis_type, 0)
@@ -726,6 +746,7 @@ class TaskQueueService:
             if current_type_count < max_per_type:
                 selected_tasks.append(task)
                 selected_by_type[task.analysis_type] = selected_by_type.get(task.analysis_type, 0) + 1
+                selected_apps.add(app_key)  # Mark this app as selected
             else:
                 filtered_count += 1
                 logger.debug(
@@ -733,8 +754,8 @@ class TaskQueueService:
                     task.task_id, task.analysis_type, current_type_count, max_per_type
                 )
         
-        if filtered_count > 0:
-            logger.debug("[QUEUE] Filtered %d tasks due to per-type limits", filtered_count)
+        if filtered_count > 0 or filtered_by_app > 0:
+            logger.debug("[QUEUE] Filtered %d tasks due to per-type limits, %d due to per-app limits", filtered_count, filtered_by_app)
         
         logger.debug(
             "[QUEUE] Returning %d selected task(s): %s",

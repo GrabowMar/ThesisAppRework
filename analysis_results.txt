@@ -1,5 +1,0 @@
---- Backend Analysis ---
-Backend Similarity: 63.81% (201/315 lines)
-
---- Frontend Analysis ---
-Frontend Similarity: 68.50% (448/654 lines)

@@ -399,101 +399,76 @@ class ConcurrentAnalysisRunner:
             return result
         
         try:
-            logger.info(f"[Job {job_index}] Starting analysis: {job.model_slug}/app{job.app_number} (task={job.task_id})")
+            logger.info(f"[Job {job_index}] Waiting for task completion: {job.model_slug}/app{job.app_number} (task={job.task_id})")
             
-            # Import execution service
+            # Import required modules
             from app.models import AnalysisTask
             from app.constants import AnalysisStatus
-            from app.extensions import db
             
-            # Fetch task from DB
-            task = AnalysisTask.query.filter_by(task_id=job.task_id).first()
-            if not task:
-                result.error = f"Task {job.task_id} not found in database"
-                result.status = 'failed'
-                return result
+            # Poll for task completion (execution handled by TaskExecutionService daemon)
+            poll_interval = 5.0  # seconds
+            max_polls = int(self.analysis_timeout / poll_interval)
             
-            # Mark task as running
-            task.status = AnalysisStatus.RUNNING
-            task.started_at = datetime.now(timezone.utc)
-            db.session.commit()
-            
-            # Execute analysis using analyzer wrapper
-            from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
-            wrapper = get_analyzer_wrapper()
-            
-            # Run in executor to not block event loop
-            loop = asyncio.get_event_loop()
-            analyzer_result = await asyncio.wait_for(
-                loop.run_in_executor(
-                    None,
-                    lambda: wrapper.run_comprehensive_analysis(
-                        model_slug=job.model_slug,
-                        app_number=job.app_number,
-                        task_name=job.task_id,
-                        tools=job.tools
-                    )
-                ),
-                timeout=self.analysis_timeout
-            )
-            
-            # Process results
-            services = analyzer_result.get('services', {})
-            if not services and 'results' in analyzer_result:
-                services = analyzer_result['results'].get('services', {})
-            
-            # Count findings and determine status
-            total_findings = 0
-            statuses = []
-            
-            for service_name, service_result in services.items():
-                if isinstance(service_result, dict):
-                    status = service_result.get('status', 'unknown')
-                    statuses.append(status)
-                    
-                    # Count findings
-                    analysis = service_result.get('analysis', {})
-                    if isinstance(analysis, dict):
-                        summary = analysis.get('summary', {})
-                        findings = summary.get('total_findings', 0) or summary.get('total_issues_found', 0)
-                        total_findings += findings
-            
-            # Determine overall status
-            if all(s == 'success' for s in statuses):
-                overall_status = 'completed'
-            elif any(s == 'success' for s in statuses):
-                overall_status = 'partial'
-            else:
-                overall_status = 'failed'
-            
-            # Update task in DB
-            task = AnalysisTask.query.filter_by(task_id=job.task_id).first()
-            if task:
-                if overall_status == 'completed':
-                    task.status = AnalysisStatus.COMPLETED
-                elif overall_status == 'partial':
-                    task.status = AnalysisStatus.PARTIAL_SUCCESS
-                else:
-                    task.status = AnalysisStatus.FAILED
+            for poll_count in range(max_polls):
+                # Fetch fresh task state from DB
+                task = AnalysisTask.query.filter_by(task_id=job.task_id).first()
+                if not task:
+                    result.error = f"Task {job.task_id} not found in database"
+                    result.status = 'failed'
+                    return result
                 
-                task.progress_percentage = 100.0
-                task.completed_at = datetime.now(timezone.utc)
-                db.session.commit()
-            
-            result.success = overall_status in ('completed', 'partial')
-            result.status = overall_status
-            result.findings_count = total_findings
-            result.duration_seconds = time.time() - start_time
-            
-            logger.info(
-                f"[Job {job_index}] {overall_status.upper()}: {job.model_slug}/app{job.app_number} "
-                f"in {result.duration_seconds:.1f}s ({total_findings} findings)"
-            )
-            
-        except asyncio.TimeoutError:
-            result.error = f"Analysis timed out after {self.analysis_timeout}s"
+                # Check if task reached terminal state
+                if task.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS, 
+                                   AnalysisStatus.FAILED, AnalysisStatus.CANCELLED):
+                    # Task finished
+                    result.duration_seconds = time.time() - start_time
+                    
+                    if task.status == AnalysisStatus.COMPLETED:
+                        result.success = True
+                        result.status = 'completed'
+                    elif task.status == AnalysisStatus.PARTIAL_SUCCESS:
+                        result.success = True
+                        result.status = 'partial'
+                    else:
+                        result.success = False
+                        result.status = 'failed'
+                        result.error = task.error_message or 'Task failed'
+                    
+                    # Try to get findings count from task results
+                    try:
+                        summary = task.get_result_summary() if hasattr(task, 'get_result_summary') else {}
+                        if isinstance(summary, dict):
+                            result.findings_count = summary.get('total_findings', 0)
+                    except Exception:
+                        pass
+                    
+                    logger.info(
+                        f"[Job {job_index}] {result.status.upper()}: {job.model_slug}/app{job.app_number} "
+                        f"in {result.duration_seconds:.1f}s ({result.findings_count or 0} findings)"
+                    )
+                    break
+                
+                # Task still running - wait and poll again
+                if poll_count % 12 == 0 and poll_count > 0:  # Log every ~minute
+                    elapsed = time.time() - start_time
+                    logger.debug(
+                        f"[Job {job_index}] Waiting for {job.model_slug}/app{job.app_number} "
+                        f"({elapsed:.0f}s elapsed, status={task.status.value if task.status else 'unknown'})"
+                    )
+                
+                await asyncio.sleep(poll_interval)
+            else:
+                # Timeout - max polls reached
+                result.error = f"Analysis timed out after {self.analysis_timeout}s"
+                result.status = 'failed'
+                result.duration_seconds = time.time() - start_time
+                logger.error(f"[Job {job_index}] TIMEOUT: {job.model_slug}/app{job.app_number}")
+                
+        except asyncio.CancelledError:
+            result.error = "Task was cancelled"
             result.status = 'failed'
-            logger.error(f"[Job {job_index}] TIMEOUT: {job.model_slug}/app{job.app_number}")
+            result.duration_seconds = time.time() - start_time
+            logger.warning(f"[Job {job_index}] CANCELLED: {job.model_slug}/app{job.app_number}")
             
         except Exception as e:
             result.error = str(e)
