@@ -306,11 +306,13 @@ class GenerationService:
             
             logger.info(f"✅ Generation complete in {elapsed:.1f}s")
             logger.info(f"   App directory: {app_dir}")
+            print(f"GENERATION SUCCESS: {config.model_slug}/app{config.app_num} in {elapsed:.1f}s. Files: {len(written)}")
             
         except Exception as e:
             elapsed = time.time() - start_time
             error_msg = str(e)
             logger.error(f"❌ Generation failed after {elapsed:.1f}s: {error_msg}")
+            print(f"GENERATION FAILED: {config.model_slug}/app{config.app_num} after {elapsed:.1f}s. Error: {error_msg}")
             result.add_error(error_msg)
             result.metrics = {'duration_seconds': elapsed, 'error': error_msg}
         

@@ -167,12 +167,16 @@ class CodeGenerator:
             return False
 
         # Look for known placeholder phrases (case-insensitive)
-        if PLACEHOLDER_REGEX.search(content):
+        match = PLACEHOLDER_REGEX.search(content)
+        if match:
+            logger.warning(f"Response detected with placeholder phrase: '{match.group(0)}'")
             return True
 
         # Check for uppercase TODO separately (case-sensitive)
         # to avoid false positives with "Todo" in app names like "Todo List"
-        if TODO_REGEX.search(content):
+        match = TODO_REGEX.search(content)
+        if match:
+            logger.warning(f"Response detected with placeholder phrase: '{match.group(0)}'")
             return True
 
         return False
@@ -582,7 +586,7 @@ Generate EXACTLY ONE code block with this format:
 ## COMPLETE WORKING EXAMPLE STRUCTURE
 
 ```python:app.py
-{template_code}
+{template_code.replace('pass', '# Implementation here...')}
 ```
 
 ## CRITICAL REQUIREMENTS
@@ -607,6 +611,13 @@ Output ONLY the code block. No explanations before or after."""
     def _get_frontend_system_prompt(self) -> str:
         """Get system prompt for frontend generation."""
         template_code = self._read_scaffolding_file('frontend/src/App.jsx')
+        
+        # Remove placeholder comments from the example to prevent model from copying them
+        cleaned_code = []
+        for line in template_code.splitlines():
+            if '// Implement' not in line:
+                cleaned_code.append(line)
+        template_code = '\n'.join(cleaned_code)
         
         return f"""You are an expert React frontend developer. Generate a COMPLETE, PRODUCTION-READY React application.
 

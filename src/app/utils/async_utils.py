@@ -61,6 +61,9 @@ def run_async_safely(coro: Coroutine[Any, Any, T]) -> T:
     logger.debug(f"Running async code via event loop in thread {threading.current_thread().name}")
     try:
         return loop.run_until_complete(coro)
+    except Exception as e:
+        logger.exception(f"Async execution failed: {e}")
+        raise
     finally:
         # Don't close the loop - it might be reused for subsequent calls
         # in the same thread (e.g., multiple API calls in a generation job)

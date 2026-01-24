@@ -50,15 +50,21 @@ class CodeMerger:
         
         # Process backend
         if 'backend' in code and code['backend'].strip():
+            logger.info("Processing backend code...")
             backend_files = self._process_backend(code['backend'])
             written_files.update(backend_files)
+        else:
+            logger.warning("No backend code found in response")
         
         # Process frontend
         if 'frontend' in code and code['frontend'].strip():
+            logger.info("Processing frontend code...")
             frontend_files = self._process_frontend(code['frontend'])
             written_files.update(frontend_files)
+        else:
+            logger.warning("No frontend code found in response")
         
-        logger.info(f"Merged {len(written_files)} files")
+        logger.info(f"Merged {len(written_files)} files: {', '.join(written_files.keys())}")
         return written_files
     
     def _extract_code_blocks(self, content: str) -> List[Dict[str, str]]:

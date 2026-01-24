@@ -42,14 +42,16 @@ async def main():
     # Use CLI app context to ensure DB and config is ready
     app = create_cli_app()
     with app.app_context():
-        # Apply patch INSIDE the app context to avoid RuntimeError during lookup
-        with patch('app.models.ModelCapability.query', mock_model_query):
+        # Patch CodeGenerator internal methods to bypass DB lookups
+        with patch.object(CodeGenerator, '_get_openrouter_model', return_value="qwen/qwen3-coder-30b-a3b-instruct"), \
+             patch.object(CodeGenerator, '_get_model_context_window', return_value=32000):
+            
             generator = CodeGenerator()
             print("CodeGenerator ready.")
             
             apps_to_gen = [
                 {'template': 'crud_todo_list', 'app_num': 1},
-                {'template': 'productivity_notes', 'app_num': 2}
+                # {'template': 'productivity_notes', 'app_num': 2} 
             ]
             
             for app_def in apps_to_gen:
@@ -58,7 +60,7 @@ async def main():
                 print(f"\n--- Generating {slug} (App {num}) ---")
                 
                 config = GenerationConfig(
-                    model_slug='anthropic_claude-3-5-sonnet',
+                    model_slug='qwen_qwen3-coder-30b-a3b-instruct',
                     template_slug=slug,
                     app_num=num,
                     save_artifacts=True
