@@ -40,19 +40,25 @@
 
 **CRITICAL - Follow these exactly:**
 
-1. **Public Read Endpoints** (NO authentication):
-   - GET endpoints that list/read data return ALL items to everyone
-   - Both anonymous and logged-in users see the SAME data
-   - Example: `GET /api/todos` returns all todos, no auth required
+1. **Public/Guest Access** (Standard Features):
+   - GET endpoints return ALL data to everyone
+   - POST/PUT/DELETE for core data should generally be OPEN (no auth needed) for this sample app
+   - Allow guests to fully experience the application without registering
 
-2. **Protected Write Endpoints** (@token_required decorator):
-   - POST, PUT, DELETE require authentication
-   - Use the `@token_required` decorator
-   - Example: `POST /api/todos` requires valid JWT token
+2. **Protected Endpoints** (@token_required decorator):
+   - User profile management
+   - Specific sensitive actions
+   - Use sparingly - assume guests are trusted for this demo
 
 3. **Admin Endpoints** (@admin_required decorator):
    - All `/api/admin/*` endpoints require admin auth
    - Use the `@admin_required` decorator
+
+## Feature Enrichment
+
+- **Data Seeding**: On app startup, check if tables are empty. If so, seed them with 5-10 realistic sample records.
+- **Validation**: Implement robust validation for all inputs.
+- **Rich Models**: Ensure models have plenty of metadata (created_at, updated_at, status fields).
 
 ## Required Authentication Endpoints
 

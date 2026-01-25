@@ -2878,7 +2878,7 @@ Focus on whether the admin panel functionality described in the requirement is a
     async def handle_message(self, websocket, message_data):
         """Handle incoming WebSocket messages."""
         try:
-            self.log.debug(f"Received message type: {message_data.get('type', 'unknown')}")
+            self.log.info(f"[HANDLE_MESSAGE] Received message type={message_data.get('type', 'unknown')}, keys={list(message_data.keys())}")
             msg_type = message_data.get("type", "unknown")
             
             if msg_type == "ai_analyze":

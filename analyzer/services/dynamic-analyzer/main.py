@@ -927,7 +927,7 @@ class DynamicAnalyzer(BaseWSService):
             return results
             
         except Exception as e:
-            self.log.error(f"Dynamic analysis failed: {e}")
+            self.log.error(f"[ANALYZE_RUNNING_APP] Dynamic analysis failed with exception: {e}", exc_info=True)
             return {
                 'status': 'error',
                 'error': str(e),
@@ -939,10 +939,14 @@ class DynamicAnalyzer(BaseWSService):
         """Handle incoming WebSocket messages."""
         try:
             msg_type = message_data.get("type", "unknown")
+            self.log.info(f"[HANDLE_MESSAGE] Received message type={msg_type}, keys={list(message_data.keys())}")
+
             if msg_type == "dynamic_analyze":
                 model_slug = message_data.get("model_slug", "unknown")
                 app_number = message_data.get("app_number", 1)
                 target_urls = message_data.get("target_urls", [])
+
+                self.log.info(f"[HANDLE_MESSAGE] Processing dynamic_analyze: model={model_slug}, app={app_number}, target_urls={target_urls}")
                 tool_config = message_data.get("config", {})
                 # Tool selection normalized
                 selected_tools = list(self.extract_selected_tools(message_data) or [])
@@ -988,14 +992,15 @@ class DynamicAnalyzer(BaseWSService):
                 await websocket.send(json.dumps(response))
                 await asyncio.sleep(0.1)
         except Exception as e:
-            self.log.error(f"Error handling message: {e}")
+            self.log.error(f"[HANDLE_MESSAGE] Error handling message: {e}", exc_info=True)
             error_response = {
                 "type": "error",
+                "status": "error",
                 "message": f"Internal error: {str(e)}",
                 "service": self.info.name
             }
             try:
-                await websocket.send(json.dumps(response))
+                await websocket.send(json.dumps(error_response))
             except Exception:
                 pass
     

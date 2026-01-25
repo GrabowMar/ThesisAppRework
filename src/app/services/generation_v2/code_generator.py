@@ -606,16 +606,26 @@ Generate EXACTLY ONE code block with this format:
 1. **SINGLE FILE**: ALL code in ONE app.py file
 2. **NO PLACEHOLDERS IN LOGIC**: While the example above has "pass", YOUR OUTPUT must have FULLY IMPLEMENTED logic.
 3. **WORKING AUTH**: bcrypt for passwords, PyJWT for tokens
-4. **PUBLIC READ**: GET list endpoints return ALL data without authentication
-5. **PROTECTED WRITE**: POST/PUT/DELETE require @token_required decorator
+4. **GUEST ACCESS**: Main application features (listing, creating, editing core items) MUST be accessible to GUESTS (no auth required).
+   - Only strictly personal or sensitive actions should require login.
+   - If in doubt, default to OPEN access.
+5. **PROTECTED ROUTES**: Use @token_required ONLY for:
+   - User profile management
+   - Admin administrative actions
+   - Destructive actions on shared resources (if critical)
 6. **ADMIN ROUTES**: Use @admin_required decorator for admin-only endpoints
-7. **to_dict() METHODS**: Every model must have a to_dict() method
+7. **RICH FEATURES**: 
+   - Implement comprehensive data models with relationships
+   - Add "Data Seeding": verification checks that create sample data if tables are empty
+   - Validation logic in all routes
+8. **to_dict() METHODS**: Every model must have a to_dict() method
 
 ## FORBIDDEN PATTERNS
 - ❌ @app.before_first_request (removed in Flask 2.3+)
 - ❌ Calling init_db() without app.app_context()
 - ❌ Using db.Model.query.get() - use db.session.get() instead
 - ❌ Asking "Would you like me to continue?"
+- ❌ Restricting main app functionality to logged-in users only
 
 ## RESPONSE FORMAT
 Output ONLY the code block. No explanations before or after."""
@@ -641,8 +651,15 @@ Generate EXACTLY ONE code block with this format:
 2. **FULLY IMPLEMENTED**: Every function body MUST have complete implementation logic. NO placeholder comments.
 3. **NO BrowserRouter**: main.jsx already provides it - DO NOT wrap App in BrowserRouter
 4. **WORKING AUTH**: localStorage token, AuthContext, login/register/logout functions with complete implementations
-5. **PUBLIC READ**: HomePage fetches data without auth, shows read-only for guests
-6. **COMPLETE FORMS**: All forms must have state, onChange handlers, onSubmit handlers, and error handling
+5. **GUEST ACCESS**:
+   - Main functionality (CRUD operations on core items) MUST work for guests
+   - Do NOT hide "Create" or "Edit" buttons behind login unless strictly necessary
+   - Show "Login for more features" banners, but allow core usage without it
+6. **RICH UI**:
+   - Modern, dense, professional design
+   - Dashboard-like views with stats/charts where applicable
+   - Comprehensive forms with validation
+7. **COMPLETE FORMS**: All forms must have state, onChange handlers, onSubmit handlers, and error handling
 
 ## FORBIDDEN PATTERNS - YOUR CODE MUST NOT CONTAIN:
 - ❌ "// Implement" comments - NEVER write these
@@ -652,6 +669,7 @@ Generate EXACTLY ONE code block with this format:
 - ❌ Comments like "add your code here" or "implement this"
 - ❌ Wrapping App in BrowserRouter
 - ❌ Importing packages not in the allowed list
+- ❌ Hiding main features behind login (unless admin-only)
 
 ## REQUIRED PATTERNS - YOUR CODE MUST FOLLOW:
 - ✅ Complete function bodies with actual logic
@@ -659,6 +677,7 @@ Generate EXACTLY ONE code block with this format:
 - ✅ API calls with proper loading states and error handling
 - ✅ Proper toast notifications for success/error states
 - ✅ Navigation with useNavigate() after successful login/register
+- ✅ Rich data presentation (cards, grids, tables)
 
 ## AVAILABLE PACKAGES (ONLY these)
 react, react-dom, react-router-dom, axios, react-hot-toast, @heroicons/react, date-fns, clsx, uuid

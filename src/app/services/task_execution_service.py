@@ -130,6 +130,16 @@ class TaskExecutionService:
         self._circuit_breaker_threshold: int = int(os.environ.get('CIRCUIT_BREAKER_THRESHOLD', '5'))
         self._circuit_breaker_cooldown: float = float(os.environ.get('CIRCUIT_BREAKER_COOLDOWN', '120.0'))
 
+        self._locks_lock = threading.Lock()
+        self._container_locks: Dict[str, threading.Lock] = {}
+        
+        self._log("INIT", "TaskExecutionService initialized with ThreadPoolExecutors and Container Locks")
+
+        self._locks_lock = threading.Lock()
+        self._container_locks: Dict[str, threading.Lock] = {}
+        
+        self._log("INIT", "TaskExecutionService initialized with ThreadPoolExecutors and Container Locks")
+
     def _is_redis_available(self) -> bool:
         """Check if Redis is available for Celery task dispatch.
 
@@ -1897,105 +1907,126 @@ class TaskExecutionService:
                 - 'backend_port': Optional[int] - Backend port if available
                 - 'frontend_port': Optional[int] - Frontend port if available
         """
-        try:
-            docker_mgr = ServiceLocator.get_docker_manager()
-            if not docker_mgr:
+        # Create a unique key for this app container set
+        lock_key = f"{model_slug}:{app_number}"
+        
+        # Get or create a lock for this specific app
+        # We need a meta-lock to safely create/get the app-specific lock
+        with self._locks_lock:
+            if lock_key not in self._container_locks:
+                self._container_locks[lock_key] = threading.Lock()
+            app_lock = self._container_locks[lock_key]
+            
+        # Context manager to ensure lock is released even if errors occur
+        # This prevents multiple threads from trying to start/build the same container simultaneously
+        self._log(f"[CONTAINER-MGMT] Acquiring lock for {lock_key}...")
+        
+        with app_lock:
+            try:
+                self._log(
+                    f"[CONTAINER-MGMT] Checking containers for {model_slug}/app{app_number} "
+                    f"(auto_start={auto_start}, auto_rebuild={auto_rebuild}, timeout={wait_timeout}s)"
+                )
+    
+                docker_mgr = ServiceLocator.get_docker_manager()
+                if not docker_mgr:
+                    self._log("[CONTAINER-MGMT] ERROR: Docker manager not available!", level='error')
+                    return {
+                        'ready': False,
+                        'action_taken': 'failed',
+                        'error': 'Docker manager not available'
+                    }
+    
+                # Step 1: Check current container status
+                status_summary = docker_mgr.container_status_summary(model_slug, app_number)  # type: ignore[union-attr]
+                containers_found = status_summary.get('containers_found', 0)
+                states = set(status_summary.get('states', []))
+                
+                self._log(
+                    f"[CONTAINER-MGMT] {model_slug}/app{app_number}: found={containers_found}, states={states}"
+                )
+                
+                # Case A: Containers exist and running → already ready
+                if containers_found > 0 and 'running' in states:
+                    self._log(f"[CONTAINER-MGMT] Containers already running")
+                    return self._check_target_app_containers_ready(
+                        model_slug, app_number, timeout_seconds=10
+                    ) | {'action_taken': 'none'}
+                
+                # Case B: Containers exist but stopped → start them
+                if containers_found > 0 and 'running' not in states:
+                    if not auto_start:
+                        return {
+                            'ready': False,
+                            'action_taken': 'none',
+                            'error': f'Containers exist but not running (states: {states}). Auto-start disabled.'
+                        }
+                    
+                    self._log(f"[CONTAINER-MGMT] Starting stopped containers...")
+                    start_result = docker_mgr.start_containers(model_slug, app_number)  # type: ignore[union-attr]
+                    
+                    if not start_result.get('success'):
+                        error_msg = start_result.get('error', 'Unknown start error')
+                        self._log(f"[CONTAINER-MGMT] Failed to start containers: {error_msg}", level='error')
+                        return {
+                            'ready': False,
+                            'action_taken': 'failed',
+                            'error': f'Failed to start containers: {error_msg}'
+                        }
+                    
+                    self._log(f"[CONTAINER-MGMT] Containers started, waiting for ready...")
+                    check_result = self._check_target_app_containers_ready(
+                        model_slug, app_number, timeout_seconds=wait_timeout
+                    )
+                    check_result['action_taken'] = 'started'
+                    return check_result
+                
+                # Case C: No containers exist → need to build
+                if containers_found == 0:
+                    if not auto_rebuild:
+                        return {
+                            'ready': False,
+                            'action_taken': 'none',
+                            'error': 'No containers found. Auto-rebuild disabled.'
+                        }
+                    
+                    self._log(f"[CONTAINER-MGMT] No containers found, building...")
+                    build_result = docker_mgr.build_containers(  # type: ignore[union-attr]
+                        model_slug, app_number,
+                        no_cache=True,  # Always rebuild to ensure latest code is used
+                        start_after=True  # Start after building
+                    )
+                    
+                    if not build_result.get('success'):
+                        error_msg = build_result.get('error', 'Unknown build error')
+                        self._log(f"[CONTAINER-MGMT] Failed to build containers: {error_msg}", level='error')
+                        return {
+                            'ready': False,
+                            'action_taken': 'failed',
+                            'error': f'Failed to build containers: {error_msg}'
+                        }
+                    
+                    self._log(f"[CONTAINER-MGMT] Containers built and started, waiting for ready...")
+                    check_result = self._check_target_app_containers_ready(
+                        model_slug, app_number, timeout_seconds=wait_timeout
+                    )
+                    check_result['action_taken'] = 'rebuilt'
+                    return check_result
+                
+                # Shouldn't reach here
+                return {
+                    'ready': False,
+                    'action_taken': 'none',
+                    'error': 'Unknown container state'
+                }
+                
+            except Exception as e:
+                self._log(f"[CONTAINER-MGMT] Error ensuring app running: {e}", level='error', exc_info=True)
                 return {
                     'ready': False,
                     'action_taken': 'failed',
-                    'error': 'Docker manager not available'
+                    'error': str(e)
                 }
-            
-            # Step 1: Check current container status
-            status_summary = docker_mgr.container_status_summary(model_slug, app_number)  # type: ignore[union-attr]
-            containers_found = status_summary.get('containers_found', 0)
-            states = set(status_summary.get('states', []))
-            
-            self._log(
-                f"[CONTAINER-MGMT] {model_slug}/app{app_number}: found={containers_found}, states={states}"
-            )
-            
-            # Case A: Containers exist and running → already ready
-            if containers_found > 0 and 'running' in states:
-                self._log(f"[CONTAINER-MGMT] Containers already running")
-                return self._check_target_app_containers_ready(
-                    model_slug, app_number, timeout_seconds=10
-                ) | {'action_taken': 'none'}
-            
-            # Case B: Containers exist but stopped → start them
-            if containers_found > 0 and 'running' not in states:
-                if not auto_start:
-                    return {
-                        'ready': False,
-                        'action_taken': 'none',
-                        'error': f'Containers exist but not running (states: {states}). Auto-start disabled.'
-                    }
-                
-                self._log(f"[CONTAINER-MGMT] Starting stopped containers...")
-                start_result = docker_mgr.start_containers(model_slug, app_number)  # type: ignore[union-attr]
-                
-                if not start_result.get('success'):
-                    error_msg = start_result.get('error', 'Unknown start error')
-                    self._log(f"[CONTAINER-MGMT] Failed to start containers: {error_msg}", level='error')
-                    return {
-                        'ready': False,
-                        'action_taken': 'failed',
-                        'error': f'Failed to start containers: {error_msg}'
-                    }
-                
-                self._log(f"[CONTAINER-MGMT] Containers started, waiting for ready...")
-                check_result = self._check_target_app_containers_ready(
-                    model_slug, app_number, timeout_seconds=wait_timeout
-                )
-                check_result['action_taken'] = 'started'
-                return check_result
-            
-            # Case C: No containers exist → need to build
-            if containers_found == 0:
-                if not auto_rebuild:
-                    return {
-                        'ready': False,
-                        'action_taken': 'none',
-                        'error': 'No containers found. Auto-rebuild disabled.'
-                    }
-                
-                self._log(f"[CONTAINER-MGMT] No containers found, building...")
-                build_result = docker_mgr.build_containers(  # type: ignore[union-attr]
-                    model_slug, app_number,
-                    no_cache=True,  # Always rebuild to ensure latest code is used
-                    start_after=True  # Start after building
-                )
-                
-                if not build_result.get('success'):
-                    error_msg = build_result.get('error', 'Unknown build error')
-                    self._log(f"[CONTAINER-MGMT] Failed to build containers: {error_msg}", level='error')
-                    return {
-                        'ready': False,
-                        'action_taken': 'failed',
-                        'error': f'Failed to build containers: {error_msg}'
-                    }
-                
-                self._log(f"[CONTAINER-MGMT] Containers built and started, waiting for ready...")
-                check_result = self._check_target_app_containers_ready(
-                    model_slug, app_number, timeout_seconds=wait_timeout
-                )
-                check_result['action_taken'] = 'rebuilt'
-                return check_result
-            
-            # Shouldn't reach here
-            return {
-                'ready': False,
-                'action_taken': 'none',
-                'error': 'Unknown container state'
-            }
-            
-        except Exception as e:
-            self._log(f"[CONTAINER-MGMT] Error ensuring app running: {e}", level='error', exc_info=True)
-            return {
-                'ready': False,
-                'action_taken': 'failed',
-                'error': str(e)
-            }
 
     def _execute_subtask_in_thread(
         self,
@@ -2147,11 +2178,17 @@ class TaskExecutionService:
                     timeout=service_timeout,
                     tool_config=tool_config
                 )
-                
+
                 # Update circuit breaker based on result
                 status = str(result.get('status', '')).lower()
                 success = status in ('success', 'completed', 'ok', 'partial')
                 is_partial = status == 'partial'
+
+                # DETAILED LOGGING: Log raw result for debugging
+                self._log(
+                    f"[SUBTASK_RESULT] {service_name} subtask {subtask_id}: status={status}, "
+                    f"has_payload={bool(result.get('payload'))}, error={result.get('error', 'none')[:200] if result.get('error') else 'none'}"
+                )
                 
                 # CRITICAL: Extract analysis data BEFORE checking success
                 # We need to verify that "success" actually means data was collected

@@ -78,12 +78,18 @@ class AnalysisTaskService:
         
         if existing:
             logger.warning(
-                "Duplicate task prevented (pre-check): %s app %s already has task %s in batch %s",
-                model_slug, app_number, existing.task_id, batch_id_str
+                "[TASK_CREATE] Duplicate task prevented (pre-check): %s app %s already has task %s in batch %s (status=%s)",
+                model_slug, app_number, existing.task_id, batch_id_str,
+                existing.status.value if existing.status else 'unknown'
             )
             # Return existing task instead of creating duplicate
             return existing
-        
+
+        logger.info(
+            "[TASK_CREATE] Creating new task for %s app %s (batch=%s, tools=%s)",
+            model_slug, app_number, batch_id_str, tools[:5] if len(tools) > 5 else tools
+        )
+
         task_uuid = f"task_{uuid.uuid4().hex[:12]}"
 
         # Resolve analyzer configuration (less relevant now, but kept for structure)
@@ -232,11 +238,29 @@ class AnalysisTaskService:
         registry_tools = registry.get_all_tools()
         
         tools_by_service: Dict[str, List[str]] = {}
+        unavailable_tools: List[str] = []
+        unknown_tools: List[str] = []
+
         for tool_name in tools:
             tool_obj = registry_tools.get(tool_name)
-            if tool_obj and tool_obj.available:
-                service = tool_obj.container.value if tool_obj.container else 'unknown'
-                tools_by_service.setdefault(service, []).append(tool_name)
+            if tool_obj:
+                if tool_obj.available:
+                    service = tool_obj.container.value if tool_obj.container else 'unknown'
+                    tools_by_service.setdefault(service, []).append(tool_name)
+                else:
+                    unavailable_tools.append(tool_name)
+            else:
+                unknown_tools.append(tool_name)
+
+        # Log tool grouping details for debugging
+        logger.info(
+            "[SUBTASK_CREATE] Grouping tools for %s app %s: services=%s, unavailable=%s, unknown=%s",
+            model_slug, app_number,
+            {svc: len(tls) for svc, tls in tools_by_service.items()},
+            unavailable_tools[:5] if unavailable_tools else [],
+            unknown_tools[:5] if unknown_tools else []
+        )
+
         base_options: Dict[str, Any] = dict(custom_options or {})
         base_options['tools_by_service'] = tools_by_service  # Now stores tool names
         base_options['unified_analysis'] = True
@@ -328,10 +352,11 @@ class AnalysisTaskService:
 
             db.session.add(subtask)
             logger.info(
-                "Created subtask %s for service %s under main task %s",
+                "[SUBTASK_CREATE] Created subtask %s for service %s under main task %s (tools=%s)",
                 subtask.task_id,
                 service_name,
                 main_task.task_id,
+                tool_names_for_service
             )
 
         # NOW set main task to PENDING and commit ATOMICALLY with all subtasks

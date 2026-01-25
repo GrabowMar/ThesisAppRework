@@ -26,22 +26,27 @@ The backend has been generated with these endpoints:
 
 **CRITICAL - Implement conditional rendering:**
 
-1. **Public View (not logged in)**:
-   - HomePage shows ALL data in read-only mode
-   - No edit/delete buttons visible
-   - Show "Sign in to create/edit" call-to-action banners
-   - Fetch data from public GET endpoints (no auth needed)
+1. **Public View (Guest)**:
+   - **Interactive**: Guests MUST be able to Create, Read, Update, Delete core items
+   - Show "Login" button in header, but do not block main features
+   - Main dashboard/list should be fully functional for guests
 
-2. **Authenticated View (logged in)**:
-   - Same data as public view
-   - PLUS create/edit/delete buttons visible
-   - PLUS forms for adding/editing items
-   - Use `isAuthenticated` from useAuth() for conditional rendering
+2. **Authenticated View (User)**:
+   - Access to user profile settings
+   - Potential for cloud sync or private data (if applicable)
+   - Use `isAuthenticated` checks mainly for User/Admin specific pages
 
 3. **Admin View**:
    - AdminPage at /admin route
    - Protected with `<ProtectedRoute adminOnly>`
-   - Stats cards, data tables, toggle actions
+   - Detailed system stats, user management
+
+## UI/UX Enrichment
+
+- **Visuals**: Use modern cards, shadows, rounded corners, and subtle animations.
+- **Density**: Avoid empty space. Use badges, extensive info in list items.
+- **Feedback**: Use toast notifications for every action.
+- **Dashboard**: HomePage should look like a dashboard with summary stats (even for guests).
 
 ## Page Requirements
 

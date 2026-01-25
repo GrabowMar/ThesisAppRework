@@ -388,7 +388,7 @@ class ConcurrentAnalysisRunner:
                 logger.debug(f"Created task {task.task_id} for {job.model_slug}/app{job.app_number}")
                 
             except Exception as e:
-                logger.error(f"Failed to create task for {job.model_slug}/app{job.app_number}: {e}")
+                logger.error(f"Failed to create task for {job.model_slug}/app{job.app_number}: {e}", exc_info=True)
                 # Continue with other jobs
         
         db.session.commit()
