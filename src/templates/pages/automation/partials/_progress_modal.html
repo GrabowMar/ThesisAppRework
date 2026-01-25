@@ -58,6 +58,12 @@
                 <span class="badge bg-secondary-lt ms-1" id="tab-tasks-count">0</span>
               </button>
             </li>
+            <li class="nav-item">
+              <button class="nav-link fw-bold py-2" data-bs-toggle="tab" data-bs-target="#tab-activity" type="button" id="btn-tab-activity">
+                <i class="fas fa-stream me-1"></i>Activity
+                <span class="badge bg-primary-lt ms-1" id="tab-activity-count">0</span>
+              </button>
+            </li>
           </ul>
         </div>
         
@@ -143,9 +149,33 @@
               </div>
             </div>
           </div>
+
+          {# Activity/Live Log Tab #}
+          <div class="tab-pane fade" id="tab-activity">
+            <div class="p-0">
+              <div class="px-3 py-2 bg-white border-bottom d-flex justify-content-between align-items-center">
+                <div class="small text-muted">
+                  <i class="fas fa-stream me-1"></i>Live activity feed - newest events first
+                </div>
+                <div class="small">
+                  <span class="badge bg-info-lt me-2" id="activity-auto-refresh">
+                    <i class="fas fa-sync-alt fa-spin me-1"></i>Auto-refresh
+                  </span>
+                </div>
+              </div>
+
+              {# Activity Feed #}
+              <div class="activity-feed" id="activity-feed" style="max-height: 500px; overflow-y: auto; font-family: var(--tblr-font-monospace); font-size: 12px;">
+                <div class="text-center py-5 text-muted">
+                  <i class="fas fa-stream fa-2x mb-2"></i>
+                  <div>Waiting for activity...</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-      
+
       <div class="modal-footer justify-content-between bg-light">
         <div>
           <button type="button" class="btn btn-warning btn-sm" id="modal-pause-btn" onclick="pausePipelineFromModal()">
@@ -196,6 +226,25 @@
   }
   .job-item.job-completed {
     border-left-color: var(--tblr-success);
+  }
+
+  /* Activity feed styling */
+  .activity-feed {
+    background-color: var(--tblr-bg-surface);
+  }
+  .event-item {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .event-item:hover {
+    background-color: var(--tblr-bg-surface-secondary);
+  }
+  .event-item:first-child {
+    animation: highlightNew 2s ease-out;
+  }
+  @keyframes highlightNew {
+    0% { background-color: rgba(var(--tblr-primary-rgb), 0.15); }
+    100% { background-color: transparent; }
   }
   .job-item.job-failed {
     border-left-color: var(--tblr-danger);
@@ -391,15 +440,17 @@ window.PipelineProgressModal = {
     this.updateGenerationStage(data.progress?.generation, data.generation_jobs);
     this.updateAnalysisStage(data.progress?.analysis, data.analysis_tasks);
     this.updateAllTasksTable(data.all_tasks);
-    
+    this.updateActivityFeed(data.events);
+
     // Tab counts
     const genProgress = data.progress?.generation || {};
     const analysisProgress = data.progress?.analysis || {};
-    document.getElementById('tab-gen-count').textContent = 
+    document.getElementById('tab-gen-count').textContent =
       `${(genProgress.completed || 0) + (genProgress.failed || 0)}/${genProgress.total || 0}`;
-    document.getElementById('tab-analysis-count').textContent = 
+    document.getElementById('tab-analysis-count').textContent =
       `${(analysisProgress.completed || 0) + (analysisProgress.failed || 0)}/${analysisProgress.total || 0}`;
     document.getElementById('tab-tasks-count').textContent = (data.all_tasks || []).length;
+    document.getElementById('tab-activity-count').textContent = (data.events || []).length;
     
     // Update control buttons
     const isPipelineActive = ['running', 'pending'].includes(data.status);
@@ -581,6 +632,89 @@ window.PipelineProgressModal = {
          </tr>
         `;
      }).join('');
+  },
+
+  /**
+   * Update activity feed with live events
+   */
+  updateActivityFeed(events) {
+    const feedEl = document.getElementById('activity-feed');
+    if (!feedEl) return;
+
+    if (!events || events.length === 0) {
+      feedEl.innerHTML = `
+        <div class="text-center py-5 text-muted">
+          <i class="fas fa-stream fa-2x mb-2"></i>
+          <div>Waiting for activity...</div>
+        </div>`;
+      return;
+    }
+
+    feedEl.innerHTML = events.map(event => this.renderEventItem(event)).join('');
+  },
+
+  /**
+   * Render a single event item
+   */
+  renderEventItem(event) {
+    const levelColors = {
+      'info': 'text-primary',
+      'success': 'text-success',
+      'warning': 'text-warning',
+      'error': 'text-danger'
+    };
+
+    const levelIcons = {
+      'info': 'fa-info-circle',
+      'success': 'fa-check-circle',
+      'warning': 'fa-exclamation-triangle',
+      'error': 'fa-times-circle'
+    };
+
+    const stageIcons = {
+      'generation': 'fa-code',
+      'analysis': 'fa-search-plus',
+      'done': 'fa-flag-checkered'
+    };
+
+    const level = event.level || 'info';
+    const colorClass = levelColors[level] || 'text-muted';
+    const iconClass = levelIcons[level] || 'fa-circle';
+    const stageIcon = stageIcons[event.stage] || 'fa-cog';
+
+    // Format timestamp
+    const timestamp = event.timestamp ? new Date(event.timestamp) : new Date();
+    const timeStr = timestamp.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+
+    return `
+      <div class="event-item px-3 py-2 border-bottom d-flex align-items-start gap-2 ${level === 'error' ? 'bg-danger-lt' : ''}">
+        <div class="text-muted small" style="min-width: 65px;">${timeStr}</div>
+        <div class="${colorClass}" style="min-width: 20px;">
+          <i class="fas ${iconClass}"></i>
+        </div>
+        <div class="flex-fill">
+          <div class="d-flex align-items-center gap-2">
+            ${event.stage ? `<span class="badge bg-secondary-lt small"><i class="fas ${stageIcon} me-1"></i>${event.stage}</span>` : ''}
+            ${event.target ? `<span class="badge bg-azure-lt small">${event.target}</span>` : ''}
+          </div>
+          <div class="mt-1 ${colorClass}">${event.message}</div>
+          ${event.details && Object.keys(event.details).length > 0 ? `
+            <div class="mt-1 text-muted small">
+              ${Object.entries(event.details)
+                .filter(([k, v]) => v !== null && v !== undefined && !Array.isArray(v))
+                .slice(0, 3)
+                .map(([k, v]) => `<span class="me-2">${k}: <strong>${v}</strong></span>`)
+                .join('')}
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
   }
 };
 } // End guard pattern

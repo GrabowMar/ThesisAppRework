@@ -6,12 +6,12 @@
 #
 # Architecture:
 # - 3 replicas of static-analyzer (ports 2001-2003)
-# - 2 replicas of dynamic-analyzer (ports 2011-2012)
-# - 2 replicas of performance-tester (ports 2021-2022)
-# - 2 replicas of ai-analyzer (ports 2031-2032)
+# - 3 replicas of dynamic-analyzer (ports 2011-2013)
+# - 3 replicas of performance-tester (ports 2021-2023)
+# - 3 replicas of ai-analyzer (ports 2031-2033)
 #
 # Each replica can handle 2-3 concurrent analyses internally.
-# Total capacity: ~20-30 concurrent analyses across all services.
+# Total capacity: ~24-36 concurrent analyses across all services.
 #
 # Usage:
 #   cd analyzer
@@ -115,7 +115,7 @@ services:
           memory: 1G
           cpus: '0.5'
 
-  # ===== DYNAMIC ANALYZER REPLICAS (2x) =====
+  # ===== DYNAMIC ANALYZER REPLICAS (3x) =====
   dynamic-analyzer-1:
     build:
       context: ..
@@ -184,7 +184,41 @@ services:
           memory: 1G
           cpus: '0.5'
 
-  # ===== PERFORMANCE TESTER REPLICAS (2x) =====
+  dynamic-analyzer-3:
+    build:
+      context: ..
+      dockerfile: analyzer/services/dynamic-analyzer/Dockerfile
+    ports:
+      - "2013:2002"
+    container_name: "dynamic-analyzer-3"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2002
+      - MAX_CONCURRENT_ANALYSES=2
+      - PYTHONPATH=/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+      - thesis-apps-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # ===== PERFORMANCE TESTER REPLICAS (3x) =====
   performance-tester-1:
     build:
       context: ..
@@ -253,7 +287,41 @@ services:
           memory: 2G
           cpus: '1.0'
 
-  # ===== AI ANALYZER REPLICAS (2x) =====
+  performance-tester-3:
+    build:
+      context: ..
+      dockerfile: analyzer/services/performance-tester/Dockerfile
+    ports:
+      - "2023:2003"
+    container_name: "performance-tester-3"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2003
+      - MAX_CONCURRENT_ANALYSES=2
+      - PYTHONPATH=/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../results:/app/reports
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+      - thesis-apps-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  # ===== AI ANALYZER REPLICAS (3x) =====
   ai-analyzer-1:
     build:
       context: ..
@@ -322,6 +390,40 @@ services:
           memory: 2G
           cpus: '1.0'
 
+  ai-analyzer-3:
+    build:
+      context: ..
+      dockerfile: analyzer/services/ai-analyzer/Dockerfile
+    ports:
+      - "2033:2004"
+    container_name: "ai-analyzer-3"
+    env_file:
+      - ../.env
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2004
+      - MAX_CONCURRENT_ANALYSES=2
+      - PYTHONPATH=/app
+    volumes:
+      - ../generated/apps:/app/sources:ro
+      - ../results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
   # ===== REDIS FOR TASK COORDINATION =====
   redis:
     image: redis:7.2-alpine
@@ -354,9 +456,9 @@ networks:
 # TOTAL CAPACITY WITH THIS ARCHITECTURE:
 # ==================================================================
 # Static Analysis:  3 replicas × 2 concurrent = 6 concurrent static analyses
-# Dynamic Analysis: 2 replicas × 2 concurrent = 4 concurrent dynamic analyses
-# Performance Test: 2 replicas × 2 concurrent = 4 concurrent perf tests
-# AI Analysis:      2 replicas × 2 concurrent = 4 concurrent AI analyses
+# Dynamic Analysis: 3 replicas × 2 concurrent = 6 concurrent dynamic analyses
+# Performance Test: 3 replicas × 2 concurrent = 6 concurrent perf tests
+# AI Analysis:      3 replicas × 2 concurrent = 6 concurrent AI analyses
 #
-# TOTAL: Up to 18 analyses running concurrently across all types
+# TOTAL: Up to 24 analyses running concurrently across all types
 # ==================================================================

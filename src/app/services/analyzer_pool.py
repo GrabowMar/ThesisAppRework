@@ -157,12 +157,12 @@ class AnalyzerPool:
                                 port=int(port)
                             ))
                 else:
-                    # Use defaults for docker environment
+                    # Use defaults for docker environment (3 replicas each)
                     default_ports = {
                         'static-analyzer': [2001, 2002, 2003],
-                        'dynamic-analyzer': [2011, 2012],
-                        'performance-tester': [2021, 2022],
-                        'ai-analyzer': [2031, 2032]
+                        'dynamic-analyzer': [2011, 2012, 2013],
+                        'performance-tester': [2021, 2022, 2023],
+                        'ai-analyzer': [2031, 2032, 2033]
                     }
 
                     host = 'localhost'  # or service name in docker

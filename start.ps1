@@ -491,6 +491,132 @@ function Test-Dependencies {
     return $true
 }
 
+function Test-RedisConnection {
+    <#
+    .SYNOPSIS
+    Test Redis TCP connectivity
+    #>
+    param(
+        [int]$Port = 6379,
+        [int]$TimeoutSec = 5
+    )
+
+    try {
+        $tcpClient = New-Object System.Net.Sockets.TcpClient
+        $async = $tcpClient.BeginConnect('127.0.0.1', $Port, $null, $null)
+        $wait = $async.AsyncWaitHandle.WaitOne($TimeoutSec * 1000, $false)
+
+        if ($wait -and $tcpClient.Connected) {
+            $tcpClient.Close()
+            return $true
+        }
+        $tcpClient.Close()
+        return $false
+    } catch {
+        return $false
+    }
+}
+
+function Start-RedisContainer {
+    <#
+    .SYNOPSIS
+    Start Redis container using root docker-compose.yml
+    #>
+    Write-Status "Starting Redis container..." "Info"
+
+    # Check if already running
+    $existing = docker ps --filter "name=^thesisapprework-redis-1$" --format "{{.Names}}" 2>$null
+    if ($existing -like "*redis*") {
+        Write-Status "  ✓ Redis already running" "Success"
+        return $true
+    }
+
+    # Start using root docker-compose
+    Push-Location $Script:ROOT_DIR
+    try {
+        $output = docker compose up -d redis 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Status "  ✗ Failed to start Redis: $output" "Error"
+            return $false
+        }
+
+        # Wait for Redis to be healthy
+        Write-Host "  ⏳ Waiting for Redis health check" -NoNewline -ForegroundColor Cyan
+        $maxWait = 30
+        $waited = 0
+
+        while ($waited -lt $maxWait) {
+            Start-Sleep -Seconds 1
+            $waited++
+            Write-Host "." -NoNewline -ForegroundColor Yellow
+
+            if (Test-RedisConnection) {
+                Write-Host ""
+                Write-Status "  ✓ Redis started and healthy (${waited}s)" "Success"
+                return $true
+            }
+        }
+
+        Write-Host ""
+        Write-Status "  ✗ Redis health check timeout after ${maxWait}s" "Error"
+        Write-Status "    Check logs: docker logs thesisapprework-redis-1" "Info"
+        return $false
+    } finally {
+        Pop-Location
+    }
+}
+
+function Start-CeleryWorkerContainer {
+    <#
+    .SYNOPSIS
+    Start Celery worker container using root docker-compose.yml
+    #>
+    Write-Status "Starting Celery worker container..." "Info"
+
+    # Check if already running
+    $existing = docker ps --filter "name=^thesisapprework-celery-worker-1$" --format "{{.Names}}" 2>$null
+    if ($existing -like "*celery-worker*") {
+        Write-Status "  ✓ Celery worker already running" "Success"
+        return $true
+    }
+
+    # Start using root docker-compose
+    Push-Location $Script:ROOT_DIR
+    try {
+        $output = docker compose up -d celery-worker 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Status "  ✗ Failed to start Celery worker: $output" "Error"
+            return $false
+        }
+
+        # Wait for Celery worker to be healthy (takes longer to start)
+        Write-Host "  ⏳ Waiting for Celery worker health check" -NoNewline -ForegroundColor Cyan
+        $maxWait = 60
+        $waited = 0
+
+        while ($waited -lt $maxWait) {
+            Start-Sleep -Seconds 2
+            $waited += 2
+            Write-Host "." -NoNewline -ForegroundColor Yellow
+
+            $health = docker inspect --format='{{.State.Health.Status}}' thesisapprework-celery-worker-1 2>$null
+            if ($health -eq "healthy") {
+                Write-Host ""
+                Write-Status "  ✓ Celery worker started and healthy (${waited}s)" "Success"
+                return $true
+            }
+        }
+
+        Write-Host ""
+        Write-Status "  ⚠ Celery worker health check timeout after ${maxWait}s" "Warning"
+        Write-Status "    Tasks will fallback to ThreadPool execution" "Info"
+        Write-Status "    Check logs: docker logs thesisapprework-celery-worker-1" "Info"
+        return $false
+    } finally {
+        Pop-Location
+    }
+}
+
 function Start-AnalyzerServices {
     if ($NoAnalyzer) {
         Write-Status "Skipping analyzer services (NoAnalyzer flag)" "Warning"
@@ -804,18 +930,32 @@ function Stop-Service {
 
 function Stop-AllServices {
     Write-Banner "Stopping ThesisApp Services"
-    
+
     # Check if we're in Docker mode
     $modeFile = Join-Path $Script:RUN_DIR "docker.mode"
     if (Test-Path $modeFile) {
         Stop-DockerStack
     }
-    
+
     # Stop in reverse dependency order (local services)
     $stopOrder = @('Flask', 'Analyzers')
-    
+
     foreach ($service in $stopOrder) {
         Stop-Service $service
+    }
+
+    # Stop Celery worker and Redis containers
+    Write-Status "Stopping Celery worker and Redis containers..." "Info"
+    Push-Location $Script:ROOT_DIR
+    try {
+        docker compose stop celery-worker redis 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Status "  ✓ Celery worker and Redis stopped" "Success"
+        }
+    } catch {
+        # Silently continue - containers may not be running
+    } finally {
+        Pop-Location
     }
 
     Write-Status "All services stopped" "Success"
@@ -869,19 +1009,32 @@ function Show-StatusDashboard {
 }
 
 function Start-LocalStack {
-    Write-Banner "Starting ThesisApp Local Stack (Non-Containerized)"
-    
+    Write-Banner "Starting ThesisApp Local Stack (Flask + Analyzers + Redis/Celery)"
+
     # Dependency-aware startup sequence
     $success = $true
-    
-    # 1. Analyzer services (optional but recommended)
-    if (-not (Start-AnalyzerServices)) {
-        Write-Status "Analyzer services failed, but continuing..." "Warning"
+
+    # 1. Redis (message broker for Celery - CRITICAL FIRST)
+    if (-not (Start-RedisContainer)) {
+        Write-Status "⚠ Failed to start Redis - analysis tasks may not work properly" "Warning"
+        Write-Status "   Tasks will fallback to ThreadPool execution" "Info"
+        $success = $false
     }
-    
-    # 2. Flask app (with built-in ThreadPoolExecutor task execution)
+
+    # 2. Celery worker (task executor - DEPENDS ON REDIS)
+    if (-not (Start-CeleryWorkerContainer)) {
+        Write-Status "⚠ Failed to start Celery worker - will fallback to ThreadPool" "Warning"
+        Write-Status "   Distributed task execution unavailable" "Info"
+    }
+
+    # 3. Analyzer services (optional but recommended)
+    if (-not (Start-AnalyzerServices)) {
+        Write-Status "⚠ Analyzer services failed, but continuing..." "Warning"
+    }
+
+    # 4. Flask app (can detect Redis/Celery availability)
     if (-not (Start-FlaskApp)) {
-        Write-Status "Failed to start Flask application" "Error"
+        Write-Status "✗ Failed to start Flask application" "Error"
         return $false
     }
     
@@ -902,10 +1055,11 @@ function Start-LocalStack {
         }
         
         Write-Host ""
-        Write-Banner "ThesisApp Started (Local Mode)"
+        Write-Banner "ThesisApp Started (Local Mode with Distributed Execution)"
         Write-Host "🌐 Application URL: " -NoNewline -ForegroundColor Cyan
         Write-Host "http://127.0.0.1:$Port" -ForegroundColor White
-        Write-Host "⚡ Task Execution: ThreadPoolExecutor (local, non-distributed)" -ForegroundColor Gray
+        Write-Host "⚡ Task Execution: Celery + Redis (distributed, scalable)" -ForegroundColor Green
+        Write-Host "   Fallback: ThreadPoolExecutor if Redis/Celery unavailable" -ForegroundColor Gray
         Write-Host ""
         Write-Host "💡 Quick Commands:" -ForegroundColor Cyan
         Write-Host "   .\start.ps1 -Mode Status    - Check service status" -ForegroundColor Gray

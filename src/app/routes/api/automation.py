@@ -221,12 +221,19 @@ def api_pipeline_detailed_status(pipeline_id: str):
                     })
                     task_summary['failed'] += 1
 
+        # Get activity events (newest first, limited to 50 for UI)
+        events = progress.get('events', [])
+        recent_events = events[-50:] if len(events) > 50 else events
+        # Reverse to show newest first in UI
+        recent_events = list(reversed(recent_events))
+
         response_data = {
             **base_data,
             'generation_jobs': generation_jobs,
             'analysis_tasks': analysis_tasks,
             'all_tasks': all_tasks,
             'task_summary': task_summary,
+            'events': recent_events,
         }
 
         return api_success(data=response_data)

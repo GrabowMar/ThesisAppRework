@@ -21,12 +21,12 @@ if (typeof window.AutomationWizard !== 'undefined') {
             existingApps: [], // for existing apps mode
             generationOptions: {
                 parallel: true,  // Default to parallel for efficiency
-                maxConcurrentTasks: 2  // Default 2 concurrent (avoid rate limits)
+                maxConcurrentTasks: 5  // Default 5 concurrent (capped by actual job count)
             },
             analysisTools: [],
             analysisOptions: {
                 parallel: true,  // Default to parallel for batch efficiency
-                maxConcurrentTasks: 2,  // Default parallelism limit (match generation)
+                maxConcurrentTasks: 5,  // Default parallelism limit
                 autoStartContainers: true,  // Auto-start containers by default
                 stopAfterAnalysis: true  // Clean up containers after analysis
             },
@@ -370,11 +370,11 @@ if (typeof window.AutomationWizard !== 'undefined') {
 
         // Get generation options (parallel execution settings)
         const genParallelEnabled = document.getElementById('generation-parallel')?.checked ?? true;
-        const genMaxConcurrent = parseInt(document.getElementById('generation-max-concurrent')?.value || '2', 10);
+        const genMaxConcurrent = parseInt(document.getElementById('generation-max-concurrent')?.value || '5', 10);
 
         wizard.config.generationOptions = {
             parallel: genParallelEnabled,
-            maxConcurrentTasks: genParallelEnabled ? Math.min(Math.max(genMaxConcurrent, 1), 4) : 1  // Clamp between 1-4
+            maxConcurrentTasks: genParallelEnabled ? Math.min(Math.max(genMaxConcurrent, 1), 10) : 1  // Clamp between 1-10
         };
 
         updateSelectionSummary();
@@ -679,7 +679,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
                     models: wizard.config.models,
                     templates: wizard.config.templates,
                     existingApps: wizard.config.existingApps || [],
-                    options: wizard.config.generationOptions || { parallel: true, maxConcurrentTasks: 2 }
+                    options: wizard.config.generationOptions || { parallel: true, maxConcurrentTasks: 5 }
                 },
                 analysis: {
                     enabled: true,
@@ -1673,12 +1673,12 @@ if (typeof window.AutomationWizard !== 'undefined') {
             existingApps: [],
             generationOptions: {
                 parallel: true,  // Default to parallel for efficiency
-                maxConcurrentTasks: 2  // Default 2 concurrent (avoid rate limits)
+                maxConcurrentTasks: 5  // Default 5 concurrent (capped by actual job count)
             },
             analysisTools: [],
             analysisOptions: {
                 parallel: true,  // Default to parallel for batch efficiency
-                maxConcurrentTasks: 2,  // Default parallelism limit (match generation)
+                maxConcurrentTasks: 5,  // Default parallelism limit
                 autoStartContainers: true,  // Auto-start containers by default
                 stopAfterAnalysis: true  // Clean up containers after analysis
             },
@@ -2328,7 +2328,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
             analysisTools: wizard.config.analysisTools || [],
             analysisOptions: wizard.config.analysisOptions || {
                 parallel: true,
-                maxConcurrentTasks: 2,
+                maxConcurrentTasks: 5,
                 autoStartContainers: true,
                 stopAfterAnalysis: true
             }

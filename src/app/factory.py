@@ -27,6 +27,52 @@ except Exception:  # pragma: no cover - optional
 from app.utils.logging_config import get_logger
 logger = get_logger('factory')
 
+def _validate_redis_connection(broker_url: str) -> bool:
+    """Test Redis connectivity.
+
+    Args:
+        broker_url: Redis URL (e.g., 'redis://localhost:6379/0')
+
+    Returns:
+        True if Redis is accessible, False otherwise
+    """
+    try:
+        import redis
+        client = redis.from_url(broker_url, socket_timeout=2, socket_connect_timeout=2)
+        client.ping()
+        return True
+    except ImportError:
+        logger.debug("redis-py not installed")
+        return False
+    except Exception as e:
+        logger.debug(f"Redis validation failed: {e}")
+        return False
+
+def _validate_celery_worker(broker_url: str) -> bool:
+    """Test Celery worker availability.
+
+    Args:
+        broker_url: Celery broker URL
+
+    Returns:
+        True if at least one Celery worker is available, False otherwise
+    """
+    try:
+        from celery import Celery
+        celery_app = Celery('validation', broker=broker_url)
+        celery_app.conf.broker_connection_retry_on_startup = True
+
+        inspect = celery_app.control.inspect(timeout=2)
+        active = inspect.active()
+
+        return active is not None and len(active) > 0
+    except ImportError:
+        logger.debug("celery not installed")
+        return False
+    except Exception as e:
+        logger.debug(f"Celery worker validation failed: {e}")
+        return False
+
 def create_app(config_name: str = 'default') -> Flask:
     """
     Create and configure Flask application.
@@ -541,7 +587,22 @@ def create_app(config_name: str = 'default') -> Flask:
         # Import sys if needed
         import sys
         in_celery_worker = 'celery' in ' '.join(sys.argv).lower()
-        
+
+        # Validate Redis/Celery infrastructure before pipeline service starts
+        broker_url = app.config.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+        redis_healthy = _validate_redis_connection(broker_url)
+        celery_healthy = _validate_celery_worker(broker_url)
+
+        # Log orchestration mode
+        if redis_healthy and celery_healthy:
+            logger.info("✓ Distributed orchestration ready (Redis + Celery)")
+        elif redis_healthy:
+            logger.warning("⚠ Partial orchestration (Redis only, no Celery worker)")
+            logger.warning("  Tasks will fallback to ThreadPool - start Celery worker for distributed execution")
+        else:
+            logger.warning("⚠ Fallback orchestration (ThreadPool only)")
+            logger.warning("  Redis not accessible - start Redis and Celery worker for distributed execution")
+
         if enable_pipeline_svc and not in_celery_worker:
             try:  # pragma: no cover - wiring
                 from app.services.pipeline_execution_service import init_pipeline_execution_service

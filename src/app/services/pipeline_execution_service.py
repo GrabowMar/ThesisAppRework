@@ -165,11 +165,14 @@ class PipelineExecutionService:
         
         # App container tracking (model_slug, app_number) tuples started per pipeline
         self._app_containers_started: Dict[str, Set[tuple]] = {}  # pipeline_id -> {(model, app_num), ...}
-        
+
+        # Streaming analysis tracking (for immediate per-app analysis)
+        self._submitted_analyses: Dict[str, Set[str]] = {}  # pipeline_id -> set of job_keys submitted
+
         # Graceful shutdown state
         self._shutting_down: bool = False
         self._shutdown_event: threading.Event = threading.Event()
-        
+
         self._log("INIT", f"PipelineExecutionService initialized (poll_interval={poll_interval})")
     
     def _log(self, context: str, msg: str, level: str = 'info') -> None:
@@ -193,15 +196,86 @@ class PipelineExecutionService:
             self._log("GEN", f"Processing job {job_index} for {model_slug}")
         """
         log_func = getattr(logger, level, logger.info)
-        
+
         # Build prefix based on current context
         if self._current_pipeline_id:
             prefix = f"[{self._current_pipeline_id}:{context}]"
         else:
             prefix = f"[PIPELINE:{context}]"
-        
+
         log_func(f"{prefix} {msg}")
-    
+
+    def _add_event(
+        self,
+        pipeline: PipelineExecution,
+        event_type: str,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+        stage: Optional[str] = None,
+        target: Optional[str] = None,
+        level: str = 'info'
+    ) -> None:
+        """Add an event to the pipeline activity log for UI display.
+
+        Events are stored in pipeline.progress['events'] and displayed in the
+        live activity feed in the pipeline progress modal.
+
+        Args:
+            pipeline: The pipeline execution instance
+            event_type: Type of event (e.g., 'generation_start', 'api_call', 'analysis_start')
+            message: Human-readable event message
+            details: Optional dict with additional details
+            stage: Current stage ('generation' or 'analysis')
+            target: Target identifier (e.g., 'model-slug/app1')
+            level: Event level ('info', 'success', 'warning', 'error')
+
+        Event types:
+        - pipeline_start, pipeline_complete, pipeline_failed
+        - generation_start, generation_api_call, generation_response, generation_building
+        - generation_files, generation_complete, generation_failed
+        - analysis_start, analysis_tool_start, analysis_tool_complete
+        - analysis_complete, analysis_failed
+        - container_start, container_stop, health_check
+        """
+        try:
+            progress = pipeline.progress.copy() if pipeline.progress else {}
+            events = progress.setdefault('events', [])
+
+            # Keep last 100 events to avoid unbounded growth
+            MAX_EVENTS = 100
+            if len(events) >= MAX_EVENTS:
+                events = events[-(MAX_EVENTS - 1):]
+
+            event = {
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'type': event_type,
+                'message': message,
+                'level': level,
+            }
+
+            if stage:
+                event['stage'] = stage
+            if target:
+                event['target'] = target
+            if details:
+                event['details'] = details
+
+            events.append(event)
+            progress['events'] = events
+            pipeline.progress = progress
+
+            # Commit if we have an active session
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                # Event logging failure shouldn't break pipeline execution
+                pass
+
+        except Exception as e:
+            # Event logging failure should never break pipeline execution
+            logger.debug(f"Failed to add event: {e}")
+
     def _get_analyzer_host(self, service_name: str) -> str:
         """Get the hostname for an analyzer service.
         
@@ -594,7 +668,157 @@ class PipelineExecutionService:
         
         # Unknown stage - check completion
         self._check_stage_transition(pipeline)
-    
+
+    # =============================================================================
+    # STREAMING ANALYSIS METHODS (Immediate per-app analysis)
+    # =============================================================================
+
+    def _should_start_analysis_early(self, pipeline: PipelineExecution) -> bool:
+        """Check if streaming mode is enabled for this pipeline.
+
+        Streaming mode triggers analysis IMMEDIATELY after each app generates,
+        rather than waiting for all apps to complete (batch mode).
+
+        Args:
+            pipeline: The pipeline execution instance
+
+        Returns:
+            True if streaming mode enabled, False for batch mode
+        """
+        config = pipeline.config
+        analysis_config = config.get('analysis', {})
+
+        # Check if analysis is enabled at all
+        if not analysis_config.get('enabled', True):
+            return False
+
+        # Check for explicit streaming mode flag (default: True for immediate analysis)
+        streaming_mode = analysis_config.get('options', {}).get('streamingAnalysis', True)
+        return streaming_mode
+
+    def _trigger_immediate_analysis(
+        self,
+        pipeline_id: str,
+        model_slug: str,
+        app_number: int,
+        tools: List[str]
+    ) -> None:
+        """Trigger analysis IMMEDIATELY for a single generated app (non-blocking).
+
+        This method runs in the background thread pool to avoid blocking generation.
+        It submits the analysis task and tracks it for completion monitoring.
+
+        Args:
+            pipeline_id: Pipeline ID
+            model_slug: Generated app model slug
+            app_number: Generated app number
+            tools: List of analysis tools to run
+        """
+        # Check if already submitted
+        job_key = f"{model_slug}:{app_number}"
+
+        with _pipeline_state_lock:
+            if job_key in self._submitted_analyses.get(pipeline_id, set()):
+                self._log("ANAL", f"Analysis already submitted for {job_key}", level='debug')
+                return
+
+        self._log("ANAL", f"🚀 IMMEDIATE analysis dispatch: {model_slug}/app{app_number}")
+
+        # Submit to analysis executor (non-blocking)
+        if self._analysis_executor:
+            future = self._analysis_executor.submit(
+                self._execute_immediate_analysis,
+                pipeline_id,
+                model_slug,
+                app_number,
+                tools
+            )
+
+            # Track in-flight
+            with _pipeline_state_lock:
+                self._analysis_futures.setdefault(pipeline_id, {})[job_key] = future
+                self._submitted_analyses.setdefault(pipeline_id, set()).add(job_key)
+        else:
+            self._log("ANAL", "Analysis executor not available - skipping immediate analysis", level='warning')
+
+    def _execute_immediate_analysis(
+        self,
+        pipeline_id: str,
+        model_slug: str,
+        app_number: int,
+        tools: List[str]
+    ) -> None:
+        """Execute immediate analysis in background thread with Flask app context.
+
+        This runs in a thread pool worker and submits the analysis task to the system.
+
+        Args:
+            pipeline_id: Pipeline ID
+            model_slug: Model slug
+            app_number: App number
+            tools: Analysis tools
+        """
+        # Ensure we have app context
+        if self._app:
+            with self._app.app_context():
+                self._execute_immediate_analysis_impl(pipeline_id, model_slug, app_number, tools)
+        else:
+            self._execute_immediate_analysis_impl(pipeline_id, model_slug, app_number, tools)
+
+    def _execute_immediate_analysis_impl(
+        self,
+        pipeline_id: str,
+        model_slug: str,
+        app_number: int,
+        tools: List[str]
+    ) -> None:
+        """Implementation of immediate analysis execution.
+
+        Args:
+            pipeline_id: Pipeline ID
+            model_slug: Model slug
+            app_number: App number
+            tools: Analysis tools
+        """
+        try:
+            # Get pipeline from DB
+            pipeline = PipelineExecution.query.filter_by(pipeline_id=pipeline_id).first()
+            if not pipeline:
+                self._log("ANAL", f"Pipeline {pipeline_id} not found", level='error')
+                return
+
+            # Create job spec
+            job = {
+                'model_slug': model_slug,
+                'app_number': app_number,
+            }
+
+            # Submit analysis task using existing method
+            task_id = self._submit_analysis_task(pipeline, job)
+
+            # Track in pipeline progress
+            progress = pipeline.progress
+            analysis_progress = progress.setdefault('analysis', {})
+            analysis_progress.setdefault('task_ids', []).append(task_id)
+            analysis_progress.setdefault('submitted_apps', []).append(f"{model_slug}:{app_number}")
+            pipeline.progress = progress
+            db.session.commit()
+
+            self._log("ANAL", f"✓ Immediate analysis task created: {task_id} for {model_slug}/app{app_number}")
+
+        except Exception as e:
+            self._log("ANAL", f"✗ Immediate analysis failed for {model_slug}/app{app_number}: {e}", level='error')
+        finally:
+            # Remove from in-flight tracking
+            with _pipeline_state_lock:
+                job_key = f"{model_slug}:{app_number}"
+                if pipeline_id in self._analysis_futures:
+                    self._analysis_futures[pipeline_id].pop(job_key, None)
+
+    # =============================================================================
+    # GENERATION STAGE
+    # =============================================================================
+
     def _process_generation_stage(self, pipeline: PipelineExecution):
         """Process generation stage using ConcurrentGenerationRunner.
         
@@ -661,10 +885,53 @@ class PipelineExecutionService:
                 pipeline.progress = p_data
                 
                 db.session.commit()
-                
+
+                # Add event for UI activity feed
+                target = f"{result.model_slug}/app{result.app_number}"
+                if result.success:
+                    self._add_event(
+                        pipeline,
+                        'generation_complete',
+                        f"Generated {target} ({completed_count}/{total_count})",
+                        details={
+                            'model_slug': result.model_slug,
+                            'template_slug': result.template_slug,
+                            'app_number': result.app_number,
+                            'duration': result.duration_seconds
+                        },
+                        stage='generation',
+                        target=target,
+                        level='success'
+                    )
+                else:
+                    self._add_event(
+                        pipeline,
+                        'generation_failed',
+                        f"Failed to generate {target}: {result.error or 'Unknown error'}",
+                        details={
+                            'model_slug': result.model_slug,
+                            'template_slug': result.template_slug,
+                            'error': result.error
+                        },
+                        stage='generation',
+                        target=target,
+                        level='error'
+                    )
+
                 # Emit socket event
                 self._emit_progress_update(pipeline)
-                
+
+                # STREAMING MODE: Trigger immediate analysis if enabled
+                if result.success and self._should_start_analysis_early(pipeline):
+                    analysis_config = config.get('analysis', {})
+                    tools = analysis_config.get('tools', [])
+                    self._trigger_immediate_analysis(
+                        pipeline_id=pipeline_id,
+                        model_slug=result.model_slug,
+                        app_number=result.app_number,
+                        tools=tools
+                    )
+
             except Exception as e:
                 self._log("GEN", f"Error in progress callback: {e}", level='error')
         
@@ -712,13 +979,24 @@ class PipelineExecutionService:
         progress['generation']['status'] = 'in_progress'
         pipeline.progress = progress
         db.session.commit()
-        
+
         # Get concurrency settings
         use_parallel = gen_options.get('parallel', True)
         max_concurrent = gen_options.get('maxConcurrentTasks', DEFAULT_MAX_CONCURRENT_GENERATION) if use_parallel else 1
-        
+        total_jobs = len(models) * len(templates)
+
         self._log(
-            "GEN", f"Starting batch generation: {len(models)} models × {len(templates)} templates = {len(models) * len(templates)} jobs (max_concurrent={max_concurrent})"
+            "GEN", f"Starting batch generation: {len(models)} models × {len(templates)} templates = {total_jobs} jobs (max_concurrent={max_concurrent})"
+        )
+
+        # Add pipeline event for UI
+        self._add_event(
+            pipeline,
+            'generation_start',
+            f"Starting generation: {total_jobs} apps ({len(models)} models × {len(templates)} templates)",
+            details={'models': models, 'templates': templates, 'max_concurrent': max_concurrent},
+            stage='generation',
+            level='info'
         )
         
         # Build job list
@@ -790,7 +1068,17 @@ class PipelineExecutionService:
             self._log(
                 "GEN", f"Batch generation complete: {succeeded}/{len(jobs)} succeeded, {failures} failed"
             )
-            
+
+            # Add completion event
+            self._add_event(
+                pipeline,
+                'generation_stage_complete',
+                f"Generation complete: {succeeded} succeeded, {failures} failed",
+                details={'succeeded': succeeded, 'failed': failures, 'total': len(jobs)},
+                stage='generation',
+                level='success' if failures == 0 else 'warning'
+            )
+
         except Exception as e:
             self._log("GEN", f"Batch generation failed: {e}", level='error')
             # Mark as failed
@@ -800,6 +1088,16 @@ class PipelineExecutionService:
             progress['generation']['error'] = str(e)
             pipeline.progress = progress
             db.session.commit()
+
+            # Add failure event
+            self._add_event(
+                pipeline,
+                'generation_stage_failed',
+                f"Generation failed: {str(e)}",
+                details={'error': str(e)},
+                stage='generation',
+                level='error'
+            )
             raise
         
         # Transition to analysis
@@ -1123,20 +1421,99 @@ class PipelineExecutionService:
         return DEFAULT_MAX_CONCURRENT_TASKS
 
     def _process_analysis_stage(self, pipeline: PipelineExecution):
-        """Process analysis stage using ConcurrentAnalysisRunner.
-        
-        This is a simplified implementation that:
-        1. Checks if analysis is already complete
-        2. If not started, runs all jobs as a batch using ConcurrentAnalysisRunner
-        3. Records all results and transitions to done stage
-        
-        The new approach uses asyncio.Semaphore for clean concurrency control
-        and pre-builds containers before analysis starts.
+        """Process analysis stage - streaming or batch mode.
+
+        STREAMING MODE (default):
+        - Analyses triggered immediately as apps generate (via generation callback)
+        - This method monitors completion of in-flight tasks
+        - Transitions to done when all expected tasks complete
+
+        BATCH MODE (legacy):
+        - Waits for ALL generation to complete
+        - Runs all analyses as a batch using ConcurrentAnalysisRunner
+        - Records results and transitions to done
+
+        Mode is controlled by config['analysis']['options']['streamingAnalysis'] (default: True)
         """
         pipeline_id = pipeline.pipeline_id
         progress = pipeline.progress
         config = pipeline.config
-        
+
+        # Check if using streaming mode
+        streaming_mode = self._should_start_analysis_early(pipeline)
+
+        if streaming_mode:
+            self._monitor_streaming_analysis(pipeline)
+        else:
+            self._process_batch_analysis(pipeline)
+
+    def _monitor_streaming_analysis(self, pipeline: PipelineExecution):
+        """Monitor streaming analysis tasks and check completion.
+
+        In streaming mode, tasks are already submitted via generation callbacks.
+        This method just monitors their progress and transitions when done.
+        """
+        pipeline_id = pipeline.pipeline_id
+        progress = pipeline.progress
+
+        # Get expected count from generation results
+        gen_results = progress.get('generation', {}).get('results', [])
+        expected_count = sum(1 for r in gen_results if r.get('success'))
+
+        # Get current analysis progress
+        analysis_progress = progress.get('analysis', {})
+        task_ids = analysis_progress.get('task_ids', [])
+        submitted_apps = analysis_progress.get('submitted_apps', [])
+
+        # Count completed/failed tasks
+        completed = 0
+        failed = 0
+        for task_id in task_ids:
+            if task_id.startswith('skipped:') or task_id.startswith('error:'):
+                failed += 1
+                continue
+
+            task = AnalysisTask.query.filter_by(task_id=task_id).first()
+            if task:
+                if task.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS):
+                    completed += 1
+                elif task.status == AnalysisStatus.FAILED:
+                    failed += 1
+
+        # Update progress
+        analysis_progress['completed'] = completed
+        analysis_progress['failed'] = failed
+        analysis_progress['total'] = expected_count
+        analysis_progress['status'] = 'in_progress'
+        progress['analysis'] = analysis_progress
+        pipeline.progress = progress
+        db.session.commit()
+
+        # Log progress (at debug level to reduce noise)
+        self._log(
+            "ANAL",
+            f"Streaming analysis: {completed} completed, {failed} failed, {len(submitted_apps)}/{expected_count} submitted",
+            level='debug'
+        )
+
+        # Check if all done
+        if (completed + failed) >= expected_count and len(submitted_apps) >= expected_count:
+            self._log("ANAL", f"Streaming analysis complete: {completed} succeeded, {failed} failed")
+            analysis_progress['status'] = 'completed'
+            progress['analysis'] = analysis_progress
+            pipeline.progress = progress
+            db.session.commit()
+            self._transition_to_done(pipeline)
+
+    def _process_batch_analysis(self, pipeline: PipelineExecution):
+        """Process batch analysis (legacy mode).
+
+        Runs all analyses as a batch after generation completes.
+        """
+        pipeline_id = pipeline.pipeline_id
+        progress = pipeline.progress
+        config = pipeline.config
+
         # Check current state
         analysis_progress = progress.get('analysis', {})
         total = analysis_progress.get('total', 0)
@@ -1209,7 +1586,17 @@ class PipelineExecutionService:
         self._log(
             "ANAL", f"Starting batch analysis: {len(apps_to_analyze)} apps (max_concurrent={max_concurrent})"
         )
-        
+
+        # Add event for UI
+        self._add_event(
+            pipeline,
+            'analysis_start',
+            f"Starting analysis: {len(apps_to_analyze)} apps with {len(tools)} tools",
+            details={'app_count': len(apps_to_analyze), 'tools': tools, 'max_concurrent': max_concurrent},
+            stage='analysis',
+            level='info'
+        )
+
         # Build job list
         jobs = []
         for app in apps_to_analyze:
@@ -1237,6 +1624,38 @@ class PipelineExecutionService:
                     prog['analysis']['status'] = 'in_progress'
                     fresh_pipeline.progress = prog
                     db.session.commit()
+
+                    # Add event for each completed analysis
+                    if result and hasattr(result, 'model_slug'):
+                        target = f"{result.model_slug}/app{result.app_number}"
+                        if result.success:
+                            self._add_event(
+                                fresh_pipeline,
+                                'analysis_complete',
+                                f"Completed analysis: {target} ({completed}/{total})",
+                                details={
+                                    'model_slug': result.model_slug,
+                                    'app_number': result.app_number,
+                                    'findings_count': getattr(result, 'findings_count', 0)
+                                },
+                                stage='analysis',
+                                target=target,
+                                level='success'
+                            )
+                        else:
+                            self._add_event(
+                                fresh_pipeline,
+                                'analysis_failed',
+                                f"Analysis failed: {target} - {getattr(result, 'error', 'Unknown error')}",
+                                details={
+                                    'model_slug': result.model_slug,
+                                    'app_number': result.app_number,
+                                    'error': getattr(result, 'error', None)
+                                },
+                                stage='analysis',
+                                target=target,
+                                level='error'
+                            )
 
                     self._log(
                         "ANAL", f"Progress update: {completed}/{total} analyses complete",
@@ -1325,6 +1744,21 @@ class PipelineExecutionService:
                 f"({partial_success} partial), {failures} failed, {total_findings} total findings"
             )
 
+            # Add completion event
+            self._add_event(
+                pipeline,
+                'analysis_stage_complete',
+                f"Analysis complete: {succeeded} succeeded, {failures} failed ({total_findings} findings)",
+                details={
+                    'succeeded': succeeded,
+                    'failed': failures,
+                    'partial_success': partial_success,
+                    'total_findings': total_findings
+                },
+                stage='analysis',
+                level='success' if failures == 0 else 'warning'
+            )
+
         except Exception as e:
             import traceback
             error_details = traceback.format_exc()
@@ -1360,16 +1794,35 @@ class PipelineExecutionService:
     def _transition_to_done(self, pipeline: PipelineExecution):
         """Transition pipeline from analysis to done stage."""
         from app.models import PipelineExecutionStatus
-        
+
         pipeline.current_stage = 'done'
         pipeline.status = PipelineExecutionStatus.COMPLETED
         pipeline.completed_at = datetime.now(timezone.utc)
         db.session.commit()
-        
+
+        # Add pipeline completion event
+        progress = pipeline.progress
+        gen_completed = progress.get('generation', {}).get('completed', 0)
+        analysis_completed = progress.get('analysis', {}).get('completed', 0)
+        total_findings = progress.get('analysis', {}).get('total_findings', 0)
+
+        self._add_event(
+            pipeline,
+            'pipeline_complete',
+            f"Pipeline completed: {gen_completed} apps generated, {analysis_completed} analyzed ({total_findings} findings)",
+            details={
+                'gen_completed': gen_completed,
+                'analysis_completed': analysis_completed,
+                'total_findings': total_findings
+            },
+            stage='done',
+            level='success'
+        )
+
         # Cleanup containers for this pipeline
         self._stop_all_app_containers_for_pipeline(pipeline)
         self._cleanup_pipeline_containers(pipeline.pipeline_id)
-        
+
         self._log("ANAL", "Pipeline completed successfully")
     
     def _mark_job_retryable(self, pipeline: PipelineExecution, model_slug: str, app_number: int) -> None:
