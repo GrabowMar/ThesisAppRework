@@ -126,8 +126,9 @@ class TaskExecutionService:
         # Tracks consecutive failures and cooldown times
         self._service_failures: Dict[str, int] = {}  # service_name -> consecutive_failures
         self._service_cooldown_until: Dict[str, float] = {}  # service_name -> cooldown_end_time
-        self._circuit_breaker_threshold: int = 3  # failures before circuit opens
-        self._circuit_breaker_cooldown: float = 300.0  # 5 minutes cooldown
+        # Configurable circuit breaker - increased threshold for more resilience
+        self._circuit_breaker_threshold: int = int(os.environ.get('CIRCUIT_BREAKER_THRESHOLD', '5'))
+        self._circuit_breaker_cooldown: float = float(os.environ.get('CIRCUIT_BREAKER_COOLDOWN', '120.0'))
 
     def _is_redis_available(self) -> bool:
         """Check if Redis is available for Celery task dispatch.
@@ -1531,7 +1532,12 @@ class TaskExecutionService:
                     tool_names = custom_options.get('tool_names', [])
                     
                     if not tool_names:
-                        self._log(f"No tools found for subtask {subtask.task_id} ({service_name}), skipping", level='warning')
+                        self._log(f"No tools found for subtask {subtask.task_id} ({service_name}), marking as completed (no work)", level='warning')
+                        subtask.status = AnalysisStatus.COMPLETED
+                        subtask.completed_at = datetime.now(timezone.utc)
+                        subtask.progress_percentage = 100.0
+                        subtask.current_step = "No tools to execute - completed"
+                        db.session.commit()
                         continue
                     
                     # Create Celery signature for subtask
@@ -1546,6 +1552,25 @@ class TaskExecutionService:
                     subtask_info.append(service_name)
                 
                 if not header:
+                    # All subtasks were skipped (no tools) - check if they were successfully marked as completed
+                    all_skipped_completed = all(
+                        s.status == AnalysisStatus.COMPLETED 
+                        for s in subtasks
+                    )
+                    if all_skipped_completed:
+                        main_task.status = AnalysisStatus.COMPLETED
+                        main_task.completed_at = datetime.now(timezone.utc)
+                        main_task.progress_percentage = 100.0
+                        main_task.current_step = "All subtasks completed (no tools required)"
+                        db.session.commit()
+                        self._log(f"All Celery subtasks for {main_task_id} had no tools - marked main task as COMPLETED")
+                        return {
+                            'status': 'completed',
+                            'engine': 'celery',
+                            'model_slug': main_task.target_model,
+                            'app_number': main_task.target_app_number,
+                            'payload': {'message': 'No tools to execute - all subtasks completed'}
+                        }
                     raise RuntimeError("No valid subtasks to submit")
                     
                 # Create callback signature
@@ -1610,6 +1635,12 @@ class TaskExecutionService:
                 tool_config = custom_options.get('tool_config') or custom_options.get('tools_config') or {}
                 
                 if not tool_names:
+                    subtask.status = AnalysisStatus.COMPLETED
+                    subtask.completed_at = datetime.now(timezone.utc)
+                    subtask.progress_percentage = 100.0
+                    subtask.current_step = "No tools to execute - completed"
+                    db.session.commit()
+                    self._log(f"No tools for subtask {subtask.task_id} ({service_name}), marked as completed")
                     continue
                 
                 if tool_config:
@@ -1636,6 +1667,26 @@ class TaskExecutionService:
                 })
             
             if not futures:
+                # All subtasks were skipped (no tools) - check if they were successfully marked as completed
+                all_skipped_completed = all(
+                    s.status == AnalysisStatus.COMPLETED 
+                    for s in subtasks
+                )
+                if all_skipped_completed:
+                    main_task.status = AnalysisStatus.COMPLETED
+                    main_task.completed_at = datetime.now(timezone.utc)
+                    main_task.progress_percentage = 100.0
+                    main_task.current_step = "All subtasks completed (no tools required)"
+                    db.session.commit()
+                    self._log(f"All subtasks for {main_task_id} had no tools - marked main task as COMPLETED")
+                    return {
+                        'status': 'completed',
+                        'engine': 'thread',
+                        'model_slug': main_task.target_model,
+                        'app_number': main_task.target_app_number,
+                        'payload': {'message': 'No tools to execute - all subtasks completed'}
+                    }
+                # Otherwise, original error handling
                 error_msg = f"No parallel subtasks created for unified analysis of task {main_task_id}"
                 self._log(error_msg, level='error')
                 raise RuntimeError(error_msg)
@@ -2086,12 +2137,14 @@ class TaskExecutionService:
                     )
                 
                 # Execute via WebSocket to analyzer microservice
+                # AI analyzer gets longer timeout due to external API calls
+                service_timeout = 900 if service_name == 'ai-analyzer' else 600
                 result = self._execute_via_websocket(
                     service_name=service_name,
                     model_slug=model_slug,
                     app_number=app_number,
                     tools=tools,
-                    timeout=600,
+                    timeout=service_timeout,
                     tool_config=tool_config
                 )
                 

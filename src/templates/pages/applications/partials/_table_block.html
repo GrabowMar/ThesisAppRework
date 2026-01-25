@@ -1,869 +1,937 @@
 <div id="applications-table-section">
-{# Applications table content using Tabler defaults #}
-{% set models_selected_raw = request.args.get('model','') if request else '' %}
-{% set selected_models = models_selected_raw.split(',') if models_selected_raw else [] %}
-{% set selected_models = selected_models|select|list %}
-{% set statuses_selected_raw = request.args.get('status','') if request else '' %}
-{% set selected_statuses = statuses_selected_raw.split(',') if statuses_selected_raw else [] %}
-{% set selected_statuses = selected_statuses|select|list %}
-{% set template_val = request.args.get('template','') if request else '' %}
-{% set per_page_val = request.args.get('per_page','25') if request else '25' %}
-{% set search_term = request.args.get('search','') if request else '' %}
+  {# Applications table content using Tabler defaults #}
+  {% set models_selected_raw = request.args.get('model','') if request else '' %}
+  {% set selected_models = models_selected_raw.split(',') if models_selected_raw else [] %}
+  {% set selected_models = selected_models|select|list %}
+  {% set statuses_selected_raw = request.args.get('status','') if request else '' %}
+  {% set selected_statuses = statuses_selected_raw.split(',') if statuses_selected_raw else [] %}
+  {% set selected_statuses = selected_statuses|select|list %}
+  {% set template_val = request.args.get('template','') if request else '' %}
+  {% set per_page_val = request.args.get('per_page','25') if request else '25' %}
+  {% set search_term = request.args.get('search','') if request else '' %}
 
-{# ========================================== #}
-{# Persistent Batch Operations Progress Bar  #}
-{# Shown above table when batch ops running  #}
-{# ========================================== #}
-<div id="persistent-batch-progress" class="alert alert-info mb-3 py-2" style="display: none;">
-  <div class="d-flex align-items-center gap-3">
-    <div class="d-flex align-items-center gap-2 flex-shrink-0">
-      <i class="fas fa-layer-group text-info" id="persistent-batch-icon"></i>
-      <strong id="persistent-batch-label" class="text-nowrap">Batch Operation</strong>
-    </div>
-    <div class="flex-grow-1">
-      <div class="progress progress-sm" style="height: 8px;">
-        <div class="progress-bar bg-info progress-bar-striped progress-bar-animated" id="persistent-batch-bar" role="progressbar" style="width: 0%;"></div>
+  {# ========================================== #}
+  {# Persistent Batch Operations Progress Bar #}
+  {# Shown above table when batch ops running #}
+  {# ========================================== #}
+  <div id="persistent-batch-progress" class="alert alert-info mb-3 py-2" style="display: none;">
+    <div class="d-flex align-items-center gap-3">
+      <div class="d-flex align-items-center gap-2 flex-shrink-0">
+        <i class="fas fa-layer-group text-info" id="persistent-batch-icon"></i>
+        <strong id="persistent-batch-label" class="text-nowrap">Batch Operation</strong>
       </div>
-    </div>
-    <div class="d-flex align-items-center gap-2 flex-shrink-0">
-      <span id="persistent-batch-count" class="badge bg-info-lt text-info">0/0</span>
-      <span id="persistent-batch-status" class="small text-muted">Processing...</span>
-      <button type="button" class="btn-close btn-close-sm" id="persistent-batch-dismiss" style="display: none;" onclick="dismissPersistentBatchProgress()" aria-label="Dismiss"></button>
-    </div>
-  </div>
-  <div id="persistent-batch-current" class="small text-muted mt-1" style="display: none;">
-    <i class="fas fa-spinner fa-spin me-1"></i><span id="persistent-batch-current-text">Starting...</span>
-  </div>
-</div>
-
-<div class="card card-table-compact mb-3">
-  <div class="card-header d-flex flex-wrap align-items-center gap-3">
-    <div class="d-flex flex-wrap align-items-center gap-2">
-      <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-        <i class="fas fa-laptop-code text-primary"></i>
-        <span>Applications</span>
-      </h3>
-      <div class="d-flex flex-wrap align-items-center gap-1 status-indicators ms-2">
-        <span class="badge bg-primary-lt text-primary d-inline-flex align-items-center gap-1" title="Total applications">
-          <i class="fas fa-laptop-code fa-xs"></i>
-          <span id="total-applications">{{ applications_stats.total_applications if applications_stats is defined else applications|length }}</span>
-        </span>
-        <span class="badge bg-success-lt text-success d-inline-flex align-items-center gap-1" title="Running applications">
-          <i class="fas fa-play fa-xs"></i>
-          <span id="running-applications">{{ applications_stats.running_applications if applications_stats is defined else 0 }}</span>
-        </span>
-        <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1" title="Analyzed applications">
-          <i class="fas fa-chart-line fa-xs"></i>
-          <span id="analyzed-applications">{{ applications_stats.analyzed_applications if applications_stats is defined else 0 }}</span>
-        </span>
-        <span class="badge bg-warning-lt text-orange d-inline-flex align-items-center gap-1" title="Unique models used">
-          <i class="fas fa-brain fa-xs"></i>
-          <span id="unique-models">{{ applications_stats.unique_models if applications_stats is defined else 0 }}</span>
-        </span>
-      </div>
-    </div>
-    <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
-      <label class="d-flex align-items-center gap-2 mb-0">
-        <span class="text-muted small">Limit:</span>
-        <select id="apps-per-page" class="form-select form-select-sm" style="width: auto;" onchange="changeApplicationsPerPage(this.value)">
-          <option value="10" {% if per_page_val|string == '10' %}selected{% endif %}>10</option>
-          <option value="25" {% if per_page_val|string == '25' %}selected{% endif %}>25</option>
-          <option value="50" {% if per_page_val|string == '50' %}selected{% endif %}>50</option>
-          <option value="100" {% if per_page_val|string == '100' %}selected{% endif %}>100</option>
-        </select>
-      </label>
-      <span class="text-muted small" id="applications-source-indicator"></span>
-      <div class="btn-list">
-        <button class="btn btn-sm btn-primary" onclick="refreshApplications()" title="Refresh applications" type="button"><i class="fas fa-sync me-1" aria-hidden="true"></i>Refresh</button>
-        <div class="btn-group btn-group-sm">
-          <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="fas fa-download me-1"></i>Export
-          </button>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="#" onclick="exportApplications('json'); return false;"><i class="fas fa-file-code me-2"></i>JSON</a></li>
-            <li><a class="dropdown-item" href="#" onclick="exportApplications('csv'); return false;"><i class="fas fa-file-csv me-2"></i>CSV</a></li>
-          </ul>
-        </div>
-        <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#batchApplicationsModal" title="Batch operations" onclick="updateBatchSelectionCount()" type="button"><i class="fas fa-layer-group me-1" aria-hidden="true"></i>Batch Ops</button>
-      </div>
-      <span class="text-primary small fw-bold" id="applications-selection-indicator"></span>
-    </div>
-  </div>
-  <div class="card-body border-top py-3">
-    <div class="row g-2 mb-3">
-      <div class="col-12">
-        <div class="input-group input-group-flat">
-          <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
-          <input type="text" id="application-search" class="form-control" placeholder="Search by model, app number, or template..." value="{{ search_term }}" onkeyup="debounceApplicationSearch()" aria-label="Search applications" />
-          <button class="btn btn-outline-secondary" onclick="clearApplicationSearch()" type="button" title="Clear search" aria-label="Clear search"><i class="fas fa-xmark" aria-hidden="true"></i></button>
-          <button class="btn btn-outline-primary" onclick="toggleApplicationsAdvancedFilters()" type="button" title="Advanced filters" aria-label="Toggle advanced filters">
-            <i class="fas fa-filter me-1" aria-hidden="true"></i>
-            <span class="d-none d-md-inline">Advanced</span>
-            <span class="badge bg-primary ms-1" id="applications-active-filters-count" style="display: none;">0</span>
-          </button>
+      <div class="flex-grow-1">
+        <div class="progress progress-sm" style="height: 8px;">
+          <div class="progress-bar bg-info progress-bar-striped progress-bar-animated" id="persistent-batch-bar"
+            role="progressbar" style="width: 0%;"></div>
         </div>
       </div>
+      <div class="d-flex align-items-center gap-2 flex-shrink-0">
+        <span id="persistent-batch-count" class="badge bg-info-lt text-info">0/0</span>
+        <span id="persistent-batch-status" class="small text-muted">Processing...</span>
+        <button type="button" class="btn-close btn-close-sm" id="persistent-batch-dismiss" style="display: none;"
+          onclick="dismissPersistentBatchProgress()" aria-label="Dismiss"></button>
+      </div>
     </div>
+    <div id="persistent-batch-current" class="small text-muted mt-1" style="display: none;">
+      <i class="fas fa-spinner fa-spin me-1"></i><span id="persistent-batch-current-text">Starting...</span>
+    </div>
+  </div>
 
-    {# Advanced Filters Panel #}
-    <div id="applications-advanced-filters" class="advanced-filters-panel" style="display: none;">
-      <div class="card mb-3">
-        <div class="card-body">
-          <div class="row g-3">
-            <div class="col-md-12">
-              <label class="form-label">Status Filters</label>
-              <div class="d-flex flex-wrap gap-2">
-                <label class="form-check">
-                  <input type="checkbox" class="form-check-input" id="filter-status-running" value="running" onchange="updateApplicationsAdvancedFilters()">
-                  <span class="form-check-label">Running</span>
-                </label>
-                <label class="form-check">
-                  <input type="checkbox" class="form-check-input" id="filter-status-stopped" value="stopped" onchange="updateApplicationsAdvancedFilters()">
-                  <span class="form-check-label">Stopped</span>
-                </label>
-                <label class="form-check">
-                  <input type="checkbox" class="form-check-input" id="filter-status-error" value="error" onchange="updateApplicationsAdvancedFilters()">
-                  <span class="form-check-label">Error</span>
-                </label>
-                <label class="form-check">
-                  <input type="checkbox" class="form-check-input" id="filter-status-build-failed" value="build_failed" onchange="updateApplicationsAdvancedFilters()">
-                  <span class="form-check-label text-orange"><i class="fas fa-exclamation-triangle me-1"></i>Build Failed</span>
-                </label>
-                <label class="form-check">
-                  <input type="checkbox" class="form-check-input" id="filter-status-pending" value="pending" onchange="updateApplicationsAdvancedFilters()">
-                  <span class="form-check-label">Pending</span>
-                </label>
-                <label class="form-check">
-                  <input type="checkbox" class="form-check-input" id="filter-status-not-created" value="not_created" onchange="updateApplicationsAdvancedFilters()">
-                  <span class="form-check-label">Not Created</span>
-                </label>
-                <label class="form-check">
-                  <input type="checkbox" class="form-check-input" id="filter-status-generation-failed" value="generation_failed" onchange="updateApplicationsAdvancedFilters()">
-                  <span class="form-check-label text-danger"><i class="fas fa-skull-crossbones me-1"></i>Dead (Failed)</span>
-                </label>
-              </div>
-            </div>
-            <div class="col-12">
-              <label class="form-label">Date Range</label>
-              <div class="row g-2">
-                <div class="col-md-6">
-                  <input type="date" class="form-control" id="filter-date-from" onchange="updateApplicationsAdvancedFilters()" placeholder="From">
+  <div class="card card-table-compact mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center gap-3">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+          <i class="fas fa-laptop-code text-primary"></i>
+          <span>Applications</span>
+        </h3>
+        <div class="d-flex flex-wrap align-items-center gap-1 status-indicators ms-2">
+          <span class="badge bg-primary-lt text-primary d-inline-flex align-items-center gap-1"
+            title="Total applications">
+            <i class="fas fa-laptop-code fa-xs"></i>
+            <span id="total-applications">{{ applications_stats.total_applications if applications_stats is defined else
+              applications|length }}</span>
+          </span>
+          <span class="badge bg-success-lt text-success d-inline-flex align-items-center gap-1"
+            title="Running applications">
+            <i class="fas fa-play fa-xs"></i>
+            <span id="running-applications">{{ applications_stats.running_applications if applications_stats is defined
+              else 0 }}</span>
+          </span>
+          <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1" title="Analyzed applications">
+            <i class="fas fa-chart-line fa-xs"></i>
+            <span id="analyzed-applications">{{ applications_stats.analyzed_applications if applications_stats is
+              defined else 0 }}</span>
+          </span>
+          <span class="badge bg-warning-lt text-orange d-inline-flex align-items-center gap-1"
+            title="Unique models used">
+            <i class="fas fa-brain fa-xs"></i>
+            <span id="unique-models">{{ applications_stats.unique_models if applications_stats is defined else 0
+              }}</span>
+          </span>
+        </div>
+      </div>
+      <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+        <label class="d-flex align-items-center gap-2 mb-0">
+          <span class="text-muted small">Limit:</span>
+          <select id="apps-per-page" class="form-select form-select-sm" style="width: auto;"
+            onchange="changeApplicationsPerPage(this.value)">
+            <option value="10" {% if per_page_val|string=='10' %}selected{% endif %}>10</option>
+            <option value="25" {% if per_page_val|string=='25' %}selected{% endif %}>25</option>
+            <option value="50" {% if per_page_val|string=='50' %}selected{% endif %}>50</option>
+            <option value="100" {% if per_page_val|string=='100' %}selected{% endif %}>100</option>
+          </select>
+        </label>
+        <span class="text-muted small" id="applications-source-indicator"></span>
+        <div class="btn-list">
+          <button class="btn btn-sm btn-primary" onclick="refreshApplications()" title="Refresh applications"
+            type="button"><i class="fas fa-sync me-1" aria-hidden="true"></i>Refresh</button>
+          <div class="btn-group btn-group-sm">
+            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
+              aria-expanded="false">
+              <i class="fas fa-download me-1"></i>Export
+            </button>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="#" onclick="exportApplications('json'); return false;"><i
+                    class="fas fa-file-code me-2"></i>JSON</a></li>
+              <li><a class="dropdown-item" href="#" onclick="exportApplications('csv'); return false;"><i
+                    class="fas fa-file-csv me-2"></i>CSV</a></li>
+            </ul>
+          </div>
+          <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#batchApplicationsModal"
+            title="Batch operations" onclick="updateBatchSelectionCount()" type="button"><i
+              class="fas fa-layer-group me-1" aria-hidden="true"></i>Batch Ops</button>
+        </div>
+        <span class="text-primary small fw-bold" id="applications-selection-indicator"></span>
+      </div>
+    </div>
+    <div class="card-body border-top py-3">
+      <div class="row g-2 mb-3">
+        <div class="col-12">
+          <div class="input-group input-group-flat">
+            <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
+            <input type="text" id="application-search" class="form-control"
+              placeholder="Search by model, app number, or template..." value="{{ search_term }}"
+              onkeyup="debounceApplicationSearch()" aria-label="Search applications" />
+            <button class="btn btn-outline-secondary" onclick="clearApplicationSearch()" type="button"
+              title="Clear search" aria-label="Clear search"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+            <button class="btn btn-outline-primary" onclick="toggleApplicationsAdvancedFilters()" type="button"
+              title="Advanced filters" aria-label="Toggle advanced filters">
+              <i class="fas fa-filter me-1" aria-hidden="true"></i>
+              <span class="d-none d-md-inline">Advanced</span>
+              <span class="badge bg-primary ms-1" id="applications-active-filters-count" style="display: none;">0</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {# Advanced Filters Panel #}
+      <div id="applications-advanced-filters" class="advanced-filters-panel" style="display: none;">
+        <div class="card mb-3">
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-12">
+                <label class="form-label">Status Filters</label>
+                <div class="d-flex flex-wrap gap-2">
+                  <label class="form-check">
+                    <input type="checkbox" class="form-check-input" id="filter-status-running" value="running"
+                      onchange="updateApplicationsAdvancedFilters()">
+                    <span class="form-check-label">Running</span>
+                  </label>
+                  <label class="form-check">
+                    <input type="checkbox" class="form-check-input" id="filter-status-stopped" value="stopped"
+                      onchange="updateApplicationsAdvancedFilters()">
+                    <span class="form-check-label">Stopped</span>
+                  </label>
+                  <label class="form-check">
+                    <input type="checkbox" class="form-check-input" id="filter-status-error" value="error"
+                      onchange="updateApplicationsAdvancedFilters()">
+                    <span class="form-check-label">Error</span>
+                  </label>
+                  <label class="form-check">
+                    <input type="checkbox" class="form-check-input" id="filter-status-build-failed" value="build_failed"
+                      onchange="updateApplicationsAdvancedFilters()">
+                    <span class="form-check-label text-orange"><i class="fas fa-exclamation-triangle me-1"></i>Build
+                      Failed</span>
+                  </label>
+                  <label class="form-check">
+                    <input type="checkbox" class="form-check-input" id="filter-status-pending" value="pending"
+                      onchange="updateApplicationsAdvancedFilters()">
+                    <span class="form-check-label">Pending</span>
+                  </label>
+                  <label class="form-check">
+                    <input type="checkbox" class="form-check-input" id="filter-status-not-created" value="not_created"
+                      onchange="updateApplicationsAdvancedFilters()">
+                    <span class="form-check-label">Not Created</span>
+                  </label>
+                  <label class="form-check">
+                    <input type="checkbox" class="form-check-input" id="filter-status-generation-failed"
+                      value="generation_failed" onchange="updateApplicationsAdvancedFilters()">
+                    <span class="form-check-label text-danger"><i class="fas fa-skull-crossbones me-1"></i>Dead
+                      (Failed)</span>
+                  </label>
                 </div>
-                <div class="col-md-6">
-                  <input type="date" class="form-control" id="filter-date-to" onchange="updateApplicationsAdvancedFilters()" placeholder="To">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Date Range</label>
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <input type="date" class="form-control" id="filter-date-from"
+                      onchange="updateApplicationsAdvancedFilters()" placeholder="From">
+                  </div>
+                  <div class="col-md-6">
+                    <input type="date" class="form-control" id="filter-date-to"
+                      onchange="updateApplicationsAdvancedFilters()" placeholder="To">
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="col-12">
-              <div class="d-flex gap-2">
-                <button class="btn btn-primary" onclick="applyApplicationsAdvancedFilters()">
-                  <i class="fas fa-check me-1"></i>Apply Filters
-                </button>
-                <button class="btn btn-outline-secondary" onclick="clearApplicationsAdvancedFilters()">
-                  <i class="fas fa-xmark me-1"></i>Clear All
-                </button>
+              <div class="col-12">
+                <div class="d-flex gap-2">
+                  <button class="btn btn-primary" onclick="applyApplicationsAdvancedFilters()">
+                    <i class="fas fa-check me-1"></i>Apply Filters
+                  </button>
+                  <button class="btn btn-outline-secondary" onclick="clearApplicationsAdvancedFilters()">
+                    <i class="fas fa-xmark me-1"></i>Clear All
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="row g-2 align-items-center">
-      <div class="col-auto">
-        <label class="d-flex align-items-center gap-2 mb-0" for="model-filter">
-          <span class="text-muted d-flex align-items-center gap-1">
-            <i class="fas fa-brain" aria-hidden="true"></i>
-            <span>Model</span>
-          </span>
-          <select class="form-select form-select-sm" style="min-width: 140px;" id="model-filter" onchange="applyApplicationFilters()" aria-label="Filter by model">
-            <option value="">All Models</option>
-            {% if available_models is defined %}
+      <div class="row g-2 align-items-center">
+        <div class="col-auto">
+          <label class="d-flex align-items-center gap-2 mb-0" for="model-filter">
+            <span class="text-muted d-flex align-items-center gap-1">
+              <i class="fas fa-brain" aria-hidden="true"></i>
+              <span>Model</span>
+            </span>
+            <select class="form-select form-select-sm" style="min-width: 140px;" id="model-filter"
+              onchange="applyApplicationFilters()" aria-label="Filter by model">
+              <option value="">All Models</option>
+              {% if available_models is defined %}
               {% for model in available_models %}
-              <option value="{{ model.slug }}" {% if model.slug in selected_models %}selected{% endif %}>{{ model.display_name }}</option>
+              <option value="{{ model.slug }}" {% if model.slug in selected_models %}selected{% endif %}>{{
+                model.display_name }}</option>
               {% endfor %}
-            {% endif %}
-          </select>
-        </label>
-      </div>
-      <div class="col-auto">
-        <label class="d-flex align-items-center gap-2 mb-0" for="status-filter">
-          <span class="text-muted d-flex align-items-center gap-1">
-            <i class="fas fa-toggle-on" aria-hidden="true"></i>
-            <span>Status</span>
-          </span>
-          <select class="form-select form-select-sm" style="min-width: 120px;" id="status-filter" onchange="applyApplicationFilters()" aria-label="Filter by status">
-            <option value="">All Statuses</option>
-            {% set status_options = ['running','stopped','error','build_failed','pending','not_created', 'generation_failed'] %}
-            {% for status in status_options %}
-            <option value="{{ status }}" {% if status in selected_statuses %}selected{% endif %}>{% if status == 'generation_failed' %}Dead (Failed){% elif status == 'build_failed' %}Build Failed{% else %}{{ status.replace('_',' ')|title }}{% endif %}</option>
-            {% endfor %}
-          </select>
-        </label>
-      </div>
-      <div class="col-auto">
-        <label class="d-flex align-items-center gap-2 mb-0" for="template-filter">
-          <span class="text-muted d-flex align-items-center gap-1">
-            <i class="fas fa-file-code" aria-hidden="true"></i>
-            <span>Template</span>
-          </span>
-          <select class="form-select form-select-sm" style="min-width: 160px;" id="template-filter" onchange="applyApplicationFilters()" aria-label="Filter by template">
-            <option value="">All Templates</option>
-            {% if available_templates is defined %}
+              {% endif %}
+            </select>
+          </label>
+        </div>
+        <div class="col-auto">
+          <label class="d-flex align-items-center gap-2 mb-0" for="status-filter">
+            <span class="text-muted d-flex align-items-center gap-1">
+              <i class="fas fa-toggle-on" aria-hidden="true"></i>
+              <span>Status</span>
+            </span>
+            <select class="form-select form-select-sm" style="min-width: 120px;" id="status-filter"
+              onchange="applyApplicationFilters()" aria-label="Filter by status">
+              <option value="">All Statuses</option>
+              {% set status_options = ['running','stopped','error','build_failed','pending','not_created',
+              'generation_failed'] %}
+              {% for status in status_options %}
+              <option value="{{ status }}" {% if status in selected_statuses %}selected{% endif %}>{% if status ==
+                'generation_failed' %}Dead (Failed){% elif status == 'build_failed' %}Build Failed{% else %}{{
+                status.replace('_',' ')|title }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <div class="col-auto">
+          <label class="d-flex align-items-center gap-2 mb-0" for="template-filter">
+            <span class="text-muted d-flex align-items-center gap-1">
+              <i class="fas fa-file-code" aria-hidden="true"></i>
+              <span>Template</span>
+            </span>
+            <select class="form-select form-select-sm" style="min-width: 160px;" id="template-filter"
+              onchange="applyApplicationFilters()" aria-label="Filter by template">
+              <option value="">All Templates</option>
+              {% if available_templates is defined %}
               {% for tpl in available_templates %}
-              <option value="{{ tpl.slug }}" {% if tpl.slug == template_val %}selected{% endif %}>{{ tpl.name }}{% if tpl.category %} ({{ tpl.category }}){% endif %}</option>
+              <option value="{{ tpl.slug }}" {% if tpl.slug==template_val %}selected{% endif %}>{{ tpl.name }}{% if
+                tpl.category %} ({{ tpl.category }}){% endif %}</option>
               {% endfor %}
-            {% endif %}
-          </select>
-        </label>
-      </div>
-      <div class="col-auto ms-auto">
-        <button class="btn btn-sm btn-outline-secondary" onclick="clearAllApplicationFilters()" type="button" aria-label="Clear all filters">
-          <i class="fas fa-times-circle me-1" aria-hidden="true"></i>Clear Filters
-        </button>
+              {% endif %}
+            </select>
+          </label>
+        </div>
+        <div class="col-auto ms-auto">
+          <button class="btn btn-sm btn-outline-secondary" onclick="clearAllApplicationFilters()" type="button"
+            aria-label="Clear all filters">
+            <i class="fas fa-times-circle me-1" aria-hidden="true"></i>Clear Filters
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-  <div class="table-responsive" id="applications-table-scroll">
-		<table class="table table-striped table-vcenter table-hover table-sm card-table mb-0" id="applications-table">
-			<thead>
-				<tr>
-					<th scope="col" class="w-1"><input type="checkbox" id="select-all-apps" class="form-check-input m-0" onchange="toggleSelectAllApplications()" aria-label="Select all applications"></th>
-					<th scope="col" class="sortable" data-column="model_slug">Model</th>
-					<th scope="col" class="sortable" data-column="provider">Provider</th>
-					<th scope="col" class="text-center sortable" data-column="app_number">App</th>
-					<th scope="col" class="text-center sortable" data-column="created_at">Generated</th>
-					<th scope="col" class="sortable" data-column="template_slug">Template</th>
-					<th scope="col" class="text-center sortable" data-column="generation_mode">Mode</th>
-					<th scope="col" class="text-center sortable" data-column="container_status">Status</th>
-					<th scope="col">Ports</th>
-					<th scope="col" class="text-end sortable" data-column="container_size">Size</th>
-					<th scope="col" class="text-center">Analysis</th>
-					<th scope="col" class="w-1"><span class="visually-hidden">Actions</span></th>
-				</tr>
-			</thead>
-			<tbody id="applications-table-body">
-				{% for app in applications %}
-				{% set is_failed = app.is_generation_failed|default(false) %}
-				{% set is_container_failed = app.is_container_unhealthy|default(false) and not is_failed %}
-				<tr data-model="{{ app.model_slug }}" data-app="{{ app.app_number }}" {% if app.id %}data-app-id="{{ app.id }}"{% endif %} {% if is_failed %}class="table-danger opacity-75"{% elif is_container_failed %}class="table-warning opacity-85"{% endif %}>
-					<td><input type="checkbox" class="form-check-input m-0 app-checkbox" value="{{ app.model_slug }}-{{ app.app_number }}" aria-label="Select {{ app.model_display_name }} App {{ app.app_number }}" {% if is_failed %}disabled title="Cannot select failed apps"{% endif %}></td>
-					<td>
-						<a href="/models/{{ app.model_slug }}" class="text-truncate d-block {% if is_failed %}text-decoration-line-through text-muted{% else %}text-reset{% endif %}" title="View {{ app.model_display_name }} details">{{ app.model_display_name }}</a>
-					</td>
-					<td>
-						<span class="badge bg-azure-lt text-azure">{{ app.model_provider }}</span>
-					</td>
-					<td class="text-center">
-						<strong>{{ app.app_number }}</strong>
-					</td>
-					<td class="text-center text-muted small">
-						{% if app.created_at %}
-							{{ app.created_at.strftime('%d %b %H:%M') }} UTC
-						{% else %}
-							—
-						{% endif %}
-					</td>
-					<td>
-						{% if app.template_slug %}
-							<span class="badge bg-indigo-lt text-indigo" title="{{ app.template_slug }}">{{ app.template_name or app.template_slug }}</span>
-						{% else %}
-							<span class="text-muted">—</span>
-						{% endif %}
-					</td>
-					<td class="text-center">
-						{% set mode = app.generation_mode|default('guarded') %}
-						{% if mode == 'unguarded' %}
-							<span class="badge badge-outline text-orange" title="Model-driven architecture (research mode)">
-								<i class="fas fa-unlock-alt fa-xs me-1"></i>Unguarded
-							</span>
-						{% else %}
+    <div class="table-responsive" id="applications-table-scroll">
+      <table class="table table-striped table-vcenter table-hover table-sm card-table mb-0" id="applications-table">
+        <thead>
+          <tr>
+            <th scope="col" class="w-1"><input type="checkbox" id="select-all-apps" class="form-check-input m-0"
+                onchange="toggleSelectAllApplications()" aria-label="Select all applications"></th>
+            <th scope="col" class="sortable" data-column="model_slug">Model</th>
+            <th scope="col" class="sortable" data-column="provider">Provider</th>
+            <th scope="col" class="text-center sortable" data-column="app_number">App</th>
+            <th scope="col" class="text-center sortable" data-column="created_at">Generated</th>
+            <th scope="col" class="sortable" data-column="template_slug">Template</th>
+            <th scope="col" class="text-center sortable" data-column="generation_mode">Mode</th>
+            <th scope="col" class="text-center sortable" data-column="container_status">Status</th>
+            <th scope="col">Ports</th>
+            <th scope="col" class="text-end sortable" data-column="container_size">Size</th>
+            <th scope="col" class="text-center">Analysis</th>
+            <th scope="col" class="w-1"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody id="applications-table-body">
+          {% for app in applications %}
+          {% set is_failed = app.is_generation_failed|default(false) %}
+          {% set is_container_failed = app.is_container_unhealthy|default(false) and not is_failed %}
+          <tr data-model="{{ app.model_slug }}" data-app="{{ app.app_number }}" {% if app.id
+            %}data-app-id="{{ app.id }}" {% endif %} {% if is_failed %}class="table-danger opacity-75" {% elif
+            is_container_failed %}class="table-warning opacity-85" {% endif %}>
+            <td><input type="checkbox" class="form-check-input m-0 app-checkbox"
+                value="{{ app.model_slug }}-{{ app.app_number }}"
+                aria-label="Select {{ app.model_display_name }} App {{ app.app_number }}" {% if is_failed %}disabled
+                title="Cannot select failed apps" {% endif %}></td>
+            <td>
+              <a href="/models/{{ app.model_slug }}"
+                class="text-truncate d-block {% if is_failed %}text-decoration-line-through text-muted{% else %}text-reset{% endif %}"
+                title="View {{ app.model_display_name }} details">{{ app.model_display_name }}</a>
+            </td>
+            <td>
+              <span class="badge bg-azure-lt text-azure">{{ app.model_provider }}</span>
+            </td>
+            <td class="text-center">
+              <strong>{{ app.app_number }}</strong>
+            </td>
+            <td class="text-center text-muted small">
+              {% if app.created_at %}
+              {{ app.created_at.strftime('%d %b %H:%M') }} UTC
+              {% else %}
+              —
+              {% endif %}
+            </td>
+            <td>
+              {% if app.template_slug %}
+              <span class="badge bg-indigo-lt text-indigo" title="{{ app.template_slug }}">{{ app.template_name or
+                app.template_slug }}</span>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              {% set mode = app.generation_mode|default('guarded') %}
+              {% if mode == 'unguarded' %}
+              <span class="badge badge-outline text-orange" title="Model-driven architecture (research mode)">
+                <i class="fas fa-unlock-alt fa-xs me-1"></i>Unguarded
+              </span>
+              {% else %}
               <span class="badge badge-outline text-green" title="Pre-defined architecture (2-prompt system)">
-								<i class="fas fa-shield-alt fa-xs me-1"></i>Guarded
-							</span>
-						{% endif %}
-					</td>
-					<td class="text-center">
-						{% set status_lower = app.status|lower|replace('_', ' ')|replace('?', '')|trim %}
-						{% if app.is_generation_failed|default(false) %}
-              <span class="badge bg-danger text-white" data-role="status-badge" title="{{ app.error_message|default('Generation failed')|truncate(100) }}">
+                <i class="fas fa-shield-alt fa-xs me-1"></i>Guarded
+              </span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              {% set status_lower = app.status|lower|replace('_', ' ')|replace('?', '')|trim %}
+              {% if app.is_generation_failed|default(false) %}
+              <span class="badge bg-danger text-white" data-role="status-badge"
+                title="{{ app.error_message|default('Generation failed')|truncate(100) }}">
                 <i class="fas fa-skull-crossbones fa-xs me-1" aria-hidden="true"></i>Dead
               </span>
-            {% elif is_container_failed %}
-              <span class="badge bg-orange text-white" data-role="status-badge" title="Container failed to build or start">
+              {% elif is_container_failed %}
+              <span class="badge bg-orange text-white" data-role="status-badge"
+                title="Container failed to build or start">
                 <i class="fas fa-exclamation-triangle fa-xs me-1" aria-hidden="true"></i>Build Failed
               </span>
-            {% elif status_lower == 'running' %}
-              <span class="badge bg-success-lt text-success" data-role="status-badge"><i class="fas fa-play fa-xs me-1" aria-hidden="true"></i>Running</span>
-            {% elif status_lower == 'stopped' %}
-              <span class="badge bg-secondary-lt text-secondary" data-role="status-badge"><i class="fas fa-stop fa-xs me-1" aria-hidden="true"></i>Stopped</span>
-            {% elif status_lower == 'error' or status_lower == 'failed' %}
-              <span class="badge bg-danger-lt text-danger" data-role="status-badge"><i class="fas fa-exclamation-circle fa-xs me-1" aria-hidden="true"></i>Error</span>
-            {% elif status_lower == 'building' %}
-              <span class="badge bg-warning-lt text-warning" data-role="status-badge"><i class="fas fa-hammer fa-xs me-1" aria-hidden="true"></i>Building</span>
-            {% elif 'no compose' in status_lower or status_lower == 'not created' %}
-              <span class="badge bg-secondary-lt text-secondary" data-role="status-badge"><i class="fas fa-plus fa-xs me-1" aria-hidden="true"></i>Not Created</span>
-            {% else %}
-              <span class="badge bg-secondary-lt text-secondary" data-role="status-badge">{{ status_lower|title }}</span>
-            {% endif %}
-					</td>
-					<td class="text-muted small">
-						{% if app.ports %}
-							{{ app.ports[0].host_port }}{% if app.ports|length > 1 %}, {{ app.ports[1].host_port }}{% endif %}{% if app.ports|length > 2 %}, +{{ app.ports|length - 2 }}{% endif %}
-						{% else %}
-							—
-						{% endif %}
-					</td>
-					<td class="text-end text-muted small">
-						{{ app.container_size if app.container_size else '—' }}
-					</td>
-					<td class="text-center">
-						{% if app.analysis_status == 'completed' %}
-							<span class="badge bg-success-lt text-success"><i class="fas fa-check fa-xs"></i></span>
-						{% elif app.analysis_status == 'running' %}
-							<span class="badge bg-warning-lt text-warning"><i class="fas fa-spinner fa-spin fa-xs"></i></span>
-						{% elif app.analysis_status == 'failed' %}
-							<span class="badge bg-danger-lt text-danger"><i class="fas fa-times fa-xs"></i></span>
-						{% else %}
-							<span class="text-muted">—</span>
-						{% endif %}
-					</td>
-					<td>
-						<div class="btn-group btn-group-sm" role="group" aria-label="Application actions">
-							{% if app.is_generation_failed|default(false) %}
-							{# Failed app - show only View Failure and Retry options #}
-							<button class="btn btn-ghost-danger" 
-								onclick="window.location.href='/applications/{{ app.model_slug }}/{{ app.app_number }}/failure'" 
-								aria-label="View failure details for {{ app.model_display_name }} App {{ app.app_number }}"
-								title="View failure details">
-								<i class="fas fa-exclamation-triangle"></i>
-							</button>
-							<button class="btn btn-ghost-warning" 
-								onclick="retryGeneration('{{ app.model_slug }}', {{ app.app_number }})"
-								aria-label="Retry generation for {{ app.model_display_name }} App {{ app.app_number }}"
-								title="Retry generation">
-								<i class="fas fa-redo"></i>
-							</button>
-							{% else %}
-							{# Normal app - show regular actions #}
-							{# View Details Button #}
-							<button class="btn btn-ghost-primary" 
-								onclick="window.location.href='/applications/{{ app.model_slug }}/{{ app.app_number }}'" 
-								aria-label="View details for {{ app.model_display_name }} App {{ app.app_number }}">
-								<i class="fas fa-eye"></i>
-							</button>
-							
-							{# Container Control Buttons #}
-							{% if app.container_status == 'running' %}
-								{# Visit App Button - shown when running with ports (use frontend port) #}
-								{% if app.ports %}
-								{% set frontend_port = app.ports[1].host_port if app.ports|length > 1 else app.ports[0].host_port %}
-								<a href="http://{{ request.host.split(':')[0] }}:{{ frontend_port }}" 
-									target="_blank" 
-									rel="noopener" 
-									class="btn btn-ghost-success" 
-									title="Visit application (port {{ frontend_port }})">
-									<i class="fas fa-external-link-alt"></i>
-								</a>
-								{% endif %}
-								
-								{# Stop Button - shown when running (async with progress) #}
-								<button class="btn btn-ghost-danger" 
-									onclick="startContainerAction('{{ app.model_slug }}', {{ app.app_number }}, 'stop')"
-									title="Stop containers">
-									<i class="fas fa-stop"></i>
-								</button>
-							{% else %}
-								{# Start Button - shown when not running (async with progress) #}
-								<button class="btn btn-ghost-success" 
-									onclick="startContainerAction('{{ app.model_slug }}', {{ app.app_number }}, 'start')"
-									title="Start containers (builds if needed)">
-									<i class="fas fa-play"></i>
-								</button>
-							{% endif %}
-							
-							{# Build Button - async with progress modal #}
-							<button class="btn btn-ghost-warning" 
-								onclick="startContainerAction('{{ app.model_slug }}', {{ app.app_number }}, 'build', {no_cache: true})"
-								title="Rebuild containers (no cache)">
-								<i class="fas fa-sync"></i>
-							</button>
-							
-							{# History Button - view action history #}
-							<button class="btn btn-ghost-secondary" 
-								onclick="showActionHistory('{{ app.model_slug }}', {{ app.app_number }})"
-								title="View action history">
-								<i class="fas fa-history"></i>
-							</button>
-							{% endif %}{# end is_generation_failed check #}
-						</div>
-					</td>
-				</tr>
-				{% endfor %}
-			</tbody>
-		</table>
-	</div>
-	<div class="card-footer d-flex align-items-center gap-2 justify-content-between" id="applications-pagination-bar">
-		<div id="applications-page-summary" class="text-muted">
-			Showing {{ applications|length }} of {{ total_applications }} applications
-		</div>
-		<nav aria-label="Applications pagination">
-			{% if pagination is defined and pagination %}
-			<ul class="pagination pagination-sm mb-0" id="applications-pagination">
-				{% if pagination.has_prev %}
-				<li class="page-item">
-					<button class="page-link" onclick="changeApplicationsPage('{{ pagination.prev_num }}')">Previous</button>
-				</li>
-				{% endif %}
-				{% for page_num in pagination.iter_pages() %}
-					{% if page_num %}
-						{% if page_num != pagination.page %}
-						<li class="page-item">
-							<button class="page-link" onclick="changeApplicationsPage('{{ page_num }}')">{{ page_num }}</button>
-						</li>
-						{% else %}
-						<li class="page-item active">
-							<span class="page-link">{{ page_num }}</span>
-						</li>
-						{% endif %}
-					{% else %}
-					<li class="page-item disabled">
-						<span class="page-link">…</span>
-					</li>
-					{% endif %}
-				{% endfor %}
-				{% if pagination.has_next %}
-				<li class="page-item">
-					<button class="page-link" onclick="changeApplicationsPage('{{ pagination.next_num }}')">Next</button>
-				</li>
-				{% endif %}
-			</ul>
-			{% endif %}
-		</nav>
-	</div>
+              {% elif status_lower == 'running' %}
+              <span class="badge bg-success-lt text-success" data-role="status-badge"><i class="fas fa-play fa-xs me-1"
+                  aria-hidden="true"></i>Running</span>
+              {% elif status_lower == 'stopped' %}
+              <span class="badge bg-secondary-lt text-secondary" data-role="status-badge"><i
+                  class="fas fa-stop fa-xs me-1" aria-hidden="true"></i>Stopped</span>
+              {% elif status_lower == 'error' or status_lower == 'failed' %}
+              <span class="badge bg-danger-lt text-danger" data-role="status-badge"><i
+                  class="fas fa-exclamation-circle fa-xs me-1" aria-hidden="true"></i>Error</span>
+              {% elif status_lower == 'building' %}
+              <span class="badge bg-warning-lt text-warning" data-role="status-badge"><i
+                  class="fas fa-hammer fa-xs me-1" aria-hidden="true"></i>Building</span>
+              {% elif 'no compose' in status_lower or status_lower == 'not created' %}
+              <span class="badge bg-secondary-lt text-secondary" data-role="status-badge"><i
+                  class="fas fa-plus fa-xs me-1" aria-hidden="true"></i>Not Created</span>
+              {% else %}
+              <span class="badge bg-secondary-lt text-secondary" data-role="status-badge">{{ status_lower|title
+                }}</span>
+              {% endif %}
+            </td>
+            <td class="text-muted small">
+              {% if app.ports %}
+              {{ app.ports[0].host_port }}{% if app.ports|length > 1 %}, {{ app.ports[1].host_port }}{% endif %}{% if
+              app.ports|length > 2 %}, +{{ app.ports|length - 2 }}{% endif %}
+              {% else %}
+              —
+              {% endif %}
+            </td>
+            <td class="text-end text-muted small">
+              {{ app.container_size if app.container_size else '—' }}
+            </td>
+            <td class="text-center">
+              {% if app.analysis_status == 'completed' %}
+              <span class="badge bg-success-lt text-success"><i class="fas fa-check fa-xs"></i></span>
+              {% elif app.analysis_status == 'running' %}
+              <span class="badge bg-warning-lt text-warning"><i class="fas fa-spinner fa-spin fa-xs"></i></span>
+              {% elif app.analysis_status == 'failed' %}
+              <span class="badge bg-danger-lt text-danger"><i class="fas fa-times fa-xs"></i></span>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm" role="group" aria-label="Application actions">
+                {% if app.is_generation_failed|default(false) %}
+                {# Failed app - show only View Failure and Retry options #}
+                <button class="btn btn-ghost-danger"
+                  onclick="window.location.href='/applications/{{ app.model_slug }}/{{ app.app_number }}/failure'"
+                  aria-label="View failure details for {{ app.model_display_name }} App {{ app.app_number }}"
+                  title="View failure details">
+                  <i class="fas fa-exclamation-triangle"></i>
+                </button>
+                <button class="btn btn-ghost-warning"
+                  onclick="retryGeneration('{{ app.model_slug }}', {{ app.app_number }})"
+                  aria-label="Retry generation for {{ app.model_display_name }} App {{ app.app_number }}"
+                  title="Retry generation">
+                  <i class="fas fa-redo"></i>
+                </button>
+                {% else %}
+                {# Normal app - show regular actions #}
+                {# View Details Button #}
+                <button class="btn btn-ghost-primary"
+                  onclick="window.location.href='/applications/{{ app.model_slug }}/{{ app.app_number }}'"
+                  aria-label="View details for {{ app.model_display_name }} App {{ app.app_number }}">
+                  <i class="fas fa-eye"></i>
+                </button>
+
+                {# Container Control Buttons #}
+                {# Container Control Buttons #}
+                {% set frontend_port = app.ports[1].host_port if app.ports and app.ports|length > 1 else
+                (app.ports[0].host_port if app.ports else None) %}
+
+                {# Running App Actions - Stop & Visit #}
+                <div class="actions-group-running d-contents"
+                  style="display: {{ 'contents' if status_lower == 'running' else 'none' }};">
+                  {% if frontend_port %}
+                  <a href="http://{{ request.host.split(':')[0] }}:{{ frontend_port }}" target="_blank" rel="noopener"
+                    class="btn btn-ghost-success" title="Visit application (port {{ frontend_port }})">
+                    <i class="fas fa-external-link-alt"></i>
+                  </a>
+                  {% endif %}
+
+                  <button class="btn btn-ghost-danger"
+                    onclick="startContainerAction('{{ app.model_slug }}', {{ app.app_number }}, 'stop')"
+                    title="Stop containers">
+                    <i class="fas fa-stop"></i>
+                  </button>
+                </div>
+
+                {# Stopped App Actions - Start #}
+                <div class="actions-group-stopped d-contents"
+                  style="display: {{ 'none' if status_lower == 'running' else 'contents' }};">
+                  <button class="btn btn-ghost-success"
+                    onclick="startContainerAction('{{ app.model_slug }}', {{ app.app_number }}, 'start')"
+                    title="Start containers (builds if needed)">
+                    <i class="fas fa-play"></i>
+                  </button>
+                </div>
+
+                {# Build Button - async with progress modal #}
+                <button class="btn btn-ghost-warning"
+                  onclick="startContainerAction('{{ app.model_slug }}', {{ app.app_number }}, 'build', {no_cache: true})"
+                  title="Rebuild containers (no cache)">
+                  <i class="fas fa-sync"></i>
+                </button>
+
+                {# History Button - view action history #}
+                <button class="btn btn-ghost-secondary"
+                  onclick="showActionHistory('{{ app.model_slug }}', {{ app.app_number }})" title="View action history">
+                  <i class="fas fa-history"></i>
+                </button>
+                {% endif %}{# end is_generation_failed check #}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer d-flex align-items-center gap-2 justify-content-between" id="applications-pagination-bar">
+      <div id="applications-page-summary" class="text-muted">
+        Showing {{ applications|length }} of {{ total_applications }} applications
+      </div>
+      <nav aria-label="Applications pagination">
+        {% if pagination is defined and pagination %}
+        <ul class="pagination pagination-sm mb-0" id="applications-pagination">
+          {% if pagination.has_prev %}
+          <li class="page-item">
+            <button class="page-link" onclick="changeApplicationsPage('{{ pagination.prev_num }}')">Previous</button>
+          </li>
+          {% endif %}
+          {% for page_num in pagination.iter_pages() %}
+          {% if page_num %}
+          {% if page_num != pagination.page %}
+          <li class="page-item">
+            <button class="page-link" onclick="changeApplicationsPage('{{ page_num }}')">{{ page_num }}</button>
+          </li>
+          {% else %}
+          <li class="page-item active">
+            <span class="page-link">{{ page_num }}</span>
+          </li>
+          {% endif %}
+          {% else %}
+          <li class="page-item disabled">
+            <span class="page-link">…</span>
+          </li>
+          {% endif %}
+          {% endfor %}
+          {% if pagination.has_next %}
+          <li class="page-item">
+            <button class="page-link" onclick="changeApplicationsPage('{{ pagination.next_num }}')">Next</button>
+          </li>
+          {% endif %}
+        </ul>
+        {% endif %}
+      </nav>
+    </div>
   </div>
 </div>
 
 <script>
-// ---- HTMX Response Handlers ----
-document.body.addEventListener('htmx:afterRequest', function(evt) {
-  if (evt.detail.failed) {
-    // HTTP error (4xx, 5xx)
-    const xhr = evt.detail.xhr;
-    let message = 'Operation failed';
-    
-    try {
-      const response = JSON.parse(xhr.responseText);
-      message = response.message || response.error || message;
-      
-      // Special handling for "images not built" error
-      if (response.details && response.details.action_required === 'build') {
-        message = `⚠️ ${message}\n\nHint: ${response.details.hint}`;
-        // Auto-scroll to container tab if on detail page
-        const containerTab = document.querySelector('a[href="#container"]');
-        if (containerTab && !containerTab.classList.contains('active')) {
-          showNotification('Please build the container images first', 'warning');
+  // ---- HTMX Response Handlers ----
+  document.body.addEventListener('htmx:afterRequest', function (evt) {
+    if (evt.detail.failed) {
+      // HTTP error (4xx, 5xx)
+      const xhr = evt.detail.xhr;
+      let message = 'Operation failed';
+
+      try {
+        const response = JSON.parse(xhr.responseText);
+        message = response.message || response.error || message;
+
+        // Special handling for "images not built" error
+        if (response.details && response.details.action_required === 'build') {
+          message = `⚠️ ${message}\n\nHint: ${response.details.hint}`;
+          // Auto-scroll to container tab if on detail page
+          const containerTab = document.querySelector('a[href="#container"]');
+          if (containerTab && !containerTab.classList.contains('active')) {
+            showNotification('Please build the container images first', 'warning');
+          }
         }
+      } catch (e) {
+        // Not JSON, use default message
       }
-    } catch (e) {
-      // Not JSON, use default message
-    }
-    
-    showNotification(message, 'danger');
-  } else if (evt.detail.successful) {
-    // Success response
-    try {
-      const response = JSON.parse(evt.detail.xhr.responseText);
-      if (response.message) {
-        showNotification(response.message, 'success');
-      }
-      // Refresh table after successful operation
-      setTimeout(() => {
-        if (typeof refreshApplications === 'function') {
-          refreshApplications();
+
+      showNotification(message, 'danger');
+    } else if (evt.detail.successful) {
+      // Success response
+      try {
+        const response = JSON.parse(evt.detail.xhr.responseText);
+        if (response.message) {
+          showNotification(response.message, 'success');
         }
-      }, 1000);
-    } catch (_err) {
-      // Non-JSON response; skip toast to avoid redundant alerts.
-    }
-  }
-});
-
-// ---- Bulk Status Polling (Efficient - Single API call for all apps) ----
-function pollApplicationStatuses() {
-  const rows = Array.from(document.querySelectorAll('#applications-table-body tr[data-model][data-app]'));
-  if (!rows.length) return;
-  
-  // Build list of apps to check (limited to visible rows for performance)
-  const appsToCheck = [];
-  rows.slice(0, 50).forEach(row => {  // Limit to first 50 for very large tables
-    const model = row.getAttribute('data-model');
-    const app = row.getAttribute('data-app');
-    if (model && app) {
-      appsToCheck.push({ model, app_number: parseInt(app, 10) });
-    }
-  });
-  
-  if (!appsToCheck.length) return;
-  
-  // Single bulk API call instead of N individual calls
-  fetch('/api/apps/bulk-status', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ apps: appsToCheck })
-  })
-  .then(resp => resp.ok ? resp.json() : Promise.reject('API Error'))
-  .then(data => {
-    if (!data?.success || !data?.data?.statuses) return;
-    
-    const statuses = data.data.statuses;
-    
-    // Update each row with its status
-    rows.forEach(row => {
-      const model = row.getAttribute('data-model');
-      const app = row.getAttribute('data-app');
-      if (!model || !app) return;
-      
-      const key = `${model}:${app}`;
-      const statusData = statuses[key];
-      if (!statusData) return;
-      
-      const statusBadge = row.querySelector('[data-role="status-badge"]');
-      if (!statusBadge) return;
-      
-      // Use Docker status from bulk response
-      const dockerStatus = statusData.status || 'unknown';
-      const isRunning = dockerStatus === 'running';
-      const hasContainers = statusData.states?.length > 0;
-      const composeExists = statusData.compose_exists === true;
-      const isStale = statusData.is_stale || statusData.stale;
-      
-      // Update status badge based on Docker status
-      let badgeClass = 'badge bg-muted-lt';
-      let badgeContent = '<i class="fas fa-question me-1"></i>Unknown';
-      
-      if (dockerStatus === 'running' && isRunning) {
-        badgeClass = 'badge bg-success-lt';
-        badgeContent = '<i class="fas fa-play me-1"></i>Running';
-      } else if (dockerStatus === 'stopped' || (hasContainers && !isRunning)) {
-        badgeClass = 'badge bg-secondary-lt';
-        badgeContent = '<i class="fas fa-stop me-1"></i>Stopped';
-      } else if (dockerStatus === 'not_created' || (composeExists && !hasContainers)) {
-        badgeClass = 'badge bg-warning-lt';
-        badgeContent = '<i class="fas fa-plus me-1"></i>Not Created';
-      } else if (dockerStatus === 'no_compose') {
-        badgeClass = 'badge bg-danger-lt';
-        badgeContent = '<i class="fas fa-exclamation me-1"></i>No Compose';
-      } else if (dockerStatus === 'error') {
-        badgeClass = 'badge bg-danger-lt';
-        badgeContent = '<i class="fas fa-exclamation-circle me-1"></i>Error';
-      }
-      
-      // Add stale indicator if data is stale
-      if (isStale) {
-        badgeContent += ' <i class="fas fa-clock fa-xs text-muted" title="Status may be outdated"></i>';
-      }
-      
-      statusBadge.className = badgeClass;
-      statusBadge.innerHTML = badgeContent;
-      
-      // Add diagnostic tooltip
-      const tips = [];
-      if (!statusData.docker_connected) tips.push('Docker disconnected');
-      if (statusData.updated_at) {
-        const updatedAt = new Date(statusData.updated_at);
-        const ageMs = Date.now() - updatedAt.getTime();
-        const ageSec = Math.round(ageMs / 1000);
-        tips.push(`Updated: ${ageSec}s ago`);
-      }
-      if (statusData.states?.length) tips.push(`Containers: ${statusData.states.join(', ')}`);
-      if (statusData.error) tips.push(`Error: ${statusData.error}`);
-      if (tips.length) statusBadge.setAttribute('title', tips.join(' | '));
-    });
-  })
-  .catch(err => {
-    // Silently handle errors - don't spam console
-    console.debug('Bulk status poll failed:', err);
-  });
-}
-
-// Run polling and rebind handlers
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(pollApplicationStatuses, 500);
-  });
-} else {
-  setTimeout(pollApplicationStatuses, 500);
-}
-
-document.body.addEventListener('htmx:afterSwap', (e) => {
-  if (e.target?.id === 'applications-table-section') {
-    setTimeout(() => {
-      pollApplicationStatuses();
-    }, 100);
-  }
-});
-
-// Single interval for polling (only when page visible)
-// Using longer interval since bulk API is more efficient
-if (!window.__appsStatusInterval) {
-  window.__appsStatusInterval = setInterval(() => {
-    if (document.visibilityState === 'visible') {
-      pollApplicationStatuses();
-    }
-  }, 45000); // Check every 45 seconds (cache is 30s, so this catches updates reasonably)
-}
-
-// ---- Application Management Functions (Consolidated) ----
-function getSelectedApplications() {
-  return Array.from(document.querySelectorAll('.app-checkbox:checked')).map(cb => cb.value);
-}
-
-function retryGeneration(modelSlug, appNumber) {
-  if (!confirm(`Retry generation for ${modelSlug} App ${appNumber}? This will attempt to regenerate the failed application.`)) {
-    return;
-  }
-  
-  const button = event.target.closest('button');
-  if (button) {
-    button.disabled = true;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-  }
-  
-  fetch(`/api/app/${modelSlug}/${appNumber}/retry-generation`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      showNotification('Generation retry started. Check back shortly.', 'success');
-      setTimeout(() => {
-        if (typeof refreshApplications === 'function') {
-          refreshApplications();
-        }
-      }, 2000);
-    } else {
-      showNotification(`Retry failed: ${data.error || 'Unknown error'}`, 'danger');
-    }
-  })
-  .catch(error => {
-    showNotification(`Retry failed: ${error.message}`, 'danger');
-  })
-  .finally(() => {
-    if (button) {
-      button.disabled = false;
-      button.innerHTML = '<i class="fas fa-redo"></i>';
-    }
-  });
-}
-
-function performAppAction(modelSlug, appNumber, action) {
-  const button = event.target.closest('button, a');
-  if (!button) return;
-  
-  const originalHtml = button.innerHTML;
-  button.disabled = true;
-  button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-  
-  const apiAction = action === 'rebuild' ? 'build' : action;
-  const url = `/api/app/${modelSlug}/${appNumber}/${apiAction}`;
-  
-  fetch(url, { method: 'POST', headers: { 'HX-Request': 'true' } })
-    .then(resp => {
-      if (resp.ok) {
-        showNotification(`${action} completed successfully`, 'success');
-        // Refresh table to show updated status
+        // Refresh table after successful operation
         setTimeout(() => {
           if (typeof refreshApplications === 'function') {
             refreshApplications();
-          } else {
-            htmx.trigger('body', 'refresh-applications-table');
           }
         }, 1000);
-      } else {
-        throw new Error(`HTTP ${resp.status}`);
+      } catch (_err) {
+        // Non-JSON response; skip toast to avoid redundant alerts.
       }
-    })
-    .catch(err => {
-      showNotification(`${action} failed: ${err.message}`, 'danger');
-    })
-    .finally(() => {
-      button.disabled = false;
-      button.innerHTML = originalHtml;
-    });
-}
-
-function runAnalysis(modelSlug, appNumber, analysisType) {
-  const button = event.target.closest('button');
-  if (!button) return;
-  
-  const originalHtml = button.innerHTML;
-  button.disabled = true;
-  button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Running...';
-  
-  const row = button.closest('tr');
-  const appId = row ? row.getAttribute('data-app-id') : null;
-  const url = appId ? `/api/applications/${appId}/analyze` : `/api/applications/${modelSlug}/${appNumber}/analyze`;
-  
-  fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ analysis_type: analysisType })
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      showNotification(`${analysisType} analysis started`, 'success');
-      setTimeout(() => {
-        if (typeof refreshApplications === 'function') {
-          refreshApplications();
-        }
-      }, 1000);
-    } else {
-      showNotification(`Analysis failed: ${data.error}`, 'danger');
     }
-  })
-  .catch(error => {
-    showNotification(`Analysis failed: ${error.message}`, 'danger');
-  })
-  .finally(() => {
-    button.disabled = false;
-    button.innerHTML = originalHtml;
   });
-}
 
-function viewAppLogs(modelSlug, appNumber) {
-  window.open(`/applications/${modelSlug}/${appNumber}/logs`, '_blank');
-}
+  // ---- Bulk Status Polling (Efficient - Single API call for all apps) ----
+  function pollApplicationStatuses() {
+    const rows = Array.from(document.querySelectorAll('#applications-table-body tr[data-model][data-app]'));
+    if (!rows.length) return;
 
-function cloneApplication(modelSlug, appNumber) {
-  const newAppNumber = prompt('Enter new application number (1-30):');
-  if (!newAppNumber || isNaN(newAppNumber) || newAppNumber < 1 || newAppNumber > 30) {
-    return;
-  }
-  
-  fetch(`/api/applications/${modelSlug}/${appNumber}/clone`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ new_app_number: parseInt(newAppNumber) })
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      showNotification('Application cloned successfully', 'success');
-      if (typeof refreshApplications === 'function') refreshApplications();
-    } else {
-      showNotification(`Clone failed: ${data.error}`, 'danger');
-    }
-  })
-  .catch(error => {
-    showNotification(`Clone failed: ${error.message}`, 'danger');
-  });
-}
-
-function shareApplication(modelSlug, appNumber) {
-  const url = `${window.location.origin}/applications/${modelSlug}/${appNumber}`;
-  navigator.clipboard.writeText(url).then(() => {
-    showNotification('Application URL copied to clipboard', 'success');
-  }).catch(() => {
-    prompt('Copy this URL:', url);
-  });
-}
-
-function deleteApplication(modelSlug, appNumber) {
-  if (!confirm(`Are you sure you want to delete ${modelSlug} App ${appNumber}? This action cannot be undone.`)) {
-    return;
-  }
-  
-  fetch(`/api/applications/${modelSlug}/${appNumber}`, { method: 'DELETE' })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        showNotification('Application deleted successfully', 'success');
-        if (typeof refreshApplications === 'function') refreshApplications();
-      } else {
-        showNotification(`Delete failed: ${data.error}`, 'danger');
+    // Build list of apps to check (limited to visible rows for performance)
+    const appsToCheck = [];
+    rows.slice(0, 50).forEach(row => {  // Limit to first 50 for very large tables
+      const model = row.getAttribute('data-model');
+      const app = row.getAttribute('data-app');
+      if (model && app) {
+        appsToCheck.push({ model, app_number: parseInt(app, 10) });
       }
-    })
-    .catch(error => {
-      showNotification(`Delete failed: ${error.message}`, 'danger');
     });
-}
 
-// ---- Selection Management ----
-function toggleSelectAllApplications() {
-  const selectAll = document.getElementById('select-all-apps');
-  const checkboxes = document.querySelectorAll('.app-checkbox');
-  
-  checkboxes.forEach(checkbox => {
-    checkbox.checked = selectAll.checked;
-  });
-  
-  updateSelectionIndicator();
-}
+    if (!appsToCheck.length) return;
 
-function updateSelectionIndicator() {
-  const selected = getSelectedApplications();
-  const indicator = document.getElementById('applications-selection-indicator');
-  
-  if (indicator) {
-    indicator.textContent = selected.length > 0 ? `${selected.length} selected` : '';
+    // Single bulk API call instead of N individual calls
+    fetch('/api/apps/bulk-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apps: appsToCheck })
+    })
+      .then(resp => resp.ok ? resp.json() : Promise.reject('API Error'))
+      .then(data => {
+        if (!data?.success || !data?.data?.statuses) return;
+
+        const statuses = data.data.statuses;
+
+        // Update each row with its status
+        rows.forEach(row => {
+          const model = row.getAttribute('data-model');
+          const app = row.getAttribute('data-app');
+          if (!model || !app) return;
+
+          const key = `${model}:${app}`;
+          const statusData = statuses[key];
+          if (!statusData) return;
+
+          const statusBadge = row.querySelector('[data-role="status-badge"]');
+          if (!statusBadge) return;
+
+          // Use Docker status from bulk response
+          const dockerStatus = statusData.status || 'unknown';
+          const isRunning = dockerStatus === 'running';
+          const hasContainers = statusData.states?.length > 0;
+          const composeExists = statusData.compose_exists === true;
+          const isStale = statusData.is_stale || statusData.stale;
+
+          // Update status badge based on Docker status
+          let badgeClass = 'badge bg-muted-lt';
+          let badgeContent = '<i class="fas fa-question me-1"></i>Unknown';
+
+          if (dockerStatus === 'running' && isRunning) {
+            badgeClass = 'badge bg-success-lt';
+            badgeContent = '<i class="fas fa-play me-1"></i>Running';
+          } else if (dockerStatus === 'stopped' || (hasContainers && !isRunning)) {
+            badgeClass = 'badge bg-secondary-lt';
+            badgeContent = '<i class="fas fa-stop me-1"></i>Stopped';
+          } else if (dockerStatus === 'not_created' || (composeExists && !hasContainers)) {
+            badgeClass = 'badge bg-warning-lt';
+            badgeContent = '<i class="fas fa-plus me-1"></i>Not Created';
+          } else if (dockerStatus === 'no_compose') {
+            badgeClass = 'badge bg-danger-lt';
+            badgeContent = '<i class="fas fa-exclamation me-1"></i>No Compose';
+          } else if (dockerStatus === 'error') {
+            badgeClass = 'badge bg-danger-lt';
+            badgeContent = '<i class="fas fa-exclamation-circle me-1"></i>Error';
+          }
+
+          // Add stale indicator if data is stale
+          if (isStale) {
+            badgeContent += ' <i class="fas fa-clock fa-xs text-muted" title="Status may be outdated"></i>';
+          }
+
+          statusBadge.className = badgeClass;
+          statusBadge.innerHTML = badgeContent;
+
+          // Add diagnostic tooltip
+          const tips = [];
+          if (!statusData.docker_connected) tips.push('Docker disconnected');
+          if (statusData.updated_at) {
+            const updatedAt = new Date(statusData.updated_at);
+            const ageMs = Date.now() - updatedAt.getTime();
+            const ageSec = Math.round(ageMs / 1000);
+            tips.push(`Updated: ${ageSec}s ago`);
+          }
+          if (statusData.states?.length) tips.push(`Containers: ${statusData.states.join(', ')}`);
+          if (statusData.error) tips.push(`Error: ${statusData.error}`);
+          if (tips.length) statusBadge.setAttribute('title', tips.join(' | '));
+
+          // Update actions visibility
+          const runningGroup = row.querySelector('.actions-group-running');
+          const stoppedGroup = row.querySelector('.actions-group-stopped');
+          if (runningGroup && stoppedGroup) {
+            runningGroup.style.display = isRunning ? 'contents' : 'none';
+            stoppedGroup.style.display = isRunning ? 'none' : 'contents';
+          }
+        });
+      })
+      .catch(err => {
+        // Silently handle errors - don't spam console
+        console.debug('Bulk status poll failed:', err);
+      });
   }
-}
 
-// ---- Pagination Functions ----
-function changeApplicationsPage(page) { 
-  if (window.applyApplicationFilters) { 
-    applyApplicationFilters({page}); 
-  } 
-}
-
-function changeApplicationsPerPage(perPage) { 
-  if (window.applyApplicationFilters) { 
-    applyApplicationFilters({per_page: perPage}); 
-  } 
-}
-
-// ---- Notification System ----
-function showNotification(message, type = 'info') {
-  const statusArea = document.getElementById('applications-selection-indicator');
-  if (statusArea) {
-    statusArea.innerHTML = `<span class="text-${type}">${message}</span>`;
-    setTimeout(() => {
-      updateSelectionIndicator();
-    }, 3000);
+  // Run polling and rebind handlers
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(pollApplicationStatuses, 500);
+    });
   } else {
-    console.log(`[${type.toUpperCase()}] ${message}`);
+    setTimeout(pollApplicationStatuses, 500);
   }
-}
 
-// ---- Event Listeners ----
-document.addEventListener('change', function(evt) {
-  if (evt.target.classList.contains('app-checkbox')) {
+  document.body.addEventListener('htmx:afterSwap', (e) => {
+    if (e.target?.id === 'applications-table-section') {
+      setTimeout(() => {
+        pollApplicationStatuses();
+      }, 100);
+    }
+  });
+
+  // Single interval for polling (only when page visible)
+  // Using longer interval since bulk API is more efficient
+  if (!window.__appsStatusInterval) {
+    window.__appsStatusInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        pollApplicationStatuses();
+      }
+    }, 45000); // Check every 45 seconds (cache is 30s, so this catches updates reasonably)
+  }
+
+  // ---- Application Management Functions (Consolidated) ----
+  function getSelectedApplications() {
+    return Array.from(document.querySelectorAll('.app-checkbox:checked')).map(cb => cb.value);
+  }
+
+  function retryGeneration(modelSlug, appNumber) {
+    if (!confirm(`Retry generation for ${modelSlug} App ${appNumber}? This will attempt to regenerate the failed application.`)) {
+      return;
+    }
+
+    const button = event.target.closest('button');
+    if (button) {
+      button.disabled = true;
+      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    }
+
+    fetch(`/api/app/${modelSlug}/${appNumber}/retry-generation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showNotification('Generation retry started. Check back shortly.', 'success');
+          setTimeout(() => {
+            if (typeof refreshApplications === 'function') {
+              refreshApplications();
+            }
+          }, 2000);
+        } else {
+          showNotification(`Retry failed: ${data.error || 'Unknown error'}`, 'danger');
+        }
+      })
+      .catch(error => {
+        showNotification(`Retry failed: ${error.message}`, 'danger');
+      })
+      .finally(() => {
+        if (button) {
+          button.disabled = false;
+          button.innerHTML = '<i class="fas fa-redo"></i>';
+        }
+      });
+  }
+
+  function performAppAction(modelSlug, appNumber, action) {
+    const button = event.target.closest('button, a');
+    if (!button) return;
+
+    const originalHtml = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+    const apiAction = action === 'rebuild' ? 'build' : action;
+    const url = `/api/app/${modelSlug}/${appNumber}/${apiAction}`;
+
+    fetch(url, { method: 'POST', headers: { 'HX-Request': 'true' } })
+      .then(resp => {
+        if (resp.ok) {
+          showNotification(`${action} completed successfully`, 'success');
+          // Refresh table to show updated status
+          setTimeout(() => {
+            if (typeof refreshApplications === 'function') {
+              refreshApplications();
+            } else {
+              htmx.trigger('body', 'refresh-applications-table');
+            }
+          }, 1000);
+        } else {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+      })
+      .catch(err => {
+        showNotification(`${action} failed: ${err.message}`, 'danger');
+      })
+      .finally(() => {
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+      });
+  }
+
+  function runAnalysis(modelSlug, appNumber, analysisType) {
+    const button = event.target.closest('button');
+    if (!button) return;
+
+    const originalHtml = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Running...';
+
+    const row = button.closest('tr');
+    const appId = row ? row.getAttribute('data-app-id') : null;
+    const url = appId ? `/api/applications/${appId}/analyze` : `/api/applications/${modelSlug}/${appNumber}/analyze`;
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ analysis_type: analysisType })
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showNotification(`${analysisType} analysis started`, 'success');
+          setTimeout(() => {
+            if (typeof refreshApplications === 'function') {
+              refreshApplications();
+            }
+          }, 1000);
+        } else {
+          showNotification(`Analysis failed: ${data.error}`, 'danger');
+        }
+      })
+      .catch(error => {
+        showNotification(`Analysis failed: ${error.message}`, 'danger');
+      })
+      .finally(() => {
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+      });
+  }
+
+  function viewAppLogs(modelSlug, appNumber) {
+    window.open(`/applications/${modelSlug}/${appNumber}/logs`, '_blank');
+  }
+
+  function cloneApplication(modelSlug, appNumber) {
+    const newAppNumber = prompt('Enter new application number (1-30):');
+    if (!newAppNumber || isNaN(newAppNumber) || newAppNumber < 1 || newAppNumber > 30) {
+      return;
+    }
+
+    fetch(`/api/applications/${modelSlug}/${appNumber}/clone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_app_number: parseInt(newAppNumber) })
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showNotification('Application cloned successfully', 'success');
+          if (typeof refreshApplications === 'function') refreshApplications();
+        } else {
+          showNotification(`Clone failed: ${data.error}`, 'danger');
+        }
+      })
+      .catch(error => {
+        showNotification(`Clone failed: ${error.message}`, 'danger');
+      });
+  }
+
+  function shareApplication(modelSlug, appNumber) {
+    const url = `${window.location.origin}/applications/${modelSlug}/${appNumber}`;
+    navigator.clipboard.writeText(url).then(() => {
+      showNotification('Application URL copied to clipboard', 'success');
+    }).catch(() => {
+      prompt('Copy this URL:', url);
+    });
+  }
+
+  function deleteApplication(modelSlug, appNumber) {
+    if (!confirm(`Are you sure you want to delete ${modelSlug} App ${appNumber}? This action cannot be undone.`)) {
+      return;
+    }
+
+    fetch(`/api/applications/${modelSlug}/${appNumber}`, { method: 'DELETE' })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showNotification('Application deleted successfully', 'success');
+          if (typeof refreshApplications === 'function') refreshApplications();
+        } else {
+          showNotification(`Delete failed: ${data.error}`, 'danger');
+        }
+      })
+      .catch(error => {
+        showNotification(`Delete failed: ${error.message}`, 'danger');
+      });
+  }
+
+  // ---- Selection Management ----
+  function toggleSelectAllApplications() {
+    const selectAll = document.getElementById('select-all-apps');
+    const checkboxes = document.querySelectorAll('.app-checkbox');
+
+    checkboxes.forEach(checkbox => {
+      checkbox.checked = selectAll.checked;
+    });
+
     updateSelectionIndicator();
-    // Update batch selection count if function exists
-    if (typeof updateBatchSelectionCount === 'function') {
-      updateBatchSelectionCount();
+  }
+
+  function updateSelectionIndicator() {
+    const selected = getSelectedApplications();
+    const indicator = document.getElementById('applications-selection-indicator');
+
+    if (indicator) {
+      indicator.textContent = selected.length > 0 ? `${selected.length} selected` : '';
     }
   }
-});
 
-// Event delegation for data-action buttons
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('button[data-action]');
-  if (!btn) return;
-  
-  const row = btn.closest('tr');
-  const modelSlug = row?.getAttribute('data-model');
-  const appNumber = row?.getAttribute('data-app');
-  const action = btn.getAttribute('data-action');
-  
-  if (modelSlug && appNumber && action) {
-    e.preventDefault();
-    performAppAction(modelSlug, appNumber, action);
+  // ---- Pagination Functions ----
+  function changeApplicationsPage(page) {
+    if (window.applyApplicationFilters) {
+      applyApplicationFilters({ page });
+    }
   }
-});
+
+  function changeApplicationsPerPage(perPage) {
+    if (window.applyApplicationFilters) {
+      applyApplicationFilters({ per_page: perPage });
+    }
+  }
+
+  // ---- Notification System ----
+  function showNotification(message, type = 'info') {
+    const statusArea = document.getElementById('applications-selection-indicator');
+    if (statusArea) {
+      statusArea.innerHTML = `<span class="text-${type}">${message}</span>`;
+      setTimeout(() => {
+        updateSelectionIndicator();
+      }, 3000);
+    } else {
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+  }
+
+  // ---- Event Listeners ----
+  document.addEventListener('change', function (evt) {
+    if (evt.target.classList.contains('app-checkbox')) {
+      updateSelectionIndicator();
+      // Update batch selection count if function exists
+      if (typeof updateBatchSelectionCount === 'function') {
+        updateBatchSelectionCount();
+      }
+    }
+  });
+
+  // Event delegation for data-action buttons
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+
+    const row = btn.closest('tr');
+    const modelSlug = row?.getAttribute('data-model');
+    const appNumber = row?.getAttribute('data-app');
+    const action = btn.getAttribute('data-action');
+
+    if (modelSlug && appNumber && action) {
+      e.preventDefault();
+      performAppAction(modelSlug, appNumber, action);
+    }
+  });
 
 </script>
 </div>

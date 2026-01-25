@@ -115,9 +115,10 @@ class PipelineExecutionService:
     - File-based locking for SQLite compatibility (row locking is no-op in SQLite)
     """
     
-    # Circuit breaker configuration
-    CIRCUIT_BREAKER_THRESHOLD: int = 3  # Failures before circuit opens
-    CIRCUIT_BREAKER_COOLDOWN: float = 300.0  # 5 minutes cooldown
+    # Circuit breaker configuration - increased threshold for more resilience
+    # Configurable via environment variables
+    CIRCUIT_BREAKER_THRESHOLD: int = int(os.environ.get('CIRCUIT_BREAKER_THRESHOLD', '5'))
+    CIRCUIT_BREAKER_COOLDOWN: float = float(os.environ.get('CIRCUIT_BREAKER_COOLDOWN', '120.0'))
     
     # Retry configuration (exponential backoff)
     MAX_STARTUP_RETRIES: int = 4  # Max retry attempts for analyzer startup

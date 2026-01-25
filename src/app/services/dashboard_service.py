@@ -289,8 +289,11 @@ def _database_status() -> ComponentStatus:
 
 
 def _redis_status() -> ComponentStatus:
+    import os
     redis_url = (
-        current_app.config.get("REDIS_URL")
+        os.environ.get("REDIS_URL")
+        or os.environ.get("CELERY_BROKER_URL")
+        or current_app.config.get("REDIS_URL")
         or current_app.config.get("CELERY_BROKER_URL")
         or current_app.config.get("CELERY_RESULT_BACKEND")
     )

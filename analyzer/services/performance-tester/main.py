@@ -836,9 +836,12 @@ scenarios:
                         result['results']['tool_runs'] = tool_runs
                         self.log.info(f"[PERF-RESULT] Aggregated tool_runs: {list(tool_runs.keys())}")
 
+                # Propagate actual status from result to outer wrapper
+                # This ensures errors like 'targets_unreachable' are visible in the top-level status
+                actual_status = result.get('status', 'success')
                 wrapped = {
                     'type': 'performance_analysis_result',
-                    'status': 'success',
+                    'status': actual_status,
                     'service': self.info.name,
                     'analysis': result,
                     'timestamp': datetime.now().isoformat()

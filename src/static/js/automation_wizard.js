@@ -73,9 +73,8 @@ if (typeof window.AutomationWizard !== 'undefined') {
         // Validate step bounds
         if (step < 1 || step > totalSteps) return;
 
-        // Don't allow navigation during execution (step 5)
+        // Don't allow navigation during execution (step 5) - silently block
         if (wizard.state.status === 'running' && step < 5) {
-            showNotification('Cannot navigate while pipeline is running', 'warning');
             return;
         }
 

@@ -216,7 +216,7 @@ class AIAnalyzer(BaseWSService):
             # OPTIMIZED MODE: Only scan LLM-generated files (not scaffolding)
             # This dramatically reduces token usage by ~60-70%
             self.optimized_mode = os.getenv('AI_OPTIMIZED_MODE', 'true').lower() == 'true'
-            
+
             # LLM-generated files whitelist (files that contain app-specific code)
             # Single-file mode: app.py for backend, App.jsx for frontend
             self.llm_generated_files = {
@@ -227,7 +227,17 @@ class AIAnalyzer(BaseWSService):
                     'src/App.jsx',         # Complete frontend in single file
                 ]
             }
-            
+
+            # Retry configuration for resilience against transient API failures
+            self.max_retries = int(os.getenv('AI_MAX_RETRIES', '3'))
+            self.base_retry_delay = float(os.getenv('AI_BASE_RETRY_DELAY', '2.0'))
+            self.max_retry_delay = float(os.getenv('AI_MAX_RETRY_DELAY', '30.0'))
+
+            # Timeout configuration (seconds) - increased for reliability
+            self.api_timeout_single = int(os.getenv('AI_TIMEOUT_SINGLE', '60'))  # Single requirement
+            self.api_timeout_batch = int(os.getenv('AI_TIMEOUT_BATCH', '120'))   # Batch analysis
+            self.api_timeout_quality = int(os.getenv('AI_TIMEOUT_QUALITY', '90'))  # Quality analysis
+
             self.log.info("AI Analyzer initialized (template-based requirements system)")
             self.log.info(f"Using model: {self.default_openrouter_model}, batch_mode={self.batch_mode}, optimized_mode={self.optimized_mode}, code_limit={self.code_truncation_limit}")
             self.log.info("AIAnalyzer initialization complete")
@@ -311,62 +321,127 @@ class AIAnalyzer(BaseWSService):
         return result
     
     async def _try_openrouter_analysis(self, code_content: str, requirement: str, config: Optional[Dict[str, Any]] = None) -> Optional[RequirementResult]:
-        """Try analysis using OpenRouter API."""
-        try:
-            if not self.openrouter_api_key:
-                self.log.warning("[API] OpenRouter API key not available")
-                return None
-            
-            prompt = self._build_analysis_prompt(code_content, requirement, None)
-            self.log.debug(f"[API-OPENROUTER] Built prompt: {len(prompt)} chars for requirement: {requirement[:100]}...")
-            
-            async with aiohttp.ClientSession() as session:
-                import aiohttp as _aiohttp
-                _timeout = _aiohttp.ClientTimeout(total=30)
-                headers = {
-                    "Authorization": f"Bearer {self.openrouter_api_key}",
-                    "Content-Type": "application/json"
-                }
-                payload = {
-                    "model": self.default_openrouter_model,
-                    "messages": [
-                        {"role": "user", "content": prompt}
-                    ],
-                    "max_tokens": 500,
-                    "temperature": 0.1
-                }
-                # Log sanitized version for security
-                sanitized_key = f"{self.openrouter_api_key[:10]}...{self.openrouter_api_key[-5:]}"
-                self.log.info(f"[API-OPENROUTER] Sending request to OpenRouter (model={self.default_openrouter_model}, prompt_len={len(prompt)}, key={sanitized_key})")
-                print(f"[ai-analyzer] API call to OpenRouter: model={self.default_openrouter_model}")
-                
-                async with session.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers=headers,
-                    json=payload,
-                    timeout=_timeout
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        ai_response = data['choices'][0]['message']['content']
-                        self.log.info(f"[API-OPENROUTER] Success - Response length: {len(ai_response)} chars")
-                        self.log.debug(f"[API-OPENROUTER] Raw response: {ai_response[:200]}...")
-                        print(f"[ai-analyzer] OpenRouter API success: {len(ai_response)} chars")
-                        
-                        parsed_result = self._parse_ai_response(ai_response)
-                        self.log.debug(f"[API-OPENROUTER] Parsed result: met={parsed_result.met}, confidence={parsed_result.confidence}")
-                        return parsed_result
-                    else:
-                        error_text = await response.text()
-                        self.log.warning(f"[API-OPENROUTER] API error: {response.status} - {error_text[:200]}")
-                        print(f"[ai-analyzer] OpenRouter API error: {response.status}")
-                        return None
-        except Exception as e:
-            self.log.error(f"[API-OPENROUTER] Exception: {e}")
-            print(f"[ai-analyzer] OpenRouter exception: {e}")
-            import traceback
-            traceback.print_exc()
+        """Try analysis using OpenRouter API with retry logic and exponential backoff.
+
+        Implements robust error handling:
+        - Exponential backoff retries for transient failures
+        - Rate limit detection and handling (429 responses)
+        - Configurable timeouts
+        - Detailed logging for debugging
+        """
+        if not self.openrouter_api_key:
+            self.log.warning("[API] OpenRouter API key not available")
             return None
+
+        prompt = self._build_analysis_prompt(code_content, requirement, None)
+        self.log.debug(f"[API-OPENROUTER] Built prompt: {len(prompt)} chars for requirement: {requirement[:100]}...")
+
+        last_error = None
+        last_status_code = None
+
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    _timeout = aiohttp.ClientTimeout(total=self.api_timeout_single)
+                    headers = {
+                        "Authorization": f"Bearer {self.openrouter_api_key}",
+                        "Content-Type": "application/json"
+                    }
+                    payload = {
+                        "model": self.default_openrouter_model,
+                        "messages": [
+                            {"role": "user", "content": prompt}
+                        ],
+                        "max_tokens": 500,
+                        "temperature": 0.1
+                    }
+
+                    # Log sanitized version for security
+                    sanitized_key = f"{self.openrouter_api_key[:10]}...{self.openrouter_api_key[-5:]}"
+                    self.log.info(f"[API-OPENROUTER] Attempt {attempt}/{self.max_retries}: Sending request (model={self.default_openrouter_model}, prompt_len={len(prompt)}, timeout={self.api_timeout_single}s)")
+                    print(f"[ai-analyzer] API call to OpenRouter (attempt {attempt}/{self.max_retries}): model={self.default_openrouter_model}")
+
+                    async with session.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers=headers,
+                        json=payload,
+                        timeout=_timeout
+                    ) as response:
+                        last_status_code = response.status
+
+                        if response.status == 200:
+                            data = await response.json()
+                            ai_response = data['choices'][0]['message']['content']
+                            self.log.info(f"[API-OPENROUTER] Success on attempt {attempt} - Response length: {len(ai_response)} chars")
+                            self.log.debug(f"[API-OPENROUTER] Raw response: {ai_response[:200]}...")
+                            print(f"[ai-analyzer] OpenRouter API success: {len(ai_response)} chars")
+
+                            parsed_result = self._parse_ai_response(ai_response)
+                            self.log.debug(f"[API-OPENROUTER] Parsed result: met={parsed_result.met}, confidence={parsed_result.confidence}")
+                            return parsed_result
+
+                        elif response.status == 429:
+                            # Rate limited - extract retry-after if available
+                            retry_after = response.headers.get('Retry-After', '')
+                            error_text = await response.text()
+                            if retry_after:
+                                wait_time = min(float(retry_after), self.max_retry_delay)
+                            else:
+                                wait_time = min(self.base_retry_delay * (2 ** (attempt - 1)), self.max_retry_delay)
+                            self.log.warning(f"[API-OPENROUTER] Rate limited (429) on attempt {attempt}. Waiting {wait_time:.1f}s before retry. Response: {error_text[:100]}")
+                            print(f"[ai-analyzer] Rate limited, waiting {wait_time:.1f}s before retry")
+                            last_error = f"Rate limited (429): {error_text[:100]}"
+                            await asyncio.sleep(wait_time)
+                            continue
+
+                        elif response.status >= 500:
+                            # Server error - retry with backoff
+                            error_text = await response.text()
+                            wait_time = min(self.base_retry_delay * (2 ** (attempt - 1)), self.max_retry_delay)
+                            self.log.warning(f"[API-OPENROUTER] Server error ({response.status}) on attempt {attempt}. Waiting {wait_time:.1f}s before retry. Response: {error_text[:100]}")
+                            print(f"[ai-analyzer] Server error {response.status}, waiting {wait_time:.1f}s before retry")
+                            last_error = f"Server error ({response.status}): {error_text[:100]}"
+                            await asyncio.sleep(wait_time)
+                            continue
+
+                        else:
+                            # Client error (4xx except 429) - don't retry
+                            error_text = await response.text()
+                            self.log.error(f"[API-OPENROUTER] Client error ({response.status}): {error_text[:200]}")
+                            print(f"[ai-analyzer] OpenRouter client error: {response.status}")
+                            return None
+
+            except asyncio.TimeoutError:
+                wait_time = min(self.base_retry_delay * (2 ** (attempt - 1)), self.max_retry_delay)
+                self.log.warning(f"[API-OPENROUTER] Timeout on attempt {attempt}/{self.max_retries}. Waiting {wait_time:.1f}s before retry.")
+                print(f"[ai-analyzer] API timeout, waiting {wait_time:.1f}s before retry")
+                last_error = f"Timeout after {self.api_timeout_single}s"
+                if attempt < self.max_retries:
+                    await asyncio.sleep(wait_time)
+                continue
+
+            except aiohttp.ClientError as e:
+                wait_time = min(self.base_retry_delay * (2 ** (attempt - 1)), self.max_retry_delay)
+                self.log.warning(f"[API-OPENROUTER] Connection error on attempt {attempt}/{self.max_retries}: {e}. Waiting {wait_time:.1f}s before retry.")
+                print(f"[ai-analyzer] Connection error: {e}")
+                last_error = f"Connection error: {str(e)}"
+                if attempt < self.max_retries:
+                    await asyncio.sleep(wait_time)
+                continue
+
+            except Exception as e:
+                self.log.error(f"[API-OPENROUTER] Unexpected exception on attempt {attempt}: {e}")
+                print(f"[ai-analyzer] Unexpected error: {e}")
+                import traceback
+                traceback.print_exc()
+                last_error = f"Unexpected error: {str(e)}"
+                # Don't retry on unexpected errors
+                break
+
+        # All retries exhausted
+        self.log.error(f"[API-OPENROUTER] All {self.max_retries} attempts failed. Last error: {last_error}, Last status: {last_status_code}")
+        print(f"[ai-analyzer] All retries exhausted. Last error: {last_error}")
+        return None
     
     def _build_analysis_prompt(self, code_content: str, requirement: str, template_context: Optional[Dict[str, Any]] = None) -> str:
         """Build analysis prompt for AI with optional template context."""
@@ -1459,39 +1534,75 @@ Focus on whether the functionality described in the requirement is actually impl
                     "temperature": 0.1
                 }
                 
-                async with session.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers=headers,
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=90)  # Longer timeout for quality analysis
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        ai_response = data['choices'][0]['message']['content']
-                        self.log.debug(f"Batch quality response ({len(ai_response)} chars)")
-                        
-                        # Parse batch response
-                        results = self._parse_batch_quality_response(ai_response)
-                        self.log.info(f"Parsed {len(results)} quality metrics from batch response")
-                        return results
-                    else:
-                        error_text = await response.text()
-                        self.log.warning(f"Batch quality API error: {response.status} - {error_text[:200]}")
-                        # Return failed results
-                        return [
-                            {
-                                'metric_id': metric_id,
-                                'metric_name': metric_def['name'],
-                                'passed': False,
-                                'score': 0,
-                                'confidence': 'LOW',
-                                'findings': [f'API error: {response.status}'],
-                                'recommendations': [],
-                                'evidence': {},
-                                'weight': metric_def.get('weight', 1.0)
-                            }
-                            for metric_id, metric_def in CODE_QUALITY_METRICS.items()
-                        ]
+                # Retry loop for quality batch analysis
+                last_error = None
+                for attempt in range(1, self.max_retries + 1):
+                    try:
+                        async with session.post(
+                            "https://openrouter.ai/api/v1/chat/completions",
+                            headers=headers,
+                            json=payload,
+                            timeout=aiohttp.ClientTimeout(total=self.api_timeout_quality)
+                        ) as response:
+                            if response.status == 200:
+                                data = await response.json()
+                                ai_response = data['choices'][0]['message']['content']
+                                self.log.debug(f"Batch quality response ({len(ai_response)} chars)")
+
+                                # Parse batch response
+                                results = self._parse_batch_quality_response(ai_response)
+                                self.log.info(f"Parsed {len(results)} quality metrics from batch response")
+                                return results
+                            elif response.status == 429 or response.status >= 500:
+                                # Retry on rate limit or server error
+                                error_text = await response.text()
+                                wait_time = min(self.base_retry_delay * (2 ** (attempt - 1)), self.max_retry_delay)
+                                self.log.warning(f"Batch quality API error {response.status} on attempt {attempt}. Waiting {wait_time:.1f}s.")
+                                last_error = f"API error: {response.status}"
+                                await asyncio.sleep(wait_time)
+                                continue
+                            else:
+                                error_text = await response.text()
+                                self.log.warning(f"Batch quality API error: {response.status} - {error_text[:200]}")
+                                # Return failed results
+                                return [
+                                    {
+                                        'metric_id': metric_id,
+                                        'metric_name': metric_def['name'],
+                                        'passed': False,
+                                        'score': 0,
+                                        'confidence': 'LOW',
+                                        'findings': [f'API error: {response.status}'],
+                                        'recommendations': [],
+                                        'evidence': {},
+                                        'weight': metric_def.get('weight', 1.0)
+                                    }
+                                    for metric_id, metric_def in CODE_QUALITY_METRICS.items()
+                                ]
+                    except asyncio.TimeoutError:
+                        wait_time = min(self.base_retry_delay * (2 ** (attempt - 1)), self.max_retry_delay)
+                        self.log.warning(f"Batch quality API timeout on attempt {attempt}. Waiting {wait_time:.1f}s before retry.")
+                        last_error = "Timeout"
+                        if attempt < self.max_retries:
+                            await asyncio.sleep(wait_time)
+                        continue
+
+                # All retries exhausted
+                self.log.error(f"Batch quality analysis: all {self.max_retries} attempts failed. Last error: {last_error}")
+                return [
+                    {
+                        'metric_id': metric_id,
+                        'metric_name': metric_def['name'],
+                        'passed': False,
+                        'score': 0,
+                        'confidence': 'LOW',
+                        'findings': [f'All retries exhausted: {last_error}'],
+                        'recommendations': [],
+                        'evidence': {},
+                        'weight': metric_def.get('weight', 1.0)
+                    }
+                    for metric_id, metric_def in CODE_QUALITY_METRICS.items()
+                ]
                         
         except Exception as e:
             self.log.error(f"Batch quality analysis failed: {e}")
@@ -1654,28 +1765,58 @@ XX should be a number 0-100. PASS:YES if score >= 60."""
                     "temperature": 0.2
                 }
                 
-                async with session.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers=headers,
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=45)
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        ai_response = data['choices'][0]['message']['content']
-                        return self._parse_quality_metric_response(ai_response, metric_id, metric_def)
-                    else:
-                        error_text = await response.text()
-                        self.log.warning(f"Quality metric API error: {response.status} - {error_text[:200]}")
-                        return QualityMetricResult(
-                            metric_id=metric_id,
-                            metric_name=metric_def['name'],
-                            passed=False,
-                            score=0,
-                            confidence="LOW",
-                            findings=[f"API error: {response.status}"],
-                            weight=metric_def.get('weight', 1.0)
-                        )
+                # Retry loop for quality metric analysis
+                last_error = None
+                for attempt in range(1, self.max_retries + 1):
+                    try:
+                        async with session.post(
+                            "https://openrouter.ai/api/v1/chat/completions",
+                            headers=headers,
+                            json=payload,
+                            timeout=aiohttp.ClientTimeout(total=self.api_timeout_quality)
+                        ) as response:
+                            if response.status == 200:
+                                data = await response.json()
+                                ai_response = data['choices'][0]['message']['content']
+                                return self._parse_quality_metric_response(ai_response, metric_id, metric_def)
+                            elif response.status == 429 or response.status >= 500:
+                                # Retry on rate limit or server error
+                                wait_time = min(self.base_retry_delay * (2 ** (attempt - 1)), self.max_retry_delay)
+                                self.log.warning(f"Quality metric API error {response.status} on attempt {attempt}. Waiting {wait_time:.1f}s.")
+                                last_error = f"API error: {response.status}"
+                                await asyncio.sleep(wait_time)
+                                continue
+                            else:
+                                error_text = await response.text()
+                                self.log.warning(f"Quality metric API error: {response.status} - {error_text[:200]}")
+                                return QualityMetricResult(
+                                    metric_id=metric_id,
+                                    metric_name=metric_def['name'],
+                                    passed=False,
+                                    score=0,
+                                    confidence="LOW",
+                                    findings=[f"API error: {response.status}"],
+                                    weight=metric_def.get('weight', 1.0)
+                                )
+                    except asyncio.TimeoutError:
+                        wait_time = min(self.base_retry_delay * (2 ** (attempt - 1)), self.max_retry_delay)
+                        self.log.warning(f"Quality metric API timeout on attempt {attempt}. Waiting {wait_time:.1f}s.")
+                        last_error = "Timeout"
+                        if attempt < self.max_retries:
+                            await asyncio.sleep(wait_time)
+                        continue
+
+                # All retries exhausted
+                self.log.error(f"Quality metric analysis for {metric_id}: all retries failed. Last error: {last_error}")
+                return QualityMetricResult(
+                    metric_id=metric_id,
+                    metric_name=metric_def['name'],
+                    passed=False,
+                    score=0,
+                    confidence="LOW",
+                    findings=[f"All retries exhausted: {last_error}"],
+                    weight=metric_def.get('weight', 1.0)
+                )
                         
         except Exception as e:
             self.log.error(f"Quality metric analysis failed for {metric_id}: {e}")
@@ -2153,35 +2294,67 @@ Focus on practical, real-world code quality concerns. Be specific about what you
                     "temperature": 0.1  # Lower temperature for more consistent parsing
                 }
                 
-                async with session.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers=headers,
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=60)  # Longer timeout for batch
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        ai_response = data['choices'][0]['message']['content']
-                        self.log.debug(f"Batch response ({len(ai_response)} chars): {ai_response[:200]}...")
-                        
-                        # Parse batch response
-                        results = self._parse_batch_requirements_response(ai_response, requirements, focus)
-                        self.log.info(f"Parsed {len(results)} results from batch response")
-                        return results
-                    else:
-                        error_text = await response.text()
-                        self.log.warning(f"Batch API error: {response.status} - {error_text[:200]}")
-                        # Return failed results for all requirements
-                        return [
-                            {
-                                'requirement': req,
-                                'met': False,
-                                'confidence': 'LOW',
-                                'explanation': f'API error: {response.status}',
-                                'category': focus
-                            }
-                            for req in requirements
-                        ]
+                # Retry loop for batch analysis
+                last_error = None
+                for attempt in range(1, self.max_retries + 1):
+                    try:
+                        async with session.post(
+                            "https://openrouter.ai/api/v1/chat/completions",
+                            headers=headers,
+                            json=payload,
+                            timeout=aiohttp.ClientTimeout(total=self.api_timeout_batch)
+                        ) as response:
+                            if response.status == 200:
+                                data = await response.json()
+                                ai_response = data['choices'][0]['message']['content']
+                                self.log.debug(f"Batch response ({len(ai_response)} chars): {ai_response[:200]}...")
+
+                                # Parse batch response
+                                results = self._parse_batch_requirements_response(ai_response, requirements, focus)
+                                self.log.info(f"Parsed {len(results)} results from batch response")
+                                return results
+                            elif response.status == 429 or response.status >= 500:
+                                # Retry on rate limit or server error
+                                error_text = await response.text()
+                                wait_time = min(self.base_retry_delay * (2 ** (attempt - 1)), self.max_retry_delay)
+                                self.log.warning(f"Batch API error {response.status} on attempt {attempt}. Waiting {wait_time:.1f}s. Error: {error_text[:100]}")
+                                last_error = f"API error: {response.status}"
+                                await asyncio.sleep(wait_time)
+                                continue
+                            else:
+                                error_text = await response.text()
+                                self.log.warning(f"Batch API error: {response.status} - {error_text[:200]}")
+                                # Return failed results for all requirements
+                                return [
+                                    {
+                                        'requirement': req,
+                                        'met': False,
+                                        'confidence': 'LOW',
+                                        'explanation': f'API error: {response.status}',
+                                        'category': focus
+                                    }
+                                    for req in requirements
+                                ]
+                    except asyncio.TimeoutError:
+                        wait_time = min(self.base_retry_delay * (2 ** (attempt - 1)), self.max_retry_delay)
+                        self.log.warning(f"Batch API timeout on attempt {attempt}. Waiting {wait_time:.1f}s before retry.")
+                        last_error = "Timeout"
+                        if attempt < self.max_retries:
+                            await asyncio.sleep(wait_time)
+                        continue
+
+                # All retries exhausted
+                self.log.error(f"Batch analysis: all {self.max_retries} attempts failed. Last error: {last_error}")
+                return [
+                    {
+                        'requirement': req,
+                        'met': False,
+                        'confidence': 'LOW',
+                        'explanation': f'All retries exhausted: {last_error}',
+                        'category': focus
+                    }
+                    for req in requirements
+                ]
                         
         except Exception as e:
             self.log.error(f"Batch analysis failed: {e}")
@@ -2432,25 +2605,52 @@ Respond with EXACTLY this format for EACH requirement (one per line):
                     "max_tokens": self.max_response_tokens,
                     "temperature": 0.2
                 }
-                async with session.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers=headers,
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=30)
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        ai_response = data['choices'][0]['message']['content']
-                        return self._parse_ai_response(ai_response)
-                    else:
-                        error_text = await response.text()
-                        self.log.warning(f"AI API error: {response.status} - {error_text}")
-                        return RequirementResult(
-                            met=False,
-                            confidence="LOW",
-                            explanation=f"API error: {response.status}",
-                            error=error_text
-                        )
+                # Retry loop for focused requirement analysis
+                last_error = None
+                for attempt in range(1, self.max_retries + 1):
+                    try:
+                        async with session.post(
+                            "https://openrouter.ai/api/v1/chat/completions",
+                            headers=headers,
+                            json=payload,
+                            timeout=aiohttp.ClientTimeout(total=self.api_timeout_single)
+                        ) as response:
+                            if response.status == 200:
+                                data = await response.json()
+                                ai_response = data['choices'][0]['message']['content']
+                                return self._parse_ai_response(ai_response)
+                            elif response.status == 429 or response.status >= 500:
+                                # Retry on rate limit or server error
+                                wait_time = min(self.base_retry_delay * (2 ** (attempt - 1)), self.max_retry_delay)
+                                self.log.warning(f"AI API error {response.status} on attempt {attempt}. Waiting {wait_time:.1f}s.")
+                                last_error = f"API error: {response.status}"
+                                await asyncio.sleep(wait_time)
+                                continue
+                            else:
+                                error_text = await response.text()
+                                self.log.warning(f"AI API error: {response.status} - {error_text}")
+                                return RequirementResult(
+                                    met=False,
+                                    confidence="LOW",
+                                    explanation=f"API error: {response.status}",
+                                    error=error_text
+                                )
+                    except asyncio.TimeoutError:
+                        wait_time = min(self.base_retry_delay * (2 ** (attempt - 1)), self.max_retry_delay)
+                        self.log.warning(f"AI API timeout on attempt {attempt}. Waiting {wait_time:.1f}s.")
+                        last_error = "Timeout"
+                        if attempt < self.max_retries:
+                            await asyncio.sleep(wait_time)
+                        continue
+
+                # All retries exhausted
+                self.log.error(f"Focused requirement analysis: all retries failed. Last error: {last_error}")
+                return RequirementResult(
+                    met=False,
+                    confidence="LOW",
+                    explanation=f"All retries exhausted: {last_error}",
+                    error=last_error
+                )
         except Exception as e:
             self.log.error(f"AI analysis failed: {e}")
             return RequirementResult(

@@ -134,13 +134,16 @@ class AnalysisRequest:
             self.source_path = f"/app/sources/{self.model_slug}/app{self.app_number}"
 
 
+import random
+
 @dataclass
 class ServiceInfo:
     """Information about an analyzer service."""
     name: str
     port: int
     container_name: str
-    websocket_url: str
+    websocket_url: str  # Kept for backward compat (primary URL)
+    urls: List[str]     # List of all available replica URLs
     health_status: str = "unknown"
     last_check: Optional[datetime] = None
 
@@ -190,6 +193,14 @@ class AnalyzerManager:
             'perf': 2003,
             'ai': 2004
         }
+        
+        # Mapping from short type to env var prefix
+        env_param_map = {
+            'static': 'STATIC_ANALYZER_URLS',
+            'dynamic': 'DYNAMIC_ANALYZER_URLS',
+            'perf': 'PERF_TESTER_URLS',
+            'ai': 'AI_ANALYZER_URLS'
+        }
 
         self.services = {}
         for service_type, base_port in base_ports.items():
@@ -206,12 +217,31 @@ class AnalyzerManager:
 
             # Add isolation suffix to container names if in isolated mode
             container_suffix = f"-{self.isolation_id}" if self.isolation_id else ""
+            
+            # Primary URL (constructed legacy way)
+            primary_url = self._build_websocket_url(service_name, port, in_docker, container_suffix)
+            
+            # Resolve all URLs (replicas)
+            urls = []
+            
+            # 1. Try environment variable (comma-separated configs)
+            env_var = env_param_map.get(service_type, '')
+            if env_var and os.environ.get(env_var):
+                raw_urls = os.environ[env_var].split(',')
+                urls = [u.strip() for u in raw_urls if u.strip()]
+                logger.info(f"Loaded {len(urls)} URLs for {service_name} from {env_var}")
+            
+            # 2. Fallback to constructed primary URL if env var missing/empty
+            if not urls:
+                urls = [primary_url]
+                logger.debug(f"Using default single URL for {service_name}: {primary_url}")
 
             self.services[service_name] = ServiceInfo(
                 name=service_name,
                 port=port,
                 container_name=f'analyzer-{service_name}-1{container_suffix}',
-                websocket_url=self._build_websocket_url(service_name, port, in_docker, container_suffix)
+                websocket_url=primary_url,
+                urls=urls
             )
 
         if self.isolation_id:
@@ -972,84 +1002,101 @@ class AnalyzerManager:
     
     async def send_websocket_message(self, service_name: str, message: Dict[str, Any], 
                                    timeout: int = 30) -> Dict[str, Any]:
-        """Send a message to a service via WebSocket.
+        """Send a message to a service via WebSocket with load balancing and failover.
 
-        Enhancement: some analyzer services (performance/dynamic) may emit one or more
-        progress frames before the final *analysis_result* payload. The previous
-        implementation returned the very first frame which meant we persisted an
-        incomplete structure (missing the nested 'analysis' key), so downstream raw
-        output extraction produced empty tool data (status 'unknown').
-
-        We now continue reading frames until we encounter a terminal result message
-        (type ends with '_analysis_result' or contains 'analysis_result' substring) OR
-        the websocket closes / overall timeout elapses. Progress frames are ignored
-        except we keep the first one as a fallback if no terminal frame arrives.
+        Features:
+        - Load Balancing: Randomly selects from available replicas (if configured)
+        - Failover: Retries on other replicas if connection fails
+        - Protocol: Handles progress frames until terminal result
         """
         if service_name not in self.services:
             return {'status': 'error', 'error': f'Unknown service: {service_name}'}
         
         service_info = self.services[service_name]
         
-        try:
-            async with websockets.connect(
-                service_info.websocket_url,
-                open_timeout=10,
-                close_timeout=10,
-                ping_interval=None,
-                ping_timeout=None,
-                max_size=100 * 1024 * 1024  # 100 MB for large SARIF responses
-            ) as websocket:
-                # Send request
-                await websocket.send(json.dumps(message))
+        # Create a shuffled list of URLs for this request to distribute load
+        # and provide failover order
+        target_urls = list(service_info.urls)
+        random.shuffle(target_urls)
+        
+        last_error = None
+        
+        for url in target_urls:
+            try:
+                logger.debug(f"Attempting connection to {service_name} at {url}")
+                
+                async with websockets.connect(
+                    url,
+                    open_timeout=10,
+                    close_timeout=10,
+                    ping_interval=None,
+                    ping_timeout=None,
+                    max_size=100 * 1024 * 1024  # 100 MB for large SARIF responses
+                ) as websocket:
+                    # Send request
+                    await websocket.send(json.dumps(message))
 
-                deadline = time.time() + timeout
-                first_frame: Optional[Dict[str, Any]] = None
-                terminal_frame: Optional[Dict[str, Any]] = None
+                    deadline = time.time() + timeout
+                    first_frame: Optional[Dict[str, Any]] = None
+                    terminal_frame: Optional[Dict[str, Any]] = None
 
-                while time.time() < deadline:
-                    remaining = max(0.1, deadline - time.time())
-                    try:
-                        raw = await asyncio.wait_for(websocket.recv(), timeout=remaining)
-                    except asyncio.TimeoutError:
-                        break
-                    except ConnectionClosed:
-                        break
-                    try:
-                        frame = json.loads(raw)
-                    except Exception:
-                        frame = {'status': 'error', 'error': 'invalid_json_frame', 'raw': raw}
-
-                    if first_frame is None:
-                        first_frame = frame
-
-                    ftype = str(frame.get('type','')).lower()
-                    has_analysis = isinstance(frame.get('analysis'), dict)
-                    logger.debug(
-                        f"WebSocket frame from {service_name}: type={ftype} "
-                        f"has_analysis={has_analysis} status={frame.get('status')} "
-                        f"keys={list(frame.keys())[:5]}"
-                    )
-                    
-                    # Heuristic: treat *_analysis_result or *_analysis (with status) as terminal
-                    if ('analysis_result' in ftype) or (ftype.endswith('_analysis') and 'analysis' in frame):
-                        terminal_frame = frame
-                        # Break only if it already contains nested 'analysis' key to avoid prematurely
-                        # returning a progress-like message that happens to match pattern.
-                        if has_analysis:
-                            logger.debug(f"Found terminal frame with analysis data from {service_name}")
+                    while time.time() < deadline:
+                        remaining = max(0.1, deadline - time.time())
+                        try:
+                            raw = await asyncio.wait_for(websocket.recv(), timeout=remaining)
+                        except asyncio.TimeoutError:
                             break
-                
-                # Log what we're returning
-                result_type = 'terminal' if terminal_frame else ('first' if first_frame else 'no_response')
-                logger.debug(f"Returning {result_type} frame from {service_name}")
-                return terminal_frame or first_frame or {'status': 'error', 'error': 'no_response'}
-                
-        except asyncio.TimeoutError:
-            return {'status': 'timeout', 'error': f'Request to {service_name} timed out'}
-        except ConnectionClosed:
-            return {'status': 'error', 'error': f'Connection to {service_name} closed'}
-        except Exception as e:
-            return {'status': 'error', 'error': f'WebSocket error: {str(e)}'}
+                        except ConnectionClosed:
+                            break
+                        try:
+                            frame = json.loads(raw)
+                        except Exception:
+                            frame = {'status': 'error', 'error': 'invalid_json_frame', 'raw': raw}
+
+                        if first_frame is None:
+                            first_frame = frame
+
+                        ftype = str(frame.get('type','')).lower()
+                        has_analysis = isinstance(frame.get('analysis'), dict)
+                        logger.debug(
+                            f"WebSocket frame from {service_name} ({url}): type={ftype} "
+                            f"has_analysis={has_analysis} status={frame.get('status')} "
+                            f"keys={list(frame.keys())[:5]}"
+                        )
+                        
+                        # Heuristic: treat *_analysis_result or *_analysis (with status) as terminal
+                        if ('analysis_result' in ftype) or (ftype.endswith('_analysis') and 'analysis' in frame):
+                            terminal_frame = frame
+                            # Break only if it already contains nested 'analysis' key to avoid prematurely
+                            # returning a progress-like message that happens to match pattern.
+                            if has_analysis:
+                                logger.debug(f"Found terminal frame with analysis data from {service_name}")
+                                break
+                    
+                    # Log what we're returning
+                    result_type = 'terminal' if terminal_frame else ('first' if first_frame else 'no_response')
+                    logger.debug(f"Returning {result_type} frame from {service_name} ({url})")
+                    
+                    # Store result and RETURN immediately on success (no retry needed)
+                    result = terminal_frame or first_frame or {'status': 'error', 'error': 'no_response'}
+                    
+                    # If we got a valid response (even an error response from the service logic), consider it a success
+                    # connectivity-wise. Only network errors trigger failover.
+                    return result
+                    
+            except (asyncio.TimeoutError, ConnectionClosed, OSError, IOError) as e:
+                last_error = e
+                logger.warning(f"Connection failed to {service_name} at {url}: {e}. Retrying with next replica...")
+                continue
+            except Exception as e:
+                # Unexpected errors shouldn't necessarily trigger retry unless we're sure it's transient
+                logger.error(f"Unexpected error communicating with {service_name} at {url}: {e}")
+                last_error = e
+                continue
+
+        # If we exhausted all URLs
+        logger.error(f"All replicas failed for {service_name}. URLs tried: {target_urls}")
+        return {'status': 'error', 'error': f'All replicas failed for {service_name}: {str(last_error)}'}
     
     async def check_service_health(self, service_name: str) -> Dict[str, Any]:
         """Check health of a specific service."""

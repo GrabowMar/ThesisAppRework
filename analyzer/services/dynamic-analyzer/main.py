@@ -964,9 +964,12 @@ class DynamicAnalyzer(BaseWSService):
 
                 analysis_results = await self.analyze_running_app(model_slug, app_number, target_urls, selected_tools, tool_config=tool_config)
 
+                # Propagate actual status from analysis results to outer wrapper
+                # This ensures errors like 'targets_unreachable' are visible in the top-level status
+                actual_status = analysis_results.get('status', 'success')
                 response = {
                     "type": "dynamic_analysis_result",
-                    "status": "success",
+                    "status": actual_status,
                     "service": self.info.name,
                     "analysis": analysis_results,
                     "timestamp": datetime.now().isoformat()

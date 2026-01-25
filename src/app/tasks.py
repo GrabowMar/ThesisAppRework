@@ -112,17 +112,39 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
             subtask.progress_percentage = 10.0
             db.session.commit()
 
-        # Execute via WebSocket (reusing logic from TaskExecutionService, but adapted)
-        # We can't easily reuse the instance method, so we'll duplicate the WS logic here
-        # or extract it to a shared utility. For now, let's implement the WS call here.
-
+        # Execute via WebSocket using the pooled analyzer manager
+        from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
+        
         # Update progress before execution
         with database_write_lock(f"subtask_{subtask_id}_progress"):
             subtask.current_step = f"Running {service_name} analyzer with {len(tools)} tools..."
             subtask.progress_percentage = 30.0
             db.session.commit()
 
-        result = _run_websocket_sync(service_name, model_slug, app_number, tools)
+        # Build message payload typically expected by the manager
+        # The manager specific methods (run_static_analysis etc) handle message construction,
+        # but here we have a generic service_name. 
+        # We can use the lower-level send_websocket_message if we want generic support,
+        # OR switch based on service name to use the typed methods. 
+        # Using typed methods is safer as they handle service-specific fields (like target_urls).
+        
+        wrapper = get_analyzer_wrapper()
+        
+        # Map service name to wrapper method
+        result = {}
+        if service_name == 'static-analyzer':
+            result = wrapper.run_static_analysis(model_slug, app_number, tools)
+        elif service_name == 'dynamic-analyzer':
+             # For dynamic/performance, we might need options/config. 
+             # Assuming standard defaults or extracting from subtask options if needed.
+             result = wrapper.run_dynamic_analysis(model_slug, app_number, tools=tools)
+        elif service_name == 'performance-tester':
+             result = wrapper.run_performance_test(model_slug, app_number, tools=tools)
+        elif service_name == 'ai-analyzer':
+             result = wrapper.run_ai_analysis(model_slug, app_number, tools=tools)
+        else:
+             # Fallback to generic if needed, or error
+             raise ValueError(f"Unknown service: {service_name}")
         
         # Store result (with distributed lock to prevent SQLite I/O errors)
         status = str(result.get('status', '')).lower()
@@ -142,8 +164,14 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
             else:
                 subtask.current_step = f"✗ {service_name} analysis failed"
 
-            if result.get('payload'):
-                subtask.set_result_summary(result['payload'])
+            # Wrapper results are usually {status:..., payload:...} or just the payload if success?
+            # AnalyzerManagerWrapper guarantees strict return shapes usually.
+            # Let's handle generic structure.
+            
+            payload = result.get('payload', result) if 'payload' in result else result
+            
+            if payload:
+                subtask.set_result_summary(payload)
 
             if result.get('error'):
                 subtask.error_message = result['error']
@@ -151,8 +179,8 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
             db.session.commit()
         
         return {
-            'status': result.get('status', 'error'),
-            'payload': result.get('payload', {}),
+            'status': result.get('status', 'success' if success else 'error'),
+            'payload': payload,
             'error': result.get('error'),
             'service_name': service_name,
             'subtask_id': subtask_id
