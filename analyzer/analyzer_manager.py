@@ -1768,6 +1768,113 @@ class AnalyzerManager:
         # Static analysis can take several minutes depending on project size; extend timeout.
         static_timeout = int(os.environ.get('STATIC_ANALYSIS_TIMEOUT', '480'))
         return await self.send_websocket_message('static-analyzer', message, timeout=static_timeout)
+
+    async def run_dynamic_analysis(self, model_slug: str, app_number: int,
+                                  target_urls: Optional[List[str]] = None,
+                                  tools: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Run dynamic analysis against running app endpoints."""
+        logger.info(f"🕷️  Running dynamic analysis on {model_slug} app {app_number}")
+        
+        # Validate app exists and normalize slug
+        validation = self._normalize_and_validate_app(model_slug, app_number)
+        if isinstance(validation, dict):
+            # Validation returned an error dict
+            return validation
+        normalized_slug, app_path = validation
+        
+        resolved_urls: List[str] = []
+        if target_urls:
+            resolved_urls = list(target_urls)
+        else:
+            ports = self._resolve_app_ports(normalized_slug, app_number)
+            if not ports:
+                return {
+                    'status': 'error',
+                    'error': f'No port configuration found for {normalized_slug} app{app_number}',
+                    'message': 'Start the app with docker-compose or configure ports in database'
+                }
+            
+            backend_port, frontend_port = ports
+            # Use Docker container names for container-to-container communication
+            # Container names follow pattern: {model_slug}-app{N}_backend/frontend
+            # The containers are on thesis-apps-network, same as analyzers
+            # Note: Docker Compose converts underscores to hyphens in container names
+            safe_slug = normalized_slug.replace('_', '-')
+            container_prefix = f"{safe_slug}-app{app_number}"
+            resolved_urls = [
+                f"http://{container_prefix}_backend:{backend_port}",
+                f"http://{container_prefix}_frontend:80"  # nginx serves on port 80 inside container
+            ]
+            logger.info(f"Target URLs for dynamic analysis: {resolved_urls}")
+        
+        message = {
+            "type": "dynamic_analyze",
+            "model_slug": normalized_slug,
+            "app_number": app_number,
+            "target_urls": resolved_urls,
+            # Optional tools selection propagated to service for gating
+            "tools": tools,
+            "timestamp": datetime.now().isoformat(),
+            "id": str(uuid.uuid4())
+        }
+        
+        # Dynamic analysis can be long
+        dynamic_timeout = int(os.environ.get('DYNAMIC_ANALYSIS_TIMEOUT', '300'))
+        return await self.send_websocket_message('dynamic-analyzer', message, timeout=dynamic_timeout)
+    
+    async def run_performance_test(self, model_slug: str, app_number: int,
+                                 test_config: Optional[Dict[str, Any]] = None,
+                                 tools: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Run performance test on an application."""
+        logger.info(f"⚡ Running performance test on {model_slug} app {app_number}")
+        
+        # Validate app exists and normalize slug
+        validation = self._normalize_and_validate_app(model_slug, app_number)
+        if isinstance(validation, dict):
+            # Validation returned an error dict
+            return validation
+        normalized_slug, app_path = validation
+        
+        # Check config for overrides
+        config = test_config or {}
+        target_url = config.get('target_url')
+        
+        # Resolve target URLs
+        urls: List[str] = []
+        if target_url:
+            urls.append(target_url)
+        else:
+            ports = self._resolve_app_ports(normalized_slug, app_number)
+            if not ports:
+                return {
+                    'status': 'error',
+                    'error': f'No port configuration found for {normalized_slug} app{app_number}',
+                    'message': 'Start the app with docker-compose or configure ports in database'
+                }
+            
+            backend_port, frontend_port = ports
+            # Use Docker container names for container-to-container communication
+            safe_slug = normalized_slug.replace('_', '-')
+            container_prefix = f"{safe_slug}-app{app_number}"
+            urls = [
+                f"http://{container_prefix}_backend:{backend_port}",
+                f"http://{container_prefix}_frontend:80"
+            ]
+            logger.info(f"Target URLs for performance test: {urls}")
+
+        message = {
+            "type": "performance_test",
+            "model_slug": normalized_slug,
+            "app_number": app_number,
+            "target_urls": urls,
+            "tools": tools,
+            "config": config,
+            "timestamp": datetime.now().isoformat(),
+            "id": str(uuid.uuid4())
+        }
+        
+        perf_timeout = int(os.environ.get('PERFORMANCE_TEST_TIMEOUT', '600'))
+        return await self.send_websocket_message('performance-tester', message, timeout=perf_timeout)
     
     async def run_comprehensive_analysis(self, model_slug: str, app_number: int, task_name: Optional[str] = None, tools: Optional[List[str]] = None) -> Dict[str, Dict[str, Any]]:
         """Run comprehensive analysis (static, performance, dynamic, AI).

@@ -254,7 +254,12 @@ class AnalyzerPool:
             return endpoint
 
         elif self.config.strategy == LoadBalancingStrategy.LEAST_LOADED:
-            return min(healthy, key=lambda e: e.load_score)
+            # Find minimum load score
+            min_score = min(e.load_score for e in healthy)
+            # Find all endpoints with that score (handle ties)
+            best_candidates = [e for e in healthy if abs(e.load_score - min_score) < 0.001]
+            # Randomly select from the best candidates to ensure even distribution
+            return random.choice(best_candidates)
 
         elif self.config.strategy == LoadBalancingStrategy.RANDOM:
             return random.choice(healthy)

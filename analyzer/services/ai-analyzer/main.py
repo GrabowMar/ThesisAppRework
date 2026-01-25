@@ -2449,6 +2449,8 @@ Respond with EXACTLY this format for EACH requirement (one per line):
         
         # Log raw response for debugging (first 500 chars)
         self.log.info(f"Parsing batch response ({len(response)} chars). Preview: {response[:500]}...")
+        # CRITICAL DEBUG LOGGING
+        print(f"[ai-analyzer] RAW BATCH RESPONSE START\n{response}\n[ai-analyzer] RAW BATCH RESPONSE END")
         
         # Helper to interpret met status (handles PARTIAL/PARTIALLY as partial compliance)
         def interpret_met_status(status_text: str) -> tuple:
@@ -2472,7 +2474,7 @@ Respond with EXACTLY this format for EACH requirement (one per line):
             # Pattern 1: Standard format with optional markdown, flexible spacing
             # [REQ1] MET:YES | CONF:HIGH | explanation  OR  **[REQ1]** MET: YES | CONF: HIGH
             # Also handles MET:PARTIAL, MET:PARTIALLY
-            pattern1 = rf'\*?\*?\[REQ{req_num}\]\*?\*?\s*MET:\s*([A-Z]+)\s*\|\s*CONF:\s*(HIGH|MEDIUM|LOW)(?:\s*\|\s*(.+?))?(?=\*?\*?\[REQ|\Z)'
+            pattern1 = rf'\*?\*?\[REQ{req_num}\]\*?\*?\s*MET:\s*([A-Z]+)\s*\|\s*CONF:\s*(HIGH|MEDIUM|LOW)(?:\s*\|\s*(.+?))?(?=\s*\*?\*?\[REQ|\Z)'
             match = re.search(pattern1, response, re.IGNORECASE | re.DOTALL)
             
             if match:

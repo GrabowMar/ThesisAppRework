@@ -274,7 +274,7 @@ class AnalyzerManagerWrapper:
                 self.manager.run_dynamic_analysis(
                     model_slug=model_slug,
                     app_number=app_number,
-                    options=options,
+                    target_urls=None,  # Wrapper doesn't expose this yet, but we could mapping options.get('target_urls')
                     tools=tools
                 )
             )
@@ -311,7 +311,7 @@ class AnalyzerManagerWrapper:
                 self.manager.run_performance_test(
                     model_slug=model_slug,
                     app_number=app_number,
-                    test_config=test_config,
+                    config=test_config,
                     tools=tools
                 )
             )

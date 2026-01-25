@@ -111,68 +111,9 @@ class PooledAnalyzerManager(BaseAnalyzerManager):
                 'error': str(e)
             }
 
-    async def run_static_analysis(
-        self,
-        model_slug: str,
-        app_number: int,
-        tools: Optional[list] = None
-    ) -> Dict[str, Any]:
-        """
-        Run static analysis using the connection pool.
 
-        Args:
-            model_slug: Model identifier
-            app_number: App number
-            tools: Optional list of tools to run
 
-        Returns:
-            Analysis results dictionary
-        """
-        message = {
-            "type": "static_analyze",
-            "model_slug": model_slug,
-            "app_number": app_number,
-            "tools": tools or [],
-        }
 
-        return await self.send_websocket_message(
-            'static-analyzer',
-            message,
-            timeout=int(os.environ.get('STATIC_ANALYSIS_TIMEOUT', '480'))
-        )
-
-    async def run_dynamic_analysis(
-        self,
-        model_slug: str,
-        app_number: int,
-        target_urls: Optional[list] = None,
-        tools: Optional[list] = None
-    ) -> Dict[str, Any]:
-        """
-        Run dynamic analysis using the connection pool.
-
-        Args:
-            model_slug: Model identifier
-            app_number: App number
-            target_urls: Optional list of URLs to test
-            tools: Optional list of tools to run
-
-        Returns:
-            Analysis results dictionary
-        """
-        message = {
-            "type": "dynamic_analyze",
-            "model_slug": model_slug,
-            "app_number": app_number,
-            "target_urls": target_urls or [],
-            "tools": tools or [],
-        }
-
-        return await self.send_websocket_message(
-            'dynamic-analyzer',
-            message,
-            timeout=int(os.environ.get('DYNAMIC_ANALYSIS_TIMEOUT', '300'))
-        )
 
     async def run_performance_test(
         self,
@@ -195,11 +136,48 @@ class PooledAnalyzerManager(BaseAnalyzerManager):
         Returns:
             Performance test results dictionary
         """
+        logger.info(f"⚡ Running performance test on {model_slug} app {app_number}")
+        
+        # Validate app exists and normalize slug
+        validation = self._normalize_and_validate_app(model_slug, app_number)
+        if isinstance(validation, dict):
+            # Validation returned an error dict
+            return validation
+        normalized_slug, app_path = validation
+        
+        # Resolve target URLs if not provided
+        resolved_urls = []
+        if target_urls:
+            resolved_urls = list(target_urls)
+        else:
+            # Check config for target_url override
+            conf = config or {}
+            if conf.get('target_url'):
+                resolved_urls.append(conf.get('target_url'))
+            else:
+                ports = self._resolve_app_ports(normalized_slug, app_number)
+                if not ports:
+                    return {
+                        'status': 'error',
+                        'error': f'No port configuration found for {normalized_slug} app{app_number}',
+                        'message': 'Start the app with docker-compose or configure ports in database'
+                    }
+                
+                backend_port, frontend_port = ports
+                # Use Docker container names for container-to-container communication
+                safe_slug = normalized_slug.replace('_', '-')
+                container_prefix = f"{safe_slug}-app{app_number}"
+                resolved_urls = [
+                    f"http://{container_prefix}_backend:{backend_port}",
+                    f"http://{container_prefix}_frontend:80"
+                ]
+                logger.info(f"Target URLs for performance test: {resolved_urls}")
+
         message = {
             "type": "performance_test",
-            "model_slug": model_slug,
+            "model_slug": normalized_slug,
             "app_number": app_number,
-            "target_urls": target_urls or [],
+            "target_urls": resolved_urls,
             "tools": tools or [],
             "config": config or {},
         }
@@ -243,25 +221,7 @@ class PooledAnalyzerManager(BaseAnalyzerManager):
             timeout=int(os.environ.get('AI_ANALYSIS_TIMEOUT', '900'))
         )
 
-    async def check_service_health(self, service_name: str) -> Dict[str, Any]:
-        """
-        Check health of an analyzer service.
 
-        Args:
-            service_name: Name of the service to check
-
-        Returns:
-            Health status dictionary
-        """
-        message = {
-            "type": "health_check",
-        }
-
-        return await self.send_websocket_message(
-            service_name,
-            message,
-            timeout=10
-        )
 
     async def get_pool_stats(self) -> Dict[str, Any]:
         """

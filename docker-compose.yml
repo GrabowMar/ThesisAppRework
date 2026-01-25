@@ -297,7 +297,9 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
     volumes:
       - ./generated/apps:/app/sources:ro
+      - ./generated/apps:/app/sources:ro
       - ./results:/app/results
+      - ./analyzer/services/ai-analyzer/main.py:/app/main.py
     healthcheck:
       test: [ "CMD", "python", "health_check.py" ]
       interval: 30s
@@ -445,7 +447,9 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
     volumes:
       - ./generated/apps:/app/sources:ro
+      - ./generated/apps:/app/sources:ro
       - ./results:/app/results
+      - ./analyzer/services/ai-analyzer/main.py:/app/main.py
     healthcheck:
       test: [ "CMD", "python", "health_check.py" ]
       interval: 30s

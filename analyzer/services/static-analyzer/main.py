@@ -47,7 +47,7 @@ class StaticAnalyzer(BaseWSService):
         # Initialize tool execution logger for comprehensive output logging
         self.tool_logger = ToolExecutionLogger(self.log)
 
-    async def _run_tool(self, cmd: List[str], tool_name: str, config: Optional[Dict] = None, timeout: int = 120, success_exit_codes: List[int] = [0], skip_parser: bool = False) -> Dict[str, Any]:
+    async def _run_tool(self, cmd: List[str], tool_name: str, config: Optional[Dict] = None, timeout: int = 120, success_exit_codes: List[int] = [0], skip_parser: bool = False, retries: int = 0) -> Dict[str, Any]:
         """
         Run a tool and capture its output, parsing with tool-specific parsers.
         
@@ -72,18 +72,57 @@ class StaticAnalyzer(BaseWSService):
             # Use asyncio subprocess to avoid blocking the event loop
             # This allows WebSocket ping/pong to continue during long-running tools
             # Provide DEVNULL as stdin to prevent EOF errors from tools expecting input
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdin=asyncio.subprocess.DEVNULL,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            try:
-                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-            except asyncio.TimeoutError:
-                proc.kill()
-                await proc.wait()
-                raise subprocess.TimeoutExpired(cmd, timeout)
+            
+            for attempt in range(retries + 1):
+                try:
+                    proc = await asyncio.create_subprocess_exec(
+                        *cmd,
+                        stdin=asyncio.subprocess.DEVNULL,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    try:
+                        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+                    except asyncio.TimeoutError:
+                        proc.kill()
+                        await proc.wait()
+                        raise subprocess.TimeoutExpired(cmd, timeout)
+                    
+                    # If we are here, execution finished. Check return code if it's a known flaky error
+                    # But _run_tool mainly checks returncode later.
+                    # However, for Sys_error in semgrep (exit code 2 usually), we might want to retry if allowed.
+                    
+                    # Create a temporary result to check success
+                    temp_result_code = proc.returncode
+                    
+                    # If success or not out of retries, break (we handle error mapping below)
+                    # BUT: logical issue - if we want to retry on specific error codes, we need to know them.
+                    # For now, we retry on ANY failure if retries > 0, or maybe just exceptions?
+                    # The request specifically mentioned Sys_error which often causes non-zero exit.
+                    
+                    # Let's trust the process: if it returns, we use it. 
+                    # Note: We need to handle the case where we WANT to retry on non-success result.
+                    
+                    if temp_result_code in success_exit_codes:
+                        break # Success
+                        
+                    # If failure and we have retries left
+                    if attempt < retries:
+                        self.log.warning(f"Tool {tool_name} failed with code {temp_result_code} (attempt {attempt+1}/{retries+1}). Retrying...")
+                        await asyncio.sleep(1) # Backoff
+                        continue
+                        
+                except Exception as e:
+                    # If unexpected exception (like OS error) and retries left
+                    if attempt < retries:
+                        self.log.warning(f"Tool {tool_name} raised exception {e} (attempt {attempt+1}/{retries+1}). Retrying...")
+                        await asyncio.sleep(1)
+                        continue
+                    raise e # Re-raise if no retries left
+
+            # Proc and stdout/stderr are from the last attempt
+
+
             
             # Create a result object compatible with subprocess.run output
             class SubprocessResult:
@@ -676,7 +715,9 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             for ruleset in rulesets:
                 cmd.extend(['--config', ruleset])
             cmd.append(str(source_path))
-            result = await self._run_tool(cmd, 'semgrep', config=semgrep_config, skip_parser=True)
+            cmd.append(str(source_path))
+            # Retry Semgrep up to 2 times (3 total) to handle intermittent Sys_error/OpenSSL issues
+            result = await self._run_tool(cmd, 'semgrep', config=semgrep_config, skip_parser=True, retries=2)
             if result.get('status') != 'error' and 'output' in result:
                 try:
                     sarif_data = json.loads(result['output'])
@@ -953,7 +994,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     'tool': 'vulture',
                     'executed': True,
                     'status': 'success',
-                    'results': dead_code_findings,
+                    'issues': dead_code_findings,
                     'total_issues': len(dead_code_findings),
                     'issue_count': len(dead_code_findings),
                     'config_used': vulture_config
@@ -964,7 +1005,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     'tool': 'vulture',
                     'executed': True,
                     'status': 'success',
-                    'results': [],
+                    'issues': [],
                     'total_issues': 0,
                     'issue_count': 0,
                     'config_used': vulture_config

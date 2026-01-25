@@ -96,7 +96,10 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
     """
     Execute a single analysis subtask via WebSocket.
     """
-    logger.info(f"[CELERY] Starting subtask {subtask_id} for {service_name}")
+    import os
+    import socket
+    worker_identity = f"{socket.gethostname()}:{os.getpid()}"
+    logger.info(f"[CELERY] Starting subtask {subtask_id} for {service_name} on {worker_identity}")
 
     try:
         # Get fresh subtask from DB

@@ -1,0 +1,14 @@
+CONTAINER ID   IMAGE                                  COMMAND                   CREATED          STATUS                    PORTS                                         NAMES
+73e2a15f372f   thesisapprework-celery-worker          "bash -c '\n  echo 'W…"   19 minutes ago   Up 19 minutes (healthy)   5000/tcp                                      thesisapprework-celery-worker-1
+71313d013190   thesisapprework-analyzer-gateway       "python websocket_ga…"    19 minutes ago   Up 19 minutes (healthy)   0.0.0.0:8765->8765/tcp, [::]:8765->8765/tcp   thesisapprework-analyzer-gateway-1
+61a15ae2e9b7   thesisapprework-dynamic-analyzer-2     "bash start_services…"    19 minutes ago   Up 19 minutes (healthy)   0.0.0.0:2053->2002/tcp, [::]:2053->2002/tcp   thesisapprework-dynamic-analyzer-2-1
+db4b5fb0dfb0   thesisapprework-web                    "python src/main.py"      19 minutes ago   Up 19 minutes (healthy)   0.0.0.0:5000->5000/tcp, [::]:5000->5000/tcp   thesisapprework-web-1
+3fc5c564dbed   thesisapprework-performance-tester-2   "python main.py"          19 minutes ago   Up 19 minutes (healthy)   0.0.0.0:2054->2003/tcp, [::]:2054->2003/tcp   thesisapprework-performance-tester-2-1
+fc990d9bb80c   thesisapprework-static-analyzer        "python main.py"          19 minutes ago   Up 19 minutes (healthy)   0.0.0.0:2001->2001/tcp, [::]:2001->2001/tcp   thesisapprework-static-analyzer-1
+e6a030f7e4ed   thesisapprework-performance-tester     "python main.py"          19 minutes ago   Up 19 minutes (healthy)   0.0.0.0:2003->2003/tcp, [::]:2003->2003/tcp   thesisapprework-performance-tester-1
+63816ef44096   thesisapprework-ai-analyzer            "python main.py"          19 minutes ago   Up 19 minutes (healthy)   0.0.0.0:2004->2004/tcp, [::]:2004->2004/tcp   thesisapprework-ai-analyzer-1
+57bfca3a8d0b   thesisapprework-ai-analyzer-2          "python main.py"          19 minutes ago   Up 19 minutes (healthy)   0.0.0.0:2055->2004/tcp, [::]:2055->2004/tcp   thesisapprework-ai-analyzer-2-1
+1c4289af17a8   thesisapprework-static-analyzer-3      "python main.py"          19 minutes ago   Up 19 minutes (healthy)   0.0.0.0:2052->2001/tcp, [::]:2052->2001/tcp   thesisapprework-static-analyzer-3-1
+6793fc633b45   thesisapprework-dynamic-analyzer       "bash start_services…"    19 minutes ago   Up 19 minutes (healthy)   0.0.0.0:2002->2002/tcp, [::]:2002->2002/tcp   thesisapprework-dynamic-analyzer-1
+b91af18026c0   redis:7.2-alpine                       "docker-entrypoint.s…"    19 minutes ago   Up 19 minutes (healthy)   0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp   thesisapprework-redis-1
+206b25e67150   thesisapprework-static-analyzer-2      "python main.py"          19 minutes ago   Up 19 minutes (healthy)   0.0.0.0:2051->2001/tcp, [::]:2051->2001/tcp   thesisapprework-static-analyzer-2-1
