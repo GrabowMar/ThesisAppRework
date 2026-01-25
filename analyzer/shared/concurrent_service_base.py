@@ -398,7 +398,7 @@ class ConcurrentWSService:
                     await self._handle_health(websocket)
 
                 elif msg_type in ("analysis_request", "static_analyze", "dynamic_analyze",
-                                  "performance_test", "ai_analysis"):
+                                  "performance_test", "ai_analyze"):
                     # Queue analysis request
                     await self._handle_analysis_request(websocket, data)
 

@@ -60,7 +60,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('Interactive', 'Start', 'Docker', 'Local', 'Dev', 'Stop', 'Status', 'Logs', 'Rebuild', 'CleanRebuild', 'Clean', 'Wipeout', 'Health', 'Help', 'Password', 'Maintenance', 'Reload')]
+    [ValidateSet('Interactive', 'Start', 'Docker', 'Local', 'Dev', 'Stop', 'Status', 'Logs', 'Rebuild', 'CleanRebuild', 'Clean', 'Wipeout', 'Nuke', 'Health', 'Help', 'Password', 'Maintenance', 'Reload')]
     [string]$Mode = 'Interactive',
 
     [switch]$NoAnalyzer,
@@ -93,21 +93,20 @@ $Script:CONFIG = @{
         Color          = "Cyan"
     }
     Analyzers = @{
-        Name                  = "Analyzers"
-        PidFile               = Join-Path $RUN_DIR "analyzer.pid"
-        LogFile               = Join-Path $LOGS_DIR "analyzer.log"
-        Services              = @('static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer')
-        Ports                 = @(2001, 2002, 2003, 2004)
-        StartupTime           = 15
-        Color                 = "Green"
+        Name            = "Analyzers"
+        PidFile         = Join-Path $RUN_DIR "analyzer.pid"
+        LogFile         = Join-Path $LOGS_DIR "analyzer.log"
+        Services        = @('static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer')
+        Ports           = @(2001, 2002, 2003, 2004)
+        StartupTime     = 15
+        Color           = "Green"
         # Concurrent mode configuration for horizontal scaling
-        ConcurrentPorts       = @{
-            'static-analyzer'    = @(2001, 2002, 2003)
-            'dynamic-analyzer'   = @(2011, 2012)
-            'performance-tester' = @(2021, 2022)
-            'ai-analyzer'        = @(2031, 2032)
+        ConcurrentPorts = @{
+            'static-analyzer'    = @(2001, 2051, 2052)
+            'dynamic-analyzer'   = @(2002, 2053)
+            'performance-tester' = @(2003, 2054)
+            'ai-analyzer'        = @(2004, 2055)
         }
-        ConcurrentComposeFile = "docker-compose.concurrent.yml"
     }
 }
 
@@ -512,7 +511,8 @@ function Test-RedisConnection {
         }
         $tcpClient.Close()
         return $false
-    } catch {
+    }
+    catch {
         return $false
     }
 }
@@ -561,7 +561,8 @@ function Start-RedisContainer {
         Write-Status "  ✗ Redis health check timeout after ${maxWait}s" "Error"
         Write-Status "    Check logs: docker logs thesisapprework-redis-1" "Info"
         return $false
-    } finally {
+    }
+    finally {
         Pop-Location
     }
 }
@@ -612,7 +613,8 @@ function Start-CeleryWorkerContainer {
         Write-Status "    Tasks will fallback to ThreadPool execution" "Info"
         Write-Status "    Check logs: docker logs thesisapprework-celery-worker-1" "Info"
         return $false
-    } finally {
+    }
+    finally {
         Pop-Location
     }
 }
@@ -623,64 +625,53 @@ function Start-AnalyzerServices {
         return $true
     }
 
-    # Determine compose file and target directory
+    # Always use root stack
     $composeFile = "docker-compose.yml"
     $targetDir = $Script:ROOT_DIR
-    $expectedServices = 4
     $modeLabel = "Standard"
-    $servicesToStart = @()
+    
+    # Base analyzer services + redis
+    $servicesToStart = @('analyzer-gateway', 'static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer', 'redis')
+    $expectedServices = 6
     
     if ($Concurrent) {
-        $targetDir = $Script:ANALYZER_DIR
-        $composeFile = $Script:CONFIG.Analyzers.ConcurrentComposeFile
-        $expectedServices = 9  # 3+2+2+2 replicas
         $modeLabel = "Concurrent (Horizontal Scaling)"
+        $expectedServices = 11 # 1 gateway + 4 standards + 5 replicas + 1 redis
         
         Write-Status "Starting analyzers in CONCURRENT mode with horizontal scaling..." "Info"
-        Write-Host "  📊 Deploying 9 analyzer replicas:" -ForegroundColor Cyan
-        Write-Host "     • 3× static-analyzer  (ports 2001-2003)" -ForegroundColor Gray
-        Write-Host "     • 2× dynamic-analyzer (ports 2011-2012)" -ForegroundColor Gray
-        Write-Host "     • 2× performance-tester (ports 2021-2022)" -ForegroundColor Gray
-        Write-Host "     • 2× ai-analyzer (ports 2031-2032)" -ForegroundColor Gray
+        Write-Host "  📊 Deploying 9 analyzer replicas via Root Stack:" -ForegroundColor Cyan
+        Write-Host "     • 3× static-analyzer    (ports 2001, 2051, 2052)" -ForegroundColor Gray
+        Write-Host "     • 2× dynamic-analyzer   (ports 2002, 2053)" -ForegroundColor Gray
+        Write-Host "     • 2× performance-tester (ports 2003, 2054)" -ForegroundColor Gray
+        Write-Host "     • 2× ai-analyzer        (ports 2004, 2055)" -ForegroundColor Gray
         Write-Host ""
         
-        # Set environment variables for pooled connections
-        $env:STATIC_ANALYZER_URLS = "ws://localhost:2001,ws://localhost:2002,ws://localhost:2003"
-        $env:DYNAMIC_ANALYZER_URLS = "ws://localhost:2011,ws://localhost:2012"
-        $env:PERF_TESTER_URLS = "ws://localhost:2021,ws://localhost:2022"
-        $env:AI_ANALYZER_URLS = "ws://localhost:2031,ws://localhost:2032"
+        # Add replicas to startup list
+        $servicesToStart += @(
+            'static-analyzer-2', 'static-analyzer-3', 
+            'dynamic-analyzer-2', 
+            'performance-tester-2', 
+            'ai-analyzer-2'
+        )
+        
+        # Set environment variables for pooled connections (using container names for internal docker comms if needed, 
+        # but here we set them for the host if running local, though web container uses its own env)
+        $env:STATIC_ANALYZER_URLS = "ws://localhost:2001,ws://localhost:2051,ws://localhost:2052"
+        $env:DYNAMIC_ANALYZER_URLS = "ws://localhost:2002,ws://localhost:2053"
+        $env:PERF_TESTER_URLS = "ws://localhost:2003,ws://localhost:2054"
+        $env:AI_ANALYZER_URLS = "ws://localhost:2004,ws://localhost:2055"
     }
     else {
         Write-Status "Starting analyzer microservices (Standard mode via Root Stack)..." "Info"
-        # In Standard mode, we use the root compose but only start analyzer services + redis
-        $servicesToStart = @('analyzer-gateway', 'static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer', 'redis')
     }
     
-    # CLEANUP: Ensure legacy analyzer stack is down
-    if (Test-Path (Join-Path $Script:ANALYZER_DIR "docker-compose.yml")) {
-        Push-Location $Script:ANALYZER_DIR
-        docker compose -f docker-compose.yml down --remove-orphans 2>$null | Out-Null
-        Pop-Location
-    }
+    # Ensure any legacy analyzer-project containers are stopped
+    Write-Status "Ensuring clean state for analyzer services..." "Info"
+    docker compose -p analyzer down 2>$null | Out-Null
     
-    # Also stop concurrent stack if we are in standard mode
-    if (-not $Concurrent -and (Test-Path (Join-Path $Script:ANALYZER_DIR $Script:CONFIG.Analyzers.ConcurrentComposeFile))) {
-        Push-Location $Script:ANALYZER_DIR
-        docker compose -f $Script:CONFIG.Analyzers.ConcurrentComposeFile down --remove-orphans 2>$null | Out-Null
-        Pop-Location
-    }
-
     Push-Location $targetDir
     try {
-        # Check if compose file exists
-        if (-not (Test-Path $composeFile)) {
-            Write-Status "  Compose file not found: $composeFile (in $targetDir)" "Error"
-            return $false
-        }
-        
-        # Start analyzer services
-        # Note: In concurrent mode $servicesToStart is empty so it starts all (which is correct for that file)
-        # In standard mode it lists specific services to avoid starting 'web' and 'celery-worker'
+        # Start selected services
         $cmdArgs = @("compose", "-f", $composeFile, "up", "-d") + $servicesToStart
         
         docker @cmdArgs 2>&1 | Out-File -FilePath $Script:CONFIG.Analyzers.LogFile -Append
@@ -691,7 +682,7 @@ function Start-AnalyzerServices {
         }
 
         # Wait for services to be ready
-        $maxWait = if ($Concurrent) { 30 } else { $Script:CONFIG.Analyzers.StartupTime }
+        $maxWait = $Script:CONFIG.Analyzers.StartupTime
         $waited = 0
         
         Write-Host "  Waiting for services" -NoNewline -ForegroundColor Cyan
@@ -700,17 +691,16 @@ function Start-AnalyzerServices {
             $waited++
             Write-Host "." -NoNewline -ForegroundColor Yellow
             
-            $services = docker compose -f $composeFile ps --services --filter status=running 2>$null
-            $runningCount = if ($services) { ($services | Measure-Object).Count } else { 0 }
+            # Check only the services we intended to start
+            $runningServices = docker compose -f $composeFile ps --services --filter status=running 2>$null
+            $runningCount = 0
+            foreach ($s in $servicesToStart) {
+                if ($runningServices -contains $s) { $runningCount++ }
+            }
             
             if ($runningCount -ge $expectedServices) {
                 Write-Host ""
                 Write-Status "  Analyzer services started (${waited}s) - Mode: $modeLabel" "Success"
-                
-                # Show service status
-                $services | ForEach-Object {
-                    Write-Host "    • $_" -ForegroundColor Green
-                }
                 
                 if ($Concurrent) {
                     Write-Host ""
@@ -725,8 +715,9 @@ function Start-AnalyzerServices {
                 # Save mode info to pid file for stop command
                 $modeInfo = @{
                     compose_file = $composeFile
-                    directory    = $targetDir  # Need directory to knowing where to stop from
+                    directory    = $targetDir
                     mode         = if ($Concurrent) { "concurrent" } else { "standard" }
+                    services     = $servicesToStart
                 } | ConvertTo-Json -Compress
                 $modeInfo | Out-File -FilePath $Script:CONFIG.Analyzers.PidFile -Encoding ASCII
                 
@@ -952,9 +943,11 @@ function Stop-AllServices {
         if ($LASTEXITCODE -eq 0) {
             Write-Status "  ✓ Celery worker and Redis stopped" "Success"
         }
-    } catch {
+    }
+    catch {
         # Silently continue - containers may not be running
-    } finally {
+    }
+    finally {
         Pop-Location
     }
 
@@ -994,7 +987,8 @@ function Show-StatusDashboard {
                 Write-Host "     Task Execution: Celery Distributed Task Queue" -ForegroundColor DarkGray
             }
             if ($key -eq 'Analyzers' -and $state.Metadata['ServiceCount']) {
-                Write-Host "     Services: $($state.Metadata['ServiceCount'])/4" -ForegroundColor DarkGray
+                $expected = if ($state.Metadata['Mode'] -like '*Concurrent*') { 11 } else { 6 }
+                Write-Host "     Services: $($state.Metadata['ServiceCount'])/$expected ($($state.Metadata['Mode']))" -ForegroundColor DarkGray
             }
         }
         
@@ -1092,16 +1086,22 @@ function Start-DockerStack {
     Write-Host "  (This may take several minutes if images need to be rebuilt)" -ForegroundColor Gray
     Write-Host ""
     
+    # Define services to start
+    $servicesToStart = @('web', 'celery-worker', 'redis', 'analyzer-gateway', 'static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer')
+    
+    if ($Concurrent) {
+        Write-Status "Enabling CONCURRENT mode for Docker stack..." "Info"
+        $servicesToStart += @('static-analyzer-2', 'static-analyzer-3', 'dynamic-analyzer-2', 'performance-tester-2', 'ai-analyzer-2')
+    }
+
     Push-Location $Script:ROOT_DIR
     try {
-        # Build and start all services with live output for better feedback
-        # Using Start-Process to show real-time build progress
+        # Build and start selected services
         $logFile = Join-Path $Script:LOGS_DIR "docker-compose.log"
         
-        # Run docker compose with visible output (not captured)
-        # This allows users to see build progress in real-time
         Write-Host "━━━━━━━━━━━━ Docker Build Output ━━━━━━━━━━━━" -ForegroundColor DarkGray
-        docker compose up -d --build 2>&1 | Tee-Object -FilePath $logFile -Append | ForEach-Object {
+        $cmdArgs = @("compose", "up", "-d", "--build") + $servicesToStart
+        docker @cmdArgs 2>&1 | Tee-Object -FilePath $logFile -Append | ForEach-Object {
             # Color-code the output for better readability
             $line = $_
             if ($line -match "error|failed|fatal" -and $line -notmatch "errorhandler") {
@@ -1311,6 +1311,7 @@ function Show-InteractiveMenu {
     Write-Host "  [X] Stop         - Stop all services" -ForegroundColor White
     Write-Host "  [C] Clean        - Clean logs and PID files" -ForegroundColor White
     Write-Host "  [W] Wipeout      - ⚠️  Reset to default state (DB, apps, results, reports)" -ForegroundColor White
+    Write-Host "  [N] Nuke         - 🔥 Wipeout then Rebuild stack" -ForegroundColor Red
     Write-Host "  [P] Password     - Reset admin password to random value" -ForegroundColor White
     Write-Host "  [?] Help         - Show detailed help" -ForegroundColor White
     Write-Host "  [Q] Quit         - Exit" -ForegroundColor White
@@ -1382,6 +1383,11 @@ function Show-InteractiveMenu {
             Read-Host "`nPress Enter to return to menu"
             Show-InteractiveMenu
         }
+        'N' {
+            Invoke-Nuke
+            Read-Host "`nPress Enter to return to menu"
+            Show-InteractiveMenu
+        }
         'P' {
             Invoke-ResetPassword
             Read-Host "`nPress Enter to return to menu"
@@ -1402,6 +1408,34 @@ function Show-InteractiveMenu {
             Show-InteractiveMenu
         }
     }
+}
+
+function Invoke-Nuke {
+    Write-Banner "🔥 NUKING SYSTEM - Wipeout & Refresh" "Red"
+    
+    Write-Host "This will perform a full WIPEOUT and then a fast REBUILD." -ForegroundColor Yellow
+    Write-Host "Type 'NUKE' to confirm: " -NoNewline -ForegroundColor Red
+    $confirmation = Read-Host
+    
+    if ($confirmation -ne 'NUKE') {
+        Write-Status "Nuke cancelled" "Warning"
+        return $false
+    }
+    
+    Write-Status "Phase 1: Wipeout..." "Warning"
+    if (-not (Invoke-Wipeout)) {
+        return $false
+    }
+    
+    # RE-INITIALIZE environment after wipeout (recreates missing networks)
+    Write-Status "Phase 1.5: Re-initializing environment..." "Info"
+    Initialize-Environment
+    
+    Write-Status "Phase 2: Rebuilding stack..." "Info"
+    Invoke-RebuildContainers
+    
+    Write-Banner "✅ Nuke Operation Complete" "Green"
+    return $true
 }
 
 function Invoke-RebuildContainers {
@@ -2068,205 +2102,34 @@ function Invoke-Wipeout {
     # 2. Kill any Python processes that might be blocking database access
     Stop-BlockingProcesses
     
-    # 2. Remove non-analyzer Docker containers and images
-    Write-Status "Removing non-analyzer Docker containers..." "Info"
+    # 2. Remove Docker containers, images and volumes
+    Write-Status "Removing Docker resources (ThesisApp project)..." "Info"
     try {
-        # Define analyzer-related patterns to KEEP (everything else gets removed)
-        $analyzerKeepPatterns = @(
-            'analyzer-*',
-            'analyzer_*',
-            '*static-analyzer*',
-            '*dynamic-analyzer*',
-            '*performance-tester*',
-            '*ai-analyzer*',
-            '*gateway-*',
-            '*celery-worker*',
-            '*redis-*',
-            '*redis:*'
-        )
-        
-        # Get all containers (format: ID|Name|Image)
-        $allContainers = docker ps -a --format "{{.ID}}|{{.Names}}|{{.Image}}" 2>$null
-        
-        if ($allContainers) {
-            $removedCount = 0
-            
-            foreach ($container in $allContainers) {
-                if ([string]::IsNullOrWhiteSpace($container)) { continue }
-                
-                $parts = $container -split '\|'
-                if ($parts.Count -lt 3) { continue }
-                
-                $containerId = $parts[0].Trim()
-                $containerName = $parts[1].Trim()
-                $containerImage = $parts[2].Trim()
-                
-                # Check if this container should be KEPT (analyzer-related)
-                $shouldKeep = $false
-                foreach ($pattern in $analyzerKeepPatterns) {
-                    if ($containerName -like $pattern -or $containerImage -like $pattern) {
-                        $shouldKeep = $true
-                        break
-                    }
-                }
-                
-                if (-not $shouldKeep) {
-                    Write-Host "    • Removing container: $containerName" -ForegroundColor Gray
-                    docker stop $containerId 2>$null | Out-Null
-                    docker rm -f $containerId 2>$null | Out-Null
-                    $removedCount++
-                }
-            }
-            
-            if ($removedCount -gt 0) {
-                Write-Status "  Removed $removedCount container(s)" "Success"
-            }
-            else {
-                Write-Status "  No non-analyzer containers to remove" "Info"
-            }
-        }
-        else {
-            Write-Status "  No containers found" "Info"
-        }
+        Push-Location $Script:ROOT_DIR
+        # Stop and remove ALL project containers, local images, and volumes
+        docker compose down --rmi local --volumes --remove-orphans 2>&1 | Out-Null
+        Pop-Location
+        Write-Status "  ✓ Docker project resources wiped" "Success"
     }
     catch {
-        Write-Status "  Error removing containers: $_" "Warning"
+        Write-Status "  Error removing Docker resources: $_" "Warning"
     }
     
-    Write-Status "Removing non-analyzer Docker images..." "Info"
+    # 3. Aggressive cleanup of any remaining analyzer-related containers/networks
+    Write-Status "Ensuring total cleanup of analyzer resources..." "Info"
     try {
-        # Define image patterns to KEEP
-        $imageKeepPatterns = @(
-            'analyzer-*',
-            'analyzer_*',
-            '*static-analyzer*',
-            '*dynamic-analyzer*',
-            '*performance-tester*',
-            '*ai-analyzer*',
-            '*gateway*',
-            '*celery*',
-            'redis:*',
-            'redis',
-            'python:3*',
-            'node:*'
-        )
-        
-        # Get all images (format: ID|Repository:Tag)
-        $allImages = docker images --format "{{.ID}}|{{.Repository}}:{{.Tag}}" 2>$null
-        
-        if ($allImages) {
-            $removedCount = 0
-            
-            foreach ($image in $allImages) {
-                if ([string]::IsNullOrWhiteSpace($image)) { continue }
-                
-                $parts = $image -split '\|'
-                if ($parts.Count -lt 2) { continue }
-                
-                $imageId = $parts[0].Trim()
-                $imageName = $parts[1].Trim()
-                
-                # Skip <none> images - they'll be cleaned by prune
-                if ($imageName -like '*<none>*') { continue }
-                
-                # Check if this image should be KEPT
-                $shouldKeep = $false
-                foreach ($pattern in $imageKeepPatterns) {
-                    if ($imageName -like $pattern) {
-                        $shouldKeep = $true
-                        break
-                    }
-                }
-                
-                if (-not $shouldKeep) {
-                    Write-Host "    • Removing image: $imageName" -ForegroundColor Gray
-                    docker rmi -f $imageId 2>$null | Out-Null
-                    $removedCount++
-                }
-            }
-            
-            if ($removedCount -gt 0) {
-                Write-Status "  Removed $removedCount image(s)" "Success"
-            }
-            else {
-                Write-Status "  No non-analyzer images to remove" "Info"
-            }
-        }
-        else {
-            Write-Status "  No images found" "Info"
+        # Catch any stray containers from the old 'analyzer' project or concurrent stack
+        $strayContainers = docker ps -a --filter "name=analyzer" --format "{{.ID}}" 2>$null
+        if ($strayContainers) {
+            $strayContainers | ForEach-Object { docker rm -f $_ 2>$null | Out-Null }
         }
         
-        # Clean up dangling images
-        Write-Status "Cleaning up dangling images..." "Info"
-        docker image prune -f 2>$null | Out-Null
-        Write-Status "  Dangling images cleaned" "Success"
-        
+        # Prune unused images and networks to be sure
+        docker network prune -f 2>$null | Out-Null
+        Write-Status "  ✓ Stray analyzer resources pruned" "Success"
     }
     catch {
-        Write-Status "  Error removing images: $_" "Warning"
-    }
-    
-    # 3. Remove non-analyzer Docker volumes
-    Write-Status "Removing non-analyzer Docker volumes..." "Info"
-    try {
-        # Define volume patterns to KEEP (analyzer-related)
-        $volumeKeepPatterns = @(
-            'analyzer*',
-            '*static-analyzer*',
-            '*dynamic-analyzer*',
-            '*performance-tester*',
-            '*ai-analyzer*',
-            '*gateway*',
-            '*celery*',
-            '*redis*'
-        )
-        
-        # Get all volumes
-        $allVolumes = docker volume ls --format "{{.Name}}" 2>$null
-        
-        if ($allVolumes) {
-            $removedCount = 0
-            
-            foreach ($volumeName in $allVolumes) {
-                if ([string]::IsNullOrWhiteSpace($volumeName)) { continue }
-                
-                $volumeName = $volumeName.Trim()
-                
-                # Check if this volume should be KEPT (analyzer-related)
-                $shouldKeep = $false
-                foreach ($pattern in $volumeKeepPatterns) {
-                    if ($volumeName -like $pattern) {
-                        $shouldKeep = $true
-                        break
-                    }
-                }
-                
-                if (-not $shouldKeep) {
-                    Write-Host "    • Removing volume: $volumeName" -ForegroundColor Gray
-                    docker volume rm -f $volumeName 2>$null | Out-Null
-                    $removedCount++
-                }
-            }
-            
-            if ($removedCount -gt 0) {
-                Write-Status "  Removed $removedCount volume(s)" "Success"
-            }
-            else {
-                Write-Status "  No non-analyzer volumes to remove" "Info"
-            }
-        }
-        else {
-            Write-Status "  No volumes found" "Info"
-        }
-        
-        # Clean up dangling volumes
-        Write-Status "Cleaning up dangling volumes..." "Info"
-        docker volume prune -f 2>$null | Out-Null
-        Write-Status "  Dangling volumes cleaned" "Success"
-        
-    }
-    catch {
-        Write-Status "  Error removing volumes: $_" "Warning"
+        Write-Status "  Error during stray resource pruning: $_" "Warning"
     }
     
     # 4. Remove database
@@ -2550,6 +2413,7 @@ function Show-Help {
     Write-Host "  Maintenance   Run manual database cleanup (7-day grace period)" -ForegroundColor White
     Write-Host "  Clean         Clean logs and PID files" -ForegroundColor White
     Write-Host "  Wipeout       ⚠️  Reset to default state (removes DB, apps, results, reports)" -ForegroundColor White
+    Write-Host "  Nuke          🔥 Full Wipeout + Fast Rebuild" -ForegroundColor Red
     Write-Host "  Password      Reset admin password to random value" -ForegroundColor White
     Write-Host "  Help          Show this help message`n" -ForegroundColor White
     
@@ -2697,6 +2561,9 @@ try {
         }
         'Wipeout' {
             Invoke-Wipeout
+        }
+        'Nuke' {
+            Invoke-Nuke
         }
         'Maintenance' {
             Invoke-Maintenance

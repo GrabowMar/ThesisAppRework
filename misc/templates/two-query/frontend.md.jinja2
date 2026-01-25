@@ -75,21 +75,54 @@ The backend has been generated with these endpoints:
 - Data table with all items
 - Toggle active status button
 
+## Implementation Process
+
+Follow this structured approach:
+
+1. **Analyze UX** → Review requirements and identify key user flows
+2. **Design State** → Plan component state and API integration points
+3. **Implement Components** → Build functional components with responsive UI
+4. **Integrate API** → Connect frontend to backend endpoints with error handling
+5. **Polish** → Add loading states, toast notifications, and empty states
+
+## Success Criteria
+
+Your implementation will be validated against:
+- ✅ UI is responsive and looks professional (modern cards, shadows)
+- ✅ Forms handle validation, loading states, and error messages
+- ✅ "Login" / "Register" flows work seamlessly with localStorage
+- ✅ No "blank screens" on loading (use skeletons or spinners)
+
+## Common Mistakes to Avoid
+
+❌ `useEffect` without dependency array → Causes infinite loops
+✅ Verify all dependencies in `useEffect`
+
+❌ Hardcoded API URLs
+✅ Use relative paths like `/api/...` (proxy handled by vite/nginx)
+
+❌ Ignoring loading/error states
+✅ Always show user feedback for async operations
+
+**Why this matters:** A good frontend must be resilient to network latency and user errors.
+
 ## Technical Requirements
 
 1. **Single File**: Output ONE `App.jsx` file based on the provided skeleton.
 2. **NO BrowserRouter**: main.jsx already provides it
 3. **Token Storage**: localStorage.getItem/setItem('token')
 4. **Structure**: Follow the provided skeleton structure EXACTLY.
+5. **Versions**: Use React 18+ (functional components, hooks) and Tailwind/CSS-in-JS constraints as implied by imports.
 
-## Available Packages (ONLY these)
+## Chain-of-Thought
 
-```
-react, react-dom, react-router-dom, axios, react-hot-toast,
-@heroicons/react, date-fns, clsx, uuid
-```
+Before generating code, mentally work through:
+1. What components are needed for the dashboard/list view?
+2. How will the forms likely look? What fields are needed?
+3. How will I handle the auth state (login/logout)?
+4. Where should I add error handling (try/catch)?
 
-DO NOT import any other packages.
+Then implement your solution addressing each point.
 
 ## Output Format
 

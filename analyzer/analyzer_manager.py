@@ -125,7 +125,7 @@ class AnalysisRequest:
     analysis_type: str
     source_path: str = ""
     options: Optional[Dict[str, Any]] = None
-    timeout: int = 300
+    timeout: int = 900
 
     def __post_init__(self):
         if self.options is None:
@@ -249,8 +249,8 @@ class AnalyzerManager:
         else:
             logger.info("AnalyzerManager initialized in PRODUCTION mode (no isolation)")
 
-        # Compose file located in the same directory as this script
-        self.compose_file = (Path(__file__).parent / "docker-compose.yml").resolve()
+        # Compose file located in the root directory
+        self.compose_file = (Path(__file__).parent.parent / "docker-compose.yml").resolve()
         # Save results under project root results folder
         self.results_dir = (Path(__file__).parent.parent / "results").resolve()
         self.results_dir.mkdir(parents=True, exist_ok=True)
@@ -771,7 +771,7 @@ class AnalyzerManager:
         env = os.environ.copy()
         if self.isolation_id:
             # Set project name for isolation
-            env['COMPOSE_PROJECT_NAME'] = f'analyzer-{self.isolation_id}'
+            env['COMPOSE_PROJECT_NAME'] = f'thesisapp-{self.isolation_id}'
             env['ISOLATION_ID'] = self.isolation_id
             env['ISOLATION_SUFFIX'] = f'-{self.isolation_id}'
 
@@ -1023,7 +1023,7 @@ class AnalyzerManager:
         
         for url in target_urls:
             try:
-                logger.debug(f"Attempting connection to {service_name} at {url}")
+                logger.info(f"Attempting connection to {service_name} at {url}")
                 
                 async with websockets.connect(
                     url,
@@ -1605,13 +1605,27 @@ class AnalyzerManager:
                 logger.warning(f"Using default template_slug: {template_slug}")
             
             # Resolve ports
+            # Resolve ports
             ports_tuple = self._resolve_app_ports(model_slug, app_number)
             if ports_tuple:
                 backend_port, frontend_port = ports_tuple
             else:
-                backend_port = 5000
-                frontend_port = 8000
-                logger.warning(f"Using default ports for {model_slug}/app{app_number}")
+                logger.warning(f"Could not resolve ports for {model_slug}/app{app_number} - checking DB config")
+                # Fallback: Check if ports are in DB even if valid environment wasn't found
+                # This covers cases where app isn't running but DB has allocation
+                try:
+                    from app.models import PortConfiguration
+                    pc = PortConfiguration.query.filter_by(model=model_slug, app_num=app_number).first()
+                    if pc:
+                        backend_port = pc.backend_port
+                        frontend_port = pc.frontend_port
+                        logger.info(f"Resolved ports from DB: backend={backend_port}, frontend={frontend_port}")
+                    else:
+                        logger.error(f"Failed to resolve ports for {model_slug}/app{app_number} (no env, no DB entry)")
+                        return None
+                except Exception as db_err:
+                    logger.error(f"Database lookup failed: {db_err}")
+                    return None
             
             return {
                 "template_slug": template_slug,
@@ -1687,9 +1701,12 @@ class AnalyzerManager:
         if ports_tuple:
             backend_port, frontend_port = ports_tuple
         else:
-            logger.warning(f"Could not resolve ports for {model_slug}/app{app_number}, using defaults")
-            backend_port = 5000
-            frontend_port = 8000
+            logger.error(f"Could not resolve ports for {model_slug}/app{app_number}")
+            return {
+                'status': 'error',
+                'error': f'Port resolution failed for {model_slug}/app{app_number}',
+                'message': 'Application ports could not be determined. App may not be generated correctly.'
+            }
         
         request = AnalysisRequest(
             model_slug=model_slug,
@@ -1719,7 +1736,7 @@ class AnalyzerManager:
         
         logger.info(f"AI analysis config: template={template_slug}, tools={tools}, ports={backend_port}/{frontend_port}")
         
-        return await self.send_websocket_message('ai-analyzer', message, timeout=180)
+        return await self.send_websocket_message('ai-analyzer', message, timeout=900)
     
     async def run_static_analysis(self, model_slug: str, app_number: int, 
                                  tools: Optional[List[str]] = None) -> Dict[str, Any]:

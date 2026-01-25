@@ -337,7 +337,7 @@ class DockerManager:
             }
         
         return self._execute_compose_command(
-            compose_path, ['down'], model, app_num
+            compose_path, ['down', '--remove-orphans'], model, app_num
         )
     
     def restart_containers(self, model: str, app_num: int) -> Dict[str, Any]:
@@ -693,10 +693,21 @@ class DockerManager:
             up_result['health_check'] = health_result
             if not health_result.get('all_healthy'):
                 self.logger.warning(
-                    "Containers started but not all became healthy for %s/app%s: %s",
+                    "Containers started but not all became healthy for %s/app%s: %s. Cleaning up...",
                     model, app_num, health_result.get('unhealthy_containers', [])
                 )
-        
+                # Cleanup on health failure to prevent "failing containers" from lingering
+                self.stop_containers(model, app_num)
+                # Mark as failed in the result
+                up_result['success'] = False
+                up_result['error'] = f"Containers failed health check: {health_result.get('unhealthy_containers', [])}"
+        else:
+             # Cleanup on start failure (e.g. port conflict)
+             self.logger.warning(
+                 "Container start failed for %s/app%s. Cleaning up...", model, app_num
+             )
+             self.stop_containers(model, app_num)
+
         # Merge summaries
         merged = {
             'success': build_result.get('success') and up_result.get('success'),

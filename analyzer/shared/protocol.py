@@ -42,6 +42,7 @@ class ServiceType(str, Enum):
     DEPENDENCY_SCANNER = "dependency_scanner"
     CODE_QUALITY = "code_quality"
     AI_ANALYZER = "ai_analyzer"
+    DYNAMIC_ANALYZER = "dynamic_analyzer"
     GATEWAY = "gateway"
 
 
@@ -57,6 +58,8 @@ class AnalysisType(str, Enum):
     CODE_QUALITY_JAVASCRIPT = "code_quality_javascript"
     AI_REQUIREMENTS_CHECK = "ai_requirements_check"
     AI_CODE_REVIEW = "ai_code_review"
+    DYNAMIC_SECURITY = "dynamic_security"
+    DYNAMIC_VULNERABILITY = "dynamic_vulnerability"
 
 
 class SeverityLevel(str, Enum):
@@ -140,7 +143,7 @@ class AnalysisRequest:
     analysis_type: AnalysisType
     source_path: str
     options: Dict[str, Any] = field(default_factory=dict)
-    timeout: int = 300  # 5 minutes default
+    timeout: int = 900  # 15 minutes default
     priority: int = 1  # 1=low, 2=normal, 3=high
     
     def to_dict(self) -> Dict[str, Any]:
@@ -505,6 +508,8 @@ def route_message_to_service(message: WebSocketMessage) -> ServiceType:
             return ServiceType.CODE_QUALITY
         elif analysis_type.startswith('ai_'):
             return ServiceType.AI_ANALYZER
+        elif analysis_type.startswith('dynamic_'):
+            return ServiceType.DYNAMIC_ANALYZER
     
     # Default to gateway for routing
     return ServiceType.GATEWAY

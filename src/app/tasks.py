@@ -522,6 +522,8 @@ def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, too
             req['config'] = ai_config
             logger.info(f"[CELERY] Added AI config to request: template_slug={ai_config.get('template_slug')}")
         
+        logger.info(f"[CELERY] Connecting to {service_name} at {uri}...")
+        
         try:
             async with websockets.connect(
                 uri,

@@ -138,11 +138,7 @@ class StaticAnalyzer(BaseWSService):
                 parsed_result['execution_record'] = exec_record
                 return parsed_result
             except json.JSONDecodeError as e:
-                # Log JSON parse error with context
-                self.tool_logger.log_parser_error(tool_name, e, result.stdout[:200])
-                
-                # Handle tools that output text or newline-delimited JSON (mypy, vulture)
-                # Pass raw text to parser which handles format detection
+                # Attempt fallback parsing for text/NDJSON tools (mypy) before logging error
                 try:
                     self.tool_logger.log_parser_start(tool_name, len(result.stdout), 'text')
                     parsed_result = parse_tool_output(tool_name, result.stdout, config)
@@ -156,9 +152,18 @@ class StaticAnalyzer(BaseWSService):
                         self.tool_logger.log_parser_complete(tool_name, issue_count)
                         parsed_result['execution_record'] = exec_record
                         return parsed_result
+                    elif tool_name not in ['mypy']:
+                        # Only log the original JSON error if fallback didn't return a clear success
+                        # and it's not a tool known to output NDJSON/text (like mypy)
+                        self.tool_logger.log_parser_error(tool_name, e, result.stdout[:200])
+
                 except Exception as parse_err:
+                    # Fallback failed, log both errors
+                    self.tool_logger.log_parser_error(tool_name, e, result.stdout[:200])
                     self.tool_logger.log_parser_error(tool_name, parse_err)
                     self.log.warning(f"{tool_name} parser failed: {parse_err}")
+                
+                # If we're here, fallback failed or returned non-success status
                 
                 # Final fallback: treat as text output
                 self.log.warning(f"{tool_name} produced non-JSON output: {e}")

@@ -157,12 +157,12 @@ class AnalyzerPool:
                                 port=int(port)
                             ))
                 else:
-                    # Use defaults for docker environment (3 replicas each)
+                    # Use defaults for root stack environment (mapped to host ports)
                     default_ports = {
-                        'static-analyzer': [2001, 2002, 2003],
-                        'dynamic-analyzer': [2011, 2012, 2013],
-                        'performance-tester': [2021, 2022, 2023],
-                        'ai-analyzer': [2031, 2032, 2033]
+                        'static-analyzer': [2001, 2051, 2052],
+                        'dynamic-analyzer': [2002, 2053],
+                        'performance-tester': [2003, 2054],
+                        'ai-analyzer': [2004, 2055]
                     }
 
                     host = 'localhost'  # or service name in docker
@@ -363,7 +363,7 @@ class AnalyzerPool:
             request_start = time.time()
 
             try:
-                logger.debug(
+                logger.info(
                     f"Sending request to {endpoint.url} (attempt {attempt + 1}/{max_retries}, "
                     f"active={endpoint.active_requests}, load={endpoint.load_score:.1f})"
                 )

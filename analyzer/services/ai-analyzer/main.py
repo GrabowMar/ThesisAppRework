@@ -234,8 +234,8 @@ class AIAnalyzer(BaseWSService):
             self.max_retry_delay = float(os.getenv('AI_MAX_RETRY_DELAY', '30.0'))
 
             # Timeout configuration (seconds) - increased for reliability
-            self.api_timeout_single = int(os.getenv('AI_TIMEOUT_SINGLE', '60'))  # Single requirement
-            self.api_timeout_batch = int(os.getenv('AI_TIMEOUT_BATCH', '120'))   # Batch analysis
+            self.api_timeout_single = int(os.getenv('AI_TIMEOUT_SINGLE', '180'))  # Single requirement
+            self.api_timeout_batch = int(os.getenv('AI_TIMEOUT_BATCH', '300'))   # Batch analysis
             self.api_timeout_quality = int(os.getenv('AI_TIMEOUT_QUALITY', '90'))  # Quality analysis
 
             self.log.info("AI Analyzer initialized (template-based requirements system)")
@@ -2910,14 +2910,10 @@ Focus on whether the admin panel functionality described in the requirement is a
                 
                 # Validate template_slug is provided in config
                 if not config or not config.get('template_slug'):
-                    error_msg = "template_slug is required in config for AI analysis"
-                    self.log.error(f"[TOOL-EXEC] {error_msg}")
-                    await websocket.send(json.dumps({
-                        "type": "error",
-                        "message": error_msg,
-                        "service": self.info.name
-                    }))
-                    return
+                    self.log.warning("[TOOL-ROUTING] template_slug missing in config - will attempt auto-detection")
+                    if not config:
+                        config = {}
+
                 
                 self.log.info(f"[TOOL-EXEC] Starting AI analysis for {model_slug} app {app_number} with tools: {tools}")
                 print(f"[ai-analyzer] Tool execution started: model={model_slug}, app={app_number}, tools={tools}")

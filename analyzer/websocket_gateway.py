@@ -57,6 +57,7 @@ except Exception:
 SERVICE_URLS: Dict[ServiceType, str] = {
     ServiceType.CODE_QUALITY: os.getenv("STATIC_ANALYZER_URL", "ws://localhost:2001"),
     ServiceType.SECURITY_ANALYZER: os.getenv("STATIC_ANALYZER_URL", "ws://localhost:2001"),
+    ServiceType.DYNAMIC_ANALYZER: os.getenv("DYNAMIC_ANALYZER_URL", "ws://localhost:2002"),
     ServiceType.PERFORMANCE_TESTER: os.getenv("PERF_TESTER_URL", "ws://localhost:2003"),
     ServiceType.AI_ANALYZER: os.getenv("AI_ANALYZER_URL", "ws://localhost:2004"),
 }
@@ -131,15 +132,33 @@ async def broadcast_event(stage: str, message: str = "", *,
         payload['details'] = details
 
     # Log with reduced verbosity to prevent spam
+    # Structured Logging for Visibility
+    # ---------------------------------
+    # We want to show "Standard Operation" events at INFO level, but suppress high-frequency noise.
+    
+    is_health_check = any(k in message.lower() for k in ["health", "monitor", "ping", "heartbeat"])
+    
+    # Critical stages that should always be visible (unless it's a health check)
+    important_stages = {
+        "dispatch", "completed", "failed", "error", 
+        "analysis_request", "received_response"
+    }
+    
     if stage in {"error", "failed"}:
         logger.warning(f"[{stage}] {message} service={service}")
-    elif stage in {"completed"} and "health" not in message.lower():
-        # Skip logging routine health check completions
+    elif stage in important_stages and not is_health_check:
+        # Promotion: Log important business logic flow at INFO
+        # Format: [stage] Message (service=X, id=Y)
+        log_msg = f"[{stage}] {message}"
+        if service:
+            log_msg += f" service={service}"
+        if correlation_id:
+            log_msg += f" id={correlation_id}"
+        logger.info(log_msg)
+    elif stage in {"service_connected", "routing"} and not is_health_check:
         logger.info(f"[{stage}] {message} service={service}")
-    elif stage in {"started", "running"} and any(keyword in message.lower() for keyword in ["health", "monitor", "ping"]):
-        # Reduce monitoring/health check log level to debug
-        logger.debug(f"[{stage}] {message} service={service}")
     else:
+        # Everything else (debug details, health checks, pings) stays at DEBUG
         logger.debug(f"[{stage}] {message} service={service}")
     _record_event({'stage': stage, 'message': message, 'service': service, 'correlation_id': correlation_id, 'timestamp': payload['timestamp']})
 
@@ -176,7 +195,7 @@ async def broadcast_event(stage: str, message: str = "", *,
             SUBSCRIBERS.discard(ws)
 
 
-async def send_to_service(service: ServiceType, message: Dict[str, Any], timeout: int = 300) -> Dict[str, Any]:
+async def send_to_service(service: ServiceType, message: Dict[str, Any], timeout: int = 900) -> Dict[str, Any]:
     """Send a JSON message to a specific analyzer service and stream responses.
 
     Rebroadcasts any progress_update messages to subscribers. Returns when a
@@ -187,11 +206,11 @@ async def send_to_service(service: ServiceType, message: Dict[str, Any], timeout
         return {"type": "error", "status": "error", "error": f"No URL configured for {service.value}"}
 
     try:
-        await broadcast_event('routing', f"Routing request to {service.value}", service=service.value, details={'outbound_type': message.get('type')})
+        await broadcast_event('routing', f"Routing request to {service.value} at {url}", service=service.value, details={'outbound_type': message.get('type'), 'target_url': url})
         async with websockets.connect(
             url, open_timeout=10, close_timeout=10, ping_interval=None, ping_timeout=None
         ) as ws:
-            await broadcast_event('service_connected', f"Connected to {service.value}", service=service.value)
+            await broadcast_event('service_connected', f"Connected to {service.value} at {url}", service=service.value)
             await ws.send(json.dumps(message))
             await broadcast_event('sent', f"Sent to {service.value}", service=service.value, details={'payload_type': message.get('type')})
             # Stream loop: handle progress messages until a final result is received
@@ -292,15 +311,36 @@ def map_analysis_request_to_service_message(req_msg: WebSocketMessage) -> Option
         return ServiceType.PERFORMANCE_TESTER, payload
 
     if target_service is ServiceType.AI_ANALYZER:
+        # AI analyzer expects 'ai_analyze' message type
+        # Ensure template_slug is passed through from options
+        ai_config = dict(options) if options else {}
         payload = {
-            "type": "ai_analysis",
+            "type": "ai_analyze",
             "model_slug": model_slug,
             "app_number": app_number,
-            "config": options if options else None,
+            "tools": options.get("tools", []) if options else [],
+            "config": ai_config,
             "timestamp": datetime.now().isoformat(),
             "id": req_msg.id,
         }
         return ServiceType.AI_ANALYZER, payload
+
+    if target_service is ServiceType.DYNAMIC_ANALYZER:
+        # Dynamic analyzer expects 'dynamic_analyze'
+        # Pull target_url or target_urls from options if provided
+        target_url = options.get("target_url") or data.get("target_url")
+        target_urls = options.get("target_urls") or ([target_url] if target_url else [])
+        payload = {
+            "type": "dynamic_analyze",
+            "model_slug": model_slug,
+            "app_number": app_number,
+            "target_urls": target_urls,
+            "tools": options.get("tools", []) if options else [],
+            "config": options if options else None,
+            "timestamp": datetime.now().isoformat(),
+            "id": req_msg.id,
+        }
+        return ServiceType.DYNAMIC_ANALYZER, payload
 
     if target_service is ServiceType.DEPENDENCY_SCANNER:
         # Not implemented: return None to yield an error
@@ -397,7 +437,11 @@ async def handle_client(websocket):
 
                     service, payload = mapping
                     # Send request to target service
-                    await broadcast_event('dispatch', f"Dispatch to {service.value}", service=service.value, correlation_id=msg.id)
+                    await broadcast_event('dispatch', f"Dispatching {payload.get('type')} for model {payload.get('model_slug')} (App {payload.get('app_number')})", 
+                                          service=service.value, correlation_id=msg.id)
+                    
+                    logger.info(f"Processing Analysis Request: {payload.get('type')} -> {service.value} (ID: {msg.id})")
+                    
                     result = await send_to_service(service, payload)
 
                     # Wrap and forward back to client
@@ -407,7 +451,11 @@ async def handle_client(websocket):
                         correlation_id=msg.id,
                     )
                     await websocket.send(wrapped.to_json())
-                    await broadcast_event('completed', f"Completed {service.value}", service=service.value, correlation_id=msg.id,
+                    
+                    status_msg = f"Analysis Completed: {result.get('status')} (ID: {msg.id})"
+                    logger.info(status_msg)
+                    
+                    await broadcast_event('completed', status_msg, service=service.value, correlation_id=msg.id,
                                            details={'result_status': result.get('status')})
                     continue
 

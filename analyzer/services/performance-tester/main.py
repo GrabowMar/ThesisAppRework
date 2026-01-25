@@ -807,10 +807,40 @@ scenarios:
                 if message_data.get('duration'):
                     config.setdefault('locust', {})['run_time'] = f"{message_data.get('duration')}s"
                 
+                # Generate default target URLs if none provided
+                if not target_urls:
+                    # In Docker, use container names for thesis-apps-network communication
+                    # Container naming pattern: {model_slug}-app{N}_backend/frontend
+                    safe_slug = model_slug.replace('_', '-')
+                    container_prefix = f"{safe_slug}-app{app_number}"
+
+                    # Try to read ports from app .env file (mounted at /app/sources)
+                    backend_port = 5000  # Default Flask port
+                    frontend_port = 80   # nginx serves on port 80 inside container
+                    try:
+                        from pathlib import Path
+                        env_path = Path(f"/app/sources/{model_slug}/app{app_number}/.env")
+                        if env_path.exists():
+                            with open(env_path, 'r') as f:
+                                for line in f:
+                                    line = line.strip()
+                                    if line.startswith('BACKEND_PORT='):
+                                        backend_port = int(line.split('=', 1)[1].strip())
+                            self.log.info(f"Read ports from .env: backend={backend_port}")
+                    except Exception as e:
+                        self.log.debug(f"Could not read .env file: {e}")
+
+                    # Use container names for Docker networking
+                    target_urls = [
+                        f"http://{container_prefix}_backend:{backend_port}",
+                        f"http://{container_prefix}_frontend:{frontend_port}"
+                    ]
+                    self.log.info(f"No target_urls supplied; using container URLs: {target_urls}")
+
                 self.log.info(f"Received performance test request for {model_slug} app {app_number}")
                 self.log.info(f"[PERF-TEST] Target URLs: {target_urls}")
                 self.log.info(f"[PERF-TEST] Selected tools: {selected_tools}")
-                
+
                 result = await self.test_application_performance(
                     model_slug, app_number, target_urls, config, selected_tools
                 )

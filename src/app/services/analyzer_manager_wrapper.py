@@ -348,7 +348,8 @@ class AnalyzerManagerWrapper:
                 self.manager.run_ai_analysis(
                     model_slug=model_slug,
                     app_number=app_number,
-                    tools=tools
+                    tools=tools,
+                    config=options
                 )
             )
             

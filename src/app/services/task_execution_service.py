@@ -309,8 +309,13 @@ class TaskExecutionService:
                         accessible = True
                         if attempt > 1:
                             self._log(
-                                f"[PREFLIGHT] ✓ {service_name}:{port} accessible on attempt {attempt}",
+                                f"[PREFLIGHT] ✓ {service_name}:{port} (Host: {host}) accessible on attempt {attempt}",
                                 level='info'
+                            )
+                        else:
+                            self._log(
+                                f"[PREFLIGHT] ✓ {service_name}:{port} (Host: {host}) accessible",
+                                level='debug'
                             )
                         break
                     else:
@@ -701,12 +706,16 @@ class TaskExecutionService:
 
     # --- Internal helpers -------------------------------------------------
     def _run_loop(self):  # pragma: no cover - timing heavy, exercised indirectly
-        from app.services.task_service import queue_service
+        try:
+            from app.services.task_service import queue_service
+        except ImportError as e:
+            self._log(f"[CRITICAL] Failed to import queue_service: {e}", level='error')
+            return
         
         # Configure logging for this daemon thread
         # This ensures logs from the thread are properly captured
         self._thread_logger = self._setup_thread_logging()
-        self._log("[THREAD] TaskExecutionService daemon thread started")
+        self._log("[THREAD] TaskExecutionService daemon thread started - entering run loop")
         
         # Track last stuck task check time (every 5 minutes)
         last_stuck_check = 0.0
@@ -731,7 +740,12 @@ class TaskExecutionService:
                     next_tasks = queue_service.get_next_tasks(limit=self.batch_size)
                     if not next_tasks:
                         # No pending tasks - sleep and continue
-                        self._log("[POLL] No tasks selected by queue service (checked PENDING tasks)", level='debug')
+                        # Log periodically (every 10 polls ~ 20s) to avoid spam but confirm aliveness
+                        self._poll_count = getattr(self, '_poll_count', 0) + 1
+                        if self._poll_count % 10 == 0:
+                            self._log("[POLL] Service alive - no tasks selected by queue service", level='info')
+                        else:
+                            self._log("[POLL] No tasks selected by queue service (checked PENDING tasks)", level='debug')
                         time.sleep(self.poll_interval)
                         continue
                     
@@ -1172,7 +1186,8 @@ class TaskExecutionService:
                     'ai': wrapper.run_ai_analysis(
                         model_slug=task.target_model,
                         app_number=task.target_app_number,
-                        tools=tool_names if tool_names else None
+                        tools=tool_names if tool_names else None,
+                        options=custom_options
                     )
                 }
             else:
@@ -1801,15 +1816,16 @@ class TaskExecutionService:
             last_status = None
             
             while (_time.time() - start_time) < timeout_seconds:
-                status_summary = docker_mgr.container_status_summary(model_slug, app_number)  # type: ignore[union-attr]
-                last_status = status_summary
+                # Use get_container_health to check both status and health
+                health_result = docker_mgr.get_container_health(model_slug, app_number)
+                last_status = health_result
                 
-                containers_found = status_summary.get('containers_found', 0)
-                states = set(status_summary.get('states', []))
+                containers_found = health_result.get('container_count', 0)
+                all_healthy = health_result.get('all_healthy', False)
                 
-                # Check if containers are running
-                if containers_found > 0 and 'running' in states:
-                    # Containers are running - try to resolve ports
+                # Check if containers are running AND healthy
+                if containers_found > 0 and all_healthy:
+                    # Containers are healthy - try to resolve ports
                     backend_port, frontend_port = None, None
                     try:
                         from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
@@ -1821,15 +1837,15 @@ class TaskExecutionService:
                         self._log(f"[CONTAINER-CHECK] Could not resolve ports: {port_err}", level='debug')
                     
                     self._log(
-                        f"[CONTAINER-CHECK] {model_slug}/app{app_number} containers ready: "
-                        f"found={containers_found}, states={states}, "
+                        f"[CONTAINER-CHECK] {model_slug}/app{app_number} containers ready and HEALHTY: "
+                        f"found={containers_found}, "
                         f"backend_port={backend_port}, frontend_port={frontend_port}"
                     )
                     
                     return {
                         'ready': True,
                         'containers_found': containers_found,
-                        'states': list(states),
+                        'states': ['healthy'],
                         'backend_port': backend_port,
                         'frontend_port': frontend_port,
                         'error': None
@@ -1840,9 +1856,10 @@ class TaskExecutionService:
                 remaining = timeout_seconds - elapsed
                 
                 if remaining > poll_interval:
+                    states = health_result.get('containers', {})
                     self._log(
-                        f"[CONTAINER-CHECK] Waiting for {model_slug}/app{app_number} containers... "
-                        f"found={containers_found}, states={states}, elapsed={elapsed:.1f}s",
+                        f"[CONTAINER-CHECK] Waiting for {model_slug}/app{app_number} health... "
+                        f"healthy={all_healthy}, found={containers_found}, elapsed={elapsed:.1f}s",
                         level='debug'
                     )
                     _time.sleep(poll_interval)
@@ -1851,10 +1868,10 @@ class TaskExecutionService:
             
             # Timeout reached - containers not ready
             elapsed = _time.time() - start_time
-            containers_found = last_status.get('containers_found', 0) if last_status else 0
-            states = list(last_status.get('states', [])) if last_status else []
+            containers_found = last_status.get('container_count', 0) if last_status else 0
+            states_info = last_status.get('containers', {}) if last_status else {}
             
-            error_msg = f"Containers not ready after {elapsed:.1f}s (found={containers_found}, states={states})"
+            error_msg = f"Containers not healthy after {elapsed:.1f}s (found={containers_found}, states={states_info})"
             self._log(f"[CONTAINER-CHECK] {model_slug}/app{app_number}: {error_msg}", level='warning')
             
             return {
@@ -2097,6 +2114,10 @@ class TaskExecutionService:
                 # Skip this check for static/ai analyzers (they read source code, not running apps)
                 services_requiring_running_app = {'dynamic-analyzer', 'performance-tester'}
                 
+                # Initialize ports to None (default if not resolved from containers)
+                backend_port = None
+                frontend_port = None
+                
                 if service_name in services_requiring_running_app:
                     self._log(
                         f"[SUBTASK] {service_name} requires running app - checking containers for {model_slug}/app{app_number}"
@@ -2176,7 +2197,9 @@ class TaskExecutionService:
                     app_number=app_number,
                     tools=tools,
                     timeout=service_timeout,
-                    tool_config=tool_config
+                    tool_config=tool_config,
+                    backend_port=backend_port,
+                    frontend_port=frontend_port
                 )
 
                 # Update circuit breaker based on result
@@ -2612,7 +2635,9 @@ class TaskExecutionService:
         timeout: int = 600,
         max_retries: int = 3,
         retry_delay: float = 2.0,
-        tool_config: Optional[Dict[str, Any]] = None
+        tool_config: Optional[Dict[str, Any]] = None,
+        backend_port: Optional[int] = None,
+        frontend_port: Optional[int] = None
     ) -> Dict[str, Any]:
         """Execute analysis via WebSocket (synchronous wrapper for thread pool).
         
@@ -2670,7 +2695,9 @@ class TaskExecutionService:
                     result = loop.run_until_complete(
                         self._websocket_request_async(
                             service_name, port, model_slug, app_number, tools, timeout,
-                            tool_config=tool_config
+                            tool_config=tool_config,
+                            backend_port=backend_port,
+                            frontend_port=frontend_port
                         )
                     )
                     
@@ -2758,8 +2785,13 @@ class TaskExecutionService:
                 if result == 0:
                     if attempt > 1:
                         self._log(
-                            f"[PREFLIGHT] Service {service_name}:{port} accessible on attempt {attempt}",
+                            f"[PREFLIGHT] Service {service_name}:{port} (Host: {host}) accessible on attempt {attempt}",
                             level='info'
+                        )
+                    else:
+                        self._log(
+                            f"[PREFLIGHT] Service {service_name}:{port} (Host: {host}) accessible",
+                            level='debug'
                         )
                     return True
                 else:
@@ -2801,7 +2833,9 @@ class TaskExecutionService:
         app_number: int,
         tools: List[str],
         timeout: int,
-        tool_config: Optional[Dict[str, Any]] = None
+        tool_config: Optional[Dict[str, Any]] = None,
+        backend_port: Optional[int] = None,
+        frontend_port: Optional[int] = None
     ) -> Dict[str, Any]:
         """Execute WebSocket request to analyzer service (async).
         
@@ -2838,10 +2872,18 @@ class TaskExecutionService:
             try:
                 from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
                 analyzer_mgr = get_analyzer_wrapper().manager
-                ports = analyzer_mgr._resolve_app_ports(model_slug, app_number)
                 
-                if ports:
-                    backend_port, frontend_port = ports
+                # If ports were passed explicitly (from container pre-flight check), use them
+                # This ensures we use the correct external mappings for localhost access
+                if backend_port and frontend_port:
+                    target_urls = [
+                        f"http://localhost:{backend_port}",
+                        f"http://localhost:{frontend_port}"
+                    ]
+                    self._log(f"[WebSocket] Using localhost target URLs with mapped ports: {target_urls}")
+                # Fallback to resolving via manager (might be internal container names)
+                elif ports := analyzer_mgr._resolve_app_ports(model_slug, app_number):
+                    backend_p, frontend_p = ports
                     # Use Docker container names for container-to-container communication
                     # Container names follow pattern: {model_slug}-app{N}_backend/frontend
                     # The containers are on thesis-apps-network, same as analyzers

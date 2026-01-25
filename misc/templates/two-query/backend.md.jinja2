@@ -42,8 +42,8 @@
 
 1. **Public/Guest Access** (Standard Features):
    - GET endpoints return ALL data to everyone
-   - POST/PUT/DELETE for core data should generally be OPEN (no auth needed) for this sample app
-   - Allow guests to fully experience the application without registering
+   - POST/PUT/DELETE for core data should follow specific requirements listed above.
+   - If not explicitly restricted, allow guests to fully experience the application without registering (OPEN access).
 
 2. **Protected Endpoints** (@token_required decorator):
    - User profile management
@@ -69,12 +69,55 @@ Implement these functionalities matching the skeleton provided:
 - GET /api/auth/me (requires @token_required)
 - PUT /api/auth/me (requires @token_required)
 
+## Implementation Process
+
+Follow this structured approach:
+
+1. **Analyze Requirements** → Identify data models and relationships
+2. **Design Schema** → Plan database fields with types and constraints
+3. **Implement Models** → Code SQLAlchemy models with validation
+4. **Create Routes** → Implement API endpoints with error handling
+5. **Test Coverage** → Ensure all edge cases are handled
+
+## Success Criteria
+
+Your implementation will be validated against:
+- ✅ All API endpoints return proper HTTP status codes (200, 201, 400, 401, 403, 404)
+- ✅ Database queries use optimized filtering (no N+1 queries)
+- ✅ Error responses include actionable messages in JSON format
+- ✅ Code follows Flask 3.0+ best practices
+- ✅ Models include all required fields and relationships
+
+## Common Mistakes to Avoid
+
+❌ Using `.all()` without filters → Returns inactive/deleted records
+✅ Use `.filter_by(is_active=True).all()` → Only active records
+
+❌ Missing try/except in routes → Exposes stack traces to users
+✅ Wrap operations in try/except → Return clean error JSON
+
+❌ Using `db.Model.query` (Legacy)
+✅ Use `db.session.execute(select(Model))` or `db.session.get(Model, id)` (SQLAlchemy 2.0)
+
+**Why this matters:** Production code must be robust, secure, and maintainable.
+
 ## Technical Requirements
 
 1. **Single File**: Output ONE `app.py` file wrapping the provided skeleton.
 2. **Database**: SQLite at `sqlite:////app/data/app.db`
 3. **Structure**: Follow the provided skeleton structure EXACTLY.
 4. **Logic**: Implement the logic where indicated in the skeleton.
+5. **Versions**: Use Flask 3.x and SQLAlchemy 2.0+ syntax.
+
+## Chain-of-Thought
+
+Before generating code, mentally work through:
+1. What models are needed? What fields and relationships?
+2. What API endpoints are required? What input validation is needed?
+3. How will authentication protect these endpoints?
+4. What are the edge cases (not found, unauthorized, invalid input)?
+
+Then implement your solution addressing each point.
 
 ## Output Format
 
@@ -89,4 +132,5 @@ Generate EXACTLY ONE code block:
 - Fill in the logic for the skeleton methods.
 - NO multiple files - everything in ONE app.py
 - Do NOT ask "Would you like me to continue?" - generate EVERYTHING
+
 

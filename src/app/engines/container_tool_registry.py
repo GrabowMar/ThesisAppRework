@@ -495,46 +495,48 @@ class ContainerToolRegistry:
             output_formats=["json"]
         )
         
-        # flake8 - Python style guide enforcer
-        flake8_schema = ToolConfigSchema(
+        # Radon - Complexity analysis
+        radon_schema = ToolConfigSchema(
             parameters=[
-                ToolParameter("max_line_length", "integer", "Maximum line length", 79,
-                            min_value=50, max_value=200),
-                ToolParameter("max_complexity", "integer", "Maximum McCabe complexity", 10,
-                            min_value=1, max_value=50),
-                ToolParameter("ignore", "array", "Error codes to ignore", ["E501", "W503"]),
-                ToolParameter("select", "array", "Error codes to select", []),
-                ToolParameter("format", "string", "Output format", "default",
-                            options=["default", "pylint", "json"]),
-                ToolParameter("show_source", "boolean", "Show source code", False),
-                ToolParameter("statistics", "boolean", "Show statistics", False),
-                ToolParameter("count", "boolean", "Print total number of errors", False)
+                ToolParameter("min_complexity", "string", "Minimum complexity grade to report", "B",
+                            options=["A", "B", "C", "D", "E", "F"]),
+                ToolParameter("show_complexity", "boolean", "Show complexity score", True),
+                ToolParameter("average", "boolean", "Compute average complexity", True)
             ],
-            examples={
-                "strict": {
-                    "max_line_length": 88,
-                    "max_complexity": 10,
-                    "ignore": []
-                },
-                "relaxed": {
-                    "max_line_length": 120,
-                    "ignore": ["E501", "W503", "E203"]
-                }
-            },
-            documentation_url="https://flake8.pycqa.org/"
+            documentation_url="https://radon.readthedocs.io/"
         )
         
-        self._tools["flake8"] = ContainerTool(
-            name="flake8",
-            display_name="Flake8 Style Checker",
-            description="Python style guide enforcement tool combining PyFlakes, pycodestyle, and McCabe",
+        self._tools["radon"] = ContainerTool(
+            name="radon",
+            display_name="Radon Complexity",
+            description="Python cyclomatic complexity calculator",
             container=AnalyzerContainer.STATIC,
-            tags={"quality", "python", "style", "linting"},
+            tags={"quality", "python", "complexity"},
             supported_languages={"python"},
             available=True,
-            config_schema=flake8_schema,
-            cli_flags=["--max-line-length", "--max-complexity", "--ignore", "--select", "--format"],
-            output_formats=["default", "pylint", "json"]
+            config_schema=radon_schema,
+            cli_flags=["--min-complexity", "--average", "--show-complexity"]
+        )
+
+        # Detect-Secrets - Secrets detection
+        secrets_schema = ToolConfigSchema(
+            parameters=[
+                ToolParameter("plugins", "object", "Plugin configuration", {}),
+                ToolParameter("exclude_files", "array", "Files to exclude", []),
+                ToolParameter("use_all_plugins", "boolean", "Use all available plugins", True)
+            ],
+            documentation_url="https://github.com/Yelp/detect-secrets"
+        )
+        
+        self._tools["detect-secrets"] = ContainerTool(
+            name="detect-secrets",
+            display_name="Detect Secrets",
+            description="Enterprise-friendly way of identifying and preventing secrets in code",
+            container=AnalyzerContainer.STATIC,
+            tags={"security", "secrets", "credential-scanning"},
+            supported_languages={"python", "javascript", "typescript", "go", "java", "json", "yaml"},
+            available=True,
+            config_schema=secrets_schema
         )
         
         # stylelint - CSS/SCSS linter
@@ -577,47 +579,25 @@ class ContainerToolRegistry:
             output_formats=["json", "string", "verbose", "compact"]
         )
         
-        # JSHint - JavaScript code quality tool
-        jshint_schema = ToolConfigSchema(
+        # HTML Validator
+        html_validator_schema = ToolConfigSchema(
             parameters=[
-                ToolParameter("esversion", "integer", "ECMAScript version", 6,
-                            options=[3, 5, 6, 7, 8, 9, 10, 11]),
-                ToolParameter("node", "boolean", "Enable Node.js environment", False),
-                ToolParameter("browser", "boolean", "Enable browser environment", True),
-                ToolParameter("globals", "object", "Predefined globals", {}),
-                ToolParameter("strict", "string", "Strict mode", "implied",
-                            options=["global", "implied", "false"]),
-                ToolParameter("undef", "boolean", "Prohibit undefined variables", True),
-                ToolParameter("unused", "boolean", "Warn about unused variables", True),
-                ToolParameter("reporter", "string", "Output format", "jslint",
-                            options=["jslint", "checkstyle", "unix"])
+                ToolParameter("format", "string", "Output format", "json", options=["json", "text", "gnu"]),
+                ToolParameter("verbose", "boolean", "Verbose output", True)
             ],
-            examples={
-                "modern": {
-                    "esversion": 11,
-                    "browser": True,
-                    "node": False
-                },
-                "node_app": {
-                    "esversion": 9,
-                    "node": True,
-                    "browser": False
-                }
-            },
-            documentation_url="https://jshint.com/docs/"
+            documentation_url="https://github.com/znerol/html-validator"
         )
         
-        self._tools["jshint"] = ContainerTool(
-            name="jshint",
-            display_name="JSHint Code Quality",
-            description="JavaScript code quality tool for detecting errors and potential problems",
+        self._tools["html-validator"] = ContainerTool(
+            name="html-validator",
+            display_name="HTML Validator",
+            description="Validates HTML files using standard rules",
             container=AnalyzerContainer.STATIC,
-            tags={"quality", "javascript", "linting"},
-            supported_languages={"javascript"},
+            tags={"quality", "html", "validation"},
+            supported_languages={"html"},
             available=True,
-            config_schema=jshint_schema,
-            cli_flags=["--config", "--reporter", "--extract", "--verbose"],
-            output_formats=["jslint", "checkstyle", "unix"]
+            config_schema=html_validator_schema,
+            cli_flags=["--format", "--verbose"]
         )
     
     def _register_dynamic_analyzer_tools(self) -> None:

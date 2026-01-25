@@ -27,11 +27,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 from app.services.analyzer_pool import get_analyzer_pool, AnalyzerPool
+try:
+    from analyzer_manager import AnalyzerManager as BaseAnalyzerManager
+except ImportError:
+    # Try relative import if direct import fails
+    from .analyzer_manager import AnalyzerManager as BaseAnalyzerManager
 
 logger = logging.getLogger(__name__)
 
 
-class PooledAnalyzerManager:
+class PooledAnalyzerManager(BaseAnalyzerManager):
     """
     Analyzer manager that uses connection pooling for concurrent analysis.
 
@@ -41,10 +46,11 @@ class PooledAnalyzerManager:
 
     def __init__(self):
         """Initialize the pooled analyzer manager."""
+        super().__init__()
         self.pool: Optional[AnalyzerPool] = None
         self._initialized = False
 
-        # Service name mapping
+        # Service name mapping (overrides/extends what parent might have)
         self.service_names = {
             'static-analyzer': 'static-analyzer',
             'dynamic-analyzer': 'dynamic-analyzer',
@@ -224,7 +230,7 @@ class PooledAnalyzerManager:
             AI analysis results dictionary
         """
         message = {
-            "type": "ai_analysis",
+            "type": "ai_analyze",
             "model_slug": model_slug,
             "app_number": app_number,
             "tools": tools or [],
@@ -234,7 +240,7 @@ class PooledAnalyzerManager:
         return await self.send_websocket_message(
             'ai-analyzer',
             message,
-            timeout=int(os.environ.get('AI_ANALYSIS_TIMEOUT', '300'))
+            timeout=int(os.environ.get('AI_ANALYSIS_TIMEOUT', '900'))
         )
 
     async def check_service_health(self, service_name: str) -> Dict[str, Any]:

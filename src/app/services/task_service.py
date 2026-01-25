@@ -680,7 +680,7 @@ class TaskQueueService:
     
     def get_next_tasks(self, limit: Optional[int] = None) -> List[AnalysisTask]:
         """Get next tasks to execute based on priority and availability."""
-        logger.debug("[QUEUE] get_next_tasks called with limit=%s", limit)
+        logger.info("[QUEUE] get_next_tasks called with limit=%s", limit)
         
         if limit is None:
             limit = self.queue_config['max_concurrent_tasks']
@@ -701,7 +701,7 @@ class TaskQueueService:
         )
         
         if available_slots == 0:
-            logger.debug("[QUEUE] No available slots - returning empty list")
+            logger.warning("[QUEUE] No available slots - returning empty list (running=%d, max=%d)", running_count, self.queue_config['max_concurrent_tasks'])
             return []
         
         # Get pending tasks ordered by priority - only main tasks (subtasks handled separately)
@@ -718,6 +718,9 @@ class TaskQueueService:
             "[QUEUE] Found %d PENDING main tasks in DB (is_main_task=True or NULL)",
             len(pending_tasks)
         )
+        # Log if we found tasks but they might be filtered
+        if pending_tasks:
+            logger.info("[QUEUE] Found %d candidate pending tasks", len(pending_tasks))
         if pending_tasks:
             logger.debug(
                 "[QUEUE] Pending task IDs: %s",

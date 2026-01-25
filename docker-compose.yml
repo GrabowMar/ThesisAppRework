@@ -157,6 +157,7 @@ services:
     environment:
       - GATEWAY_HOST=0.0.0.0
       - GATEWAY_PORT=8765
+      - LOG_LEVEL=INFO
       - STATIC_ANALYZER_URL=ws://static-analyzer:2001
       - DYNAMIC_ANALYZER_URL=ws://dynamic-analyzer:2002
       - PERF_TESTER_URL=ws://performance-tester:2003

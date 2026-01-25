@@ -172,7 +172,7 @@ class BaseWSService:
                     await self.handle_message(websocket, data)
                     # Only close for terminal messages (analysis_result, error)
                     # Allow streaming for progress_update and status_update messages
-                    if msg_type in ("analysis_request", "static_analyze", "performance_test", "ai_analysis"):
+                    if msg_type in ("analysis_request", "static_analyze", "dynamic_analyze", "performance_test", "ai_analyze"):
                         # Analysis requests are terminal - close after response
                         self.log.debug(f"Analysis complete for {client}, waiting for client to close")
                         # IMPORTANT: Let the CLIENT (gateway) close the connection after receiving the response
