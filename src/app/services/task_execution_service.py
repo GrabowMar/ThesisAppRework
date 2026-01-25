@@ -2884,17 +2884,34 @@ class TaskExecutionService:
                 # Fallback to resolving via manager (might be internal container names)
                 elif ports := analyzer_mgr._resolve_app_ports(model_slug, app_number):
                     backend_p, frontend_p = ports
-                    # Use Docker container names for container-to-container communication
-                    # Container names follow pattern: {model_slug}-app{N}_backend/frontend
-                    # The containers are on thesis-apps-network, same as analyzers
-                    # Note: Docker Compose converts underscores to hyphens in container names
-                    safe_slug = model_slug.replace('_', '-')
-                    container_prefix = f"{safe_slug}-app{app_number}"
-                    target_urls = [
-                        f"http://{container_prefix}_backend:{backend_port}",
-                        f"http://{container_prefix}_frontend:80"  # nginx serves on port 80 inside container
-                    ]
-                    self._log(f"[WebSocket] Resolved target URLs for {service_name}: {target_urls}")
+                    # Use analyzer manager to decide whether analyzers/apps are running in Docker
+                    try:
+                        is_docker = analyzer_mgr._is_running_in_docker()
+                    except Exception:
+                        is_docker = False
+
+                    # Also consider configured analyzer URLs as an indicator (docker-compose uses container names)
+                    da_urls = os.environ.get('DYNAMIC_ANALYZER_URLS', '') + os.environ.get('DYNAMIC_ANALYZER_URL', '')
+                    if not is_docker and da_urls and service_name in da_urls:
+                        is_docker = True
+                        self._log(f"[WebSocket] Inferred Docker environment for {service_name} from DYNAMIC_ANALYZER_URL(S)", level='debug')
+
+                    if is_docker:
+                        # Container-to-container: use Docker container names and resolved internal ports
+                        safe_slug = model_slug.replace('_', '-')
+                        container_prefix = f"{safe_slug}-app{app_number}"
+                        target_urls = [
+                            f"http://{container_prefix}_backend:{backend_p}",
+                            f"http://{container_prefix}_frontend:{frontend_p}"
+                        ]
+                        self._log(f"[WebSocket] Resolved target URLs for {service_name} (container network, docker detected): {target_urls}")
+                    else:
+                        # Host-to-host: use localhost mapped ports returned by _resolve_app_ports
+                        target_urls = [
+                            f"http://localhost:{backend_p}",
+                            f"http://localhost:{frontend_p}"
+                        ]
+                        self._log(f"[WebSocket] Resolved target URLs for {service_name} (localhost ports): {target_urls}")
                 else:
                     self._log(f"[WebSocket] Could not resolve ports for {model_slug}/app{app_number}", level='warning')
             except Exception as e:

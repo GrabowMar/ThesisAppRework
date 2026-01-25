@@ -678,6 +678,7 @@ class AnalyzerManager:
         1. .env file in generated app directory (source of truth for running apps)
            - Searches both flat and template-based directory structures
         2. Database/JSON configuration (fallback for apps without .env)
+        3. Docker inspect: attempt to auto-detect internal container ports for app containers
 
         Returns None if no configuration found (caller MUST handle this error).
         """
@@ -736,7 +737,55 @@ class AnalyzerManager:
                         if isinstance(b, int) and isinstance(f, int):
                             logger.debug(f"Resolved ports for {model_slug} app {app_number}: backend={b}, frontend={f} (matched as {variant} from database)")
                             return b, f
-            
+
+            # PRIORITY 3: Attempt to inspect running Docker containers to discover internal ports
+            try:
+                safe_slug = model_slug.replace('_', '-')
+                backend_container = f"{safe_slug}-app{app_number}_backend"
+                frontend_container = f"{safe_slug}-app{app_number}_frontend"
+
+                def _inspect_container_internal_port(container_name: str) -> Optional[int]:
+                    """Return the first exposed/internal port for a container or None."""
+                    try:
+                        rc, out, err = self.run_command([
+                            "docker", "inspect", "-f", "{{json .NetworkSettings.Ports}}", container_name
+                        ], capture_output=True, timeout=6)
+                        if rc == 0 and out:
+                            ports_map = json.loads(out)
+                            # keys look like '5000/tcp' or '80/tcp'
+                            for key in ports_map.keys():
+                                if isinstance(key, str) and '/' in key:
+                                    try:
+                                        return int(key.split('/', 1)[0])
+                                    except Exception:
+                                        continue
+                        # Fallback to Config.ExposedPorts
+                        rc, out, err = self.run_command([
+                            "docker", "inspect", "-f", "{{json .Config.ExposedPorts}}", container_name
+                        ], capture_output=True, timeout=6)
+                        if rc == 0 and out:
+                            exposed = json.loads(out)
+                            for key in exposed.keys():
+                                if isinstance(key, str) and '/' in key:
+                                    try:
+                                        return int(key.split('/', 1)[0])
+                                    except Exception:
+                                        continue
+                    except Exception as e:
+                        logger.debug(f"docker inspect failed for {container_name}: {e}")
+                    return None
+
+                backend_internal = _inspect_container_internal_port(backend_container)
+                frontend_internal = _inspect_container_internal_port(frontend_container)
+
+                if backend_internal and frontend_internal:
+                    logger.info(f"✓ Resolved ports via Docker inspect for {model_slug} app {app_number}: backend={backend_internal}, frontend={frontend_internal}")
+                    return backend_internal, frontend_internal
+                else:
+                    logger.debug(f"Docker inspect did not yield internal ports for {model_slug} app {app_number} (backend={backend_internal}, frontend={frontend_internal})")
+            except Exception as docker_err:
+                logger.debug(f"Docker inspect attempt failed: {docker_err}")
+
             logger.error(f"No port configuration found for {model_slug} app {app_number}")
             logger.error(f"Cannot run dynamic/performance analysis without port configuration.")
         except Exception as e:

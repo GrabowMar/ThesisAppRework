@@ -972,8 +972,8 @@ class DynamicAnalyzer(BaseWSService):
                                         backend_port = int(line.split('=', 1)[1].strip())
                                     elif line.startswith('FRONTEND_PORT='):
                                         # Frontend container exposes on 80 internally regardless
-                                        pass
-                            self.log.info(f"Read ports from .env: backend={backend_port}")
+                                        frontend_port = int(line.split('=', 1)[1].strip())
+                            self.log.info(f"Read ports from .env: backend={backend_port}, frontend={frontend_port}")
                     except Exception as e:
                         self.log.debug(f"Could not read .env file: {e}")
 
@@ -985,6 +985,46 @@ class DynamicAnalyzer(BaseWSService):
                     self.log.info(f"No target_urls supplied; using container URLs: {target_urls}")
                 else:
                     self.log.info(f"Received explicit target_urls: {target_urls}")
+                    # If explicit targets were provided but they point to localhost and we're
+                    # running in Docker, convert them to container network addresses so the
+                    # scanner inside this container can reach the app containers.
+                    try:
+                        from pathlib import Path
+                        if any(u.startswith('http://localhost') or u.startswith('http://127.0.0.1') for u in target_urls):
+                            safe_slug = model_slug.replace('_', '-')
+                            container_prefix = f"{safe_slug}-app{app_number}"
+                            # Try to discover ports from .env to map appropriately
+                            backend_port = 5000
+                            frontend_port = 80
+                            env_path = Path(f"/app/sources/{model_slug}/app{app_number}/.env")
+                            if env_path.exists():
+                                with open(env_path, 'r') as f:
+                                    for line in f:
+                                        line = line.strip()
+                                        if line.startswith('BACKEND_PORT='):
+                                            backend_port = int(line.split('=', 1)[1].strip())
+                                        elif line.startswith('FRONTEND_PORT='):
+                                            frontend_port = int(line.split('=', 1)[1].strip())
+
+                            new_targets = []
+                            for u in target_urls:
+                                try:
+                                    parsed_port = int(u.split(':')[-1])
+                                except Exception:
+                                    parsed_port = None
+                                # Map to backend/frontend container host when port matches
+                                if parsed_port == backend_port:
+                                    new_targets.append(f"http://{container_prefix}_backend:{backend_port}")
+                                elif parsed_port == frontend_port:
+                                    new_targets.append(f"http://{container_prefix}_frontend:{frontend_port}")
+                                else:
+                                    # Fall back to backend container with same port
+                                    new_targets.append(f"http://{container_prefix}_backend:{parsed_port or backend_port}")
+
+                            self.log.info(f"Translated localhost target_urls to container network: {new_targets}")
+                            target_urls = new_targets
+                    except Exception as e:
+                        self.log.debug(f"Failed to translate explicit localhost targets: {e}")
 
                 self.log.info(f"Starting dynamic analysis for {model_slug} app {app_number}")
                 await self.send_progress('starting', f"Starting dynamic analysis for {model_slug} app {app_number}",

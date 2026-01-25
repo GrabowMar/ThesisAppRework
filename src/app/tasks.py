@@ -435,6 +435,7 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
 
 def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, tools: List[str], timeout: int = 600) -> Dict[str, Any]:
     """Helper to run async WebSocket code synchronously."""
+    import os
     import websockets
     from websockets.exceptions import ConnectionClosed
     import time
@@ -458,17 +459,33 @@ def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, too
             ports = analyzer_mgr._resolve_app_ports(model_slug, app_number)
             if ports:
                 backend_port, frontend_port = ports
-                # Use Docker container names for container-to-container communication
-                # Container names follow pattern: {model_slug}-app{N}_backend/frontend
-                # The containers are on thesis-apps-network, same as analyzers
-                # Note: Docker Compose converts underscores to hyphens in container names
-                safe_slug = model_slug.replace('_', '-')
-                container_prefix = f"{safe_slug}-app{app_number}"
-                target_urls = [
-                    f"http://{container_prefix}_backend:{backend_port}",
-                    f"http://{container_prefix}_frontend:80"  # nginx serves on port 80 inside container
-                ]
-                logger.info(f"[CELERY] Resolved target URLs for {service_name}: {target_urls}")
+                # Decide if analyzers/apps are running in Docker via AnalyzerManager
+                try:
+                    is_docker = analyzer_mgr._is_running_in_docker()
+                except Exception:
+                    is_docker = os.environ.get('IN_DOCKER', '').lower() in ('true', '1', 'yes')
+
+                # Also consider configured analyzer URLs as an indicator (docker-compose uses container names)
+                da_urls = os.environ.get('DYNAMIC_ANALYZER_URLS', '') + os.environ.get('DYNAMIC_ANALYZER_URL', '')
+                if not is_docker and da_urls and service_name in da_urls:
+                    is_docker = True
+                    logger.debug(f"Inferred Docker environment for {service_name} from DYNAMIC_ANALYZER_URL(S)")
+
+                if is_docker:
+                    safe_slug = model_slug.replace('_', '-')
+                    container_prefix = f"{safe_slug}-app{app_number}"
+                    # Container-to-container: use resolved internal ports when available
+                    target_urls = [
+                        f"http://{container_prefix}_backend:{backend_port}",
+                        f"http://{container_prefix}_frontend:{frontend_port}"
+                    ]
+                    logger.info(f"[CELERY] Resolved target URLs for {service_name} (container network): {target_urls}")
+                else:
+                    target_urls = [
+                        f"http://localhost:{backend_port}",
+                        f"http://localhost:{frontend_port}"
+                    ]
+                    logger.info(f"[CELERY] Resolved target URLs for {service_name} (localhost ports): {target_urls}")
             else:
                 logger.warning(f"[CELERY] Could not resolve ports for {model_slug}/app{app_number}")
         except Exception as e:
