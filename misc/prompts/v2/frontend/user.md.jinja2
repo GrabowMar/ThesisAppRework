@@ -1,0 +1,63 @@
+# Application: {{ name }}
+
+{{ description }}
+
+## Task
+Generate a single-file React application (`App.jsx`) that interacts with the specific Backend API provided below.
+
+## Backend Context (The API you are building for)
+The backend is already built. You must strictly adhere to this API:
+
+{{ backend_api_context }}
+
+## Detailed Requirements
+
+### Frontend Features
+{% for req in frontend_requirements %}
+- {{ req }}
+{% endfor %}
+
+### Admin Interface
+{% for req in admin_requirements %}
+- {{ req }}
+{% endfor %}
+
+## Critical Implementation Standards
+
+### 1. Architecture
+- **Single File**: All code (Components, State, Logic) must be in `App.jsx`.
+- **No Router**: The app is wrapped in `BrowserRouter` externally. DO NOT use `BrowserRouter` is `App.jsx`. Only use `Routes`, `Route`, `Link`, `useNavigate`.
+- **Authentication**:
+  - Implement full Login/Register/Logout flow.
+  - Store JWT in `localStorage`.
+  - Handle token expiration gracefully (redirect to login).
+
+### 2. User Experience (UX)
+- **Guest Access**: Don't hide the main UI behind a login wall. Allow guests to explore.
+- **Feedback**: Use Toast notifications (`react-hot-toast`) for success/error messages.
+- **Loading States**: Show spinners or skeletons while fetching data.
+- **Design**: Use Tailwind-like classes (or standard CSS if configured) for a professional, "dense" dashboard look.
+
+### 3. Code Completeness
+- **NO Placeholders**: Never write `// TODO` or `// Implement later`.
+- **NO Mock Data**: You must fetch data from the API (`axios` or `fetch`).
+- **Complete Forms**: All inputs must have handlers.
+
+## Allow-Listed Packages
+You may ONLY use these packages:
+`react`, `react-dom`, `react-router-dom`, `axios`, `react-hot-toast`, `@heroicons/react`, `date-fns`, `clsx`, `uuid`.
+
+## Forbidden Patterns ❌
+- Wrapping `App` in `BrowserRouter` (It causes a crash).
+- Using `class` components (Use Hooks).
+- Hardcoding `localhost` (Use relative paths or configured base URL).
+- Leaving empty function bodies.
+
+## Implementation Steps
+1. **Define State**: User, Items list, Loading status, Form data.
+2. **Create Auth Context**: Helper functions to check login status.
+3. **Build API Helpers**: Centralize `axios` calls with headers.
+4. **Implement Components**: Navbar, Dashboard, Forms, Login.
+5. **Assemble Routes**: Set up the navigation structure.
+
+Generate the complete `App.jsx` now.

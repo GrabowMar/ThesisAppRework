@@ -1,0 +1,66 @@
+# Application: {{ name }}
+
+{{ description }}
+
+## Task
+Generate a single-file Flask application (`app.py`) that implements the following requirements.
+
+## Detailed Requirements
+
+### Functional Requirements
+{% for req in backend_requirements %}
+- {{ req }}
+{% endfor %}
+
+### Admin Requirements
+{% for req in admin_requirements %}
+- {{ req }}
+{% endfor %}
+
+### Data Model
+{{ data_model }}
+
+### API Usage Plan (Endpoints to Implement)
+{{ api_endpoints }}
+
+{{ admin_api_endpoints }}
+
+## Critical Implementation Standards
+
+### 1. Architecture & Security
+- **Single File**: All code must be in `app.py`.
+- **Authentication**: Use `werkzeug.security` for password hashing and `pyjwt` for tokens.
+- **Guest Access**: 
+  - Core "read" features (listing items) MUST be open to guests.
+  - "Create/Edit" features should be open unless sensitive.
+  - STRICTLY restrict only Admin routes and User Profile routes.
+- **Admin routes**: Protect with a custom `@admin_required` decorator.
+
+### 2. Code Quality & Best Practices
+- **Models**: Every model must have a `to_dict()` method for API serialization.
+- **Validation**: Validate all inputs in routes.
+- **Database**: Use `db.session.get()` instead of legacy `query.get()`.
+- **No Deprecated Code**: Do NOT use `@app.before_first_request`.
+- **Data Seeding**: Include a function to populate initial test data if tables are empty.
+
+### 3. Completness
+- **NO Placeholders**: Do not use `pass`, `...`, or comments like "Implementation here". Write the full logic.
+- **Full Implementation**: The code must be runnable immediately.
+
+## Working Example Reference
+
+Use this structure as a baseline for your implementation:
+
+```python
+{{ scaffolding_code }}
+```
+
+## Recommended Implementation Process (Chain of Thought)
+
+Before generating the code, mentally validate:
+1. **Schema Design**: Do the models support all requirements? Are relationships defined?
+2. **Access Control**: Which routes need `@token_required` vs `@admin_required` vs Open access?
+3. **Edge Cases**: What if the database is empty? What if a user doesn't exist?
+4. **Serialization**: Is `to_dict` robust?
+
+Now, generate the complete `app.py` file.

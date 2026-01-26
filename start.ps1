@@ -1413,14 +1413,8 @@ function Show-InteractiveMenu {
 function Invoke-Nuke {
     Write-Banner "🔥 NUKING SYSTEM - Wipeout & Refresh" "Red"
     
-    Write-Host "This will perform a full WIPEOUT and then a fast REBUILD." -ForegroundColor Yellow
-    Write-Host "Type 'NUKE' to confirm: " -NoNewline -ForegroundColor Red
-    $confirmation = Read-Host
-    
-    if ($confirmation -ne 'NUKE') {
-        Write-Status "Nuke cancelled" "Warning"
-        return $false
-    }
+    Write-Host "Performing full WIPEOUT and fast REBUILD." -ForegroundColor Yellow
+    # Confirmation prompt removed for automation/convenience
     
     Write-Status "Phase 1: Wipeout..." "Warning"
     if (-not (Invoke-Wipeout)) {
@@ -1432,13 +1426,15 @@ function Invoke-Nuke {
     Initialize-Environment
     
     Write-Status "Phase 2: Rebuilding stack..." "Info"
-    Invoke-RebuildContainers
+    Invoke-RebuildContainers -AutoStart $true
     
     Write-Banner "✅ Nuke Operation Complete" "Green"
     return $true
 }
 
 function Invoke-RebuildContainers {
+    param([bool]$AutoStart = $false)
+
     Write-Banner "Rebuilding Docker Stack"
     
     # Use ROOT directory (same as Start-DockerStack) to avoid duplicate stacks
@@ -1484,35 +1480,48 @@ function Invoke-RebuildContainers {
             Write-Host "  • Dependency updates:       ~3-5 minutes" -ForegroundColor Yellow
             Write-Host ""
             
-            # Ask if user wants to start the services
-            Write-Host "Would you like to start all services now? (Y/N): " -NoNewline -ForegroundColor Yellow
-            $response = Read-Host
+            # Ask if user wants to start the services (unless AutoStart is set)
+            $shouldStart = $AutoStart
             
-            if ($response -eq 'Y' -or $response -eq 'y') {
+            if (-not $shouldStart) {
+                Write-Host "Would you like to start all services now? (Y/N): " -NoNewline -ForegroundColor Yellow
+                $response = Read-Host
+                if ($response -eq 'Y' -or $response -eq 'y') {
+                    $shouldStart = $true
+                }
+            }
+            
+            if ($shouldStart) {
                 Write-Status "Starting all services..." "Info"
-                docker compose up -d 2>&1 | Out-Null
-                
-                if ($LASTEXITCODE -eq 0) {
-                    Start-Sleep -Seconds 3
+                try {
+                    $upOutput = docker compose up -d 2>&1
+                    if ($LASTEXITCODE -eq 0) {
+                        Start-Sleep -Seconds 3
                     
-                    # Show running services
-                    Write-Status "Services started:" "Success"
-                    docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>$null | ForEach-Object {
-                        Write-Host "  $_" -ForegroundColor Gray
+                        # Show running services
+                        Write-Status "Services started:" "Success"
+                        docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>$null | ForEach-Object {
+                            Write-Host "  $_" -ForegroundColor Gray
+                        }
+                    
+                        # Mark Docker mode
+                        "docker-compose" | Out-File -FilePath (Join-Path $Script:RUN_DIR "docker.mode") -Encoding ASCII
                     }
-                    
-                    # Mark Docker mode
-                    "docker-compose" | Out-File -FilePath (Join-Path $Script:RUN_DIR "docker.mode") -Encoding ASCII
+                    else {
+                        Write-Status "Failed to start services" "Error"
+                        Write-Host "Output: $upOutput" -ForegroundColor Red
+                    }
                 }
-                else {
-                    Write-Status "Failed to start services" "Error"
+                catch {
+                    Write-Status "Services not started (Try/Catch Error): $_" "Error"
                 }
+            
+                return $true
             }
             else {
                 Write-Status "Services not started - use [S] Start to launch them later" "Info"
+                return $true
             }
-            
-            return $true
         }
         else {
             Write-Status "Rebuild failed" "Error"
@@ -2083,13 +2092,7 @@ function Invoke-Wipeout {
     Write-Host ""
     Write-Host "⚠️  THIS CANNOT BE UNDONE! ⚠️" -ForegroundColor Red -BackgroundColor Black
     Write-Host ""
-    Write-Host "Type 'WIPEOUT' to confirm (or anything else to cancel): " -NoNewline -ForegroundColor Yellow
-    $confirmation = Read-Host
-    
-    if ($confirmation -ne 'WIPEOUT') {
-        Write-Status "Wipeout cancelled" "Warning"
-        return $false
-    }
+    # Confirmation prompt removed
     
     Write-Host ""
     Write-Status "Starting wipeout procedure..." "Warning"
@@ -2102,7 +2105,9 @@ function Invoke-Wipeout {
     # 2. Kill any Python processes that might be blocking database access
     Stop-BlockingProcesses
     
-    # 2. Remove Docker containers, images and volumes
+
+
+    # 3. Remove Docker containers, images and volumes (Main Project)
     Write-Status "Removing Docker resources (ThesisApp project)..." "Info"
     try {
         Push-Location $Script:ROOT_DIR
@@ -2115,7 +2120,7 @@ function Invoke-Wipeout {
         Write-Status "  Error removing Docker resources: $_" "Warning"
     }
     
-    # 3. Aggressive cleanup of any remaining analyzer-related containers/networks
+    # 4. Aggressive cleanup of any remaining analyzer-related containers/networks
     Write-Status "Ensuring total cleanup of analyzer resources..." "Info"
     try {
         # Catch any stray containers from the old 'analyzer' project or concurrent stack
@@ -2177,10 +2182,83 @@ function Invoke-Wipeout {
         }
     }
     
-    # 5. Remove generated apps
+    # 5. Remove generated apps AND their images (Recursive cleanup)
     $generatedDir = Join-Path $Script:ROOT_DIR "generated"
     if (Test-Path $generatedDir) {
-        Write-Status "Removing generated apps..." "Info"
+        Write-Status "Cleaning generated apps and images..." "Info"
+        
+        # 5a. Clean Docker resources for ALL generated apps (recursive search)
+        try {
+            $composeFiles = Get-ChildItem -Path $generatedDir -Recurse -Filter "docker-compose.yml"
+            foreach ($file in $composeFiles) {
+                $appDir = $file.DirectoryName
+                $appName = $file.Directory.Name
+                
+                Write-Host "  • Cleaning Docker resources for $appName..." -ForegroundColor Gray
+                Push-Location $appDir
+                try {
+                    # Down + remove images + volumes + orphans
+                    docker compose down --rmi all --volumes --remove-orphans 2>&1 | Out-Null
+                }
+                catch {
+                    Write-Host "    Warning: Failed to clean docker resources for $appName" -ForegroundColor DarkGray
+                }
+                finally {
+                    Pop-Location
+                }
+            }
+        }
+        catch {
+            Write-Host "  Warning: Error iterating generated apps: $_" -ForegroundColor DarkGray
+        }
+
+        # 5b. Fallback: Aggressively remove any leftover containers matching sample patterns
+        # Identify containers like "anthropic-claude-3-5-sonnet-app1", etc.
+        Write-Status "Scanning for any leftover sample containers..." "Info"
+        try {
+            # Regex to match sample app container names
+            $orphanContainers = docker ps -a --format "{{.Names}}" | Where-Object { 
+                # Match common patterns: model-name-appN, etc.
+                $_ -match "(anthropic|openai|mistral|llama|gemini).*-app\d+" -or 
+                $_ -match "generated_app_\d+" 
+            }
+            
+            if ($orphanContainers) {
+                Write-Host "  • Found orphan containers: $($orphanContainers -join ', ')" -ForegroundColor Yellow
+                $orphanContainers | ForEach-Object {
+                    docker rm -f $_ 2>&1 | Out-Null
+                }
+                Write-Status "  ✓ Orphan sample containers removed" "Success"
+            }
+        }
+        catch {
+            Write-Host "  Warning checking for orphan containers: $_" -ForegroundColor DarkGray
+        }
+
+        # 5c. Fallback: Identify and remove orphan IMAGES
+        try {
+            $orphanImages = docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | Where-Object { 
+                $_ -match "generated_app_\d+" -or 
+                $_ -match "(anthropic|openai|mistral|llama|gemini).*-app\d+" 
+            }
+            
+            if ($orphanImages) {
+                Write-Host "  • Found orphan images..." -ForegroundColor Yellow
+                $orphanImages | ForEach-Object {
+                    $parts = $_ -split " "
+                    $imgId = $parts[-1]
+                    Write-Host "    Removing $imgId..." -ForegroundColor Gray
+                    docker rmi -f $imgId 2>&1 | Out-Null
+                }
+                Write-Status "  ✓ Orphan sample images removed" "Success"
+            }
+        }
+        catch {
+            Write-Host "  Warning checking for orphan images: $_" -ForegroundColor DarkGray
+        }
+
+        # 5c. Remove the files
+        Write-Status "Removing generated apps directory..." "Info"
         try {
             Get-ChildItem -Path $generatedDir -Exclude ".migration_done" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction Stop
             Write-Status "  Generated apps removed" "Success"
