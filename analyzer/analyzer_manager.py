@@ -159,6 +159,8 @@ class AnalyzerManager:
             return True
         if os.environ.get('RUNNING_IN_DOCKER', '').lower() in ('true', '1', 'yes'):
             return True
+        if os.environ.get('IN_DOCKER', '').lower() in ('true', '1', 'yes'):
+            return True
         # Check if redis host is reachable (indicates we're in analyzer network)
         if os.environ.get('REDIS_URL', '').startswith('redis://redis:'):
             return True

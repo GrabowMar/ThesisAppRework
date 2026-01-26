@@ -980,7 +980,7 @@ class DynamicAnalyzer(BaseWSService):
                     # Use container names for Docker networking
                     target_urls = [
                         f"http://{container_prefix}_backend:{backend_port}",
-                        f"http://{container_prefix}_frontend:{frontend_port}"
+                        f"http://{container_prefix}_frontend:80"
                     ]
                     self.log.info(f"No target_urls supplied; using container URLs: {target_urls}")
                 else:
@@ -1016,7 +1016,7 @@ class DynamicAnalyzer(BaseWSService):
                                 if parsed_port == backend_port:
                                     new_targets.append(f"http://{container_prefix}_backend:{backend_port}")
                                 elif parsed_port == frontend_port:
-                                    new_targets.append(f"http://{container_prefix}_frontend:{frontend_port}")
+                                    new_targets.append(f"http://{container_prefix}_frontend:80")
                                 else:
                                     # Fall back to backend container with same port
                                     new_targets.append(f"http://{container_prefix}_backend:{parsed_port or backend_port}")

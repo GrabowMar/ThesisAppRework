@@ -477,7 +477,7 @@ def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, too
                     # Container-to-container: use resolved internal ports when available
                     target_urls = [
                         f"http://{container_prefix}_backend:{backend_port}",
-                        f"http://{container_prefix}_frontend:{frontend_port}"
+                        f"http://{container_prefix}_frontend:80"
                     ]
                     logger.info(f"[CELERY] Resolved target URLs for {service_name} (container network): {target_urls}")
                 else:
