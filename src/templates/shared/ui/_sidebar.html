@@ -1,150 +1,128 @@
 {#
-  Sidebar Navigation Component
-  - Collapsible sidebar with desktop/mobile responsive behavior
-  - Active link detection with aria-current
-  - HTMX-compatible for smooth navigation
-  - Styling in theme.css, behavior in sidebar.js
+Sidebar Navigation Component
+- Collapsible sidebar with desktop/mobile responsive behavior
+- Active link detection with aria-current
+- HTMX-compatible for smooth navigation
+- Styling in theme.css, behavior in sidebar.js
 #}
-<style>
-  .sidebar-gradient {
-    background: linear-gradient(180deg, #1a2332 0%, #111827 100%);
-  }
-  .bg-white-10 { background-color: rgba(255, 255, 255, 0.1); }
-  .border-white-10 { border-color: rgba(255, 255, 255, 0.1) !important; }
-  .hover-bg-white-10:hover { background-color: rgba(255, 255, 255, 0.05); }
-  .nav-icon-width { width: 20px; text-align: center; }
-  .brand-icon-box { width: 32px; height: 32px; }
-  .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: .5; }
-  }
-  .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-  .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
-</style>
+
 
 {% set ep = request.endpoint or '' %}
 {% set nav_groups = [
-  {
-    'title': 'Platform',
-    'items': [
-      {
-        'label': 'Dashboard',
-        'url': url_for('main.dashboard'),
-        'icon': 'fa-solid fa-gauge-high',
-        'nav_target': 'dashboard',
-        'is_active': ep == 'main.dashboard',
-        'title': 'Dashboard'
-      },
-      {
-        'label': 'Analysis Hub',
-        'url': url_for('analysis.analysis_index'),
-        'icon': 'fa-solid fa-chart-column',
-        'nav_target': 'analysis',
-        'is_active': ep.startswith('analysis.'),
-        'title': 'Analysis Hub'
-      },
-      {
-        'label': 'Models',
-        'url': url_for('main.models_overview'),
-        'icon': 'fa-solid fa-cubes-stacked',
-        'nav_target': 'models',
-        'is_active': ep.startswith('main.models'),
-        'title': 'Models'
-      },
-      {
-        'label': 'Applications',
-        'url': url_for('main.applications_index'),
-        'icon': 'fa-solid fa-laptop-code',
-        'nav_target': 'applications',
-        'is_active': ep.startswith('main.applications'),
-        'title': 'Applications'
-      }
-    ]
-  },
-  {
-    'title': 'Tools',
-    'items': [
-      {
-        'label': 'Automation',
-        'url': url_for('automation.index'),
-        'icon': 'fa-solid fa-wand-magic-sparkles',
-        'nav_target': 'automation',
-        'is_active': ep.startswith('automation.'),
-        'title': 'End-to-End Automation Pipeline'
-      },
-      {
-        'label': 'Sample Generator',
-        'url': url_for('sample_generator.index'),
-        'icon': 'fa-solid fa-code',
-        'nav_target': 'sample-generator',
-        'is_active': ep.startswith('sample_generator.'),
-        'title': 'Sample Generator'
-      },
-      {
-        'label': 'Reports',
-        'url': url_for('reports.reports_index'),
-        'icon': 'fa-solid fa-file-lines',
-        'nav_target': 'reports',
-        'is_active': ep.startswith('reports.'),
-        'title': 'Reports'
-      }
-    ]
-  },
-  {
-    'title': 'Insights',
-    'items': [
-      {
-        'label': 'Model Rankings',
-        'url': url_for('rankings.rankings_index'),
-        'icon': 'fa-solid fa-trophy',
-        'nav_target': 'rankings',
-        'is_active': ep.startswith('rankings.'),
-        'title': 'AI Model Rankings & Selection'
-      },
-      {
-        'label': 'Statistics',
-        'url': url_for('stats.statistics_overview'),
-        'icon': 'fa-solid fa-chart-line',
-        'nav_target': 'stats',
-        'is_active': ep.startswith('stats.'),
-        'title': 'Statistics'
-      },
-      {
-        'label': 'Documentation',
-        'url': url_for('docs.docs_index'),
-        'icon': 'fa-solid fa-book',
-        'nav_target': 'docs',
-        'is_active': ep.startswith('docs.'),
-        'title': 'Documentation & About'
-      }
-    ]
-  }
+{
+'title': 'Platform',
+'items': [
+{
+'label': 'Dashboard',
+'url': url_for('main.dashboard'),
+'icon': 'fa-solid fa-gauge-high',
+'nav_target': 'dashboard',
+'is_active': ep == 'main.dashboard',
+'title': 'Dashboard'
+},
+{
+'label': 'Analysis Hub',
+'url': url_for('analysis.analysis_index'),
+'icon': 'fa-solid fa-chart-column',
+'nav_target': 'analysis',
+'is_active': ep.startswith('analysis.'),
+'title': 'Analysis Hub'
+},
+{
+'label': 'Models',
+'url': url_for('main.models_overview'),
+'icon': 'fa-solid fa-cubes-stacked',
+'nav_target': 'models',
+'is_active': ep.startswith('main.models'),
+'title': 'Models'
+},
+{
+'label': 'Applications',
+'url': url_for('main.applications_index'),
+'icon': 'fa-solid fa-laptop-code',
+'nav_target': 'applications',
+'is_active': ep.startswith('main.applications'),
+'title': 'Applications'
+}
+]
+},
+{
+'title': 'Tools',
+'items': [
+{
+'label': 'Automation',
+'url': url_for('automation.index'),
+'icon': 'fa-solid fa-wand-magic-sparkles',
+'nav_target': 'automation',
+'is_active': ep.startswith('automation.'),
+'title': 'End-to-End Automation Pipeline'
+},
+{
+'label': 'Sample Generator',
+'url': url_for('sample_generator.index'),
+'icon': 'fa-solid fa-code',
+'nav_target': 'sample-generator',
+'is_active': ep.startswith('sample_generator.'),
+'title': 'Sample Generator'
+},
+{
+'label': 'Reports',
+'url': url_for('reports.reports_index'),
+'icon': 'fa-solid fa-file-lines',
+'nav_target': 'reports',
+'is_active': ep.startswith('reports.'),
+'title': 'Reports'
+}
+]
+},
+{
+'title': 'Insights',
+'items': [
+{
+'label': 'Model Rankings',
+'url': url_for('rankings.rankings_index'),
+'icon': 'fa-solid fa-trophy',
+'nav_target': 'rankings',
+'is_active': ep.startswith('rankings.'),
+'title': 'AI Model Rankings & Selection'
+},
+{
+'label': 'Statistics',
+'url': url_for('stats.statistics_overview'),
+'icon': 'fa-solid fa-chart-line',
+'nav_target': 'stats',
+'is_active': ep.startswith('stats.'),
+'title': 'Statistics'
+},
+{
+'label': 'Documentation',
+'url': url_for('docs.docs_index'),
+'icon': 'fa-solid fa-book',
+'nav_target': 'docs',
+'is_active': ep.startswith('docs.'),
+'title': 'Documentation & About'
+}
+]
+}
 ] %}
 
 <!-- Desktop sidebar -->
-<aside class="sidebar bg-dark text-white d-flex flex-column flex-shrink-0 shadow-lg sidebar-gradient" id="sidebar" aria-label="Main navigation">
+<aside class="sidebar bg-dark text-white d-flex flex-column flex-shrink-0 shadow-lg sidebar-gradient" id="sidebar"
+  aria-label="Main navigation">
   <div class="sidebar-content d-flex flex-column h-100">
     {# Brand/Logo Section with Toggle Button #}
-    <div class="sidebar-brand px-3 py-4 d-flex align-items-center justify-content-between border-bottom border-white-10">
-      <a href="{{ url_for('main.dashboard') }}" 
-         class="d-flex align-items-center text-white text-decoration-none brand-link gap-2"
-         hx-boost="true"
-         hx-target="#main-content"
-         hx-swap="innerHTML show:window:top"
-         hx-push-url="true"
-         aria-label="Go to Dashboard">
+    <div
+      class="sidebar-brand px-3 py-4 d-flex align-items-center justify-content-between border-bottom border-white-10">
+      <a href="{{ url_for('main.dashboard') }}"
+        class="d-flex align-items-center text-white text-decoration-none brand-link gap-2" hx-boost="true"
+        hx-target="#main-content" hx-swap="innerHTML show:window:top" hx-push-url="true" aria-label="Go to Dashboard">
         <div class="bg-primary rounded-2 d-flex align-items-center justify-content-center text-white brand-icon-box">
           <i class="fa-solid fa-layer-group fa-sm"></i>
         </div>
         <span class="fw-bold fs-5 sidebar-text tracking-tight">Thesis</span>
       </a>
-      <button id="sidebar-toggle" 
-              class="btn btn-icon btn-sm btn-ghost-light text-white-50 sidebar-toggle-btn"
-              type="button"
-              aria-label="Collapse sidebar"
-              aria-expanded="true">
+      <button id="sidebar-toggle" class="btn btn-icon btn-sm btn-ghost-light text-white-50 sidebar-toggle-btn"
+        type="button" aria-label="Collapse sidebar" aria-expanded="true">
         <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
       </button>
     </div>
@@ -153,28 +131,25 @@
     <nav class="sidebar-nav flex-grow-1 py-3 overflow-y-auto custom-scrollbar" role="navigation" aria-label="Main menu">
       <ul class="nav nav-pills flex-column px-3 gap-1" data-nav-root>
         {%- for group in nav_groups -%}
-          {% if group.title %}
-            <li class="nav-header sidebar-text text-uppercase text-white-50 fw-bold fs-7 mt-3 mb-2 px-3 small">
-              {{ group.title }}
-            </li>
-          {% endif %}
-          {%- for item in group['items'] -%}
-          <li class="nav-item">
-            <a href="{{ item.url }}" 
-               class="nav-link text-white-75 d-flex align-items-center py-2 px-3 rounded-2 transition-all {% if item.is_active %}active bg-primary text-white shadow-sm{% else %}hover-bg-white-10{% endif %}" 
-               hx-boost="true"
-               hx-target="#main-content"
-               hx-swap="innerHTML show:window:top"
-               hx-push-url="true"
-               title="{{ item.title }}"
-               data-nav-target="{{ item.nav_target }}"
-               data-active="{{ 'true' if item.is_active else 'false' }}"
-               {% if item.is_active %}aria-current="page"{% endif %}>
-              <i class="{{ item.icon }} me-3 nav-icon flex-shrink-0 nav-icon-width {% if item.is_active %}text-white{% else %}text-white-50{% endif %}" aria-hidden="true"></i>
-              <span class="sidebar-text fw-medium">{{ item.label }}</span>
-            </a>
-          </li>
-          {%- endfor -%}
+        {% if group.title %}
+        <li class="nav-header sidebar-text text-uppercase text-white-50 fw-bold fs-7 mt-3 mb-2 px-3 small">
+          {{ group.title }}
+        </li>
+        {% endif %}
+        {%- for item in group['items'] -%}
+        <li class="nav-item">
+          <a href="{{ item.url }}"
+            class="nav-link text-white-75 d-flex align-items-center py-2 px-3 rounded-2 transition-all {% if item.is_active %}active bg-primary text-white shadow-sm{% else %}hover-bg-white-10{% endif %}"
+            hx-boost="true" hx-target="#main-content" hx-swap="innerHTML show:window:top" hx-push-url="true"
+            title="{{ item.title }}" data-nav-target="{{ item.nav_target }}"
+            data-active="{{ 'true' if item.is_active else 'false' }}" {% if item.is_active %}aria-current="page" {%
+            endif %}>
+            <i class="{{ item.icon }} me-3 nav-icon flex-shrink-0 nav-icon-width {% if item.is_active %}text-white{% else %}text-white-50{% endif %}"
+              aria-hidden="true"></i>
+            <span class="sidebar-text fw-medium">{{ item.label }}</span>
+          </a>
+        </li>
+        {%- endfor -%}
         {%- endfor -%}
       </ul>
     </nav>
@@ -184,7 +159,8 @@
       <div class="d-flex align-items-center gap-3">
         <div class="position-relative">
           <div class="bg-success rounded-circle p-1"></div>
-          <span class="position-absolute top-50 start-50 translate-middle p-1 bg-success border border-dark rounded-circle animate-pulse"></span>
+          <span
+            class="position-absolute top-50 start-50 translate-middle p-1 bg-success border border-dark rounded-circle animate-pulse"></span>
         </div>
         <div class="sidebar-text lh-1">
           <div class="text-white fs-6 fw-medium">System Online</div>
@@ -196,12 +172,8 @@
 </aside>
 
 <!-- Mobile sidebar toggle button (visible only on mobile) -->
-<button class="sidebar-toggle-mobile d-lg-none btn btn-primary position-fixed shadow"
-        id="mobile-sidebar-toggle"
-        type="button"
-        aria-controls="sidebar"
-        aria-expanded="false"
-        aria-label="Open navigation menu">
+<button class="sidebar-toggle-mobile d-lg-none btn btn-primary position-fixed shadow" id="mobile-sidebar-toggle"
+  type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Open navigation menu">
   <i class="fa-solid fa-bars" aria-hidden="true"></i>
 </button>
 

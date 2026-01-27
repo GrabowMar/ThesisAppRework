@@ -1679,26 +1679,35 @@ XX should be a number 0-100. PASS:YES if score >= 60."""
         results = []
         
         for metric_id, metric_def in CODE_QUALITY_METRICS.items():
-            # Try to find this metric in response
-            pattern = rf'\[{metric_id.upper()}\]\s*SCORE:\s*(\d+)\s*\|\s*PASS:\s*(YES|NO)\s*\|\s*(.+?)(?=\[|$)'
+            score = 0
+            passed = False
+            finding = ""
+            confidence = 'LOW'
+            
+            # Pattern 1: Standard format [METRIC] SCORE:XX | PASS:YES | Finding
+            # Made separators flexible, PASS optional (inferred from score), Finding optional
+            pattern = rf'\[{metric_id.upper()}\]\s*SCORE:\s*(\d+)\s*\|?\s*(?:PASS:\s*(YES|NO)\s*\|?)?\s*(.+?)(?=\[|$)'
             match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
             
             if match:
                 score = min(100, max(0, int(match.group(1))))
-                passed = match.group(2).upper() == 'YES'
-                finding = match.group(3).strip()
+                if match.group(2):
+                    passed = match.group(2).upper() == 'YES'
+                else:
+                    passed = score >= 60
+                finding = (match.group(3) or "").strip()
                 # Clean up finding
                 finding = ' '.join(finding.split())
                 confidence = 'HIGH' if score > 70 else 'MEDIUM' if score > 40 else 'LOW'
             else:
-                # Try simpler pattern
-                simple_pattern = rf'{metric_id.upper()}[:\s]*(\d+)'
+                # Try simpler pattern: METRIC: 80 - Finding
+                simple_pattern = rf'{metric_id.upper()}[:\s]+(\d+)\s*[-:]?\s*(.*)(?=\n|$)'
                 simple_match = re.search(simple_pattern, response, re.IGNORECASE)
                 
                 if simple_match:
                     score = min(100, max(0, int(simple_match.group(1))))
                     passed = score >= 60
-                    finding = f"Score {score}/100 (parsed from batch)"
+                    finding = simple_match.group(2).strip() or f"Score {score}/100 (parsed from batch)"
                     confidence = 'MEDIUM'
                 else:
                     # Default to mid-range score if can't parse
@@ -2444,6 +2453,7 @@ Respond with EXACTLY this format for EACH requirement (one per line):
         4. [REQ1] MET:PARTIAL | CONF:MEDIUM | explanation (partial treated as NO)
         5. REQ1: YES - explanation
         6. 1. MET:YES | explanation
+        7. 1. **YES** - explanation
         """
         results = []
         
@@ -2471,15 +2481,16 @@ Respond with EXACTLY this format for EACH requirement (one per line):
             confidence = 'MEDIUM'
             explanation = ''
             
-            # Pattern 1: Standard format with optional markdown, flexible spacing
-            # [REQ1] MET:YES | CONF:HIGH | explanation  OR  **[REQ1]** MET: YES | CONF: HIGH
+            # Pattern 1: Standard format with optional markdown, flexible spacing, OPTIONAL confidence
+            # [REQ1] MET:YES | CONF:HIGH | explanation  OR  **[REQ1]** MET: YES
             # Also handles MET:PARTIAL, MET:PARTIALLY
-            pattern1 = rf'\*?\*?\[REQ{req_num}\]\*?\*?\s*MET:\s*([A-Z]+)\s*\|\s*CONF:\s*(HIGH|MEDIUM|LOW)(?:\s*\|\s*(.+?))?(?=\s*\*?\*?\[REQ|\Z)'
+            pattern1 = rf'\*?\*?\[REQ{req_num}\]\*?\*?\s*MET:\s*([A-Z]+)\s*\|?\s*(?:CONF:\s*(HIGH|MEDIUM|LOW)\s*\|?)?\s*(.+?)(?=\s*\*?\*?\[REQ|\Z)'
             match = re.search(pattern1, response, re.IGNORECASE | re.DOTALL)
             
             if match:
                 met, is_partial = interpret_met_status(match.group(1))
-                confidence = match.group(2).upper()
+                if match.group(2):
+                    confidence = match.group(2).upper()
                 explanation = (match.group(3) or '').strip()
             else:
                 # Pattern 2: Numbered list format (1. MET:YES ...)
@@ -2488,7 +2499,8 @@ Respond with EXACTLY this format for EACH requirement (one per line):
                 
                 if match:
                     met, is_partial = interpret_met_status(match.group(1))
-                    confidence = (match.group(2) or 'MEDIUM').upper()
+                    if match.group(2):
+                        confidence = match.group(2).upper()
                     explanation = match.group(3).strip() if match.group(3) else ''
                 else:
                     # Pattern 3: REQ format without brackets
@@ -2497,11 +2509,12 @@ Respond with EXACTLY this format for EACH requirement (one per line):
                     
                     if match:
                         met, is_partial = interpret_met_status(match.group(1))
-                        confidence = (match.group(2) or 'MEDIUM').upper()
+                        if match.group(2):
+                            confidence = match.group(2).upper()
                         explanation = match.group(3).strip() if match.group(3) else ''
                     else:
                         # Pattern 4: Simple numbered with YES/NO/PARTIAL anywhere on line
-                        pattern4 = rf'(?:^|\n)\s*(?:\[?REQ\]?)?{req_num}[.:\)]\s*(.+?)(?=\n\s*(?:\[?REQ\]?)?\d+[.:\)]|\Z)'
+                        pattern4 = rf'(?:^|\n)\s*(?:\*?\*?\[?REQ\]?\*?\*?)?{req_num}[.:\)]\s*(.+?)(?=\n\s*(?:\*?\*?\[?REQ\]?\*?\*?)?\d+[.:\)]|\Z)'
                         match = re.search(pattern4, response, re.IGNORECASE | re.DOTALL)
                         
                         if match:
@@ -2510,9 +2523,9 @@ Respond with EXACTLY this format for EACH requirement (one per line):
                             if re.search(r'\bPARTIAL(LY)?\b', line_content, re.IGNORECASE):
                                 met = False
                                 is_partial = True
-                            elif re.search(r'\b(YES|MET)\b', line_content, re.IGNORECASE) and not re.search(r'\bNOT\s*MET\b', line_content, re.IGNORECASE):
+                            elif re.search(r'\b(YES|MET|TRUE)\b', line_content, re.IGNORECASE) and not re.search(r'\bNOT\s*(MET|FOUND|PRESENT)\b', line_content, re.IGNORECASE):
                                 met = True
-                            elif re.search(r'\b(NO|NOT\s*MET)\b', line_content, re.IGNORECASE):
+                            elif re.search(r'\b(NO|NOT|FALSE)\b', line_content, re.IGNORECASE):
                                 met = False
                             
                             # Extract confidence if present
@@ -2526,7 +2539,7 @@ Respond with EXACTLY this format for EACH requirement (one per line):
             # Final fallback: search entire response for requirement keywords
             if met is None:
                 # Look for specific mention of the requirement being met/not met
-                req_text_short = req[:50].lower()
+                # req_text_short = req[:50].lower() # Unused
                 # Try to find this requirement being discussed
                 context_pattern = rf'(?:requirement\s*{req_num}|req\s*{req_num}|{req_num}[.:\)])[^.]*?(?:\b(is\s+met|implemented|present|exists|has\s+been\s+implemented|not\s+met|missing|not\s+implemented|absent|partial)\b)'
                 context_match = re.search(context_pattern, response, re.IGNORECASE)

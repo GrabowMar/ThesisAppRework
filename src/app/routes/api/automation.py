@@ -272,6 +272,46 @@ def api_cancel_pipeline(pipeline_id: str):
         return api_error(str(exc), 500)
 
 
+@automation_api_bp.route('/pipelines/<pipeline_id>/pause', methods=['POST'])
+def api_pause_pipeline(pipeline_id: str):
+    """Pause a running pipeline."""
+    try:
+        pipeline = PipelineExecution.get_by_id(pipeline_id, user_id=current_user.id)
+
+        if not pipeline:
+            return api_error('Pipeline not found', 404, error_type='NotFound')
+
+        pipeline.pause()
+        db.session.commit()
+
+        return api_success(message='Pipeline paused')
+
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception("Error pausing pipeline")
+        return api_error(str(exc), 500)
+
+
+@automation_api_bp.route('/pipelines/<pipeline_id>/resume', methods=['POST'])
+def api_resume_pipeline(pipeline_id: str):
+    """Resume a paused pipeline."""
+    try:
+        pipeline = PipelineExecution.get_by_id(pipeline_id, user_id=current_user.id)
+
+        if not pipeline:
+            return api_error('Pipeline not found', 404, error_type='NotFound')
+
+        pipeline.resume()
+        db.session.commit()
+
+        return api_success(message='Pipeline resumed')
+
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception("Error resuming pipeline")
+        return api_error(str(exc), 500)
+
+
 @automation_api_bp.route('/pipelines', methods=['GET'])
 def api_list_pipelines():
     """List pipelines for the current user."""

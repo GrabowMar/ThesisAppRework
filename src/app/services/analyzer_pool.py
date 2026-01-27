@@ -183,17 +183,19 @@ class AnalyzerPool:
                 logger.warning(f"No endpoints configured for {service_name}")
 
     async def initialize(self):
-        """Initialize the pool and start background health checking."""
+        """Initialize the pool."""
         if self._initialized:
             return
 
         self._load_endpoints_from_env()
-
-        # Initial health check
-        await self._check_all_health()
-
-        # Start background health checker
-        self.health_check_task = asyncio.create_task(self._health_check_loop())
+        
+        # Mark all endpoints as healthy initially to assume success until proven otherwise
+        # This prevents immediate failures if the pool starts before backend services
+        for endpoints in self.endpoints.values():
+            for endpoint in endpoints:
+                endpoint.is_healthy = True
+                endpoint.consecutive_failures = 0
+                endpoint.last_health_check = datetime.now()
 
         self._initialized = True
         logger.info(
@@ -202,19 +204,13 @@ class AnalyzerPool:
 
     async def shutdown(self):
         """Shutdown the pool and cleanup resources."""
-        if self.health_check_task:
-            self.health_check_task.cancel()
-            try:
-                await self.health_check_task
-            except asyncio.CancelledError:
-                pass
-
         self._initialized = False
         logger.info("Analyzer pool shutdown complete")
 
-    def _select_endpoint(self, service_name: str) -> Optional[AnalyzerEndpoint]:
+    async def select_best_endpoint(self, service_name: str) -> Optional[AnalyzerEndpoint]:
         """
         Select best endpoint for a request using configured strategy.
+        Performs on-demand health checks for stale/unhealthy endpoints to ensure recovery.
 
         Args:
             service_name: Name of analyzer service
@@ -226,45 +222,64 @@ class AnalyzerPool:
         if not endpoints:
             return None
 
-        # Filter to healthy endpoints
-        healthy = [e for e in endpoints if e.is_healthy]
+        # 1. Identify healthy candidates
+        healthy_candidates = [e for e in endpoints if e.is_healthy]
+        
+        # 2. Check for stale/unhealthy endpoints that deserve a retry
+        # (Those that are marked unhealthy but have passed the cooldown period)
+        now = datetime.now()
+        cooldown = timedelta(seconds=self.config.cooldown_period)
+        
+        retry_candidates = []
+        for e in endpoints:
+            if not e.is_healthy:
+                # If never checked or passed cooldown, it's a candidate for resurrection
+                if not e.last_health_check or (now - e.last_health_check) > cooldown:
+                    retry_candidates.append(e)
+        
+        # 3. If we have retry candidates, check their health on-demand
+        # We limit the number of checks to avoid latency spikes during selection
+        if retry_candidates:
+            # Sort by last check time (oldest first) to prioritize long-dead endpoints
+            retry_candidates.sort(key=lambda x: x.last_health_check or datetime.min)
+            
+            # Check up to 2 candidates in parallel to try and recover them
+            check_tasks = [self._check_endpoint_health(e) for e in retry_candidates[:2]]
+            if check_tasks:
+                logger.debug(f"Attempting to resurrect {len(check_tasks)} stale endpoints for {service_name}")
+                results = await asyncio.gather(*check_tasks, return_exceptions=True)
+                
+                # If any recovered, add them to healthy candidates
+                for i, is_alive in enumerate(results):
+                    if is_alive is True:
+                        e = retry_candidates[i]
+                        logger.info(f"Resurrected endpoint {e.url} for {service_name}")
+                        healthy_candidates.append(e)
 
-        # If no healthy endpoints, try unhealthy ones that have cooled down
-        if not healthy:
-            now = datetime.now()
-            cooldown = timedelta(seconds=self.config.cooldown_period)
-            cooled_down = [
-                e for e in endpoints
-                if e.last_health_check and (now - e.last_health_check) > cooldown
-            ]
-            if cooled_down:
-                logger.warning(
-                    f"No healthy {service_name} endpoints, trying cooled-down endpoints"
-                )
-                healthy = cooled_down
-            else:
-                logger.error(f"No available {service_name} endpoints!")
-                return None
+        # 4. If still no healthy candidates, we're in trouble
+        if not healthy_candidates:
+            logger.error(f"No healthy endpoints available for {service_name}")
+            return None
 
-        # Apply load balancing strategy
+        # 5. Apply load balancing strategy on healthy candidates
         if self.config.strategy == LoadBalancingStrategy.ROUND_ROBIN:
             idx = self.round_robin_indexes.get(service_name, 0)
-            endpoint = healthy[idx % len(healthy)]
+            endpoint = healthy_candidates[idx % len(healthy_candidates)]
             self.round_robin_indexes[service_name] = idx + 1
             return endpoint
 
         elif self.config.strategy == LoadBalancingStrategy.LEAST_LOADED:
             # Find minimum load score
-            min_score = min(e.load_score for e in healthy)
+            min_score = min(e.load_score for e in healthy_candidates)
             # Find all endpoints with that score (handle ties)
-            best_candidates = [e for e in healthy if abs(e.load_score - min_score) < 0.001]
+            best_candidates = [e for e in healthy_candidates if abs(e.load_score - min_score) < 0.001]
             # Randomly select from the best candidates to ensure even distribution
             return random.choice(best_candidates)
 
         elif self.config.strategy == LoadBalancingStrategy.RANDOM:
-            return random.choice(healthy)
+            return random.choice(healthy_candidates)
 
-        return healthy[0]  # Fallback
+        return healthy_candidates[0]  # Fallback
 
     async def _check_endpoint_health(self, endpoint: AnalyzerEndpoint) -> bool:
         """
@@ -279,15 +294,15 @@ class AnalyzerPool:
         try:
             async with websockets.connect(
                 endpoint.url,
-                open_timeout=5,
-                close_timeout=2,
+                open_timeout=2,   # Fast timeout for health checks
+                close_timeout=1,
                 ping_interval=None
             ) as ws:
                 # Send health check
                 await ws.send(json.dumps({"type": "health_check"}))
 
                 # Wait for response
-                response = await asyncio.wait_for(ws.recv(), timeout=5)
+                response = await asyncio.wait_for(ws.recv(), timeout=3)
                 data = json.loads(response)
 
                 if data.get('status') == 'healthy':
@@ -297,42 +312,19 @@ class AnalyzerPool:
                     return True
 
         except Exception as e:
-            logger.debug(f"Health check failed for {endpoint.url}: {e}")
+            # Don't log full stack trace for health checks, just the error
+            pass
 
         endpoint.consecutive_failures += 1
         endpoint.last_health_check = datetime.now()
 
-        if endpoint.consecutive_failures >= self.config.max_consecutive_failures:
-            if endpoint.is_healthy:
-                logger.warning(
-                    f"Marking {endpoint.url} as unhealthy after "
-                    f"{endpoint.consecutive_failures} failures"
-                )
-            endpoint.is_healthy = False
-
+        # Mark as unhealthy if it was previously healthy
+        # (We don't need max_consecutive_failures logic for on-demand checks, simple state toggle is better)
+        if endpoint.is_healthy:
+            logger.warning(f"Endpoint {endpoint.url} failed health check, marking unhealthy")
+        
+        endpoint.is_healthy = False
         return False
-
-    async def _check_all_health(self):
-        """Check health of all endpoints concurrently."""
-        tasks = []
-        for endpoints in self.endpoints.values():
-            for endpoint in endpoints:
-                tasks.append(self._check_endpoint_health(endpoint))
-
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-
-    async def _health_check_loop(self):
-        """Background task that periodically checks endpoint health."""
-        while True:
-            try:
-                await asyncio.sleep(self.config.health_check_interval)
-                await self._check_all_health()
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Health check loop error: {e}")
-                await asyncio.sleep(5)
 
     async def send_analysis_request(
         self,
@@ -358,9 +350,11 @@ class AnalyzerPool:
         max_retries = self.config.max_retries
 
         for attempt in range(max_retries):
-            endpoint = self._select_endpoint(service_name)
+            # Select endpoint (this now includes on-demand health recovery)
+            endpoint = await self.select_best_endpoint(service_name)
+            
             if not endpoint:
-                raise RuntimeError(f"No available endpoints for {service_name}")
+                raise RuntimeError(f"No reachable endpoints for {service_name}")
 
             # Track request
             endpoint.active_requests += 1
@@ -390,7 +384,7 @@ class AnalyzerPool:
                         msg_type = data.get('type', '')
 
                         # Handle different message types
-                        if msg_type in ('analysis_result', 'error'):
+                        if msg_type in ('analysis_result', 'error', 'ai_analysis_result', 'scan_result'):
                             result = data
                             break
                         elif msg_type == 'request_queued':
@@ -399,12 +393,13 @@ class AnalyzerPool:
                             logger.debug(f"Progress from {endpoint.url}: {data.get('stage')}")
 
                     if not result:
-                        raise RuntimeError("No result received from analyzer")
+                        raise RuntimeError("No result received from analyzer (connection closed?)")
 
                     # Success - update metrics
                     duration = time.time() - request_start
                     endpoint.last_request_time = datetime.now()
                     endpoint.consecutive_failures = 0
+                    endpoint.is_healthy = True  # Successful request implies health
 
                     # Update rolling average response time
                     if endpoint.avg_response_time == 0:
@@ -427,11 +422,7 @@ class AnalyzerPool:
                 )
                 endpoint.total_failures += 1
                 endpoint.consecutive_failures += 1
-
-                # Mark as unhealthy if too many failures
-                if endpoint.consecutive_failures >= self.config.max_consecutive_failures:
-                    endpoint.is_healthy = False
-                    logger.warning(f"Marked {endpoint.url} as unhealthy")
+                endpoint.is_healthy = False # Mark unhealthy on failure to trigger immediate failover
 
                 # Retry with different endpoint
                 if attempt < max_retries - 1:

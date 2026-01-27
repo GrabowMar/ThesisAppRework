@@ -1,99 +1,91 @@
 {#
-  Header Component: PC-optimized, minimal DOM, responsive navigation
-  - Responsive mobile/desktop layout with burger menu
-  - Theme toggle and user menu
-  - Breadcrumb navigation for context
+Header Component: PC-optimized, minimal DOM, responsive navigation
+- Responsive mobile/desktop layout with burger menu
+- Theme toggle and user menu
+- Breadcrumb navigation for context
 #}
-<style>
-  .header-blur {
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    background-color: rgba(var(--tblr-body-bg-rgb), 0.95) !important;
-  }
-</style>
 
-  <header class="navbar navbar-expand-md app-header d-print-none border-bottom bg-body-tertiary sticky-top header-blur" role="banner" aria-label="Main header">
-    <div class="container-fluid px-4">
-      {# Left: Brand + breadcrumb #}
-      <div class="d-flex align-items-center me-auto gap-3 flex-wrap flex-lg-nowrap">
-        {# Breadcrumb: Enhanced styling #}
-        <div class="breadcrumb-wrapper d-none d-lg-flex align-items-center">
-          {% from 'shared/macros/nav_macros.html' import breadcrumb %}
-          {% set _bs = [] %}
-          {% set _ = _bs.append({'label': 'Dashboard', 'url': url_for('main.dashboard')}) %}
-          {% if request and request.endpoint %}
-            {% if 'models' in request.endpoint %}
-              {% set _ = _bs.append({'label': 'Models', 'url': url_for('main.models_overview')}) %}
-            {% elif 'analysis' in request.endpoint %}
-              {% set _ = _bs.append({'label': 'Analysis', 'url': url_for('analysis.analysis_index')}) %}
-            {% elif 'applications' in request.endpoint %}
-              {% set _ = _bs.append({'label': 'Applications', 'url': url_for('main.applications_index')}) %}
-            {% elif 'reports' in request.endpoint %}
-              {% set _ = _bs.append({'label': 'Reports', 'url': url_for('reports.reports_index')}) %}
-            {% elif 'stats' in request.endpoint %}
-              {% set _ = _bs.append({'label': 'Statistics', 'url': url_for('stats.statistics_overview')}) %}
-            {% elif 'docs' in request.endpoint %}
-              {% set _ = _bs.append({'label': 'Documentation', 'url': url_for('docs.docs_index')}) %}
-            {% endif %}
-          {% endif %}
-          
-          <nav aria-label="breadcrumb">
-            <ol class="breadcrumb breadcrumb-arrows mb-0 fs-5 fw-medium">
-              {% for item in _bs %}
-                <li class="breadcrumb-item {% if loop.last %}active text-primary{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
-                  {% if not loop.last and item.url %}
-                    <a href="{{ item.url }}" class="text-decoration-none text-muted hover-text-primary" hx-boost="true" hx-target="#main-content" hx-swap="innerHTML show:window:top" hx-push-url="true">{{ item.label }}</a>
-                  {% else %}
-                    {{ item.label }}
-                  {% endif %}
-                </li>
-              {% endfor %}
-            </ol>
-          </nav>
-        </div>
+
+<header class="navbar navbar-expand-md app-header d-print-none border-bottom bg-body-tertiary sticky-top header-blur"
+  role="banner" aria-label="Main header">
+  <div class="container-fluid px-4">
+    {# Left: Brand + breadcrumb #}
+    <div class="d-flex align-items-center me-auto gap-3 flex-wrap flex-lg-nowrap">
+      {# Breadcrumb: Enhanced styling #}
+      <div class="breadcrumb-wrapper d-none d-lg-flex align-items-center">
+        {% from 'shared/macros/nav_macros.html' import breadcrumb %}
+        {% set _bs = [] %}
+        {% set _ = _bs.append({'label': 'Dashboard', 'url': url_for('main.dashboard')}) %}
+        {% if request and request.endpoint %}
+        {% if 'models' in request.endpoint %}
+        {% set _ = _bs.append({'label': 'Models', 'url': url_for('main.models_overview')}) %}
+        {% elif 'analysis' in request.endpoint %}
+        {% set _ = _bs.append({'label': 'Analysis', 'url': url_for('analysis.analysis_index')}) %}
+        {% elif 'applications' in request.endpoint %}
+        {% set _ = _bs.append({'label': 'Applications', 'url': url_for('main.applications_index')}) %}
+        {% elif 'reports' in request.endpoint %}
+        {% set _ = _bs.append({'label': 'Reports', 'url': url_for('reports.reports_index')}) %}
+        {% elif 'stats' in request.endpoint %}
+        {% set _ = _bs.append({'label': 'Statistics', 'url': url_for('stats.statistics_overview')}) %}
+        {% elif 'docs' in request.endpoint %}
+        {% set _ = _bs.append({'label': 'Documentation', 'url': url_for('docs.docs_index')}) %}
+        {% endif %}
+        {% endif %}
+
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb breadcrumb-arrows mb-0 fs-5 fw-medium">
+            {% for item in _bs %}
+            <li class="breadcrumb-item {% if loop.last %}active text-primary{% endif %}" {% if loop.last
+              %}aria-current="page" {% endif %}>
+              {% if not loop.last and item.url %}
+              <a href="{{ item.url }}" class="text-decoration-none text-muted hover-text-primary" hx-boost="true"
+                hx-target="#main-content" hx-swap="innerHTML show:window:top" hx-push-url="true">{{ item.label }}</a>
+              {% else %}
+              {{ item.label }}
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ol>
+        </nav>
+      </div>
+    </div>
+
+    {# Right: theme toggle & user menu #}
+    <nav class="navbar-nav flex-row align-items-center gap-2 ms-auto" role="navigation" aria-label="Header actions">
+      <div class="nav-item">
+        <button class="btn btn-icon btn-ghost-secondary rounded-circle" id="theme-toggle" type="button"
+          aria-label="Toggle theme" title="Toggle theme">
+          <i class="fa-solid fa-moon" id="theme-toggle-icon" aria-hidden="true"></i>
+        </button>
       </div>
 
-      {# Right: theme toggle & user menu #}
-      <nav class="navbar-nav flex-row align-items-center gap-2 ms-auto" role="navigation" aria-label="Header actions">
-        <div class="nav-item">
-          <button class="btn btn-icon btn-ghost-secondary rounded-circle" 
-                  id="theme-toggle" 
-                  type="button" 
-                  aria-label="Toggle theme" 
-                  title="Toggle theme">
-            <i class="fa-solid fa-moon" id="theme-toggle-icon" aria-hidden="true"></i>
-          </button>
-        </div>
-
-        <div class="nav-item dropdown ms-2">
-          <a href="#" 
-             class="nav-link d-flex align-items-center p-0 gap-2" 
-             data-bs-toggle="dropdown" 
-             aria-label="User menu">
-            <span class="avatar avatar-sm bg-primary-lt text-primary rounded-circle fw-bold">A</span>
-            <div class="d-none d-xl-block lh-1 text-start">
-              <div class="fw-medium">Admin User</div>
-              <div class="small text-muted">Administrator</div>
-            </div>
-            <i class="fa-solid fa-chevron-down fa-xs text-muted ms-1"></i>
-          </a>
-          <div class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-2 mt-2 p-2">
-            <div class="dropdown-header text-uppercase small fw-bold text-muted">Account</div>
-            <a class="dropdown-item rounded-2" href="{{ url_for('profile.index') }}">
-              <i class="fa-solid fa-user me-2 text-muted"></i>Profile
-            </a>
-            <a class="dropdown-item rounded-2" href="{{ url_for('profile.settings') }}">
-              <i class="fa-solid fa-gear me-2 text-muted"></i>Settings
-            </a>
-            <a class="dropdown-item rounded-2" href="{{ url_for('main.api_access') }}">
-              <i class="fa-solid fa-key me-2 text-muted"></i>API Access
-            </a>
-            <div class="dropdown-divider my-2"></div>
-            <a class="dropdown-item rounded-2 text-danger" href="{{ url_for('auth.logout') }}">
-              <i class="fa-solid fa-right-from-bracket me-2"></i>Logout
-            </a>
+      <div class="nav-item dropdown ms-2">
+        <a href="#" class="nav-link d-flex align-items-center p-0 gap-2" data-bs-toggle="dropdown"
+          aria-label="User menu">
+          <span class="avatar avatar-sm bg-primary-lt text-primary rounded-circle fw-bold">A</span>
+          <div class="d-none d-xl-block lh-1 text-start">
+            <div class="fw-medium">Admin User</div>
+            <div class="small text-muted">Administrator</div>
           </div>
+          <i class="fa-solid fa-chevron-down fa-xs text-muted ms-1"></i>
+        </a>
+        <div class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-2 mt-2 p-2">
+          <div class="dropdown-header text-uppercase small fw-bold text-muted">Account</div>
+          <a class="dropdown-item rounded-2" href="{{ url_for('profile.settings') }}#tabs-profile">
+            <i class="fa-solid fa-user me-2 text-muted"></i>Profile
+          </a>
+          <a class="dropdown-item rounded-2" href="{{ url_for('profile.settings') }}#tabs-general">
+            <i class="fa-solid fa-gear me-2 text-muted"></i>Settings
+          </a>
+          <a class="dropdown-item rounded-2" href="{{ url_for('profile.settings') }}#tabs-api">
+            <i class="fa-solid fa-key me-2 text-muted"></i>API Access
+          </a>
+          <div class="dropdown-divider my-2"></div>
+          <a class="dropdown-item rounded-2 text-danger" href="{{ url_for('auth.logout') }}">
+            <i class="fa-solid fa-right-from-bracket me-2"></i>Logout
+          </a>
         </div>
-      </nav>
-    </div>
-  </header>
+      </div>
+    </nav>
+  </div>
+</header>

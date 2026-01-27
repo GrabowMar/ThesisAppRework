@@ -72,12 +72,8 @@ def health_check():
 @main_bp.route('/api-access')
 @login_required
 def api_access():
-    """API Access and token management page."""
-    return render_template(
-        'pages/api_access/api_access_main.html',
-        page_title='API Access',
-        active_page='api-access'
-    )
+    """API Access page (redirects to settings)."""
+    return redirect(url_for('profile.settings') + '#tabs-api')
 
 
 @main_bp.route('/models_overview')

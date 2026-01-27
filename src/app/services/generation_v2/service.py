@@ -10,7 +10,7 @@ import time
 import asyncio
 from datetime import timedelta
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from app.extensions import db
 from app.models import GeneratedApplication
@@ -23,6 +23,7 @@ from .config import GenerationConfig, GenerationResult
 from .scaffolding import ScaffoldingManager, get_scaffolding_manager
 from .code_generator import CodeGenerator, get_code_generator
 from .code_merger import CodeMerger
+from app.services.dependency_healer import DependencyHealer
 
 logger = logging.getLogger(__name__)
 
@@ -290,10 +291,26 @@ class GenerationService:
             merger = CodeMerger(app_dir)
             written = merger.merge(code)
             result.artifacts = written
-            
+
+            # Step 4: Heal dependencies
+            logger.info("Step 4/3: Healing dependencies...")
+            fixes_count = 0
+            healing_logs = []
+            try:
+                healer = DependencyHealer(auto_fix=True)
+                healing_result = healer.heal_app(app_dir)
+                fixes_count = healing_result.issues_fixed
+                healing_logs = healing_result.changes_made
+                if healing_result.issues_found > 0:
+                    logger.info(f"   Healed {healing_result.issues_fixed}/{healing_result.issues_found} issues")
+                    for change in healing_result.changes_made:
+                        logger.info(f"   - {change}")
+            except Exception as e:
+                logger.warning(f"   Healing failed (non-critical): {e}")
+
             # Persist to database
             logger.info("Persisting to database...")
-            self._persist_to_database(config, app_dir, code)
+            self._persist_to_database(config, app_dir, code, automatic_fixes=fixes_count, healing_logs=healing_logs)
             
             # Success!
             elapsed = time.time() - start_time
@@ -337,9 +354,20 @@ class GenerationService:
             merger = CodeMerger(app_dir)
             written = merger.merge(code)
             result.artifacts = written
-            
+
+            # Step 4: Heal dependencies
+            fixes_count = 0
+            healing_logs = []
+            try:
+                healer = DependencyHealer(auto_fix=True)
+                healing_result = healer.heal_app(app_dir)
+                fixes_count = healing_result.issues_fixed
+                healing_logs = healing_result.changes_made
+            except Exception as e:
+                logger.warning(f"Healing failed (non-critical): {e}")
+
             # Persist to database
-            self._persist_to_database(config, app_dir, code)
+            self._persist_to_database(config, app_dir, code, automatic_fixes=fixes_count, healing_logs=healing_logs)
             
             elapsed = time.time() - start_time
             result.success = True
@@ -359,7 +387,7 @@ class GenerationService:
         
         return result
     
-    def _persist_to_database(self, config: GenerationConfig, app_dir: Path, code: Dict[str, str]) -> None:
+    def _persist_to_database(self, config: GenerationConfig, app_dir: Path, code: Dict[str, str], automatic_fixes: int = 0, healing_logs: list[str] = None) -> None:
         """Persist generation result to database."""
         from app.constants import AnalysisStatus
         
@@ -382,7 +410,18 @@ class GenerationService:
                 existing.generation_status = AnalysisStatus.COMPLETED
                 existing.is_generation_failed = False
                 existing.error_message = None
+                existing.automatic_fixes = automatic_fixes
+                
+                # Update metadata with healing logs
+                if healing_logs:
+                    meta = existing.get_metadata()
+                    meta['healing_logs'] = healing_logs
+                    existing.set_metadata(meta)
             else:
+                meta = {}
+                if healing_logs:
+                    meta['healing_logs'] = healing_logs
+                
                 app_record = GeneratedApplication(
                     model_slug=config.model_slug,
                     app_number=config.app_num,
@@ -395,6 +434,8 @@ class GenerationService:
                     backend_framework='flask',
                     frontend_framework='react',
                     generation_status=AnalysisStatus.COMPLETED,
+                    automatic_fixes=automatic_fixes,
+                    metadata_json=json.dumps(meta) if meta else None
                 )
                 db.session.add(app_record)
             

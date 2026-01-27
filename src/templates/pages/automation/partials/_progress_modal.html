@@ -16,7 +16,7 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
       </div>
-      
+
       <div class="modal-body p-0">
         {# Compact Header #}
         <div class="bg-light px-3 py-2 border-bottom">
@@ -24,8 +24,8 @@
             <div class="d-flex align-items-center gap-3 flex-fill">
               <div class="fw-semibold">Overall Progress</div>
               <div class="progress flex-fill" style="height: 12px;">
-                <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
-                     id="progress-modal-overall-bar" style="width: 0%"></div>
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                  id="progress-modal-overall-bar" style="width: 0%"></div>
               </div>
               <div class="fw-bold" id="progress-modal-overall-pct">0%</div>
             </div>
@@ -36,48 +36,53 @@
             </div>
           </div>
         </div>
-        
+
         {# Stage Tabs - Sticky #}
         <div class="bg-white sticky-top border-bottom">
           <ul class="nav nav-tabs nav-fill px-3 pt-2 mb-0 border-bottom-0" role="tablist">
             <li class="nav-item">
-              <button class="nav-link active fw-bold py-2" data-bs-toggle="tab" data-bs-target="#tab-generation" type="button" id="btn-tab-generation">
+              <button class="nav-link active fw-bold py-2" data-bs-toggle="tab" data-bs-target="#tab-generation"
+                type="button" id="btn-tab-generation">
                 <i class="fas fa-code me-1"></i>Generation
                 <span class="badge bg-secondary-lt ms-1" id="tab-gen-count">0/0</span>
               </button>
             </li>
             <li class="nav-item">
-              <button class="nav-link fw-bold py-2" data-bs-toggle="tab" data-bs-target="#tab-analysis" type="button" id="btn-tab-analysis">
+              <button class="nav-link fw-bold py-2" data-bs-toggle="tab" data-bs-target="#tab-analysis" type="button"
+                id="btn-tab-analysis">
                 <i class="fas fa-search-plus me-1"></i>Analysis
                 <span class="badge bg-secondary-lt ms-1" id="tab-analysis-count">0/0</span>
               </button>
             </li>
             <li class="nav-item">
-              <button class="nav-link fw-bold py-2" data-bs-toggle="tab" data-bs-target="#tab-tasks" type="button" id="btn-tab-tasks">
+              <button class="nav-link fw-bold py-2" data-bs-toggle="tab" data-bs-target="#tab-tasks" type="button"
+                id="btn-tab-tasks">
                 <i class="fas fa-list-check me-1"></i>All Tasks
                 <span class="badge bg-secondary-lt ms-1" id="tab-tasks-count">0</span>
               </button>
             </li>
             <li class="nav-item">
-              <button class="nav-link fw-bold py-2" data-bs-toggle="tab" data-bs-target="#tab-activity" type="button" id="btn-tab-activity">
+              <button class="nav-link fw-bold py-2" data-bs-toggle="tab" data-bs-target="#tab-activity" type="button"
+                id="btn-tab-activity">
                 <i class="fas fa-stream me-1"></i>Activity
                 <span class="badge bg-primary-lt ms-1" id="tab-activity-count">0</span>
               </button>
             </li>
           </ul>
         </div>
-        
+
         {# Tab Content #}
         <div class="tab-content bg-light-lt">
           {# Generation Tab #}
           <div class="tab-pane fade show active" id="tab-generation">
             <div class="p-0">
-               {# Removed redundant card, focused on list #}
-               <div class="px-3 py-2 bg-white border-bottom d-flex justify-content-between align-items-center">
-                  <div class="small text-muted">Strategy: <span class="fw-semibold text-dark">Parallel Execution</span></div>
-                  <div class="small" id="gen-stage-status-text">Pending</div>
-               </div>
-               
+              {# Removed redundant card, focused on list #}
+              <div class="px-3 py-2 bg-white border-bottom d-flex justify-content-between align-items-center">
+                <div class="small text-muted">Strategy: <span class="fw-semibold text-dark">Parallel Execution</span>
+                </div>
+                <div class="small" id="gen-stage-status-text">Pending</div>
+              </div>
+
               {# Generation Jobs List #}
               <div class="list-group list-group-flush" id="gen-jobs-list" style="max-height: 500px; overflow-y: auto;">
                 <div class="text-center py-5 text-muted">
@@ -86,24 +91,26 @@
               </div>
             </div>
           </div>
-          
+
           {# Analysis Tab #}
           <div class="tab-pane fade" id="tab-analysis">
             <div class="p-0">
-               <div class="px-3 py-2 bg-white border-bottom d-flex justify-content-between align-items-center">
-                  <div class="small text-muted">Strategy: <span class="fw-semibold text-dark">Sequential/Batch</span></div>
-                  <div class="small" id="analysis-stage-status-text">Pending</div>
-               </div>
+              <div class="px-3 py-2 bg-white border-bottom d-flex justify-content-between align-items-center">
+                <div class="small text-muted">Strategy: <span class="fw-semibold text-dark">Sequential/Batch</span>
+                </div>
+                <div class="small" id="analysis-stage-status-text">Pending</div>
+              </div>
 
               {# Analysis Tasks List #}
-              <div class="list-group list-group-flush" id="analysis-tasks-list" style="max-height: 500px; overflow-y: auto;">
+              <div class="list-group list-group-flush" id="analysis-tasks-list"
+                style="max-height: 500px; overflow-y: auto;">
                 <div class="text-center py-5 text-muted">
                   <i class="fas fa-spinner fa-spin me-2"></i>Loading analysis tasks...
                 </div>
               </div>
             </div>
           </div>
-          
+
           {# All Tasks Tab #}
           <div class="tab-pane fade" id="tab-tasks">
             <div class="p-3">
@@ -112,18 +119,18 @@
                 <div class="btn-group btn-group-sm w-100" role="group">
                   <input type="radio" class="btn-check" name="task-filter" id="filter-all" value="all" checked>
                   <label class="btn btn-outline-secondary" for="filter-all">All</label>
-                  
+
                   <input type="radio" class="btn-check" name="task-filter" id="filter-running" value="running">
                   <label class="btn btn-outline-primary" for="filter-running">Running</label>
-                  
+
                   <input type="radio" class="btn-check" name="task-filter" id="filter-completed" value="completed">
                   <label class="btn btn-outline-success" for="filter-completed">Completed</label>
-                  
+
                   <input type="radio" class="btn-check" name="task-filter" id="filter-failed" value="failed">
                   <label class="btn btn-outline-danger" for="filter-failed">Failed</label>
                 </div>
               </div>
-              
+
               {# Tasks Table #}
               <div class="table-responsive bg-white border rounded" style="max-height: 500px; overflow-y: auto;">
                 <table class="table table-sm table-hover align-middle mb-0">
@@ -165,7 +172,8 @@
               </div>
 
               {# Activity Feed #}
-              <div class="activity-feed" id="activity-feed" style="max-height: 500px; overflow-y: auto; font-family: var(--tblr-font-monospace); font-size: 12px;">
+              <div class="activity-feed" id="activity-feed"
+                style="max-height: 500px; overflow-y: auto; font-family: var(--tblr-font-monospace); font-size: 12px;">
                 <div class="text-center py-5 text-muted">
                   <i class="fas fa-stream fa-2x mb-2"></i>
                   <div>Waiting for activity...</div>
@@ -195,35 +203,52 @@
 
 <style>
   /* Task status styling */
-  .task-status-pending { color: var(--tblr-secondary); }
-  .task-status-running { color: var(--tblr-primary); }
-  .task-status-completed { color: var(--tblr-success); }
-  .task-status-failed { color: var(--tblr-danger); }
-  .task-status-cancelled { color: var(--tblr-warning); }
-  
+  .task-status-pending {
+    color: var(--tblr-secondary);
+  }
+
+  .task-status-running {
+    color: var(--tblr-primary);
+  }
+
+  .task-status-completed {
+    color: var(--tblr-success);
+  }
+
+  .task-status-failed {
+    color: var(--tblr-danger);
+  }
+
+  .task-status-cancelled {
+    color: var(--tblr-warning);
+  }
+
   /* Task row hover */
   #all-tasks-table tr:hover {
     background-color: var(--tblr-bg-surface-secondary);
   }
-  
+
   /* Progress mini bar */
   .progress-mini {
     height: 4px;
     width: 60px;
   }
-  
+
   /* Job item card */
   .job-item {
     transition: all 0.2s ease;
     border-left: 4px solid transparent;
   }
+
   .job-item:hover {
     background-color: var(--tblr-bg-surface-secondary);
   }
+
   .job-item.job-running {
     border-left-color: var(--tblr-primary);
     background-color: rgba(var(--tblr-primary-rgb), 0.05);
   }
+
   .job-item.job-completed {
     border-left-color: var(--tblr-success);
   }
@@ -232,298 +257,324 @@
   .activity-feed {
     background-color: var(--tblr-bg-surface);
   }
+
   .event-item {
     font-size: 12px;
     line-height: 1.4;
   }
+
   .event-item:hover {
     background-color: var(--tblr-bg-surface-secondary);
   }
+
   .event-item:first-child {
     animation: highlightNew 2s ease-out;
   }
+
   @keyframes highlightNew {
-    0% { background-color: rgba(var(--tblr-primary-rgb), 0.15); }
-    100% { background-color: transparent; }
+    0% {
+      background-color: rgba(var(--tblr-primary-rgb), 0.15);
+    }
+
+    100% {
+      background-color: transparent;
+    }
   }
+
   .job-item.job-failed {
     border-left-color: var(--tblr-danger);
   }
-     
-   /* Make active tab very prominent */
-   .nav-tabs .nav-link.active {
-      border-bottom-color: var(--tblr-primary);
-      color: var(--tblr-primary);
-      background-color: transparent;
-      border-bottom-width: 3px;
-   }
+
+  /* Make active tab very prominent */
+  .nav-tabs .nav-link.active {
+    border-bottom-color: var(--tblr-primary);
+    color: var(--tblr-primary);
+    background-color: transparent;
+    border-bottom-width: 3px;
+  }
 </style>
 
 <script>
-// Pipeline Progress Modal Controller
-// Guard against re-declaration on HTMX content swaps
-if (typeof window.PipelineProgressModal !== 'undefined') {
-  console.debug('PipelineProgressModal already defined, skipping re-initialization');
-} else {
-window.PipelineProgressModal = {
-  pipelineId: null,
-  pollInterval: null,
-  startTime: null,
-  elapsedInterval: null,
-  currentStage: null,
-  userInteractedTab: false,
-  
-  /**
-   * Open modal and start tracking pipeline
-   */
-  open(pipelineId) {
-    this.pipelineId = pipelineId;
-    this.startTime = null;
-    this.currentStage = null;
-    this.userInteractedTab = false;
-    
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('pipelineProgressModal'));
-    modal.show();
-    
-    // Track user tab clicks to disable auto-switching
-    document.querySelectorAll('#pipelineProgressModal button[data-bs-toggle="tab"]').forEach(btn => {
-        btn.addEventListener('click', () => {
+  // Pipeline Progress Modal Controller
+  // Guard against re-declaration on HTMX content swaps
+  if (typeof window.PipelineProgressModal !== 'undefined') {
+    console.debug('PipelineProgressModal already defined, skipping re-initialization');
+  } else {
+    window.PipelineProgressModal = {
+      pipelineId: null,
+      pollInterval: null,
+      startTime: null,
+      elapsedInterval: null,
+      currentStage: null,
+      currentStatus: null,
+      userInteractedTab: false,
+
+      /**
+       * Open modal and start tracking pipeline
+       */
+      open(pipelineId) {
+        this.pipelineId = pipelineId;
+        this.startTime = null;
+        this.currentStage = null;
+        this.userInteractedTab = false;
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('pipelineProgressModal'));
+        modal.show();
+
+        // Track user tab clicks to disable auto-switching
+        document.querySelectorAll('#pipelineProgressModal button[data-bs-toggle="tab"]').forEach(btn => {
+          btn.addEventListener('click', () => {
             this.userInteractedTab = true;
-        }, { once: true });
-    });
-    
-    // Start polling
-    this.startPolling();
-    this.fetchDetailedStatus();
-  },
-  
-  /**
-   * Close modal and cleanup
-   */
-  close() {
-    this.stopPolling();
-    this.stopElapsedTimer();
-    this.pipelineId = null;
-  },
-  
-  /**
-   * Start polling for updates
-   */
-  startPolling() {
-    this.stopPolling();
-    this.pollInterval = setInterval(() => this.fetchDetailedStatus(), 2000);
-  },
-  
-  /**
-   * Stop polling
-   */
-  stopPolling() {
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
-      this.pollInterval = null;
-    }
-  },
-  
-  /**
-   * Start elapsed time counter
-   */
-  startElapsedTimer() {
-    this.stopElapsedTimer();
-    this.elapsedInterval = setInterval(() => this.updateElapsed(), 1000);
-  },
-  
-  /**
-   * Stop elapsed timer
-   */
-  stopElapsedTimer() {
-    if (this.elapsedInterval) {
-      clearInterval(this.elapsedInterval);
-      this.elapsedInterval = null;
-    }
-  },
-  
-  /**
-   * Update elapsed time display
-   */
-  updateElapsed() {
-    if (!this.startTime) return;
-    
-    const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
-    const hours = Math.floor(elapsed / 3600);
-    const mins = Math.floor((elapsed % 3600) / 60);
-    const secs = elapsed % 60;
-    
-    const display = hours > 0 
-      ? `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-      : `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    
-    document.getElementById('progress-modal-elapsed').textContent = display;
-  },
-  
-  /**
-   * Fetch detailed status from server
-   */
-  async fetchDetailedStatus() {
-    if (!this.pipelineId) return;
-    
-    try {
-      const response = await fetch(`/automation/api/pipeline/${this.pipelineId}/detailed-status`, {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch status');
-      
-      const result = await response.json();
-      if (result.success) {
-        this.updateUI(result.data);
-      }
-    } catch (error) {
-      console.error('Error fetching pipeline status:', error);
-    }
-  },
-  
-  /**
-   * Update all UI elements with new data
-   */
-  updateUI(data) {
-    // Pipeline ID and status
-    document.getElementById('progress-modal-pipeline-id').textContent = data.id || '--';
-    
-    // Auto-switch tabs based on stage (if user hasn't manually clicked)
-    if (!this.userInteractedTab && data.current_stage) {
-        // If stage changed or first load
-        if (this.currentStage !== data.current_stage) {
+          }, { once: true });
+        });
+
+        // Start polling
+        this.startPolling();
+        this.fetchDetailedStatus();
+      },
+
+      /**
+       * Close modal and cleanup
+       */
+      close() {
+        this.stopPolling();
+        this.stopElapsedTimer();
+        this.pipelineId = null;
+      },
+
+      /**
+       * Start polling for updates
+       */
+      startPolling() {
+        this.stopPolling();
+        this.pollInterval = setInterval(() => this.fetchDetailedStatus(), 2000);
+      },
+
+      /**
+       * Stop polling
+       */
+      stopPolling() {
+        if (this.pollInterval) {
+          clearInterval(this.pollInterval);
+          this.pollInterval = null;
+        }
+      },
+
+      /**
+       * Start elapsed time counter
+       */
+      startElapsedTimer() {
+        this.stopElapsedTimer();
+        this.elapsedInterval = setInterval(() => this.updateElapsed(), 1000);
+      },
+
+      /**
+       * Stop elapsed timer
+       */
+      stopElapsedTimer() {
+        if (this.elapsedInterval) {
+          clearInterval(this.elapsedInterval);
+          this.elapsedInterval = null;
+        }
+      },
+
+      /**
+       * Update elapsed time display
+       */
+      updateElapsed() {
+        if (!this.startTime) return;
+
+        const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+        const hours = Math.floor(elapsed / 3600);
+        const mins = Math.floor((elapsed % 3600) / 60);
+        const secs = elapsed % 60;
+
+        const display = hours > 0
+          ? `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+          : `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+        document.getElementById('progress-modal-elapsed').textContent = display;
+      },
+
+      /**
+       * Fetch detailed status from server
+       */
+      async fetchDetailedStatus() {
+        if (!this.pipelineId) return;
+
+        try {
+          const response = await fetch(`/automation/api/pipeline/${this.pipelineId}/detailed-status`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          });
+
+          if (!response.ok) throw new Error('Failed to fetch status');
+
+          const result = await response.json();
+          if (result.success) {
+            this.updateUI(result.data);
+          }
+        } catch (error) {
+          console.error('Error fetching pipeline status:', error);
+        }
+      },
+
+      /**
+       * Update all UI elements with new data
+       */
+      updateUI(data) {
+        // Pipeline ID and status
+        document.getElementById('progress-modal-pipeline-id').textContent = data.id || '--';
+
+        // Auto-switch tabs based on stage (if user hasn't manually clicked)
+        if (!this.userInteractedTab && data.current_stage) {
+          // If stage changed or first load
+          if (this.currentStage !== data.current_stage) {
             this.currentStage = data.current_stage;
             let targetTab = null;
             if (data.current_stage === 'generation') targetTab = '#tab-generation';
             else if (data.current_stage === 'analysis') targetTab = '#tab-analysis';
-            
-            if (targetTab) {
-                const tabTrigger = document.querySelector(`button[data-bs-target="${targetTab}"]`);
-                if (tabTrigger) bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
-            }
-        }
-    }
-    
-    // Set startTime from server's started_at
-    if (!this.startTime && data.started_at) {
-      this.startTime = new Date(data.started_at).getTime();
-      this.startElapsedTimer();
-      this.updateElapsed();
-    }
-    
-    const statusBadge = document.getElementById('progress-modal-status-badge');
-    const statusColors = {
-      'pending': 'bg-secondary',
-      'running': 'bg-primary',
-      'completed': 'bg-success',
-      'partial_success': 'bg-warning',
-      'failed': 'bg-danger',
-      'cancelled': 'bg-warning'
-    };
-    statusBadge.className = `badge fs-6 ${statusColors[data.status] || 'bg-secondary'}`;
-    statusBadge.textContent = (data.status || 'unknown').replace('_', ' ').toUpperCase();
-    
-    // Overall progress
-    const overallPct = Math.min(data.overall_progress || 0, 100);
-    document.getElementById('progress-modal-overall-pct').textContent = `${Math.round(overallPct)}%`;
-    document.getElementById('progress-modal-overall-bar').style.width = `${overallPct}%`;
-    
-    // Summary counts
-    const taskSummary = data.task_summary || {};
-    document.getElementById('progress-modal-completed').textContent = taskSummary.completed || 0;
-    document.getElementById('progress-modal-running').textContent = taskSummary.running || 0;
-    document.getElementById('progress-modal-failed').textContent = taskSummary.failed || 0;
-    
-    // Update stages
-    this.updateGenerationStage(data.progress?.generation, data.generation_jobs);
-    this.updateAnalysisStage(data.progress?.analysis, data.analysis_tasks);
-    this.updateAllTasksTable(data.all_tasks);
-    this.updateActivityFeed(data.events);
 
-    // Tab counts
-    const genProgress = data.progress?.generation || {};
-    const analysisProgress = data.progress?.analysis || {};
-    document.getElementById('tab-gen-count').textContent =
-      `${(genProgress.completed || 0) + (genProgress.failed || 0)}/${genProgress.total || 0}`;
-    document.getElementById('tab-analysis-count').textContent =
-      `${(analysisProgress.completed || 0) + (analysisProgress.failed || 0)}/${analysisProgress.total || 0}`;
-    document.getElementById('tab-tasks-count').textContent = (data.all_tasks || []).length;
-    document.getElementById('tab-activity-count').textContent = (data.events || []).length;
-    
-    // Update control buttons
-    const isPipelineActive = ['running', 'pending'].includes(data.status);
-    document.getElementById('modal-pause-btn').disabled = !isPipelineActive;
-    document.getElementById('modal-cancel-btn').disabled = !isPipelineActive;
-    
-    // Stop polling if complete
-    if (['completed', 'failed', 'cancelled'].includes(data.status)) {
-      this.stopPolling();
-      this.stopElapsedTimer();
-    }
-  },
-  
-  /**
-   * Update generation stage UI
-   */
-  updateGenerationStage(progress, jobs) {
-    if (!progress) return;
-    
-    const statusText = (progress.status || 'Pending').toUpperCase();
-    document.getElementById('gen-stage-status-text').textContent = statusText;
-    
-    // Jobs list
-    const listEl = document.getElementById('gen-jobs-list');
-    if (!jobs || jobs.length === 0) {
-      listEl.innerHTML = `
+            if (targetTab) {
+              const tabTrigger = document.querySelector(`button[data-bs-target="${targetTab}"]`);
+              if (tabTrigger) bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
+            }
+          }
+        }
+
+        // Set startTime from server's started_at
+        if (!this.startTime && data.started_at) {
+          this.startTime = new Date(data.started_at).getTime();
+          this.startElapsedTimer();
+          this.updateElapsed();
+        }
+
+        const statusBadge = document.getElementById('progress-modal-status-badge');
+        const statusColors = {
+          'pending': 'bg-secondary',
+          'running': 'bg-primary',
+          'completed': 'bg-success',
+          'partial_success': 'bg-warning',
+          'failed': 'bg-danger',
+          'cancelled': 'bg-warning'
+        };
+        statusBadge.className = `badge fs-6 ${statusColors[data.status] || 'bg-secondary'}`;
+        statusBadge.textContent = (data.status || 'unknown').replace('_', ' ').toUpperCase();
+
+        // Overall progress
+        const overallPct = Math.min(data.overall_progress || 0, 100);
+        document.getElementById('progress-modal-overall-pct').textContent = `${Math.round(overallPct)}%`;
+        document.getElementById('progress-modal-overall-bar').style.width = `${overallPct}%`;
+
+        // Summary counts
+        const taskSummary = data.task_summary || {};
+        document.getElementById('progress-modal-completed').textContent = taskSummary.completed || 0;
+        document.getElementById('progress-modal-running').textContent = taskSummary.running || 0;
+        document.getElementById('progress-modal-failed').textContent = taskSummary.failed || 0;
+
+        // Update stages
+        this.updateGenerationStage(data.progress?.generation, data.generation_jobs);
+        this.updateAnalysisStage(data.progress?.analysis, data.analysis_tasks);
+        this.updateAllTasksTable(data.all_tasks);
+        this.updateActivityFeed(data.events);
+
+        // Tab counts
+        const genProgress = data.progress?.generation || {};
+        const analysisProgress = data.progress?.analysis || {};
+        document.getElementById('tab-gen-count').textContent =
+          `${(genProgress.completed || 0) + (genProgress.failed || 0)}/${genProgress.total || 0}`;
+        document.getElementById('tab-analysis-count').textContent =
+          `${(analysisProgress.completed || 0) + (analysisProgress.failed || 0)}/${analysisProgress.total || 0}`;
+        document.getElementById('tab-tasks-count').textContent = (data.all_tasks || []).length;
+        document.getElementById('tab-activity-count').textContent = (data.events || []).length;
+
+        // Update control buttons
+        this.currentStatus = data.status;
+        const isPipelineActive = ['running', 'pending', 'paused'].includes(data.status);
+        const pauseBtn = document.getElementById('modal-pause-btn');
+        const cancelBtn = document.getElementById('modal-cancel-btn');
+
+        pauseBtn.disabled = !isPipelineActive;
+        cancelBtn.disabled = !isPipelineActive;
+
+        // Toggle Pause/Resume button
+        if (data.status === 'paused') {
+          pauseBtn.innerHTML = '<i class="fas fa-play me-1"></i>Resume';
+          pauseBtn.classList.remove('btn-warning');
+          pauseBtn.classList.add('btn-success');
+        } else {
+          pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+          pauseBtn.classList.remove('btn-success');
+          pauseBtn.classList.add('btn-warning');
+        }
+
+        // Stop polling if complete
+        if (['completed', 'failed', 'cancelled'].includes(data.status)) {
+          this.stopPolling();
+          this.stopElapsedTimer();
+        }
+      },
+
+      /**
+       * Update generation stage UI
+       */
+      updateGenerationStage(progress, jobs) {
+        if (!progress) return;
+
+        const statusText = (progress.status || 'Pending').toUpperCase();
+        document.getElementById('gen-stage-status-text').textContent = statusText;
+
+        // Jobs list
+        const listEl = document.getElementById('gen-jobs-list');
+        if (!jobs || jobs.length === 0) {
+          listEl.innerHTML = `
         <div class="text-center py-5 text-muted">
           <i class="fas fa-inbox fa-2x mb-2"></i>
           <div>No generation jobs</div>
         </div>`;
-      return;
-    }
-    
-    listEl.innerHTML = jobs.map((job, idx) => this.renderJobItem(job, idx)).join('');
-  },
-  
-  /**
-   * Update analysis stage UI
-   */
-  updateAnalysisStage(progress, tasks) {
-    if (!progress) return;
-    
-    const statusText = (progress.status || 'Pending').toUpperCase();
-    document.getElementById('analysis-stage-status-text').textContent = statusText;
-    
-    // Tasks list
-    const listEl = document.getElementById('analysis-tasks-list');
-    if (!tasks || tasks.length === 0) {
-      listEl.innerHTML = `
+          return;
+        }
+
+        listEl.innerHTML = jobs.map((job, idx) => this.renderJobItem(job, idx)).join('');
+      },
+
+      /**
+       * Update analysis stage UI
+       */
+      updateAnalysisStage(progress, tasks) {
+        if (!progress) return;
+
+        const statusText = (progress.status || 'Pending').toUpperCase();
+        document.getElementById('analysis-stage-status-text').textContent = statusText;
+
+        // Tasks list
+        const listEl = document.getElementById('analysis-tasks-list');
+        if (!tasks || tasks.length === 0) {
+          listEl.innerHTML = `
         <div class="text-center py-5 text-muted">
           <i class="fas fa-inbox fa-2x mb-2"></i>
           <div>No analysis tasks</div>
         </div>`;
-      return;
-    }
-    
-    listEl.innerHTML = tasks.map((task, idx) => this.renderTaskItem(task, idx)).join('');
-  },
-  
-  /**
-   * Render a job item (generation)
-   */
-  renderJobItem(job, idx) {
-    const statusClass = job.success ? 'job-completed' : (job.error ? 'job-failed' : 'job-running');
-    const statusIcon = job.success ? 'fa-check text-success' : 
-                       (job.error ? 'fa-times text-danger' : 'fa-spinner fa-spin text-primary');
-    
-    // If not success/error/running, it's pending
-    // Logic check: if not success and not error, assumption is running or pending.
-    // job object usually has 'success' bool. If false, could be pending or failed.
-    // We should rely on error field.
-    
-    return `
+          return;
+        }
+
+        listEl.innerHTML = tasks.map((task, idx) => this.renderTaskItem(task, idx)).join('');
+      },
+
+      /**
+       * Render a job item (generation)
+       */
+      renderJobItem(job, idx) {
+        const statusClass = job.success ? 'job-completed' : (job.error ? 'job-failed' : 'job-running');
+        const statusIcon = job.success ? 'fa-check text-success' :
+          (job.error ? 'fa-times text-danger' : 'fa-spinner fa-spin text-primary');
+
+        // If not success/error/running, it's pending
+        // Logic check: if not success and not error, assumption is running or pending.
+        // job object usually has 'success' bool. If false, could be pending or failed.
+        // We should rely on error field.
+
+        return `
       <div class="list-group-item job-item ${statusClass} py-3">
         <div class="d-flex align-items-center gap-3">
           <div style="width: 24px" class="text-center">
@@ -546,24 +597,24 @@ window.PipelineProgressModal = {
             </div>
         ` : ''}
       </div>`;
-  },
-  
-  /**
-   * Render a task item (analysis)
-   */
-  renderTaskItem(task, idx) {
-    const status = (task.status || 'pending').toLowerCase();
-    const statusIcons = {
-      'pending': 'fa-clock text-muted',
-      'running': 'fa-spinner fa-spin text-primary',
-      'completed': 'fa-check text-success',
-      'failed': 'fa-times text-danger',
-      'cancelled': 'fa-ban text-warning'
-    };
-    
-    const progressPct = task.progress_percentage || 0;
-    
-    return `
+      },
+
+      /**
+       * Render a task item (analysis)
+       */
+      renderTaskItem(task, idx) {
+        const status = (task.status || 'pending').toLowerCase();
+        const statusIcons = {
+          'pending': 'fa-clock text-muted',
+          'running': 'fa-spinner fa-spin text-primary',
+          'completed': 'fa-check text-success',
+          'failed': 'fa-times text-danger',
+          'cancelled': 'fa-ban text-warning'
+        };
+
+        const progressPct = task.progress_percentage || 0;
+
+        return `
       <div class="list-group-item job-item job-${status} py-3">
         <div class="d-flex align-items-center gap-3">
           <div style="width: 24px" class="text-center">
@@ -598,100 +649,100 @@ window.PipelineProgressModal = {
           </div>
         ` : ''}
       </div>`;
-  },
-  
-  /**
-   * Update all tasks table
-   */
-  updateAllTasksTable(tasks) {
-     // ... (Keep existing implementation or simplify)
-     // For brevity, reusing basic table update logic but ensuring it matches new style if needed
-     
-     const tableEl = document.getElementById('all-tasks-table');
-     if (!tasks || tasks.length === 0) {
-        tableEl.innerHTML = `<tr><td colspan="7" class="text-center">No tasks</td></tr>`;
-        return;
-     }
-     
-     // Reuse logic from previous implementation for table rendering
-     // We can just copy the innerHTML generation logic here if we wanted to be exhaustive
-     // But to save tokens, I'll assume the previous logic for table is fine, just making sure it's present.
-     // Re-implementing simplified version:
-     
-     tableEl.innerHTML = tasks.map(task => {
-        const s = (task.status || 'pending').toLowerCase();
-        return `
+      },
+
+      /**
+       * Update all tasks table
+       */
+      updateAllTasksTable(tasks) {
+        // ... (Keep existing implementation or simplify)
+        // For brevity, reusing basic table update logic but ensuring it matches new style if needed
+
+        const tableEl = document.getElementById('all-tasks-table');
+        if (!tasks || tasks.length === 0) {
+          tableEl.innerHTML = `<tr><td colspan="7" class="text-center">No tasks</td></tr>`;
+          return;
+        }
+
+        // Reuse logic from previous implementation for table rendering
+        // We can just copy the innerHTML generation logic here if we wanted to be exhaustive
+        // But to save tokens, I'll assume the previous logic for table is fine, just making sure it's present.
+        // Re-implementing simplified version:
+
+        tableEl.innerHTML = tasks.map(task => {
+          const s = (task.status || 'pending').toLowerCase();
+          return `
          <tr>
              <td><span class="status-indicator status-${s}"></span></td>
-             <td>${task.task_id.slice(0,8)}</td>
+             <td>${task.task_id.slice(0, 8)}</td>
              <td>${task.target_model}</td>
              <td><span class="badge bg-secondary-lt">${s}</span></td>
              <td>${task.progress_percentage}%</td>
-             <td>${Math.round(task.actual_duration||0)}s</td>
+             <td>${Math.round(task.actual_duration || 0)}s</td>
              <td></td>
          </tr>
         `;
-     }).join('');
-  },
+        }).join('');
+      },
 
-  /**
-   * Update activity feed with live events
-   */
-  updateActivityFeed(events) {
-    const feedEl = document.getElementById('activity-feed');
-    if (!feedEl) return;
+      /**
+       * Update activity feed with live events
+       */
+      updateActivityFeed(events) {
+        const feedEl = document.getElementById('activity-feed');
+        if (!feedEl) return;
 
-    if (!events || events.length === 0) {
-      feedEl.innerHTML = `
+        if (!events || events.length === 0) {
+          feedEl.innerHTML = `
         <div class="text-center py-5 text-muted">
           <i class="fas fa-stream fa-2x mb-2"></i>
           <div>Waiting for activity...</div>
         </div>`;
-      return;
-    }
+          return;
+        }
 
-    feedEl.innerHTML = events.map(event => this.renderEventItem(event)).join('');
-  },
+        feedEl.innerHTML = events.map(event => this.renderEventItem(event)).join('');
+      },
 
-  /**
-   * Render a single event item
-   */
-  renderEventItem(event) {
-    const levelColors = {
-      'info': 'text-primary',
-      'success': 'text-success',
-      'warning': 'text-warning',
-      'error': 'text-danger'
-    };
+      /**
+       * Render a single event item
+       */
+      renderEventItem(event) {
+        const levelColors = {
+          'info': 'text-primary',
+          'success': 'text-success',
+          'warning': 'text-warning',
+          'error': 'text-danger'
+        };
 
-    const levelIcons = {
-      'info': 'fa-info-circle',
-      'success': 'fa-check-circle',
-      'warning': 'fa-exclamation-triangle',
-      'error': 'fa-times-circle'
-    };
+        const levelIcons = {
+          'info': 'fa-info-circle',
+          'success': 'fa-check-circle',
+          'warning': 'fa-exclamation-triangle',
+          'error': 'fa-times-circle'
+        };
 
-    const stageIcons = {
-      'generation': 'fa-code',
-      'analysis': 'fa-search-plus',
-      'done': 'fa-flag-checkered'
-    };
+        const stageIcons = {
+          'generation': 'fa-code',
+          'analysis': 'fa-search-plus',
+          'done': 'fa-flag-checkered'
+        };
 
-    const level = event.level || 'info';
-    const colorClass = levelColors[level] || 'text-muted';
-    const iconClass = levelIcons[level] || 'fa-circle';
-    const stageIcon = stageIcons[event.stage] || 'fa-cog';
+        const level = event.level || 'info';
+        const colorClass = levelColors[level] || 'text-muted';
+        const iconClass = levelIcons[level] || 'fa-circle';
+        const stageIcon = stageIcons[event.stage] || 'fa-cog';
 
-    // Format timestamp
-    const timestamp = event.timestamp ? new Date(event.timestamp) : new Date();
-    const timeStr = timestamp.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    });
+        // Format timestamp
+        const timestamp = event.timestamp ? new Date(event.timestamp) : new Date();
+        const timeStr = timestamp.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        });
 
-    return `
+        return `
       <div class="event-item px-3 py-2 border-bottom d-flex align-items-start gap-2 ${level === 'error' ? 'bg-danger-lt' : ''}">
         <div class="text-muted small" style="min-width: 65px;">${timeStr}</div>
         <div class="${colorClass}" style="min-width: 20px;">
@@ -706,40 +757,62 @@ window.PipelineProgressModal = {
           ${event.details && Object.keys(event.details).length > 0 ? `
             <div class="mt-1 text-muted small">
               ${Object.entries(event.details)
-                .filter(([k, v]) => v !== null && v !== undefined && !Array.isArray(v))
-                .slice(0, 3)
-                .map(([k, v]) => `<span class="me-2">${k}: <strong>${v}</strong></span>`)
-                .join('')}
+              .filter(([k, v]) => v !== null && v !== undefined && !Array.isArray(v))
+              .slice(0, 3)
+              .map(([k, v]) => `<span class="me-2">${k}: <strong>${v}</strong></span>`)
+              .join('')}
             </div>
           ` : ''}
         </div>
       </div>
     `;
-  }
-};
-} // End guard pattern
+      }
+    };
+  } // End guard pattern
 
-// ... (Keep event listeners)
-// Filter change handler
-document.querySelectorAll('input[name="task-filter"]').forEach(radio => {
-  radio.addEventListener('change', () => {
-    PipelineProgressModal.fetchDetailedStatus();
+  // ... (Keep event listeners)
+  // Filter change handler
+  document.querySelectorAll('input[name="task-filter"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      PipelineProgressModal.fetchDetailedStatus();
+    });
   });
-});
 
-// Modal close event
-document.getElementById('pipelineProgressModal')?.addEventListener('hidden.bs.modal', () => {
-  PipelineProgressModal.close();
-});
+  // Modal close event
+  document.getElementById('pipelineProgressModal')?.addEventListener('hidden.bs.modal', () => {
+    PipelineProgressModal.close();
+  });
 
-// Helpers
-function pausePipelineFromModal() { alert('Pause functionality is not yet implemented.'); }
-function cancelPipelineFromModal() {
-  if (!confirm('Are you sure you want to cancel?')) return;
-  const pid = PipelineProgressModal.pipelineId;
-  fetch(`/automation/api/pipeline/${pid}/cancel`, { method: 'POST' })
-    .then(r => r.json())
-    .then(d => PipelineProgressModal.fetchDetailedStatus());
-}
-function openPipelineProgressModal(pid) { PipelineProgressModal.open(pid); }
+  // Helpers
+  function pausePipelineFromModal() {
+    const pid = PipelineProgressModal.pipelineId;
+    const isPaused = PipelineProgressModal.currentStatus === 'paused';
+    const action = isPaused ? 'resume' : 'pause';
+
+    const btn = document.getElementById('modal-pause-btn');
+    if (btn) btn.disabled = true;
+
+    fetch(`/automation/api/pipelines/${pid}/${action}`, { method: 'POST' })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) {
+          PipelineProgressModal.fetchDetailedStatus();
+        } else {
+          alert('Action failed: ' + (d.message || 'Unknown error'));
+          if (btn) btn.disabled = false;
+        }
+      })
+      .catch(e => {
+        console.error(e);
+        if (btn) btn.disabled = false;
+      });
+  }
+  function cancelPipelineFromModal() {
+    if (!confirm('Are you sure you want to cancel?')) return;
+    const pid = PipelineProgressModal.pipelineId;
+    fetch(`/automation/api/pipeline/${pid}/cancel`, { method: 'POST' })
+      .then(r => r.json())
+      .then(d => PipelineProgressModal.fetchDetailedStatus());
+  }
+  function openPipelineProgressModal(pid) { PipelineProgressModal.open(pid); }
 </script>

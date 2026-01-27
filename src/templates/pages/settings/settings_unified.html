@@ -1,0 +1,1083 @@
+{% extends "layouts/base_smart.html" %}
+{% set active_page = 'settings' %}
+
+{% block title %}Settings - {{ super() }}{% endblock %}
+
+{% block page_header %}
+<div class="d-flex justify-content-between align-items-center">
+    <div>
+        <h1 class="h3 mb-0">Settings</h1>
+        <p class="text-muted mb-0">Manage your account, preferences, and API access</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" id="settings-tabs" role="tablist" data-bs-toggle="tabs">
+            <li class="nav-item" role="presentation">
+                <a href="#tabs-general" class="nav-link active" data-bs-toggle="tab" aria-selected="true" role="tab">
+                    <i class="fas fa-sliders-h me-2"></i>General
+                </a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a href="#tabs-profile" class="nav-link" data-bs-toggle="tab" aria-selected="false" role="tab">
+                    <i class="fas fa-user me-2"></i>Profile
+                </a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a href="#tabs-api" class="nav-link" data-bs-toggle="tab" aria-selected="false" role="tab">
+                    <i class="fas fa-key me-2"></i>API Access
+                </a>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body">
+        <div class="tab-content">
+
+            <!-- GENERAL SETTINGS TAB -->
+            <div class="tab-pane active show" id="tabs-general" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <!-- Appearance Preferences -->
+                        <div class="mb-4">
+                            <h3 class="card-title mb-3"><i class="fas fa-palette text-muted me-2"></i>Appearance</h3>
+                            <div class="mb-3">
+                                <label class="form-label">Theme</label>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <button type="button" class="btn theme-option" data-theme="light"
+                                        onclick="setTheme('light')">
+                                        <i class="fas fa-sun me-2"></i>Light
+                                    </button>
+                                    <button type="button" class="btn theme-option" data-theme="dark"
+                                        onclick="setTheme('dark')">
+                                        <i class="fas fa-moon me-2"></i>Dark
+                                    </button>
+                                    <button type="button" class="btn theme-option" data-theme="auto"
+                                        onclick="setTheme('auto')">
+                                        <i class="fas fa-circle-half-stroke me-2"></i>System
+                                    </button>
+                                </div>
+                                <small class="form-text text-muted">Choose how the interface appears</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Accent Color</label>
+                                <div class="d-flex gap-2 flex-wrap" id="accent-color-options">
+                                    <!-- Populated by JS -->
+                                </div>
+                                <small class="form-text text-muted">Personalize your interface accent color</small>
+                            </div>
+
+                            <div class="mb-0">
+                                <label class="form-label">Sidebar Behavior</label>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="sidebar-collapsed"
+                                        onchange="toggleSidebarPreference()">
+                                    <label class="form-check-label" for="sidebar-collapsed">
+                                        Start with collapsed sidebar
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <!-- Display Preferences -->
+                        <div class="mb-4">
+                            <h3 class="card-title mb-3"><i class="fas fa-table text-muted me-2"></i>Display</h3>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="items_per_page" class="form-label">Items per page</label>
+                                    <select class="form-select" id="items_per_page"
+                                        onchange="setItemsPerPage(this.value)">
+                                        <option value="10">10</option>
+                                        <option value="25">25</option>
+                                        <option value="50">50</option>
+                                        <option value="100">100</option>
+                                    </select>
+                                    <small class="form-text text-muted">Default pagination size for tables</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="date_format" class="form-label">Date format</label>
+                                    <select class="form-select" id="date_format" onchange="setDateFormat(this.value)">
+                                        <option value="relative">Relative (2 hours ago)</option>
+                                        <option value="absolute">Absolute (Dec 15, 2025)</option>
+                                        <option value="iso">ISO (2025-12-15)</option>
+                                    </select>
+                                    <small class="form-text text-muted">How dates are displayed</small>
+                                </div>
+                            </div>
+
+                            <div class="mt-3 space-y-2">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="compact_tables"
+                                        onchange="toggleCompactTables()">
+                                    <label class="form-check-label" for="compact_tables">
+                                        Compact table rows
+                                    </label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="show_advanced"
+                                        onchange="toggleAdvancedOptions()">
+                                    <label class="form-check-label" for="show_advanced">
+                                        Show advanced options
+                                    </label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="auto_refresh"
+                                        onchange="toggleAutoRefresh()">
+                                    <label class="form-check-label" for="auto_refresh">
+                                        Enable auto-refresh on dashboards
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <!-- Data Management -->
+                        <div class="mb-4">
+                            <h3 class="card-title mb-3"><i class="fas fa-database text-muted me-2"></i>Data Management
+                            </h3>
+                            <div class="row g-2">
+                                <div class="col-sm-6">
+                                    <button type="button" class="btn btn-outline-secondary w-100"
+                                        onclick="exportSettings()">
+                                        <i class="fas fa-download me-2"></i>Export Settings
+                                    </button>
+                                </div>
+                                <div class="col-sm-6">
+                                    <button type="button" class="btn btn-outline-secondary w-100"
+                                        onclick="importSettings()">
+                                        <i class="fas fa-upload me-2"></i>Import Settings
+                                    </button>
+                                </div>
+                                <div class="col-12">
+                                    <button type="button" class="btn btn-outline-warning w-100"
+                                        onclick="resetSettings()">
+                                        <i class="fas fa-undo me-2"></i>Reset to Defaults
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="form-text text-muted mt-2 d-block">Settings are stored locally in your
+                                browser</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PROFILE TAB -->
+            <div class="tab-pane" id="tabs-profile" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-4 mb-3">
+                        <!-- User Avatar Card -->
+                        <div class="card h-100">
+                            <div class="card-body text-center py-4">
+                                <div class="mb-3">
+                                    <div id="user-avatar"
+                                        class="avatar avatar-xl text-white d-inline-flex align-items-center justify-content-center rounded-circle"
+                                        style="width: 100px; height: 100px; font-size: 2.5rem; cursor: pointer;"
+                                        onclick="showAvatarColorPicker()" title="Click to change avatar color">
+                                        {{ current_user.username[0]|upper }}
+                                    </div>
+                                </div>
+                                <h5 class="mb-1">{{ current_user.full_name or current_user.username }}</h5>
+                                <p class="text-muted mb-2">{{ current_user.email }}</p>
+                                {% if current_user.is_admin %}
+                                <span class="badge bg-danger-lt text-danger">
+                                    <i class="fas fa-shield-alt me-1"></i>Administrator
+                                </span>
+                                {% else %}
+                                <span class="badge bg-secondary-lt text-secondary">
+                                    <i class="fas fa-user me-1"></i>User
+                                </span>
+                                {% endif %}
+
+                                <div class="mt-4 pt-3 border-top text-start">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="text-muted">Member since</span>
+                                        <strong class="text-dark">{{ current_user.created_at.strftime('%b %d, %Y') if
+                                            current_user.created_at else 'N/A' }}</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">Last login</span>
+                                        <strong class="text-dark">{{ current_user.last_login.strftime('%b %d, %Y') if
+                                            current_user.last_login else 'N/A' }}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-8">
+                        <!-- Account Information -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-user-edit text-muted me-2"></i>Account
+                                    Information</h3>
+                            </div>
+                            <div class="card-body">
+                                <form id="profile-form" hx-post="{{ url_for('profile.update_profile') }}" hx-swap="none"
+                                    hx-indicator="#profile-submit-indicator">
+                                    <div class="row mb-3">
+                                        <label for="username" class="col-sm-3 col-form-label">Username</label>
+                                        <div class="col-sm-9">
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="fas fa-at"></i></span>
+                                                <input type="text" class="form-control" id="username"
+                                                    value="{{ current_user.username }}" disabled>
+                                            </div>
+                                            <small class="form-text text-muted">Username cannot be changed</small>
+                                        </div>
+                                    </div>
+                                    <div class="row mb-3">
+                                        <label for="email" class="col-sm-3 col-form-label">Email</label>
+                                        <div class="col-sm-9">
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                                                <input type="email" class="form-control" id="email" name="email"
+                                                    value="{{ current_user.email }}" required>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mb-3">
+                                        <label for="full_name" class="col-sm-3 col-form-label">Full Name</label>
+                                        <div class="col-sm-9">
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="fas fa-id-card"></i></span>
+                                                <input type="text" class="form-control" id="full_name" name="full_name"
+                                                    value="{{ current_user.full_name or '' }}"
+                                                    placeholder="Enter your full name">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-9 offset-sm-3">
+                                            <button type="submit" class="btn btn-primary">
+                                                <span id="profile-submit-indicator" class="htmx-indicator">
+                                                    <i class="fas fa-spinner fa-spin me-2"></i>
+                                                </span>
+                                                <i class="fas fa-save me-2 profile-btn-icon"></i>Update Profile
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Change Password -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-key text-muted me-2"></i>Change Password</h3>
+                            </div>
+                            <div class="card-body">
+                                <form id="password-form" hx-post="{{ url_for('profile.change_password') }}"
+                                    hx-swap="none" hx-indicator="#password-submit-indicator">
+                                    <div class="row mb-3">
+                                        <label for="current_password" class="col-sm-3 col-form-label">Current
+                                            Password</label>
+                                        <div class="col-sm-9">
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                                                <input type="password" class="form-control" id="current_password"
+                                                    name="current_password" required autocomplete="current-password">
+                                                <button type="button" class="btn btn-outline-secondary"
+                                                    onclick="togglePassword('current_password')">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mb-3">
+                                        <label for="new_password" class="col-sm-3 col-form-label">New Password</label>
+                                        <div class="col-sm-9">
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="fas fa-key"></i></span>
+                                                <input type="password" class="form-control" id="new_password"
+                                                    name="new_password" required minlength="8"
+                                                    oninput="checkPasswordStrength(this.value)"
+                                                    autocomplete="new-password">
+                                                <button type="button" class="btn btn-outline-secondary"
+                                                    onclick="togglePassword('new_password')">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            </div>
+                                            <div class="mt-2">
+                                                <div class="progress" style="height: 4px;">
+                                                    <div id="password-strength-bar" class="progress-bar"
+                                                        role="progressbar" style="width: 0%"></div>
+                                                </div>
+                                                <small id="password-strength-text" class="form-text text-muted">At least
+                                                    8 characters</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mb-3">
+                                        <label for="confirm_password" class="col-sm-3 col-form-label">Confirm
+                                            Password</label>
+                                        <div class="col-sm-9">
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i
+                                                        class="fas fa-check-double"></i></span>
+                                                <input type="password" class="form-control" id="confirm_password"
+                                                    name="confirm_password" required minlength="8"
+                                                    oninput="checkPasswordMatch()" autocomplete="new-password">
+                                                <button type="button" class="btn btn-outline-secondary"
+                                                    onclick="togglePassword('confirm_password')">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            </div>
+                                            <small id="password-match-text" class="form-text"></small>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-9 offset-sm-3">
+                                            <button type="submit" class="btn btn-warning">
+                                                <span id="password-submit-indicator" class="htmx-indicator">
+                                                    <i class="fas fa-spinner fa-spin me-2"></i>
+                                                </span>
+                                                <i class="fas fa-sync-alt me-2 password-btn-icon"></i>Change Password
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Danger Zone -->
+                        {% if not current_user.is_admin %}
+                        <div class="card border-danger">
+                            <div class="card-header bg-danger-lt">
+                                <h3 class="card-title text-danger"><i
+                                        class="fas fa-exclamation-triangle me-2"></i>Danger Zone</h3>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted mb-3">Permanently delete your account and all associated data. This
+                                    action cannot be undone.</p>
+                                <button type="button" class="btn btn-outline-danger" onclick="confirmDeleteAccount()"
+                                    disabled>
+                                    <i class="fas fa-trash me-2"></i>Delete Account
+                                </button>
+                                <small class="text-muted ms-2">Feature coming soon</small>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- API ACCESS TAB -->
+            <div class="tab-pane" id="tabs-api" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h3 class="card-title">API Token</h3>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted mb-4">
+                                    Generate an API token to access the ThesisApp API programmatically.
+                                    Keep this token secure; it grants full access to your account's capabilities.
+                                </p>
+
+                                <div id="token-status" class="mb-3">
+                                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <span class="ms-2 text-muted">Checking token status...</span>
+                                </div>
+
+                                <div id="token-actions" class="d-none">
+                                    <div id="has-token-view" class="d-none">
+                                        <div class="alert alert-success mb-3">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-check-circle me-3 fs-3"></i>
+                                                <div>
+                                                    <strong>Active Token</strong>
+                                                    <div class="text-muted small" id="token-created-at"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button class="btn btn-danger" onclick="revokeToken()">
+                                            <i class="fas fa-trash me-2"></i>Revoke Token
+                                        </button>
+                                    </div>
+
+                                    <div id="no-token-view" class="d-none">
+                                        <div class="alert alert-info mb-3">
+                                            <i class="fas fa-info-circle me-2"></i>
+                                            No API token generated yet.
+                                        </div>
+                                        <button class="btn btn-primary" onclick="generateToken()">
+                                            <i class="fas fa-plus me-2"></i>Generate New Token
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="token-display" class="d-none mt-4">
+                                    <div class="alert alert-warning">
+                                        <strong>Save this token!</strong> It will only be shown once.
+                                    </div>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control font-monospace" id="new-token" readonly>
+                                        <button class="btn btn-ghost-secondary" type="button" onclick="copyToken()">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h3 class="card-title">Usage Guide</h3>
+                            </div>
+                            <div class="card-body">
+                                <h4 class="mb-3">Using Your Token</h4>
+                                <p class="text-muted">Include your token in the <code>Authorization</code> header:</p>
+                                <pre class="bg-dark text-white p-3 rounded mb-4"><code>curl -H "Authorization: Bearer YOUR_TOKEN" \
+{{ request.url_root }}api/models</code></pre>
+
+                                <h4 class="mb-3">Available Endpoints</h4>
+                                <ul class="list-unstyled">
+                                    <li class="mb-2">
+                                        <code class="text-primary">GET /api/models</code>
+                                        <div class="text-muted small ms-3">List all AI models</div>
+                                    </li>
+                                    <li class="mb-2">
+                                        <code class="text-primary">GET /api/applications</code>
+                                        <div class="text-muted small ms-3">List generated applications</div>
+                                    </li>
+                                    <li class="mb-2">
+                                        <code class="text-primary">POST /api/gen/generate</code>
+                                        <div class="text-muted small ms-3">Generate new application</div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Settings Modal -->
+<div class="modal fade" id="importSettingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-upload me-2"></i>Import Settings</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Paste your exported settings JSON below:</p>
+                <textarea class="form-control" id="import-settings-json" rows="6"
+                    placeholder='{"theme":"dark","items_per_page":"25",...}'></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="doImportSettings()">Import</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Avatar Color Picker Modal -->
+<div class="modal fade" id="avatarColorModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-palette me-2"></i>Avatar Color</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">Select a color for your avatar</p>
+                <div class="d-flex flex-wrap gap-2 justify-content-center" id="avatar-color-options">
+                    <!-- Colors populated by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .theme-option {
+        min-width: 100px;
+        border: 2px solid transparent;
+    }
+
+    .theme-option.active {
+        border-color: var(--tblr-primary);
+        background-color: var(--tblr-primary-lt);
+    }
+
+    .accent-color-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: transform 0.15s;
+    }
+
+    .accent-color-btn:hover {
+        transform: scale(1.1);
+    }
+
+    .accent-color-btn.active {
+        border-color: var(--tblr-body-color);
+        box-shadow: 0 0 0 2px var(--tblr-bg-surface), 0 0 0 4px currentColor;
+    }
+</style>
+
+<script>
+    // --- Settings Logic ---
+
+    const defaultSettings = {
+        theme: 'light',
+        accent_color: '#206bc4',
+        sidebar_collapsed: false,
+        items_per_page: '25',
+        date_format: 'relative',
+        compact_tables: false,
+        show_advanced: false,
+        auto_refresh: true
+    };
+
+    const accentColors = [
+        { name: 'Blue', value: '#206bc4' },
+        { name: 'Azure', value: '#4299e1' },
+        { name: 'Indigo', value: '#4263eb' },
+        { name: 'Purple', value: '#ae3ec9' },
+        { name: 'Pink', value: '#d6336c' },
+        { name: 'Red', value: '#d63939' },
+        { name: 'Orange', value: '#f76707' },
+        { name: 'Green', value: '#2fb344' },
+        { name: 'Teal', value: '#0ca678' },
+        { name: 'Cyan', value: '#17a2b8' }
+    ];
+
+    const avatarColors = [
+        { name: 'Blue', value: '#206bc4' },
+        { name: 'Azure', value: '#4299e1' },
+        { name: 'Indigo', value: '#4263eb' },
+        { name: 'Purple', value: '#ae3ec9' },
+        { name: 'Pink', value: '#d6336c' },
+        { name: 'Red', value: '#d63939' },
+        { name: 'Orange', value: '#f76707' },
+        { name: 'Yellow', value: '#f59f00' },
+        { name: 'Lime', value: '#74b816' },
+        { name: 'Green', value: '#2fb344' },
+        { name: 'Teal', value: '#0ca678' },
+        { name: 'Cyan', value: '#17a2b8' }
+    ];
+
+    document.addEventListener('DOMContentLoaded', function () {
+        loadSettings();
+        populateAccentColors();
+
+        // Initialize avatar color
+        const savedColor = localStorage.getItem('avatar_color') || '#206bc4';
+        const avatar = document.getElementById('user-avatar');
+        if (avatar) avatar.style.backgroundColor = savedColor;
+
+        populateAvatarColors(savedColor);
+
+        // Handle hash navigation
+        if (window.location.hash) {
+            const tabEl = document.querySelector(`a[href="${window.location.hash}"]`);
+            if (tabEl) {
+                const tab = new bootstrap.Tab(tabEl);
+                tab.show();
+            }
+        }
+
+        // Update hash on tab change
+        document.querySelectorAll('a[data-bs-toggle="tab"]').forEach(tab => {
+            tab.addEventListener('shown.bs.tab', function (event) {
+                // Update URL hash without scrolling
+                history.replaceState(null, null, event.target.getAttribute('href'));
+            });
+        });
+
+        // Initial check for API token
+        checkTokenStatus();
+    });
+
+    function loadSettings() {
+        // Theme
+        const theme = localStorage.getItem('app_theme') || defaultSettings.theme;
+        const themeAuto = localStorage.getItem('app_theme_auto') === 'true';
+        updateThemeUI(themeAuto ? 'auto' : theme);
+
+        // Accent color
+        const accent = localStorage.getItem('accent_color') || defaultSettings.accent_color;
+        updateAccentColorUI(accent);
+
+        // Sidebar
+        const sidebarCollapsed = localStorage.getItem('sidebar_collapsed') === 'true';
+        const sidebarEl = document.getElementById('sidebar-collapsed');
+        if (sidebarEl) sidebarEl.checked = sidebarCollapsed;
+
+        // Items per page
+        const itemsPerPage = localStorage.getItem('items_per_page') || defaultSettings.items_per_page;
+        const itemsEl = document.getElementById('items_per_page');
+        if (itemsEl) itemsEl.value = itemsPerPage;
+
+        // Date format
+        const dateFormat = localStorage.getItem('date_format') || defaultSettings.date_format;
+        const dateEl = document.getElementById('date_format');
+        if (dateEl) dateEl.value = dateFormat;
+
+        // Toggles
+        const compactEl = document.getElementById('compact_tables');
+        if (compactEl) compactEl.checked = localStorage.getItem('compact_tables') === 'true';
+
+        const advancedEl = document.getElementById('show_advanced');
+        if (advancedEl) advancedEl.checked = localStorage.getItem('show_advanced') === 'true';
+
+        const autoRefreshEl = document.getElementById('auto_refresh');
+        if (autoRefreshEl) autoRefreshEl.checked = localStorage.getItem('auto_refresh') !== 'false';
+    }
+
+    function populateAccentColors() {
+        const container = document.getElementById('accent-color-options');
+        if (!container) return;
+
+        const currentAccent = localStorage.getItem('accent_color') || defaultSettings.accent_color;
+        container.innerHTML = '';
+
+        accentColors.forEach(color => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'accent-color-btn' + (currentAccent === color.value ? ' active' : '');
+            btn.style.backgroundColor = color.value;
+            btn.title = color.name;
+            btn.onclick = () => setAccentColor(color.value);
+            container.appendChild(btn);
+        });
+    }
+
+    function populateAvatarColors(savedColor) {
+        const colorOptions = document.getElementById('avatar-color-options');
+        if (!colorOptions) return;
+        colorOptions.innerHTML = '';
+
+        avatarColors.forEach(color => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-icon rounded-circle';
+            btn.style.cssText = `width: 40px; height: 40px; background-color: ${color.value}; border: 2px solid transparent;`;
+            btn.title = color.name;
+            btn.onclick = () => setAvatarColor(color.value);
+            if (savedColor === color.value) {
+                btn.style.borderColor = 'var(--tblr-body-color)';
+                btn.innerHTML = '<i class="fas fa-check text-white"></i>';
+            }
+            colorOptions.appendChild(btn);
+        });
+    }
+
+    // --- Settings Actions ---
+
+    function setTheme(theme) {
+        if (theme === 'auto') {
+            localStorage.setItem('app_theme_auto', 'true');
+            localStorage.removeItem('app_theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (window.ThesisTheme) window.ThesisTheme.set(prefersDark ? 'dark' : 'light');
+        } else {
+            localStorage.removeItem('app_theme_auto');
+            localStorage.setItem('app_theme', theme);
+            if (window.ThesisTheme) window.ThesisTheme.set(theme);
+        }
+        updateThemeUI(theme);
+        showToast('Theme updated', 'success');
+    }
+
+    function updateThemeUI(theme) {
+        document.querySelectorAll('.theme-option').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.theme === theme);
+        });
+    }
+
+    function setAccentColor(color) {
+        localStorage.setItem('accent_color', color);
+        document.documentElement.style.setProperty('--tblr-primary', color);
+        populateAccentColors(); // Re-render to update active state
+        showToast('Accent color updated', 'success');
+    }
+
+    function updateAccentColorUI(color) {
+        // Deprecated in favor of re-render, but kept for compatibility logic if needed
+    }
+
+    function toggleSidebarPreference() {
+        const collapsed = document.getElementById('sidebar-collapsed').checked;
+        localStorage.setItem('sidebar_collapsed', collapsed);
+        showToast('Sidebar preference saved', 'success');
+    }
+
+    function setItemsPerPage(value) {
+        localStorage.setItem('items_per_page', value);
+        showToast('Items per page updated', 'success');
+    }
+
+    function setDateFormat(value) {
+        localStorage.setItem('date_format', value);
+        showToast('Date format updated', 'success');
+    }
+
+    function toggleCompactTables() {
+        const enabled = document.getElementById('compact_tables').checked;
+        localStorage.setItem('compact_tables', enabled);
+        showToast('Compact tables ' + (enabled ? 'enabled' : 'disabled'), 'success');
+    }
+
+    function toggleAdvancedOptions() {
+        const enabled = document.getElementById('show_advanced').checked;
+        localStorage.setItem('show_advanced', enabled);
+        showToast('Advanced options ' + (enabled ? 'shown' : 'hidden'), 'success');
+    }
+
+    function toggleAutoRefresh() {
+        const enabled = document.getElementById('auto_refresh').checked;
+        localStorage.setItem('auto_refresh', enabled);
+        showToast('Auto-refresh ' + (enabled ? 'enabled' : 'disabled'), 'success');
+    }
+
+    function exportSettings() {
+        const settings = {};
+        Object.keys(defaultSettings).forEach(key => {
+            settings[key] = localStorage.getItem(key) || defaultSettings[key];
+        });
+        settings.avatar_color = localStorage.getItem('avatar_color') || '#206bc4';
+
+        const dataStr = JSON.stringify(settings, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `thesis_app_settings_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showToast('Settings exported', 'success');
+    }
+
+    function importSettings() {
+        const modal = new bootstrap.Modal(document.getElementById('importSettingsModal'));
+        modal.show();
+    }
+
+    function doImportSettings() {
+        try {
+            const json = document.getElementById('import-settings-json').value;
+            const settings = JSON.parse(json);
+
+            Object.keys(settings).forEach(key => {
+                if (typeof settings[key] === 'boolean') {
+                    localStorage.setItem(key, settings[key].toString());
+                } else {
+                    localStorage.setItem(key, settings[key]);
+                }
+            });
+
+            bootstrap.Modal.getInstance(document.getElementById('importSettingsModal')).hide();
+            showToast('Settings imported! Reloading...', 'success');
+            setTimeout(() => window.location.reload(), 1000);
+        } catch (e) {
+            showToast('Invalid JSON format', 'danger');
+        }
+    }
+
+    function resetSettings() {
+        if (!confirm('Reset all settings to defaults? This cannot be undone.')) return;
+
+        Object.keys(defaultSettings).forEach(key => {
+            localStorage.removeItem(key);
+        });
+        localStorage.removeItem('avatar_color');
+        localStorage.removeItem('app_theme_auto');
+
+        showToast('Settings reset! Reloading...', 'success');
+        setTimeout(() => window.location.reload(), 1000);
+    }
+
+    // --- Profile Logic ---
+
+    function showAvatarColorPicker() {
+        const modal = new bootstrap.Modal(document.getElementById('avatarColorModal'));
+        modal.show();
+    }
+
+    function setAvatarColor(color) {
+        localStorage.setItem('avatar_color', color);
+        const avatar = document.getElementById('user-avatar');
+        if (avatar) avatar.style.backgroundColor = color;
+
+        populateAvatarColors(color); // Re-render for selection
+        bootstrap.Modal.getInstance(document.getElementById('avatarColorModal')).hide();
+        showToast('Avatar color updated!', 'success');
+    }
+
+    function togglePassword(inputId) {
+        const input = document.getElementById(inputId);
+        const icon = event.target.closest('button').querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('fa-eye', 'fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('fa-eye-slash', 'fa-eye');
+        }
+    }
+
+    function checkPasswordStrength(password) {
+        const bar = document.getElementById('password-strength-bar');
+        const text = document.getElementById('password-strength-text');
+
+        let strength = 0;
+        if (password.length >= 8) strength += 25;
+        if (password.length >= 12) strength += 15;
+        if (/[a-z]/.test(password)) strength += 15;
+        if (/[A-Z]/.test(password)) strength += 15;
+        if (/[0-9]/.test(password)) strength += 15;
+        if (/[^a-zA-Z0-9]/.test(password)) strength += 15;
+
+        bar.style.width = strength + '%';
+
+        if (strength < 30) {
+            bar.className = 'progress-bar bg-danger';
+            text.textContent = 'Weak password';
+            text.className = 'form-text text-danger';
+        } else if (strength < 60) {
+            bar.className = 'progress-bar bg-warning';
+            text.textContent = 'Fair password';
+            text.className = 'form-text text-warning';
+        } else if (strength < 80) {
+            bar.className = 'progress-bar bg-info';
+            text.textContent = 'Good password';
+            text.className = 'form-text text-info';
+        } else {
+            bar.className = 'progress-bar bg-success';
+            text.textContent = 'Strong password';
+            text.className = 'form-text text-success';
+        }
+
+        checkPasswordMatch();
+    }
+
+    function checkPasswordMatch() {
+        const newPass = document.getElementById('new_password').value;
+        const confirmPass = document.getElementById('confirm_password').value;
+        const text = document.getElementById('password-match-text');
+
+        if (!confirmPass) {
+            text.textContent = '';
+            return;
+        }
+
+        if (newPass === confirmPass) {
+            text.textContent = '✓ Passwords match';
+            text.className = 'form-text text-success';
+        } else {
+            text.textContent = '✗ Passwords do not match';
+            text.className = 'form-text text-danger';
+        }
+    }
+
+    function confirmDeleteAccount() {
+        showToast('Account deletion is not yet available', 'warning');
+    }
+
+    // HTMX event handlers for Profile form responses
+    document.body.addEventListener('htmx:afterRequest', function (evt) {
+        if (evt.detail.target.id === 'profile-form' || evt.detail.target.id === 'password-form') {
+            const xhr = evt.detail.xhr;
+            let message = 'Operation completed';
+            let type = 'success';
+
+            try {
+                // Try to parse JSON response if available, or fall back to status checks
+                // Note: Flask redirects or renders might not be JSON unless we adjust endpoint
+                // But relying on existing backend behavior, we check status.
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    if (evt.detail.target.id === 'profile-form') {
+                        // Profile endpoint redirects on success, handled by browser usually.
+                        // If htmx swaps nothing (hx-swap="none"), we might just get a 200/302.
+                        // If it redirects, the page reloads. If using hx-boost or similar, it might not.
+                        // Assuming existing logic was: submit -> flash -> redirect -> reload.
+                        // With hx-swap="none", we need to handle feedback manually or trust the flash on reload.
+                        // Since we are creating a unified page, let's just reload to show flash messages or assume success.
+                        window.location.reload();
+                        return;
+                    }
+
+                    message = evt.detail.target.id === 'profile-form' ? 'Profile updated!' : 'Password changed!';
+                    type = 'success';
+                } else {
+                    message = 'An error occurred';
+                    type = 'danger';
+                }
+            } catch (e) {
+                message = 'An error occurred';
+                type = 'danger';
+            }
+
+            showToast(message, type);
+
+            // Clear password fields on success
+            if (type === 'success' && evt.detail.target.id === 'password-form') {
+                document.getElementById('current_password').value = '';
+                document.getElementById('new_password').value = '';
+                document.getElementById('confirm_password').value = '';
+                document.getElementById('password-strength-bar').style.width = '0%';
+                document.getElementById('password-strength-text').textContent = 'At least 8 characters';
+                document.getElementById('password-strength-text').className = 'form-text text-muted';
+                document.getElementById('password-match-text').textContent = '';
+            }
+        }
+    });
+
+
+    // --- API Access Logic ---
+
+    async function checkTokenStatus() {
+        try {
+            const response = await fetch('/api/tokens/status');
+            const data = await response.json();
+
+            document.getElementById('token-status').classList.add('d-none');
+            document.getElementById('token-actions').classList.remove('d-none');
+
+            if (data.has_token) {
+                document.getElementById('has-token-view').classList.remove('d-none');
+                document.getElementById('no-token-view').classList.add('d-none');
+                if (data.created_at) {
+                    const date = new Date(data.created_at);
+                    document.getElementById('token-created-at').textContent =
+                        `Created: ${date.toLocaleString()}`;
+                }
+            } else {
+                document.getElementById('has-token-view').classList.add('d-none');
+                document.getElementById('no-token-view').classList.remove('d-none');
+            }
+        } catch (error) {
+            console.error('Error checking token status:', error);
+            document.getElementById('token-status').innerHTML =
+                '<div class="alert alert-danger">Failed to check token status</div>';
+        }
+    }
+
+    async function generateToken() {
+        if (!confirm('Generate a new API token? This will invalidate any existing token.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/tokens/generate', { method: 'POST' });
+            const data = await response.json();
+
+            if (data.success) {
+                document.getElementById('new-token').value = data.token;
+                document.getElementById('token-display').classList.remove('d-none');
+                checkTokenStatus();
+                showToast('API token generated', 'success');
+            } else {
+                showToast('Failed to generate token: ' + (data.error || 'Unknown error'), 'danger');
+            }
+        } catch (error) {
+            console.error('Error generating token:', error);
+            showToast('Failed to generate token', 'danger');
+        }
+    }
+
+    async function revokeToken() {
+        if (!confirm('Revoke your API token? All API requests using this token will fail.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/tokens/revoke', { method: 'POST' });
+            const data = await response.json();
+
+            if (data.success) {
+                document.getElementById('token-display').classList.add('d-none');
+                checkTokenStatus();
+                showToast('API token revoked', 'success');
+            } else {
+                showToast('Failed to revoke token: ' + (data.error || 'Unknown error'), 'danger');
+            }
+        } catch (error) {
+            console.error('Error revoking token:', error);
+            showToast('Failed to revoke token', 'danger');
+        }
+    }
+
+    function copyToken() {
+        const tokenInput = document.getElementById('new-token');
+        tokenInput.select();
+        document.execCommand('copy');
+        showToast('Token copied to clipboard', 'success');
+    }
+
+    // --- Shared Utilities ---
+
+    function showToast(message, type = 'info') {
+        const toastContainer = document.getElementById('toast-container') || createToastContainer();
+
+        const iconMap = {
+            success: 'fas fa-check-circle',
+            danger: 'fas fa-exclamation-circle',
+            warning: 'fas fa-exclamation-triangle',
+            info: 'fas fa-info-circle'
+        };
+
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type} border-0`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+
+        toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body d-flex align-items-center gap-2">
+                <i class="${iconMap[type] || iconMap.info}"></i>
+                <span>${message}</span>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+
+        toastContainer.appendChild(toast);
+
+        const bsToast = new bootstrap.Toast(toast, {
+            autohide: true,
+            delay: type === 'danger' ? 5000 : 3000
+        });
+        bsToast.show();
+
+        toast.addEventListener('hidden.bs.toast', () => toast.remove());
+    }
+
+    function createToastContainer() {
+        const container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '9999';
+        document.body.appendChild(container);
+        return container;
+    }
+</script>
+{% endblock %}

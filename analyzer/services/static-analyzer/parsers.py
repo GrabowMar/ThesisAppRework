@@ -964,6 +964,160 @@ class DetectSecretsParser:
         }
 
 
+class StylelintParser:
+    """Parser for Stylelint JSON output."""
+    
+    @staticmethod
+    def parse(raw_output: Any, config: Optional[Dict] = None) -> Dict:
+        """
+        Parse Stylelint JSON output.
+        
+        Stylelint JSON structure:
+        [
+            {
+                "source": "/path/to/file.css",
+                "deprecations": [],
+                "invalidOptionWarnings": [],
+                "parseErrors": [],
+                "warnings": [
+                    {
+                        "line": 5,
+                        "column": 10,
+                        "rule": "color-no-invalid-hex",
+                        "severity": "error" | "warning",
+                        "text": "Unexpected invalid hex color \"#zzz\" (color-no-invalid-hex)"
+                    }
+                ]
+            }
+        ]
+        """
+        if not isinstance(raw_output, list):
+            return {
+                'tool': 'stylelint',
+                'executed': True,
+                'status': 'error',
+                'error': 'Invalid output format',
+                'issues': [],
+                'total_issues': 0,
+                'issue_count': 0,
+            }
+        
+        issues = []
+        severity_breakdown = {'high': 0, 'medium': 0, 'low': 0}
+        
+        for file_result in raw_output:
+            file_path = file_result.get('source', '')
+            warnings = file_result.get('warnings', [])
+            
+            for warn in warnings:
+                # Map Stylelint severity
+                stylelint_severity = warn.get('severity', 'warning').lower()
+                severity = 'high' if stylelint_severity == 'error' else 'medium'
+                severity_breakdown[severity] += 1
+                
+                standardized = {
+                    'file': file_path,
+                    'line': warn.get('line', 0),
+                    'column': warn.get('column', 0),
+                    'severity': severity,
+                    'message': warn.get('text', ''),
+                    'rule': warn.get('rule', '')
+                }
+                issues.append(standardized)
+        
+        return {
+            'tool': 'stylelint',
+            'executed': True,
+            'status': 'success',
+            'issues': issues,
+            'total_issues': len(issues),
+            'issue_count': len(issues),
+            'severity_breakdown': severity_breakdown,
+            'config_used': config or {}
+        }
+
+
+class HTMLValidatorParser:
+    """Parser for html-validator-cli JSON output."""
+    
+    @staticmethod
+    def parse(raw_output: Any, config: Optional[Dict] = None) -> Dict:
+        """
+        Parse html-validator-cli JSON output.
+        
+        Format varies depending on how it's called. 
+        It usually returns a list of results if multiple files were scanned.
+        Each item has:
+        {
+          "url": "filename",
+          "messages": [
+            {
+              "type": "error" | "info",
+              "lastLine": 10,
+              "lastColumn": 5,
+              "message": "...",
+              "subType": "warning" (optional)
+            }
+          ]
+        }
+        """
+        if isinstance(raw_output, dict):
+            raw_output = [raw_output]
+            
+        if not isinstance(raw_output, list):
+            return {
+                'tool': 'html-validator',
+                'executed': True,
+                'status': 'error',
+                'error': 'Invalid JSON output format',
+                'issues': [],
+                'total_issues': 0,
+                'issue_count': 0,
+            }
+            
+        issues = []
+        severity_breakdown = {'high': 0, 'medium': 0, 'low': 0}
+        
+        for item in raw_output:
+            file_path = item.get('url', 'unknown')
+            messages = item.get('messages', [])
+            
+            for msg in messages:
+                msg_type = msg.get('type', 'info')
+                sub_type = msg.get('subType', '')
+                
+                severity = 'medium'
+                if msg_type == 'error':
+                    severity = 'high'
+                elif sub_type == 'warning':
+                    severity = 'medium'
+                else:
+                    severity = 'low'
+                    
+                severity_breakdown[severity] += 1
+                
+                issues.append({
+                    'file': file_path,
+                    'line': msg.get('lastLine', msg.get('firstLine', 0)),
+                    'column': msg.get('lastColumn', msg.get('firstColumn', 0)),
+                    'severity': severity,
+                    'message': msg.get('message', ''),
+                    'rule': msg.get('messageId', 'html-validation-error'),
+                    'extract': msg.get('extract', '')
+                })
+                
+        return {
+            'tool': 'html-validator',
+            'executed': True,
+            'status': 'success',
+            'issues': issues,
+            'total_issues': len(issues),
+            'issue_count': len(issues),
+            'severity_breakdown': severity_breakdown,
+            'config_used': config or {}
+        }
+
+
 # Parser registry
 PARSERS = {
     'bandit': BanditParser,
@@ -976,7 +1130,9 @@ PARSERS = {
     'vulture': VultureParser,
     'ruff': RuffParser,
     'radon': RadonParser,
-    'detect-secrets': DetectSecretsParser
+    'detect-secrets': DetectSecretsParser,
+    'stylelint': StylelintParser,
+    'html-validator': HTMLValidatorParser
 }
 
 

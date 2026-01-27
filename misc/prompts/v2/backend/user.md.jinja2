@@ -1,18 +1,18 @@
-# Application: {{ name }}
+# {{ name }}
 
 {{ description }}
 
 ## Task
-Generate a single-file Flask application (`app.py`) that implements the following requirements.
+Generate `app.py` - a **comprehensive, production-quality** Flask API. Aim for **300+ lines** of well-structured code.
 
-## Detailed Requirements
+## Requirements
 
-### Functional Requirements
+### Features
 {% for req in backend_requirements %}
 - {{ req }}
 {% endfor %}
 
-### Admin Requirements
+### Admin Features
 {% for req in admin_requirements %}
 - {{ req }}
 {% endfor %}
@@ -20,47 +20,149 @@ Generate a single-file Flask application (`app.py`) that implements the followin
 ### Data Model
 {{ data_model }}
 
-### API Usage Plan (Endpoints to Implement)
+### API Endpoints
 {{ api_endpoints }}
 
 {{ admin_api_endpoints }}
 
-## Critical Implementation Standards
+## Implementation Requirements
 
-### 1. Architecture & Security
-- **Single File**: All code must be in `app.py`.
-- **Authentication**: Use `werkzeug.security` for password hashing and `pyjwt` for tokens.
-- **Guest Access**: 
-  - Core "read" features (listing items) MUST be open to guests.
-  - "Create/Edit" features should be open unless sensitive.
-  - STRICTLY restrict only Admin routes and User Profile routes.
-- **Admin routes**: Protect with a custom `@admin_required` decorator.
+### 1. Rich Data Models
+Each model should have **6+ meaningful fields**:
+- Core fields (title, description, etc.)
+- Status/state fields (status, priority, is_active)
+- Metadata (created_at, updated_at, view_count)
+- Relationships (user_id, category)
+- Feature flags (is_featured, is_public)
 
-### 2. Code Quality & Best Practices
-- **Models**: Every model must have a `to_dict()` method for API serialization.
-- **Validation**: Validate all inputs in routes.
-- **Database**: Use `db.session.get()` instead of legacy `query.get()`.
-- **No Deprecated Code**: Do NOT use `@app.before_first_request`.
-- **Data Seeding**: Include a function to populate initial test data if tables are empty.
-
-### 3. Completness
-- **NO Placeholders**: Do not use `pass`, `...`, or comments like "Implementation here". Write the full logic.
-- **Full Implementation**: The code must be runnable immediately.
-
-## Working Example Reference
-
-Use this structure as a baseline for your implementation:
-
+### 2. Public Endpoints (REQUIRED for landing page)
 ```python
-{{ scaffolding_code }}
+@app.route('/api/public/stats', methods=['GET'])
+def public_stats():
+    return jsonify({
+        'total_items': Item.query.count(),
+        'total_users': User.query.count(),
+        'active_count': Item.query.filter_by(is_active=True).count(),
+        'completed_count': Item.query.filter_by(completed=True).count(),
+        'recent_count': Item.query.filter(Item.created_at > datetime.utcnow() - timedelta(days=7)).count()
+    })
+
+@app.route('/api/public/featured', methods=['GET'])
+def public_featured():
+    items = Item.query.filter_by(is_featured=True, is_active=True).limit(6).all()
+    return jsonify([item.to_dict() for item in items])
+
+@app.route('/api/categories', methods=['GET'])
+def get_categories():
+    # Return categories with item counts
+    pass
 ```
 
-## Recommended Implementation Process (Chain of Thought)
+### 3. List Endpoint with Full Query Support
+```python
+@app.route('/api/{resource}', methods=['GET'])
+def get_items():
+    query = Item.query.filter_by(is_active=True)
 
-Before generating the code, mentally validate:
-1. **Schema Design**: Do the models support all requirements? Are relationships defined?
-2. **Access Control**: Which routes need `@token_required` vs `@admin_required` vs Open access?
-3. **Edge Cases**: What if the database is empty? What if a user doesn't exist?
-4. **Serialization**: Is `to_dict` robust?
+    # Search
+    if search := request.args.get('search'):
+        query = query.filter(
+            db.or_(
+                Item.title.ilike(f'%{search}%'),
+                Item.description.ilike(f'%{search}%')
+            )
+        )
 
-Now, generate the complete `app.py` file.
+    # Filter by category
+    if category := request.args.get('category'):
+        query = query.filter_by(category=category)
+
+    # Filter by status
+    if status := request.args.get('status'):
+        query = query.filter_by(status=status)
+
+    # Sort
+    sort = request.args.get('sort', 'created_at')
+    order = request.args.get('order', 'desc')
+    # Apply sorting...
+
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 12, type=int)
+
+    total = query.count()
+    items = query.offset((page-1)*limit).limit(limit).all()
+
+    return jsonify({
+        'items': [item.to_dict() for item in items],
+        'total': total,
+        'page': page,
+        'pages': (total + limit - 1) // limit
+    })
+```
+
+### 4. Comprehensive Seed Data (15+ records)
+```python
+def seed_data():
+    if User.query.first():
+        return
+
+    # Users
+    admin = User(username='admin', email='admin@demo.com', is_admin=True)
+    admin.set_password('admin123')
+    demo = User(username='demo', email='demo@demo.com')
+    demo.set_password('demo123')
+    user = User(username='user', email='user@demo.com')
+    user.set_password('user123')
+    db.session.add_all([admin, demo, user])
+    db.session.commit()
+
+    # Create 15-20 items with:
+    # - 3-4 different categories
+    # - Various statuses (active, completed, pending, archived)
+    # - Various priorities (low, medium, high, urgent)
+    # - Some featured (is_featured=True)
+    # - Dates spread over last 30 days
+    # - Realistic, varied titles and descriptions
+    # - Different users as owners
+
+    items = [
+        Item(title='...', description='...', category='...', status='active',
+             priority='high', is_featured=True, user_id=demo.id,
+             created_at=datetime.utcnow() - timedelta(days=1)),
+        # ... 14+ more with variety
+    ]
+    db.session.add_all(items)
+    db.session.commit()
+```
+
+### 5. Admin Dashboard Endpoint
+```python
+@app.route('/api/admin/dashboard', methods=['GET'])
+@admin_required
+def admin_dashboard(current_user):
+    return jsonify({
+        'users': {
+            'total': User.query.count(),
+            'active': User.query.filter_by(is_active=True).count(),
+            'admins': User.query.filter_by(is_admin=True).count()
+        },
+        'items': {
+            'total': Item.query.count(),
+            'by_status': {
+                'active': Item.query.filter_by(status='active').count(),
+                'completed': Item.query.filter_by(status='completed').count(),
+                'pending': Item.query.filter_by(status='pending').count()
+            },
+            'by_priority': {
+                'high': Item.query.filter_by(priority='high').count(),
+                'medium': Item.query.filter_by(priority='medium').count(),
+                'low': Item.query.filter_by(priority='low').count()
+            }
+        },
+        'recent_items': [i.to_dict() for i in Item.query.order_by(Item.created_at.desc()).limit(5).all()]
+    })
+```
+
+## Output
+Generate complete, comprehensive `app.py` now. Aim for 300+ lines.

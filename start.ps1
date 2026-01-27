@@ -1425,8 +1425,8 @@ function Invoke-Nuke {
     Write-Status "Phase 1.5: Re-initializing environment..." "Info"
     Initialize-Environment
     
-    Write-Status "Phase 2: Rebuilding stack..." "Info"
-    Invoke-RebuildContainers -AutoStart $true
+    write-Status "Phase 2: Rebuilding stack..." "Info"
+    Invoke-CleanRebuild -Force -AutoStart $true
     
     Write-Banner "✅ Nuke Operation Complete" "Green"
     return $true
@@ -1534,22 +1534,32 @@ function Invoke-RebuildContainers {
 }
 
 function Invoke-CleanRebuild {
+    param(
+        [bool]$AutoStart = $false,
+        [switch]$Force
+    )
+
     Write-Banner "⚠️  Clean Rebuild - Complete Cache Wipe" "Yellow"
     
-    Write-Host "This will:" -ForegroundColor Yellow
-    Write-Host "  • Remove all Docker images and volumes" -ForegroundColor Yellow
-    Write-Host "  • Clear BuildKit cache" -ForegroundColor Yellow
-    Write-Host "  • Force complete rebuild from scratch" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "⚠️  Use this only if experiencing build issues!" -ForegroundColor Yellow
-    Write-Host "    Normal rebuilds are much faster with caching." -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "Type 'CLEAN' to confirm (or anything else to cancel): " -NoNewline -ForegroundColor Yellow
-    $confirmation = Read-Host
-    
-    if ($confirmation -ne 'CLEAN') {
-        Write-Status "Clean rebuild cancelled - use 'Rebuild' for faster cached builds" "Warning"
-        return $false
+    if (-not $Force) {
+        Write-Host "This will:" -ForegroundColor Yellow
+        Write-Host "  • Remove all Docker images and volumes" -ForegroundColor Yellow
+        Write-Host "  • Clear BuildKit cache" -ForegroundColor Yellow
+        Write-Host "  • Force complete rebuild from scratch" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "⚠️  Use this only if experiencing build issues!" -ForegroundColor Yellow
+        Write-Host "    Normal rebuilds are much faster with caching." -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "Type 'CLEAN' to confirm (or anything else to cancel): " -NoNewline -ForegroundColor Yellow
+        $confirmation = Read-Host
+        
+        if ($confirmation -ne 'CLEAN') {
+            Write-Status "Clean rebuild cancelled - use 'Rebuild' for faster cached builds" "Warning"
+            return $false
+        }
+    }
+    else {
+        Write-Status "Force clean rebuild requested - skipping confirmation" "Info"
     }
     
     # Use ROOT directory (same as Start-DockerStack) to avoid duplicate stacks
@@ -1575,6 +1585,22 @@ function Invoke-CleanRebuild {
             Write-Host ""
             Write-Banner "✅ Clean Rebuild Complete" "Green"
             Write-Status "All caches rebuilt - subsequent builds will be fast again" "Success"
+            
+            # Ask if user wants to start the services (unless AutoStart is set)
+            $shouldStart = $AutoStart
+            
+            if (-not $shouldStart) {
+                Write-Host "Would you like to start all services now? (Y/N): " -NoNewline -ForegroundColor Yellow
+                $response = Read-Host
+                if ($response -eq 'Y' -or $response -eq 'y') {
+                    $shouldStart = $true
+                }
+            }
+            
+            if ($shouldStart) {
+                Start-FullStack | Out-Null
+            }
+            
             return $true
         }
         else {
@@ -2216,11 +2242,16 @@ function Invoke-Wipeout {
         # Identify containers like "anthropic-claude-3-5-sonnet-app1", etc.
         Write-Status "Scanning for any leftover sample containers..." "Info"
         try {
-            # Regex to match sample app container names
+            # Regex to match sample app container names (Generic: model-name-appN)
+            $samplePattern = ".+-app\d+(_frontend|_backend)?"
+            $projectPrefix = "thesisapprework-"
+
             $orphanContainers = docker ps -a --format "{{.Names}}" | Where-Object { 
-                # Match common patterns: model-name-appN, etc.
-                $_ -match "(anthropic|openai|mistral|llama|gemini).*-app\d+" -or 
-                $_ -match "generated_app_\d+" 
+                # Match anything that looks like a sample app but IS NOT part of the main project
+                ($_ -notlike "$projectPrefix*") -and (
+                    $_ -match $samplePattern -or 
+                    $_ -match "generated_app_\d+"
+                )
             }
             
             if ($orphanContainers) {
@@ -2237,9 +2268,14 @@ function Invoke-Wipeout {
 
         # 5c. Fallback: Identify and remove orphan IMAGES
         try {
+            $samplePattern = ".+-app\d+(-frontend|-backend)?"
+            $projectPrefix = "thesisapprework-"
+            
             $orphanImages = docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | Where-Object { 
-                $_ -match "generated_app_\d+" -or 
-                $_ -match "(anthropic|openai|mistral|llama|gemini).*-app\d+" 
+                ($_ -notlike "$projectPrefix*") -and (
+                    $_ -match "generated_app_\d+" -or 
+                    $_ -match $samplePattern
+                )
             }
             
             if ($orphanImages) {

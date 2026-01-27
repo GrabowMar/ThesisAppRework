@@ -1449,127 +1449,32 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 }
             }
             
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.stylelintrc.json', delete=False) as f:
-                json.dump(stylelint_config, f, indent=2)
-                config_file = f.name
-            
-            cmd = ['stylelint', '--config', config_file, '--formatter', 'json']
-            if css_files:
-                cmd.extend([str(p) for p in css_files])
-            else:
-                cmd.append(str(source_path / '**/*.css'))
-
-            # stylelint has unusual behavior - writes JSON to stderr when errors are found (exit code 2)
-            # Handle this separately from _run_tool
+            config_file = None
             try:
-                self.log.info(f"Running stylelint on {len(css_files)} CSS files")
-                import time
-                start_time = time.time()
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.stylelintrc.json', delete=False) as f:
+                    json.dump(stylelint_config, f, indent=2)
+                    config_file = f.name
                 
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
-                duration = time.time() - start_time
-                
-                stdout_text = stdout.decode('utf-8', errors='replace') if stdout else ''
-                stderr_text = stderr.decode('utf-8', errors='replace') if stderr else ''
-                
-                self.log.info(f"stylelint completed in {duration:.2f}s, exit={proc.returncode}, stdout={len(stdout_text)}B, stderr={len(stderr_text)}B")
-                
-                # stylelint writes to stderr when exit code is 2 (errors found)
-                # Try stdout first, fall back to stderr
-                output_text = stdout_text if stdout_text.strip() else stderr_text
-                
-                if proc.returncode in [0, 1, 2] and output_text.strip():
-                    try:
-                        stylelint_data = json.loads(output_text)
-                        if isinstance(stylelint_data, list):
-                            total_issues = sum(len(file_result.get('warnings', [])) if isinstance(file_result, dict) else 0 for file_result in stylelint_data)
-                            results['stylelint'] = {
-                                'tool': 'stylelint',
-                                'executed': True,
-                                'status': 'success',
-                                'results': stylelint_data,
-                                'total_issues': total_issues,
-                                'issue_count': total_issues,
-                                'duration': duration
-                            }
-                            self.log.info(f"stylelint found {total_issues} issues")
-                        else:
-                            results['stylelint'] = {
-                                'tool': 'stylelint',
-                                'executed': True,
-                                'status': 'success',
-                                'results': stylelint_data,
-                                'total_issues': 0,
-                                'issue_count': 0,
-                                'duration': duration
-                            }
-                    except json.JSONDecodeError as e:
-                        self.log.warning(f"Could not parse stylelint JSON output: {e}")
-                        results['stylelint'] = {
-                            'tool': 'stylelint',
-                            'executed': True,
-                            'status': 'error',
-                            'error': f'Failed to parse JSON output: {str(e)}',
-                            'raw_output': output_text[:500],
-                            'total_issues': 0
-                        }
-                elif proc.returncode == 78:
-                    # Config error
-                    results['stylelint'] = {
-                        'tool': 'stylelint',
-                        'executed': True,
-                        'status': 'error',
-                        'error': f'Configuration error: {stderr_text[:500]}',
-                        'total_issues': 0
-                    }
-                elif proc.returncode == 0 and not output_text.strip():
-                    # No issues found
-                    results['stylelint'] = {
-                        'tool': 'stylelint',
-                        'executed': True,
-                        'status': 'success',
-                        'results': [],
-                        'total_issues': 0,
-                        'issue_count': 0,
-                        'duration': duration
-                    }
+                cmd = ['stylelint', '--config', config_file, '--formatter', 'json']
+                if css_files:
+                    cmd.extend([str(p) for p in css_files])
                 else:
-                    results['stylelint'] = {
-                        'tool': 'stylelint',
-                        'executed': True,
-                        'status': 'error',
-                        'error': f'Exit code {proc.returncode}: {stderr_text[:500]}',
-                        'total_issues': 0
-                    }
-                    
-            except asyncio.TimeoutError:
-                self.log.warning("stylelint timed out")
-                results['stylelint'] = {
-                    'tool': 'stylelint',
-                    'executed': True,
-                    'status': 'error',
-                    'error': 'Timeout after 120 seconds',
-                    'total_issues': 0
-                }
+                    cmd.append(str(source_path / '**/*.css'))
+
+                # Use _run_tool which now has StylelintParser registered
+                # Stylelint exit code 2 means issues found, which is a "success" for the tool
+                result = await self._run_tool(cmd, 'stylelint', config=stylelint_cfg, success_exit_codes=[0, 1, 2])
+                results['stylelint'] = result
+                
             except Exception as e:
-                self.log.warning(f"stylelint failed: {e}")
-                results['stylelint'] = {
-                    'tool': 'stylelint',
-                    'executed': True,
-                    'status': 'error',
-                    'error': str(e),
-                    'total_issues': 0
-                }
+                self.log.error(f"Stylelint analysis failed: {e}")
+                results['stylelint'] = {'tool': 'stylelint', 'executed': True, 'status': 'error', 'error': str(e)}
             finally:
-                try:
-                    os.unlink(config_file)
-                except Exception:
-                    pass
+                if config_file:
+                    try:
+                        os.unlink(config_file)
+                    except Exception:
+                        pass
         
         return results
     
@@ -1597,38 +1502,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             cmd = ['html-validator', '--format=json', '--verbose']
             cmd.extend([str(p) for p in html_files])
 
-            result = await self._run_tool(cmd, 'html-validator', config=html_config, success_exit_codes=[0, 1], skip_parser=True)
-            
-            if result.get('status') != 'error' and 'output' in result:
-                try:
-                    # Output is usually one JSON object per file, or a list if multiple?
-                    # html-validator-cli output format can be tricky.
-                    # It often outputs multiple JSON objects concatenated if multiple files.
-                    # But let's assume standard JSON for now or handle parsing in parser.
-                    # Actually, let's use a parser if possible, but here we skip it.
-                    # Let's try to parse it as JSON.
-                    output_str = result['output']
-                    # If multiple files, it might be multiple JSONs.
-                    # We might need to wrap them in a list if they are not.
-                    try:
-                        data = json.loads(output_str)
-                    except json.JSONDecodeError:
-                        # Try to fix multiple root objects
-                        data = json.loads(f"[{output_str.replace('}{', '},{')}]")
-                    
-                    results['html-validator'] = {
-                        'tool': 'html-validator',
-                        'executed': True,
-                        'status': 'success',
-                        'results': data,
-                        'total_issues': len(data) if isinstance(data, list) else 1, # Rough count
-                        'issue_count': len(data) if isinstance(data, list) else 1
-                    }
-                except Exception as e:
-                    self.log.warning(f"Could not parse html-validator output: {e}")
-                    results['html-validator'] = result
-            else:
-                results['html-validator'] = result
+            # Use _run_tool with registered HTMLValidatorParser
+            # html-validator-cli exit code 1 means issues found
+            result = await self._run_tool(cmd, 'html-validator', config=html_config, success_exit_codes=[0, 1])
+            results['html-validator'] = result
         
         return results
     
@@ -1780,25 +1657,41 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             # Calculate enhanced summary and derive tools_used strictly from executed tools
             total_issues = 0
             tools_run = 0
-            severity_breakdown = {'error': 0, 'warning': 0, 'info': 0}
+            severity_breakdown = {'high': 0, 'medium': 0, 'low': 0, 'error': 0, 'warning': 0, 'info': 0}
             used_tools: List[str] = []
             
-            for lang_results in results['results'].values():
+            for lang, lang_results in results['results'].items():
                 if isinstance(lang_results, dict):
+                    # Progress counting for sub-phases
+                    issues_in_lang = 0
+                    
                     for tool_name, tool_result in lang_results.items():
                         if not isinstance(tool_result, dict):
                             continue
+                            
                         # Only count as executed if tool result explicitly marks executed True
                         if tool_result.get('executed') and tool_name not in used_tools:
                             used_tools.append(tool_name)
-                        if isinstance(tool_result, dict) and tool_result.get('status') == 'success':
+                            
+                        if tool_result.get('status') == 'success':
                             tools_run += 1
-                            total_issues += tool_result.get('total_issues', 0)
+                            findings = tool_result.get('total_issues', 0)
+                            total_issues += findings
+                            issues_in_lang += findings
                             
                             # Aggregate severity breakdown if available
                             if 'severity_breakdown' in tool_result:
                                 for severity, count in tool_result['severity_breakdown'].items():
-                                    severity_breakdown[severity] = severity_breakdown.get(severity, 0) + count
+                                    if severity in severity_breakdown:
+                                        severity_breakdown[severity] += count
+                                    else:
+                                        severity_breakdown[severity] = count
+            
+            # Map 'error' to 'high', 'warning' to 'medium', 'info' to 'low' for visual consistency
+            # if tools used different naming conventions
+            severity_breakdown['high'] += severity_breakdown.pop('error', 0)
+            severity_breakdown['medium'] += severity_breakdown.pop('warning', 0)
+            severity_breakdown['low'] += severity_breakdown.pop('info', 0)
             
             results['summary'] = {
                 'total_issues_found': total_issues,

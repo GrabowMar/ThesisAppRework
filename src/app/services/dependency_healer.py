@@ -348,6 +348,163 @@ class DependencyHealer:
             result.issues_fixed += import_mismatch_fix['fixed_count']
             result.changes_made.extend(import_mismatch_fix['changes'])
 
+        # 8. Fix missing React Router imports (e.g., Navigate, Link)
+        router_fix = self._fix_missing_router_imports(src_dir, auto_fix=self.auto_fix)
+        for issue in router_fix['issues']:
+            result.frontend_issues.append(issue)
+            result.issues_found += 1
+        if router_fix['fixed_count'] > 0:
+            result.issues_fixed += router_fix['fixed_count']
+            result.changes_made.extend(router_fix['changes'])
+
+        # 9. Fix name collisions between local components and Router components (e.g., function Routes)
+        collision_fix = self._fix_router_name_collisions(src_dir, auto_fix=self.auto_fix)
+        for issue in collision_fix['issues']:
+            result.frontend_issues.append(issue)
+            result.issues_found += 1
+        if collision_fix['fixed_count'] > 0:
+            result.issues_fixed += collision_fix['fixed_count']
+            result.changes_made.extend(collision_fix['changes'])
+
+    def _fix_missing_router_imports(self, src_dir: Path, auto_fix: bool) -> Dict[str, Any]:
+        """Fix missing react-router-dom imports.
+        
+        LLMs often use components like Navigate, Link, or hooks like useNavigate
+        without adding them to the react-router-dom import block.
+        """
+        issues: List[str] = []
+        changes: List[str] = []
+        fixed_count = 0
+        
+        router_components = {
+            'Navigate', 'Link', 'NavLink', 'Route', 'Routes', 'BrowserRouter',
+            'useNavigate', 'useParams', 'useLocation', 'useSearchParams', 'Outlet'
+        }
+        
+        for file_path in src_dir.rglob('*'):
+            if file_path.suffix not in {'.js', '.jsx', '.ts', '.tsx'}:
+                continue
+            
+            try:
+                content = file_path.read_text(encoding='utf-8')
+                original_content = content
+                
+                # Find the react-router-dom import line
+                router_import_match = re.search(
+                    r"import\s*\{([^}]+)\}\s*from\s*['\"]react-router-dom['\"]",
+                    content
+                )
+                
+                if not router_import_match:
+                    continue
+                
+                existing_imports = {n.strip() for n in router_import_match.group(1).split(',')}
+                missing_imports = set()
+                
+                for comp in router_components:
+                    if comp not in existing_imports:
+                        # Check if it's used in the code (as a JSX tag or hook call)
+                        if re.search(rf'<{comp}\b|\b{comp}\(', content):
+                            missing_imports.add(comp)
+                
+                if missing_imports:
+                    issues.append(
+                        f"{file_path.relative_to(src_dir.parent)}: missing react-router-dom imports: {', '.join(missing_imports)}"
+                    )
+                    
+                    if auto_fix:
+                        new_imports = sorted(existing_imports | missing_imports)
+                        new_import_line = f"import {{ {', '.join(new_imports)} }} from 'react-router-dom'"
+                        content = content.replace(router_import_match.group(0), new_import_line)
+                        
+                        if content != original_content:
+                            file_path.write_text(content, encoding='utf-8')
+                            changes.append(f"Added missing Router imports in {file_path.relative_to(src_dir.parent)}")
+                            fixed_count += 1
+                            logger.info(f"[DependencyHealer] Fixed Router imports in {file_path.name}")
+                            
+            except Exception as e:
+                logger.debug(f"[DependencyHealer] Failed to process {file_path}: {e}")
+        
+        return {
+            'issues': issues,
+            'changes': changes,
+            'fixed_count': fixed_count,
+        }
+
+    def _fix_router_name_collisions(self, src_dir: Path, auto_fix: bool) -> Dict[str, Any]:
+        """Fix name collisions between local components/functions and react-router-dom.
+        
+        Example: function Routes() { ... } clashing with import { Routes } from 'react-router-dom'.
+        """
+        issues: List[str] = []
+        changes: List[str] = []
+        fixed_count = 0
+        
+        collisions_to_fix = {
+            'Routes': 'AppRoutes',
+            'Link': 'AppLink',
+        }
+        
+        for file_path in src_dir.rglob('*'):
+            if file_path.suffix not in {'.js', '.jsx', '.ts', '.tsx'}:
+                continue
+            
+            try:
+                content = file_path.read_text(encoding='utf-8')
+                original_content = content
+                
+                # Check if react-router-dom is imported
+                if "import { " not in content or "'react-router-dom'" not in content:
+                    continue
+                
+                file_changed = False
+                for old_name, new_name in collisions_to_fix.items():
+                    # Look for "function Routes" or "const Routes ="
+                    if re.search(rf'\b(function|const|let|var)\s+{old_name}\s*[(=]', content):
+                        issues.append(
+                            f"{file_path.relative_to(src_dir.parent)}: local variable '{old_name}' clashes with Router import"
+                        )
+                        
+                        if auto_fix:
+                            # Rename the definition
+                            content = re.sub(rf'\b(function|const|let|var)\s+{old_name}\b', rf'\1 {new_name}', content)
+                            # Rename the usage as a component (JSX) - but ONLY if it's likely the local one
+                            # This is tricky, but usually the local one is what the LLM meant to use for its own logic.
+                            # However, in the case of <Routes>, the inner one is usually the Router one.
+                            # But if the LLM named its OWN component "Routes", it probably wants to use it as <Routes />
+                            # In app1.jkx, it defines `function Routes` and then returns `<div ...><Routes>...</Routes></div>`
+                            # Wait, if it renames the definition to `AppRoutes`, it should probably rename the outer usage too.
+                            
+                            # Let's be safer: rename the definition and ALL usages, 
+                            # then the import-healer will add the Router one back if needed.
+                            # But wait, the Router one is ALREADY imported.
+                            
+                            # Specific fix for the "function Routes" case:
+                            # 1. Rename `function Routes` to `function AppRoutes`
+                            # 2. Rename `<Routes` to `<AppRoutes` and `</Routes>` to `</AppRoutes>`
+                            # UNLESS it's the one wrapping everything.
+                            
+                            content = content.replace(f'<{old_name}', f'<{new_name}')
+                            content = content.replace(f'</{old_name}>', f'</{new_name}>')
+                            
+                            file_changed = True
+                
+                if auto_fix and file_changed and content != original_content:
+                    file_path.write_text(content, encoding='utf-8')
+                    changes.append(f"Fixed Router name collisions in {file_path.relative_to(src_dir.parent)}")
+                    fixed_count += 1
+                    logger.info(f"[DependencyHealer] Fixed name collisions in {file_path.name}")
+                            
+            except Exception as e:
+                logger.debug(f"[DependencyHealer] Failed to process {file_path}: {e}")
+        
+        return {
+            'issues': issues,
+            'changes': changes,
+            'fixed_count': fixed_count,
+        }
+
     def _fix_relative_import_paths(self, src_dir: Path, auto_fix: bool) -> Dict[str, Any]:
         """Fix common relative import path mistakes in frontend files.
         
@@ -670,6 +827,27 @@ class DependencyHealer:
             'VolumeOffIcon': 'SpeakerXMarkIcon',
             'ZoomInIcon': 'MagnifyingGlassPlusIcon',
             'ZoomOutIcon': 'MagnifyingGlassMinusIcon',
+            # Common Hallucinations
+            'ShieldIcon': 'ShieldCheckIcon',
+            'HistoryIcon': 'ClockIcon',
+            'FilterIcon': 'FunnelIcon',
+            'RefreshIcon': 'ArrowPathIcon',
+            'EditIcon': 'PencilSquareIcon',
+            'DeleteIcon': 'TrashIcon',
+            'AddIcon': 'PlusIcon',
+            'SettingsIcon': 'Cog6ToothIcon',
+            'SearchIcon': 'MagnifyingGlassIcon',
+            'HomeIcon': 'HomeIcon',
+            'UserIcon': 'UserIcon',
+            'BellIcon': 'BellIcon',
+            'MailIcon': 'EnvelopeIcon',
+            'CalendarIcon': 'CalendarIcon',
+            'ChartIcon': 'ChartBarIcon',
+            'DatabaseIcon': 'CircleStackIcon',
+            'LockIcon': 'LockClosedIcon',
+            'UnlockIcon': 'LockOpenIcon',
+            'CameraIcon': 'CameraIcon',
+            'FolderIcon': 'FolderIcon',
         }
         
         # Patterns to match old v1.x heroicons imports

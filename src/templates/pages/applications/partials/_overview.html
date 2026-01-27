@@ -14,7 +14,8 @@
             <div class="row row-cols-2 g-2">
               <div class="col">
                 <div class="text-muted small">Model</div>
-                <a href="/models/{{ app_data.model_slug }}" class="fw-medium text-truncate d-block text-reset" title="View {{ app_data.model_slug }} model details">{{ app_data.model_slug }}</a>
+                <a href="/models/{{ app_data.model_slug }}" class="fw-medium text-truncate d-block text-reset"
+                  title="View {{ app_data.model_slug }} model details">{{ app_data.model_slug }}</a>
               </div>
               <div class="col">
                 <div class="text-muted small">Provider</div>
@@ -39,19 +40,22 @@
             <div class="row row-cols-2 g-2">
               <div class="col">
                 <div class="text-muted small">Container</div>
-                <span class="badge {{ 'bg-success-lt text-success' if app_data.container_status == 'running' else ('bg-warning-lt text-warning' if app_data.container_status == 'building' else 'bg-secondary-lt') }}">
+                <span
+                  class="badge {{ 'bg-success-lt text-success' if app_data.container_status == 'running' else ('bg-warning-lt text-warning' if app_data.container_status == 'building' else 'bg-secondary-lt') }}">
                   {{ app_data.container_status|default('unknown')|replace('_', ' ')|title }}
                 </span>
               </div>
               <div class="col">
                 <div class="text-muted small">Generation</div>
-                <span class="badge {{ 'bg-success-lt text-success' if app_data.generation_status == 'completed' else ('bg-warning-lt text-warning' if app_data.generation_status == 'pending' else 'bg-secondary-lt') }}">
+                <span
+                  class="badge {{ 'bg-success-lt text-success' if app_data.generation_status == 'completed' else ('bg-warning-lt text-warning' if app_data.generation_status == 'pending' else 'bg-secondary-lt') }}">
                   {{ app_data.generation_status|default('unknown')|replace('_', ' ')|title }}
                 </span>
               </div>
               <div class="col">
                 <div class="text-muted small">Created</div>
-                <div class="fw-medium">{% if app_data.created_at %}{{ app_data.created_at.strftime('%m/%d %H:%M') }}{% else %}—{% endif %}</div>
+                <div class="fw-medium">{% if app_data.created_at %}{{ app_data.created_at.strftime('%m/%d %H:%M') }}{%
+                  else %}—{% endif %}</div>
               </div>
               <div class="col">
                 <div class="text-muted small">Ports</div>
@@ -85,7 +89,7 @@
         {% if code_stats.by_language %}
         <div class="d-flex flex-wrap gap-1 mt-2 justify-content-center">
           {% for lang, data in code_stats.by_language.items() %}
-            <span class="badge bg-secondary-lt small">{{ lang }}: {{ data.loc }}</span>
+          <span class="badge bg-secondary-lt small">{{ lang }}: {{ data.loc }}</span>
           {% endfor %}
         </div>
         {% endif %}
@@ -94,7 +98,8 @@
   </div>
 
   {# Fixes Applied - Compact #}
-  {% set total_fixes = (app_data.retry_fixes|default(0)) + (app_data.automatic_fixes|default(0)) + (app_data.llm_fixes|default(0)) + (app_data.manual_fixes|default(0)) %}
+  {% set total_fixes = (app_data.retry_fixes|default(0)) + (app_data.automatic_fixes|default(0)) +
+  (app_data.llm_fixes|default(0)) + (app_data.manual_fixes|default(0)) %}
   <div class="col-lg-3 col-md-6">
     <div class="card card-sm h-100">
       <div class="card-body py-2">
@@ -121,9 +126,17 @@
               <span class="text-muted small" title="Script-based automatic fixes during generation">
                 <i class="fas fa-magic me-1"></i>Auto
               </span>
-              <span class="fw-medium {{ 'text-info' if app_data.automatic_fixes|default(0) > 0 else 'text-muted' }}">
-                {{ app_data.automatic_fixes|default(0) }}
-              </span>
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-medium {{ 'text-info' if app_data.automatic_fixes|default(0) > 0 else 'text-muted' }}">
+                  {{ app_data.automatic_fixes|default(0) }}
+                </span>
+                {% if app_data.metadata.healing_logs %}
+                <button class="btn btn-ghost-info btn-icon btn-sm rounded-circle" data-bs-toggle="modal"
+                  data-bs-target="#healingLogsModal" title="View detailed healing logs">
+                  <i class="fas fa-eye"></i>
+                </button>
+                {% endif %}
+              </div>
             </div>
           </div>
           <div class="col">
@@ -167,24 +180,62 @@
             <i class="fas fa-layer-group text-purple" aria-hidden="true"></i>
             <span class="text-muted small">Frameworks:</span>
             {% if app_data.backend_framework %}
-              <span class="badge bg-success-lt text-success"><i class="fas fa-server me-1"></i>{{ app_data.backend_framework }}</span>
+            <span class="badge bg-success-lt text-success"><i class="fas fa-server me-1"></i>{{
+              app_data.backend_framework }}</span>
             {% endif %}
             {% if app_data.frontend_framework %}
-              <span class="badge bg-info-lt text-info"><i class="fas fa-desktop me-1"></i>{{ app_data.frontend_framework }}</span>
+            <span class="badge bg-info-lt text-info"><i class="fas fa-desktop me-1"></i>{{ app_data.frontend_framework
+              }}</span>
             {% endif %}
           </div>
           {% endif %}
           {# Highlights #}
           <div class="d-flex align-items-center gap-2">
             <i class="fas fa-bolt text-warning" aria-hidden="true"></i>
-            <span class="badge bg-secondary-lt"><i class="fas fa-layer-group me-1"></i>{{ model.apps_count }} sibling apps</span>
+            <span class="badge bg-secondary-lt"><i class="fas fa-layer-group me-1"></i>{{ model.apps_count }} sibling
+              apps</span>
             {% if app_data.has_docker_compose %}
             <span class="badge bg-success-lt"><i class="fas fa-cubes me-1"></i>Compose Ready</span>
             {% endif %}
-            <span class="badge bg-secondary-lt"><i class="fas fa-clock me-1"></i>{{ app_data.updated_at.strftime('%m/%d %H:%M') if app_data.updated_at else '—' }}</span>
+            <span class="badge bg-secondary-lt"><i class="fas fa-clock me-1"></i>{{ app_data.updated_at.strftime('%m/%d
+              %H:%M') if app_data.updated_at else '—' }}</span>
           </div>
         </div>
       </div>
     </div>
   </div>
 </div>
+
+{# Healing Logs Modal #}
+{% if app_data.metadata.healing_logs %}
+<div class="modal modal-blur fade" id="healingLogsModal" tabindex="-1" aria-labelledby="healingLogsLabel"
+  aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="healingLogsLabel">
+          <i class="fas fa-magic text-info me-2"></i>Automated Healing Logs
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body py-3">
+        <p class="text-muted small mb-3">The following automatic fixes were applied by the DependencyHealer service to
+          resolve build-blocking issues:</p>
+        <div class="list-group list-group-flush border-top border-bottom">
+          {% for log in app_data.metadata.healing_logs %}
+          <div class="list-group-item px-0 py-2">
+            <div class="d-flex align-items-start gap-2">
+              <i class="fas fa-check-circle text-success mt-1"></i>
+              <span class="small">{{ log }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
