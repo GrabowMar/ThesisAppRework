@@ -133,6 +133,10 @@ def create_app(config_name: str = 'default') -> Flask:
                 template_folder=template_folder,
                 static_folder=static_folder)
 
+    # Apply ProxyFix to handle X-Forwarded-Proto headers from Caddy/Reverse Proxy
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
     # Note: No /dist static route to avoid dependency on repo-level 'dist' folder
     
     # Configuration

@@ -1,0 +1,3 @@
+ns3086089.ip-145-239-65.eu {
+    reverse_proxy web:5000
+}
