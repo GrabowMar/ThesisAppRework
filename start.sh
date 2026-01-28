@@ -1,1052 +1,727 @@
 #!/bin/bash
-# =============================================================================
-# ThesisApp Orchestrator - Linux Server Deployment Script
-# =============================================================================
-# Complete orchestration script for ThesisApp with:
-# - Dependency-aware startup sequencing (Analyzers -> Flask)
-# - Health monitoring and status dashboard
-# - Docker Compose management
-# - Database management and admin user creation
-#
-# Usage:
-#   ./start.sh              # Interactive menu
-#   ./start.sh start        # Start Docker production stack
-#   ./start.sh stop         # Stop all services
-#   ./start.sh status       # Show status dashboard
-#   ./start.sh logs         # View logs
-#   ./start.sh rebuild      # Rebuild containers
-#   ./start.sh wipeout      # Reset to default state
-#   ./start.sh help         # Show help
-# =============================================================================
+
+# ThesisApp Orchestrator - Linux/Ubuntu Version
+# Replicates functionality of start.ps1
 
 set -e
 
-# =============================================================================
+# ============================================================================
 # CONFIGURATION
-# =============================================================================
+# ============================================================================
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$SCRIPT_DIR"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="$ROOT_DIR/src"
 ANALYZER_DIR="$ROOT_DIR/analyzer"
 LOGS_DIR="$ROOT_DIR/logs"
 RUN_DIR="$ROOT_DIR/run"
 
-# Service configuration
-FLASK_PORT="${PORT:-5000}"
-FLASK_PID_FILE="$RUN_DIR/flask.pid"
-FLASK_LOG_FILE="$LOGS_DIR/app.log"
-ANALYZER_LOG_FILE="$LOGS_DIR/analyzer.log"
+# Default API Port
+PORT=5000
 
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
+YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
-WHITE='\033[1;37m'
-NC='\033[0m'
-BOLD='\033[1m'
-DIM='\033[2m'
+GRAY='\033[0;90m'
+NC='\033[0m' # No Color
 
-# Icons
-CHECK="[OK]"
-CROSS="[X]"
-WARN="[!]"
-INFO="[i]"
+# Global State
+PYTHON_CMD="python3"
+BACKGROUND=false
+NO_ANALYZER=false
+NO_FOLLOW=false
+CONCURRENT=false
+MODE="Interactive"
 
-# =============================================================================
+# ============================================================================
 # UTILITY FUNCTIONS
-# =============================================================================
+# ============================================================================
 
-print_banner() {
+write_banner() {
     local text="$1"
     local color="${2:-$CYAN}"
-    local width=70
-    local line=$(printf '=%.0s' $(seq 1 $width))
-
+    local width=80
+    local line=$(printf "%${width}s" | tr " " "═")
+    
     echo ""
-    echo -e "${color}+${line}+${NC}"
-    printf "${color}|${NC} %-$((width-2))s ${color}|${NC}\n" "$text"
-    echo -e "${color}+${line}+${NC}"
+    echo -e "${color}╔${line}╗${NC}"
+    
+    # Center text
+    local text_len=${#text}
+    local padding=$(( (width - text_len) / 2 ))
+    local pad_str=$(printf "%${padding}s" "")
+    local content="${pad_str} ${text} ${pad_str}"
+    
+    # Adjust for odd length
+    if [ $(( (width - text_len) % 2 )) -ne 0 ]; then
+        content="${content} "
+    fi
+    while [ ${#content} -lt $((width + 2)) ]; do
+        content="${content} "
+    done
+    
+    printf "${color}║%*s%s%*s║${NC}\n" $padding "" "$text" $((width - padding - text_len)) ""
+    
+    echo -e "${color}╚${line}╝${NC}"
     echo ""
 }
 
-print_status() {
+write_status() {
     local message="$1"
     local type="${2:-Info}"
-
+    
+    local icon="ℹ️ "
+    local color="$CYAN"
+    
     case "$type" in
-        Success) echo -e "${GREEN}${CHECK}${NC} $message" ;;
-        Warning) echo -e "${YELLOW}${WARN}${NC} $message" ;;
-        Error)   echo -e "${RED}${CROSS}${NC} $message" ;;
-        *)       echo -e "${BLUE}${INFO}${NC} $message" ;;
+        "Success") icon="✅"; color="$GREEN" ;;
+        "Warning") icon="⚠️ "; color="$YELLOW" ;;
+        "Error")   icon="❌"; color="$RED" ;;
     esac
+    
+    echo -e "${color}${icon} ${message}${NC}"
 }
-
-print_section() {
-    echo ""
-    echo -e "${BLUE}$(printf '=%.0s' $(seq 1 70))${NC}"
-    echo -e "${BOLD}${WHITE}  $1${NC}"
-    echo -e "${BLUE}$(printf '=%.0s' $(seq 1 70))${NC}"
-}
-
-# =============================================================================
-# INITIALIZATION
-# =============================================================================
 
 initialize_environment() {
-    print_status "Initializing environment..." "Info"
-
-    # Create required directories
-    mkdir -p "$LOGS_DIR" "$RUN_DIR"
-
-    # Ensure shared Docker network exists
-    print_status "Ensuring shared Docker network exists..." "Info"
-    if ! docker network ls --filter name=thesis-apps-network --format "{{.Name}}" | grep -q thesis-apps-network; then
-        docker network create thesis-apps-network 2>/dev/null || true
-        print_status "  Created shared network: thesis-apps-network" "Success"
+    write_status "Initializing environment..." "Info"
+    
+    mkdir -p "$LOGS_DIR"
+    mkdir -p "$RUN_DIR"
+    
+    write_status "Ensuring shared Docker network exists..." "Info"
+    if docker network ls --format "{{.Name}}" | grep -q "^thesis-apps-network$"; then
+        write_status "  Shared network exists: thesis-apps-network" "Success"
     else
-        print_status "  Shared network exists: thesis-apps-network" "Success"
+        if docker network create thesis-apps-network >/dev/null 2>&1; then
+            write_status "  Created shared network: thesis-apps-network" "Success"
+        else
+            write_status "  Warning: Could not create shared network" "Warning"
+        fi
     fi
-
-    # Set environment variables
-    export FLASK_ENV="${FLASK_ENV:-production}"
-    export HOST="${HOST:-0.0.0.0}"
-    export PORT="$FLASK_PORT"
-    export PYTHONUNBUFFERED=1
-
-    print_status "Environment initialized" "Success"
+    
+    # Export env vars
+    export FLASK_ENV='development'
+    export HOST='127.0.0.1'
+    export PORT=$PORT
+    export DEBUG='false'
+    export PYTHONUTF8='1'
+    export PYTHONIOENCODING='utf-8'
+    
+    write_status "Environment initialized" "Success"
 }
 
 check_dependencies() {
-    print_status "Checking dependencies..." "Info"
-    local issues=0
-
+    write_status "Checking dependencies..." "Info"
+    local issues=()
+    
     # Check Python
-    if [ -f "$ROOT_DIR/.venv/bin/python" ]; then
-        PYTHON_CMD="$ROOT_DIR/.venv/bin/python"
-        print_status "  Python: .venv virtual environment found" "Success"
-    elif command -v python3 &>/dev/null; then
+    local venv_python="$ROOT_DIR/.venv/bin/python"
+    if [ -f "$venv_python" ]; then
+        write_status "  Python: .venv virtual environment found" "Success"
+        PYTHON_CMD="$venv_python"
+    elif command -v python3 &> /dev/null; then
+        write_status "  Python: System Python found" "Warning"
         PYTHON_CMD="python3"
-        print_status "  Python: System Python3 found" "Warning"
-    elif command -v python &>/dev/null; then
-        PYTHON_CMD="python"
-        print_status "  Python: System Python found" "Warning"
     else
-        print_status "  Python not found" "Error"
-        issues=$((issues + 1))
+        issues+=("Python not found")
     fi
-
+    
     # Check Docker
-    if docker info &>/dev/null; then
-        print_status "  Docker: Running" "Success"
+    if docker info >/dev/null 2>&1; then
+        write_status "  Docker: Running" "Success"
     else
-        print_status "  Docker is not running or not installed" "Error"
-        issues=$((issues + 1))
+        issues+=("Docker is not running or not installed")
     fi
-
-    # Check docker compose
-    if docker compose version &>/dev/null; then
-        print_status "  Docker Compose: Available" "Success"
-    else
-        print_status "  Docker Compose not available" "Error"
-        issues=$((issues + 1))
-    fi
-
-    # Check required directories
-    if [ ! -d "$SRC_DIR" ]; then
-        print_status "  Source directory not found: $SRC_DIR" "Error"
-        issues=$((issues + 1))
-    fi
-
-    if [ $issues -gt 0 ]; then
-        print_status "Dependency check failed with $issues issue(s)" "Error"
+    
+    if [ ${#issues[@]} -gt 0 ]; then
+        write_status "Dependency check failed:" "Error"
+        for issue in "${issues[@]}"; do
+            echo -e "  • $issue"
+        done
         return 1
     fi
-
-    print_status "All dependencies satisfied" "Success"
+    
+    write_status "All dependencies satisfied" "Success"
     return 0
 }
 
-# =============================================================================
-# SERVICE MANAGEMENT
-# =============================================================================
+# ============================================================================
+# SERVICE FUNCTIONS
+# ============================================================================
 
-check_http_service() {
-    local url="$1"
-    local timeout="${2:-5}"
-    curl -s --connect-timeout "$timeout" --max-time "$timeout" "$url" &>/dev/null
-}
-
-check_tcp_port() {
-    local host="$1"
-    local port="$2"
-    local timeout="${3:-2}"
-    timeout "$timeout" bash -c "echo >/dev/tcp/$host/$port" 2>/dev/null
-}
-
-start_docker_stack() {
-    print_banner "Starting ThesisApp Docker Production Stack"
-
-    echo -e "${YELLOW}Docker production configuration:${NC}"
-    echo "  - Flask app running in container (production mode)"
-    echo "  - Celery + Redis for distributed task execution"
-    echo "  - All analyzer microservices containerized"
-    echo "  - Shared thesis-network for inter-container communication"
-    echo ""
-
-    local compose_file="$ROOT_DIR/docker-compose.yml"
-    if [ ! -f "$compose_file" ]; then
-        print_status "docker-compose.yml not found in project root" "Error"
-        return 1
+start_redis() {
+    write_status "Starting Redis container..." "Info"
+    
+    if docker ps --filter "name=^thesisapprework-redis-1$" --format "{{.Names}}" | grep -q "redis"; then
+        write_status "  ✓ Redis already running" "Success"
+        return 0
     fi
-
-    print_status "Building and starting Docker production stack..." "Info"
-    echo "  (This may take several minutes if images need to be rebuilt)"
-    echo ""
-
-    # Define services to start
-    local services="web celery-worker redis analyzer-gateway static-analyzer dynamic-analyzer performance-tester ai-analyzer"
-
+    
     cd "$ROOT_DIR"
-
-    # Build and start services
-    echo -e "${DIM}--- Docker Build Output ---${NC}"
-    if docker compose up -d --build $services 2>&1 | tee -a "$LOGS_DIR/docker-compose.log"; then
-        print_status "Docker containers starting..." "Success"
-    else
-        print_status "Failed to start Docker stack" "Error"
+    if ! docker compose up -d redis; then
+        write_status "  ✗ Failed to start Redis" "Error"
         return 1
     fi
-    echo -e "${DIM}---------------------------${NC}"
-    echo ""
-
-    # Wait for services to be ready
-    local max_wait=120
+    
+    # Wait for Redis
+    echo -n -e "  ⏳ Waiting for Redis health check"
+    local max_wait=30
     local waited=0
-
-    echo -n "  Waiting for services to be ready"
+    
     while [ $waited -lt $max_wait ]; do
-        sleep 2
-        waited=$((waited + 2))
-        echo -n "."
-
-        if check_http_service "http://127.0.0.1:$FLASK_PORT/api/health"; then
+        sleep 1
+        waited=$((waited+1))
+        echo -n -e "${YELLOW}.${NC}"
+        
+        if "$PYTHON_CMD" -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.settimeout(1); exit(0) if s.connect_ex(('127.0.0.1', 6379)) == 0 else exit(1)" 2>/dev/null; then
             echo ""
-            print_status "All services are ready! (${waited}s)" "Success"
-            break
+            write_status "  ✓ Redis started and healthy (${waited}s)" "Success"
+            return 0
         fi
     done
+    
+    echo ""
+    write_status "  ✗ Redis health check timeout" "Error"
+    return 1
+}
 
-    if [ $waited -ge $max_wait ]; then
-        echo ""
-        print_status "Timeout waiting for services (check docker compose logs)" "Warning"
+start_celery() {
+    write_status "Starting Celery worker..." "Info"
+    
+    if docker ps --filter "name=^thesisapprework-celery-worker-1$" --format "{{.Names}}" | grep -q "celery-worker"; then
+        write_status "  ✓ Celery worker already running" "Success"
+        return 0
     fi
-
-    # Show container status
-    echo ""
-    echo -e "${CYAN}Container Status:${NC}"
-    docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null | while read line; do
-        echo "  $line"
+    
+    cd "$ROOT_DIR"
+    if ! docker compose up -d celery-worker; then
+        write_status "  ✗ Failed to start Celery worker" "Error"
+        return 1
+    fi
+    
+    # Wait for Celery
+    echo -n -e "  ⏳ Waiting for Celery worker"
+    local max_wait=60
+    local waited=0
+    
+    while [ $waited -lt $max_wait ]; do
+        sleep 2
+        waited=$((waited+2))
+        echo -n -e "${YELLOW}.${NC}"
+        
+        local health=$(docker inspect --format='{{.State.Health.Status}}' thesisapprework-celery-worker-1 2>/dev/null || echo "unknown")
+        if [ "$health" == "healthy" ]; then
+            echo ""
+            write_status "  ✓ Celery worker healthy (${waited}s)" "Success"
+            return 0
+        fi
     done
-
+    
     echo ""
-    print_banner "ThesisApp Docker Stack Started" "$GREEN"
-    echo -e "${CYAN}Application URL:${NC} http://127.0.0.1:$FLASK_PORT"
-    echo -e "${DIM}Task Execution: Celery + Redis (distributed)${NC}"
-    echo ""
-    echo -e "${CYAN}Quick Commands:${NC}"
-    echo "   ./start.sh status    - Check service status"
-    echo "   docker compose logs -f  - View live container logs"
-    echo "   ./start.sh stop      - Stop all services"
-    echo ""
+    write_status "  ⚠ Celery worker timeout (will fallback to ThreadPool)" "Warning"
+    return 0 # Not fatal
+}
 
-    # Mark Docker mode
-    echo "docker-compose" > "$RUN_DIR/docker.mode"
-
+start_analyzers() {
+    if [ "$NO_ANALYZER" = true ]; then
+        write_status "Skipping analyzer services" "Warning"
+        return 0
+    fi
+    
+    write_status "Starting analyzer services..." "Info"
+    
+    local services=("analyzer-gateway" "static-analyzer" "dynamic-analyzer" "performance-tester" "ai-analyzer" "redis")
+    local expected_count=6
+    local mode_label="Standard"
+    
+    if [ "$CONCURRENT" = true ]; then
+        write_status "Enable CONCURRENT mode..." "Info"
+        services+=("static-analyzer-2" "static-analyzer-3" "dynamic-analyzer-2" "performance-tester-2" "ai-analyzer-2")
+        expected_count=11
+        mode_label="Concurrent"
+        
+        export STATIC_ANALYZER_URLS="ws://localhost:2001,ws://localhost:2051,ws://localhost:2052"
+        export DYNAMIC_ANALYZER_URLS="ws://localhost:2002,ws://localhost:2053"
+        export PERF_TESTER_URLS="ws://localhost:2003,ws://localhost:2054"
+        export AI_ANALYZER_URLS="ws://localhost:2004,ws://localhost:2055"
+    fi
+    
+    # Ensure clean state for analyzers
+    cd "$ROOT_DIR"
+    
+    # Start
+    if ! docker compose up -d "${services[@]}" >> "$LOGS_DIR/analyzer.log" 2>&1; then
+        write_status "  Failed to start analyzer services" "Error"
+        return 1
+    fi
+    
+    write_status "  Analyzer services started" "Success"
+    
+    # Save mode info
+    echo "{\"mode\": \"$mode_label\"}" > "$RUN_DIR/analyzer.pid"
+    
     return 0
 }
 
-stop_docker_stack() {
-    print_status "Stopping Docker production stack..." "Info"
-
-    cd "$ROOT_DIR"
-    docker compose down 2>&1 || true
-
-    print_status "Docker stack stopped" "Success"
-
-    # Clean up mode file
-    rm -f "$RUN_DIR/docker.mode" 2>/dev/null || true
+start_flask() {
+    write_status "Starting Flask application..." "Info"
+    local pid_file="$RUN_DIR/flask.pid"
+    
+    if [ -f "$pid_file" ]; then
+        local pid=$(cat "$pid_file")
+        if ps -p $pid > /dev/null; then
+            write_status "  Flask already running (PID: $pid)" "Success"
+            return 0
+        fi
+        rm "$pid_file"
+    fi
+    
+    cd "$SRC_DIR"
+    
+    if [ "$BACKGROUND" = true ]; then
+        nohup "$PYTHON_CMD" main.py > "$LOGS_DIR/app.log" 2> "$LOGS_DIR/flask_stderr.log" &
+        echo $! > "$pid_file"
+        write_status "  Flask started in background (PID: $(cat $pid_file))" "Success"
+    else
+        write_status "  Flask starting in foreground..." "Success"
+        echo -e "${GRAY}    URL: http://127.0.0.1:$PORT${NC}"
+        "$PYTHON_CMD" main.py
+    fi
+    
+    return 0
 }
 
 stop_all_services() {
-    print_banner "Stopping ThesisApp Services"
-
-    # Check if we're in Docker mode
+    write_banner "Stopping ThesisApp Services"
+    
+    # Check for docker mode
     if [ -f "$RUN_DIR/docker.mode" ]; then
-        stop_docker_stack
-    fi
-
-    # Stop any local Flask process
-    if [ -f "$FLASK_PID_FILE" ]; then
-        local pid=$(cat "$FLASK_PID_FILE" 2>/dev/null)
-        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-            print_status "Stopping Flask (PID: $pid)..." "Info"
-            kill "$pid" 2>/dev/null || true
-            sleep 2
-            kill -9 "$pid" 2>/dev/null || true
-        fi
-        rm -f "$FLASK_PID_FILE"
-    fi
-
-    # Stop Celery worker and Redis containers if running standalone
-    cd "$ROOT_DIR"
-    docker compose stop celery-worker redis 2>/dev/null || true
-
-    print_status "All services stopped" "Success"
-}
-
-# =============================================================================
-# STATUS & HEALTH
-# =============================================================================
-
-show_status_dashboard() {
-    print_banner "ThesisApp Status Dashboard"
-
-    print_section "Core Services"
-
-    # Flask Health
-    echo -n "  Checking Flask API... "
-    if check_http_service "http://127.0.0.1:$FLASK_PORT/api/health" 5; then
-        echo -e "${GREEN}${CHECK} HEALTHY${NC}"
-    else
-        echo -e "${RED}${CROSS} UNHEALTHY${NC}"
-    fi
-
-    # Redis
-    echo -n "  Checking Redis... "
-    if docker compose ps redis 2>/dev/null | grep -q "running"; then
-        echo -e "${GREEN}${CHECK} RUNNING${NC}"
-    else
-        echo -e "${RED}${CROSS} NOT RUNNING${NC}"
-    fi
-
-    # Celery Worker
-    echo -n "  Checking Celery Worker... "
-    if docker compose ps celery-worker 2>/dev/null | grep -q "running"; then
-        echo -e "${GREEN}${CHECK} RUNNING${NC}"
-    else
-        echo -e "${RED}${CROSS} NOT RUNNING${NC}"
-    fi
-
-    print_section "Analyzer Services"
-
-    local analyzer_services=("static-analyzer:2001" "dynamic-analyzer:2002" "performance-tester:2003" "ai-analyzer:2004")
-
-    for service in "${analyzer_services[@]}"; do
-        local name="${service%%:*}"
-        local port="${service##*:}"
-
-        echo -n "  Checking $name:$port... "
-        if check_http_service "http://localhost:$port/health" 3; then
-            echo -e "${GREEN}${CHECK} HEALTHY${NC}"
-        else
-            echo -e "${RED}${CROSS} UNHEALTHY${NC}"
-        fi
-    done
-
-    print_section "Container Status"
-    cd "$ROOT_DIR"
-    docker compose ps 2>/dev/null || echo "  Docker Compose not running"
-
-    echo ""
-    echo -e "${DIM}Last check: $(date '+%Y-%m-%d %H:%M:%S')${NC}"
-    echo ""
-}
-
-# =============================================================================
-# LOGS
-# =============================================================================
-
-show_logs() {
-    local lines="${1:-100}"
-    print_banner "Application Logs (last $lines lines)"
-
-    cd "$ROOT_DIR"
-    docker compose logs --tail="$lines" 2>/dev/null || echo "No logs available"
-}
-
-follow_logs() {
-    print_banner "Following Application Logs (Ctrl+C to stop)"
-
-    cd "$ROOT_DIR"
-    docker compose logs -f 2>/dev/null || echo "No logs available"
-}
-
-# =============================================================================
-# REBUILD
-# =============================================================================
-
-rebuild_containers() {
-    print_banner "Rebuilding Docker Stack"
-
-    cd "$ROOT_DIR"
-
-    print_status "Stopping and removing existing containers..." "Info"
-    docker compose down 2>&1 || true
-
-    # Enable BuildKit for faster builds
-    export DOCKER_BUILDKIT=1
-    export COMPOSE_DOCKER_CLI_BUILD=1
-
-    print_status "Building with BuildKit optimization..." "Info"
-    echo "  - Shared base image caching enabled"
-    echo "  - Multi-stage builds with layer reuse"
-    echo ""
-
-    docker compose build --parallel
-
-    if [ $? -eq 0 ]; then
-        echo ""
-        print_banner "Rebuild Complete" "$GREEN"
-
-        echo -e "${YELLOW}Would you like to start all services now? (y/N): ${NC}"
-        read -r response
-        if [[ "$response" =~ ^[Yy]$ ]]; then
-            start_docker_stack
-        else
-            print_status "Services not started - use './start.sh start' to launch" "Info"
-        fi
-    else
-        print_status "Rebuild failed" "Error"
-        return 1
-    fi
-}
-
-clean_rebuild() {
-    print_banner "Clean Rebuild - Complete Cache Wipe" "$YELLOW"
-
-    echo -e "${YELLOW}This will:${NC}"
-    echo "  - Remove all Docker images and volumes"
-    echo "  - Clear BuildKit cache"
-    echo "  - Force complete rebuild from scratch"
-    echo ""
-    echo -e "${YELLOW}Type 'CLEAN' to confirm (or anything else to cancel): ${NC}"
-    read -r confirmation
-
-    if [ "$confirmation" != "CLEAN" ]; then
-        print_status "Clean rebuild cancelled" "Warning"
+        write_status "Stopping Docker stack..." "Info"
+        cd "$ROOT_DIR"
+        docker compose down >/dev/null 2>&1
+        rm -f "$RUN_DIR/docker.mode"
+        write_status "Docker stack stopped" "Success"
         return 0
     fi
-
-    cd "$ROOT_DIR"
-
-    print_status "Performing deep clean..." "Info"
-    docker compose down --rmi all --volumes 2>&1 || true
-
-    print_status "Clearing BuildKit cache..." "Info"
-    docker builder prune --all --force 2>&1 || true
-
-    export DOCKER_BUILDKIT=1
-    export COMPOSE_DOCKER_CLI_BUILD=1
-
-    print_status "Building from scratch..." "Warning"
-    docker compose build --no-cache --parallel
-
-    if [ $? -eq 0 ]; then
-        print_banner "Clean Rebuild Complete" "$GREEN"
-
-        echo -e "${YELLOW}Would you like to start all services now? (y/N): ${NC}"
-        read -r response
-        if [[ "$response" =~ ^[Yy]$ ]]; then
-            start_docker_stack
-        fi
+    
+    # Stop Flask
+    if [ -f "$RUN_DIR/flask.pid" ]; then
+        local pid=$(cat "$RUN_DIR/flask.pid")
+        write_status "Stopping Flask (PID: $pid)..." "Info"
+        kill $pid 2>/dev/null || true
+        rm "$RUN_DIR/flask.pid"
+        write_status "  Flask stopped" "Success"
     else
-        print_status "Clean rebuild failed" "Error"
-        return 1
+        # Fallback: kill by pattern
+        pkill -f "python.*main.py" && write_status "  Flask stopped (killed by pattern)" "Success" || true
     fi
+    
+    # Stop Analyzers (Containers)
+    write_status "Stopping Analyzer containers..." "Info"
+    cd "$ROOT_DIR"
+    docker compose stop analyzer-gateway static-analyzer dynamic-analyzer performance-tester ai-analyzer static-analyzer-2 static-analyzer-3 dynamic-analyzer-2 performance-tester-2 ai-analyzer-2 2>/dev/null || true
+    rm -f "$RUN_DIR/analyzer.pid"
+    
+    # Stop Redis/Celery
+    docker compose stop redis celery-worker 2>/dev/null || true
+    
+    write_status "All services stopped" "Success"
 }
 
-# =============================================================================
-# CLEANUP & WIPEOUT
-# =============================================================================
-
-cleanup() {
-    print_banner "Cleaning ThesisApp"
-
-    print_status "Removing PID files..." "Info"
-    rm -f "$RUN_DIR"/*.pid 2>/dev/null || true
-
-    print_status "Rotating logs..." "Info"
-    for log in "$LOGS_DIR"/*.log; do
-        if [ -f "$log" ]; then
-            mv "$log" "${log}.old" 2>/dev/null || true
-        fi
-    done
-
-    print_status "Cleanup completed" "Success"
+start_local_stack() {
+    write_banner "Starting Local Stack"
+    
+    start_redis || return 1
+    start_celery
+    start_analyzers
+    start_flask
 }
 
-wipeout() {
-    print_banner "WIPEOUT - Reset to Default State" "$RED"
-
-    echo -e "${YELLOW}This will:${NC}"
-    echo "  - Stop all running services"
-    echo "  - Delete the database (src/data/)"
-    echo "  - Remove all generated apps (generated/)"
-    echo "  - Remove all analysis results (results/)"
-    echo "  - Remove all reports (reports/)"
-    echo "  - Remove Docker containers, images, and volumes"
-    echo "  - Create fresh admin user"
-    echo ""
-    echo -e "${RED}THIS CANNOT BE UNDONE!${NC}"
-    echo ""
-    echo -e "${YELLOW}Type 'YES' to confirm: ${NC}"
-    read -r confirmation
-
-    if [ "$confirmation" != "YES" ]; then
-        print_status "Wipeout cancelled" "Info"
-        return 0
+start_docker_stack() {
+    write_banner "Starting Docker Production Stack"
+    
+    cd "$ROOT_DIR"
+    
+    local services=("web" "celery-worker" "redis" "analyzer-gateway" "static-analyzer" "dynamic-analyzer" "performance-tester" "ai-analyzer")
+    if [ "$CONCURRENT" = true ]; then
+         services+=("static-analyzer-2" "static-analyzer-3" "dynamic-analyzer-2" "performance-tester-2" "ai-analyzer-2")
     fi
+    
+    write_status "Building and starting stack..." "Info"
+    docker compose up -d --build "${services[@]}"
+    
+    echo "docker-compose" > "$RUN_DIR/docker.mode"
+    
+    write_status "Docker stack started" "Success"
+    echo -e "${CYAN}URL: http://127.0.0.1:$PORT${NC}"
+}
 
-    print_status "Starting wipeout procedure..." "Warning"
+start_dev_mode() {
+    write_banner "Starting Dev Mode"
+    export DEBUG='true'
+    export FLASK_ENV='development'
+    
+    if [ "$NO_ANALYZER" = false ]; then
+        start_analyzers
+    fi
+    
+    start_flask
+}
 
-    # 1. Stop all services
-    print_status "Stopping all services..." "Info"
+invoke_cleanup() {
+    write_banner "Cleaning ThesisApp"
+    rm -f "$RUN_DIR"/*.pid
+    rm -f "$LOGS_DIR"/*.log
+    rm -f "$LOGS_DIR"/*.old
+    write_status "Cleanup completed" "Success"
+}
+
+invoke_logs() {
+    local opts=""
+    if [ "$NO_FOLLOW" = false ]; then
+        opts="-f"
+    else
+        opts="--tail=50"
+    fi
+    
+    tail $opts "$LOGS_DIR"/*.log 2>/dev/null
+}
+
+invoke_reload() {
+    write_banner "🔄 Reloading ThesisApp" "Yellow"
+    write_status "Stopping services..." "Info"
     stop_all_services
     sleep 2
+    
+    # Kill any orphans
+    pkill -f "$SRC_DIR" 2>/dev/null || true
+    rm -f "$RUN_DIR/flask.pid"
+    
+    write_status "Restarting services..." "Info"
+    BACKGROUND=true
+    start_docker_stack
+}
 
-    # 2. Remove Docker resources
-    print_status "Removing Docker resources..." "Info"
+invoke_wipeout() {
+    write_banner "⚠️  WIPEOUT" "Red"
+    write_status "Stopping services..." "Info"
+    stop_all_services
+    
+    write_status "Removing Docker resources..." "Info"
     cd "$ROOT_DIR"
-    docker compose down --rmi local --volumes --remove-orphans 2>&1 || true
+    docker compose down --rmi local --volumes --remove-orphans >/dev/null 2>&1
+    
+    write_status "Removing database..." "Info"
+    rm -rf "$SRC_DIR/data"
+    
+    write_status "Removing generated apps..." "Info"
+    rm -rf "$ROOT_DIR/generated"
+    mkdir -p "$ROOT_DIR/generated"
+    touch "$ROOT_DIR/generated/.gitkeep"
+    
+    write_status "Removing results/reports..." "Info"
+    rm -rf "$ROOT_DIR/results" "$ROOT_DIR/reports"
+    mkdir -p "$ROOT_DIR/results" "$ROOT_DIR/reports"
+    
+    invoke_cleanup
+    
+    write_status "Initializing fresh database..." "Info"
+    "$PYTHON_CMD" "$SRC_DIR/init_db.py" >/dev/null 2>&1
 
-    # 3. Remove database
-    local db_dir="$SRC_DIR/data"
-    if [ -d "$db_dir" ]; then
-        print_status "Removing database..." "Info"
-        rm -rf "$db_dir"
-        print_status "  Database removed" "Success"
-    fi
-
-    # 4. Remove generated apps
-    local generated_dir="$ROOT_DIR/generated"
-    if [ -d "$generated_dir" ]; then
-        print_status "Removing generated apps..." "Info"
-        find "$generated_dir" -mindepth 1 -maxdepth 1 ! -name ".migration_done" -exec rm -rf {} \; 2>/dev/null || true
-        print_status "  Generated apps removed" "Success"
-    fi
-
-    # 5. Remove results
-    local results_dir="$ROOT_DIR/results"
-    if [ -d "$results_dir" ]; then
-        print_status "Removing analysis results..." "Info"
-        rm -rf "$results_dir"
-        mkdir -p "$results_dir"
-        print_status "  Results removed" "Success"
-    fi
-
-    # 6. Remove reports
-    local reports_dir="$ROOT_DIR/reports"
-    if [ -d "$reports_dir" ]; then
-        print_status "Removing reports..." "Info"
-        rm -rf "$reports_dir"
-        mkdir -p "$reports_dir"
-        print_status "  Reports removed" "Success"
-    fi
-
-    # 7. Remove logs
-    print_status "Removing all logs..." "Info"
-    rm -f "$LOGS_DIR"/*.log "$LOGS_DIR"/*.old 2>/dev/null || true
-    print_status "  Logs removed" "Success"
-
-    # 8. Remove PID files
-    print_status "Removing PID files..." "Info"
-    rm -f "$RUN_DIR"/*.pid "$RUN_DIR"/*.mode 2>/dev/null || true
-
-    # 9. Initialize fresh database
-    print_status "Initializing fresh database..." "Info"
-    local init_db_script="$SRC_DIR/init_db.py"
-    if [ -f "$init_db_script" ]; then
-        $PYTHON_CMD "$init_db_script" 2>&1 || true
-        print_status "  Database initialized" "Success"
-    fi
-
-    # 10. Create admin user with random password
-    print_status "Creating admin user..." "Info"
-    local new_password=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9!@#$%^&*' | fold -w 16 | head -n 1)
-
-    cat > /tmp/create_admin.py << PYEOF
-import sys
+    # Create Admin User
+    write_status "Creating admin user..." "Info"
+    local new_password=$(tr -dc 'A-Za-z0-9!@#$%^&*' < /dev/urandom | head -c 16)
+    local temp_script="$ROOT_DIR/temp_create_admin.py"
+    
+    cat <<EOF > "$temp_script"
+import sys, os
 from pathlib import Path
-sys.path.insert(0, str(Path("$SRC_DIR")))
+
+# Add src to path
+sys.path.insert(0, "$SRC_DIR")
 
 from app.factory import create_app
 from app.models import User
 from app.extensions import db
 
-app = create_app()
-with app.app_context():
-    admin = User.query.filter_by(username='admin').first()
-    if not admin:
-        admin = User(
-            username='admin',
-            email='admin@thesis.local',
-            full_name='System Administrator'
-        )
-        admin.set_password('$new_password')
-        admin.is_admin = True
-        admin.is_active = True
-        db.session.add(admin)
+def main():
+    app = create_app()
+    with app.app_context():
+        admin = User.query.filter_by(username='admin').first()
+        if not admin:
+            admin = User(
+                username='admin', 
+                email='admin@thesis.local', 
+                full_name='System Administrator'
+            )
+            admin.set_password('$new_password')
+            admin.is_admin = True
+            admin.is_active = True
+            db.session.add(admin)
+            print('CREATED')
+        else:
+            admin.set_password('$new_password')
+            print('UPDATED')
         db.session.commit()
-        print('CREATED')
-    else:
-        admin.set_password('$new_password')
-        db.session.commit()
-        print('SUCCESS')
-PYEOF
 
-    local output=$($PYTHON_CMD /tmp/create_admin.py 2>&1)
-    rm -f /tmp/create_admin.py
+if __name__ == '__main__':
+    main()
+EOF
 
-    if [[ "$output" == *"SUCCESS"* ]] || [[ "$output" == *"CREATED"* ]]; then
-        print_status "  Admin user created successfully" "Success"
-    else
-        print_status "  Warning: Could not create admin user" "Warning"
-    fi
-
-    print_banner "Wipeout Complete - System Reset" "$GREEN"
-
-    # Auto-restart
-    print_status "Restarting application..." "Info"
-    sleep 1
-
-    if start_docker_stack; then
-        echo ""
-        print_banner "Application Restarted" "$GREEN"
-    else
-        print_status "Application restart failed - try './start.sh start' manually" "Warning"
-    fi
-
-    # Display credentials
-    echo ""
-    echo -e "${CYAN}================================================${NC}"
+    local output=$("$PYTHON_CMD" "$temp_script" 2>&1)
+    rm -f "$temp_script"
+    
+    write_status "Admin user initialized" "Success"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${CYAN}  NEW ADMIN CREDENTIALS${NC}"
-    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "  Username: ${GREEN}admin${NC}"
     echo -e "  Password: ${GREEN}$new_password${NC}"
-    echo -e "  Email:    ${GREEN}admin@thesis.local${NC}"
-    echo -e "${CYAN}================================================${NC}"
-    echo ""
-    echo -e "${YELLOW}IMPORTANT: Save this password now! It will not be shown again.${NC}"
-    echo ""
-
-    return 0
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}⚠️  Save this password now!${NC}"
+    
+    write_status "Wipeout complete" "Success"
 }
 
-# =============================================================================
-# PASSWORD RESET
-# =============================================================================
-
-reset_password() {
-    print_banner "Reset Admin Password"
-
-    echo "This will reset the admin user password to a new random value."
-    echo ""
-    echo -e "${YELLOW}Continue? (y/N): ${NC}"
-    read -r response
-
-    if [[ ! "$response" =~ ^[Yy]$ ]]; then
-        print_status "Password reset cancelled" "Info"
-        return 0
-    fi
-
-    local new_password=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9!@#$%^&*' | fold -w 16 | head -n 1)
-
-    print_status "Resetting admin password..." "Info"
-
-    # Check if Docker mode
-    if [ -f "$RUN_DIR/docker.mode" ]; then
-        print_status "Detected Docker environment - executing inside container..." "Info"
-
-        cd "$ROOT_DIR"
-        local container_id=$(docker compose ps -q web 2>/dev/null | head -1)
-
-        if [ -z "$container_id" ]; then
-            print_status "Could not find running 'web' container. Ensure the stack is running." "Error"
-            return 1
-        fi
-
-        cat > /tmp/reset_password.py << PYEOF
-import sys
-sys.path.insert(0, '/app/src')
-
-from app.factory import create_app
-from app.models import User
-from app.extensions import db
-
-app = create_app()
-with app.app_context():
-    admin = User.query.filter_by(username='admin').first()
-    if not admin:
-        admin = User(
-            username='admin',
-            email='admin@thesis.local',
-            full_name='System Administrator'
-        )
-        admin.set_password('$new_password')
-        admin.is_admin = True
-        admin.is_active = True
-        db.session.add(admin)
-        db.session.commit()
-        print('CREATED')
-    else:
-        admin.set_password('$new_password')
-        db.session.commit()
-        print('SUCCESS')
-PYEOF
-
-        docker cp /tmp/reset_password.py "$container_id:/tmp/reset_password.py"
-        local output=$(docker exec "$container_id" python /tmp/reset_password.py 2>&1)
-        docker exec "$container_id" rm /tmp/reset_password.py 2>/dev/null || true
-        rm -f /tmp/reset_password.py
-    else
-        # Local execution
-        cat > /tmp/reset_password.py << PYEOF
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path("$SRC_DIR")))
-
-from app.factory import create_app
-from app.models import User
-from app.extensions import db
-
-app = create_app()
-with app.app_context():
-    admin = User.query.filter_by(username='admin').first()
-    if not admin:
-        admin = User(
-            username='admin',
-            email='admin@thesis.local',
-            full_name='System Administrator'
-        )
-        admin.set_password('$new_password')
-        admin.is_admin = True
-        admin.is_active = True
-        db.session.add(admin)
-        db.session.commit()
-        print('CREATED')
-    else:
-        admin.set_password('$new_password')
-        db.session.commit()
-        print('SUCCESS')
-PYEOF
-        local output=$($PYTHON_CMD /tmp/reset_password.py 2>&1)
-        rm -f /tmp/reset_password.py
-    fi
-
-    if [[ "$output" == *"SUCCESS"* ]] || [[ "$output" == *"CREATED"* ]]; then
-        print_banner "Password Reset Successfully" "$GREEN"
-        echo ""
-        echo -e "${CYAN}New Admin Credentials:${NC}"
-        echo -e "  Username: ${GREEN}admin${NC}"
-        echo -e "  Password: ${GREEN}$new_password${NC}"
-        echo ""
-        echo -e "${YELLOW}IMPORTANT: Save this password now! It will not be shown again.${NC}"
-        echo ""
-    else
-        print_status "Failed to reset password" "Error"
-        echo "Output: $output"
-    fi
-}
-
-# =============================================================================
-# MAINTENANCE
-# =============================================================================
-
-run_maintenance() {
-    print_banner "Manual Maintenance Cleanup" "$YELLOW"
-
-    echo "This will run the maintenance service to clean up:"
-    echo "  - Orphan app records (apps missing from filesystem for >7 days)"
-    echo "  - Orphan tasks (tasks targeting non-existent apps)"
-    echo "  - Stuck tasks (RUNNING for >2 hours, PENDING for >4 hours)"
-    echo "  - Old completed/failed tasks (>30 days old)"
-    echo ""
-    echo "Press Enter to continue or Ctrl+C to cancel..."
-    read -r
-
-    print_status "Running maintenance cleanup..." "Info"
-
-    cat > /tmp/maintenance.py << 'PYEOF'
-import sys
-from pathlib import Path
-sys.path.insert(0, '/app/src')
-
-from app.factory import create_app
-from app.services.maintenance_service import get_maintenance_service
-
-app = create_app()
-
-with app.app_context():
-    service = get_maintenance_service()
-    if service is None:
-        print("ERROR: Maintenance service not initialized")
-        sys.exit(1)
-
-    print("\n=== Running Manual Maintenance Cleanup ===\n")
-    service._run_maintenance()
-
-    print("\n=== Maintenance Statistics ===")
-    stats = service.stats
-    print(f"Total runs: {stats['runs']}")
-    print(f"Orphan apps cleaned: {stats['orphan_apps_cleaned']}")
-    print(f"Orphan tasks cleaned: {stats['orphan_tasks_cleaned']}")
-    print(f"Stuck tasks cleaned: {stats['stuck_tasks_cleaned']}")
-    print(f"Old tasks cleaned: {stats['old_tasks_cleaned']}")
-    print(f"Errors: {stats['errors']}")
-    print()
-PYEOF
-
-    if [ -f "$RUN_DIR/docker.mode" ]; then
-        cd "$ROOT_DIR"
-        local container_id=$(docker compose ps -q web 2>/dev/null | head -1)
-        if [ -n "$container_id" ]; then
-            docker cp /tmp/maintenance.py "$container_id:/tmp/maintenance.py"
-            docker exec "$container_id" python /tmp/maintenance.py
-            docker exec "$container_id" rm /tmp/maintenance.py 2>/dev/null || true
+invoke_nuke() {
+    write_banner "🔥 NUKE" "Red"
+    invoke_wipeout
+    initialize_environment
+    
+    write_status "Rebuilding..." "Info"
+    cd "$ROOT_DIR"
+    docker compose build --no-cache --parallel
+    
+    if [ "$BACKGROUND" = false ]; then
+        read -p "Start services now? (y/n): " choice
+        if [[ "$choice" =~ ^[Yy]$ ]]; then
+            start_docker_stack
         fi
     else
-        $PYTHON_CMD /tmp/maintenance.py
+        start_docker_stack
     fi
-
-    rm -f /tmp/maintenance.py
-    print_status "Maintenance cleanup completed" "Success"
 }
 
-# =============================================================================
-# HELP
-# =============================================================================
-
-show_help() {
-    print_banner "ThesisApp Orchestrator - Help"
-
-    echo -e "${CYAN}USAGE:${NC}"
-    echo "  ./start.sh [COMMAND] [OPTIONS]"
-    echo ""
-    echo -e "${CYAN}COMMANDS:${NC}"
-    echo "  (none)        Interactive menu (default)"
-    echo "  start         Start Docker production stack"
-    echo "  stop          Stop all services gracefully"
-    echo "  status        Show service status dashboard"
-    echo "  logs [N]      Show last N lines of logs (default: 100)"
-    echo "  logs-follow   Follow logs in real-time"
-    echo "  rebuild       Rebuild containers (with cache)"
-    echo "  clean-rebuild Force rebuild from scratch (no cache)"
-    echo "  cleanup       Clean logs and PID files"
-    echo "  wipeout       Reset to default state (removes all data)"
-    echo "  password      Reset admin password"
-    echo "  maintenance   Run maintenance cleanup"
-    echo "  help          Show this help message"
-    echo ""
-    echo -e "${CYAN}EXAMPLES:${NC}"
-    echo "  ./start.sh"
-    echo "    -> Interactive menu"
-    echo ""
-    echo "  ./start.sh start"
-    echo "    -> Start full Docker production stack"
-    echo ""
-    echo "  ./start.sh logs 200"
-    echo "    -> Show last 200 lines of logs"
-    echo ""
-    echo "  ./start.sh wipeout"
-    echo "    -> Reset system to default state"
-    echo ""
-    echo -e "${CYAN}SERVICE URLS:${NC}"
-    echo "  Flask App:           http://127.0.0.1:$FLASK_PORT"
-    echo "  Static Analyzer:     ws://localhost:2001"
-    echo "  Dynamic Analyzer:    ws://localhost:2002"
-    echo "  Performance Tester:  ws://localhost:2003"
-    echo "  AI Analyzer:         ws://localhost:2004"
-    echo ""
-}
-
-# =============================================================================
-# INTERACTIVE MENU
-# =============================================================================
-
-show_interactive_menu() {
+show_status_dashboard() {
+    local loop="$1"
+    
     while true; do
         clear
-        print_banner "ThesisApp Orchestrator"
+        write_banner "ThesisApp Status Dashboard"
+        
+        # Check Flask
+        if [ -f "$RUN_DIR/flask.pid" ] && ps -p $(cat "$RUN_DIR/flask.pid") > /dev/null; then
+             echo -e "Flask:      ${GREEN}Running${NC} (PID: $(cat "$RUN_DIR/flask.pid"))"
+             echo -e "     URL: http://127.0.0.1:$PORT"
+        else
+             echo -e "Flask:      ${RED}Stopped${NC}"
+        fi
+        
+        # Check Docker Services
+        if [ -f "$RUN_DIR/docker.mode" ]; then
+             echo -e "Mode:       ${CYAN}Docker Production${NC}"
+             cd "$ROOT_DIR"
+             docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+        else
+             # Check Analyzers
+             local running_analyzers=$(docker ps --filter "name=analyzer" --format "{{.Names}}" | wc -l)
+             if [ "$running_analyzers" -gt 0 ]; then
+                 echo -e "Analyzers:  ${GREEN}Running${NC} ($running_analyzers services)"
+             else
+                 echo -e "Analyzers:  ${RED}Stopped${NC}"
+             fi
+        fi
+        
+        echo -e "--------------------------------------------------------------------------------"
+        echo -e "Last check: $(date)"
+        
+        if [ "$loop" != "true" ]; then break; fi
+        echo -e "\n${YELLOW}Refreshing in 5s... (Ctrl+C to stop)${NC}"
+        sleep 5
+    done
+}
 
-        echo "Select an option:"
-        echo ""
-        echo "  [S] Start         - Start Docker production stack"
-        echo "  [X] Stop          - Stop all services"
-        echo "  [T] Status        - Show service status"
-        echo "  [L] Logs          - View logs (last 100 lines)"
-        echo "  [F] Follow Logs   - Follow logs in real-time"
-        echo "  [R] Rebuild       - Rebuild containers (with cache)"
-        echo "  [C] Clean Rebuild - Force rebuild (no cache)"
-        echo "  [K] Cleanup       - Clean logs and PID files"
-        echo "  [W] Wipeout       - Reset to default state"
-        echo "  [P] Password      - Reset admin password"
-        echo "  [M] Maintenance   - Run maintenance cleanup"
-        echo "  [H] Help          - Show help"
-        echo "  [Q] Quit          - Exit"
-        echo ""
-        echo -n "Enter choice: "
-        read -r choice
+show_help() {
+    write_banner "Help"
+    echo "Usage: ./start.sh [MODE] [OPTIONS]"
+    echo ""
+    echo "Modes:"
+    echo "  Start       Start Docker stack"
+    echo "  Local       Start local stack (Flask + Containers)"
+    echo "  Dev         Dev mode"
+    echo "  Reload      Quick reload (Stop → Start)"
+    echo "  Stop        Stop services"
+    echo "  Logs        Show logs"
+    echo "  Monitor     Live status dashboard"
+    echo "  Clean       Clean temporary files"
+    echo "  Wipeout     Reset system"
+    echo "  Nuke        Wipeout + Rebuild"
+    echo ""
+    echo "Options:"
+    echo "  -b, --background   Run in background"
+    echo "  --no-analyzer      Skip analyzers"
+    echo "  --concurrent       Horizontal scaling mode"
+    echo "  --port <p>         Set Flask port"
+    echo "  --no-follow        Don't follow logs"
+}
 
-        case "${choice^^}" in
-            S)
-                start_docker_stack
-                echo ""
-                echo "Press Enter to return to menu..."
-                read -r
-                ;;
-            X)
-                stop_all_services
-                echo ""
-                echo "Press Enter to return to menu..."
-                read -r
-                ;;
-            T)
-                show_status_dashboard
-                echo ""
-                echo "Press Enter to return to menu..."
-                read -r
-                ;;
-            L)
-                show_logs 100
-                echo ""
-                echo "Press Enter to return to menu..."
-                read -r
-                ;;
-            F)
-                follow_logs
-                ;;
-            R)
-                rebuild_containers
-                echo ""
-                echo "Press Enter to return to menu..."
-                read -r
-                ;;
-            C)
-                clean_rebuild
-                echo ""
-                echo "Press Enter to return to menu..."
-                read -r
-                ;;
-            K)
-                cleanup
-                echo ""
-                echo "Press Enter to return to menu..."
-                read -r
-                ;;
-            W)
-                wipeout
-                echo ""
-                echo "Press Enter to return to menu..."
-                read -r
-                ;;
-            P)
-                reset_password
-                echo ""
-                echo "Press Enter to return to menu..."
-                read -r
-                ;;
-            M)
-                run_maintenance
-                echo ""
-                echo "Press Enter to return to menu..."
-                read -r
-                ;;
-            H)
-                show_help
-                echo ""
-                echo "Press Enter to return to menu..."
-                read -r
-                ;;
-            Q)
-                echo ""
-                echo "Goodbye!"
-                exit 0
-                ;;
-            *)
-                echo -e "${RED}Invalid option${NC}"
-                sleep 1
-                ;;
+show_menu() {
+    while true; do
+        clear
+        write_banner "ThesisApp Orchestrator (Linux)"
+        echo -e "${CYAN}Select an option:${NC}"
+        echo ""
+        echo "  [s] Start        - Start Docker stack"
+        echo "  [k] Local        - Start Local stack"
+        echo "  [d] Dev          - Start Dev mode"
+        echo "  [o] Reload       - Quick reload"
+        echo "  [x] Stop         - Stop all services"
+        echo "  [l] Logs         - View logs"
+        echo "  [m] Monitor      - Live status monitoring"
+        echo "  [r] Rebuild      - Rebuild containers"
+        echo "  [f] CleanRebuild - Force rebuild"
+        echo "  [c] Clean        - Cleanup"
+        echo "  [w] Wipeout      - Reset system"
+        echo "  [n] Nuke         - Wipeout + Rebuild"
+        echo "  [p] Password     - Reset admin password"
+        echo "  [q] Quit         - Exit"
+        echo ""
+        read -p "Enter choice: " choice
+        
+        case "$choice" in
+            s|S) BACKGROUND=true; start_docker_stack; read -p "Press Enter...";;
+            k|K) BACKGROUND=true; start_local_stack; read -p "Press Enter...";;
+            d|D) start_dev_mode; read -p "Press Enter...";;
+            o|O) invoke_reload; read -p "Press Enter...";;
+            x|X) stop_all_services; read -p "Press Enter...";;
+            l|L) invoke_logs; read -p "Press Enter...";;
+            m|M) show_status_dashboard "true";;
+            r|R) cd "$ROOT_DIR"; docker compose build --parallel; read -p "Press Enter...";;
+            f|F) cd "$ROOT_DIR"; docker builder prune -f; docker compose build --no-cache --parallel; read -p "Press Enter...";;
+            c|C) invoke_cleanup; read -p "Press Enter...";;
+            w|W) invoke_wipeout; read -p "Press Enter...";;
+            n|N) invoke_nuke; read -p "Press Enter...";;
+            p|P) "$PYTHON_CMD" "$SRC_DIR/scripts/reset_password.py" 2>/dev/null || echo "Use Wipeout for full reset"; read -p "Press Enter...";;
+            q|Q) exit 0 ;;
+            *) echo "Invalid choice" ;;
         esac
     done
 }
 
-# =============================================================================
-# MAIN EXECUTION
-# =============================================================================
+# ============================================================================
+# MAIN
+# ============================================================================
 
-main() {
-    # Initialize
-    initialize_environment
-
-    if ! check_dependencies; then
-        exit 1
-    fi
-
-    # Parse command
-    local command="${1:-menu}"
-    shift 2>/dev/null || true
-
-    case "$command" in
-        start)
-            start_docker_stack
-            ;;
-        stop)
-            stop_all_services
-            ;;
-        status)
-            show_status_dashboard
-            ;;
-        logs)
-            show_logs "${1:-100}"
-            ;;
-        logs-follow|follow)
-            follow_logs
-            ;;
-        rebuild)
-            rebuild_containers
-            ;;
-        clean-rebuild)
-            clean_rebuild
-            ;;
-        cleanup|clean)
-            cleanup
-            ;;
-        wipeout)
-            wipeout
-            ;;
-        password)
-            reset_password
-            ;;
-        maintenance)
-            run_maintenance
-            ;;
-        help|--help|-h)
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
             show_help
+            exit 0
             ;;
-        menu|"")
-            show_interactive_menu
+        -b|--background)
+            BACKGROUND=true
+            shift
+            ;;
+        --no-analyzer)
+            NO_ANALYZER=true
+            shift
+            ;;
+        --no-follow)
+            NO_FOLLOW=true
+            shift
+            ;;
+        -p|--port)
+            PORT="$2"
+            shift 2
+            ;;
+        -v|--verbose)
+            # Ignored
+            shift
+            ;;
+        --concurrent)
+            CONCURRENT=true
+            shift
+            ;;
+        Start|Docker|Local|Dev|Stop|Logs|Clean|Wipeout|Nuke|Help|Interactive|Rebuild|CleanRebuild|Password|Maintenance|Reload|Status|Health)
+            MODE="$1"
+            shift
             ;;
         *)
-            echo -e "${RED}Unknown command: $command${NC}"
-            echo ""
-            show_help
+            echo "Unknown argument: $1"
             exit 1
             ;;
     esac
-}
+done
 
-# Run main function
-main "$@"
+# Initialize
+initialize_environment
+check_dependencies || exit 1
+
+case "$MODE" in
+    Interactive)
+        show_menu
+        ;;
+    Start|Docker)
+        start_docker_stack
+        ;;
+    Local)
+        start_local_stack
+        ;;
+    Dev)
+        start_dev_mode
+        ;;
+    Reload)
+        invoke_reload
+        ;;
+    Stop)
+        stop_all_services
+        ;;
+    Logs)
+        invoke_logs
+        ;;
+    Status)
+        show_status_dashboard "false"
+        ;;
+    Health)
+        show_status_dashboard "true"
+        ;;
+    Clean)
+        invoke_cleanup
+        ;;
+    Rebuild)
+        cd "$ROOT_DIR"
+        write_status "Rebuilding Docker stack..." "Info"
+        docker compose build --parallel
+        write_status "Rebuild complete" "Success"
+        ;;
+    CleanRebuild)
+        cd "$ROOT_DIR"
+        write_status "Clean Rebuilding Docker stack..." "Info"
+        docker builder prune -f >/dev/null 2>&1
+        docker compose build --no-cache --parallel
+        write_status "Clean Rebuild complete" "Success"
+        ;;
+    Password)
+        write_status "Resetting Admin Password..." "Info"
+        "$PYTHON_CMD" "$SRC_DIR/scripts/reset_password.py" 2>/dev/null || \
+        write_status "Use 'Wipeout' to reset password completely or check documentation." "Warning"
+        ;;
+    Maintenance)
+        write_status "Running Maintenance..." "Info"
+        "$PYTHON_CMD" "$SRC_DIR/scripts/maintenance.py" 2>/dev/null || \
+        write_status "Maintenance script not found." "Warning"
+        ;;
+    Wipeout)
+        invoke_wipeout
+        ;;
+    Nuke)
+        invoke_nuke
+        ;;
+    *)
+        show_help
+        exit 1
+        ;;
+esac
