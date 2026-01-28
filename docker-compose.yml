@@ -200,6 +200,11 @@ services:
     volumes:
       - ./generated/apps:/app/sources:ro
       - ./results:/app/results
+      # Dev mounts for hot reloading
+      - ./analyzer/services/static-analyzer/main.py:/app/main.py
+      - ./analyzer/services/static-analyzer/parsers.py:/app/parsers.py
+      - ./analyzer/services/static-analyzer/sarif_parsers.py:/app/sarif_parsers.py
+      - ./analyzer/shared:/app/analyzer/shared
     healthcheck:
       test: [ "CMD", "python", "health_check.py" ]
       interval: 30s
@@ -332,6 +337,10 @@ services:
     volumes:
       - ./generated/apps:/app/sources:ro
       - ./results:/app/results
+      - ./analyzer/services/static-analyzer/main.py:/app/main.py
+      - ./analyzer/services/static-analyzer/parsers.py:/app/parsers.py
+      - ./analyzer/services/static-analyzer/sarif_parsers.py:/app/sarif_parsers.py
+      - ./analyzer/shared:/app/analyzer/shared
     healthcheck:
       test: [ "CMD", "python", "health_check.py" ]
       interval: 30s
@@ -360,6 +369,10 @@ services:
     volumes:
       - ./generated/apps:/app/sources:ro
       - ./results:/app/results
+      - ./analyzer/services/static-analyzer/main.py:/app/main.py
+      - ./analyzer/services/static-analyzer/parsers.py:/app/parsers.py
+      - ./analyzer/services/static-analyzer/sarif_parsers.py:/app/sarif_parsers.py
+      - ./analyzer/shared:/app/analyzer/shared
     healthcheck:
       test: [ "CMD", "python", "health_check.py" ]
       interval: 30s
