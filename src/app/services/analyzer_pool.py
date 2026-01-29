@@ -82,8 +82,8 @@ class AnalyzerPoolConfig:
     max_retries: int = 3
     request_timeout: int = 600  # 10 minutes for long analyses
     connection_timeout: int = 10
-    max_consecutive_failures: int = 3  # Mark unhealthy after N failures
-    cooldown_period: int = 60  # Seconds to wait before retrying unhealthy endpoint
+    max_consecutive_failures: int = 5  # Mark unhealthy after N failures (increased from 3 for high-concurrency tolerance)
+    cooldown_period: int = 20  # Seconds to wait before retrying unhealthy endpoint (reduced from 60 for faster recovery)
 
 
 class AnalyzerPool:
@@ -294,7 +294,7 @@ class AnalyzerPool:
         try:
             async with websockets.connect(
                 endpoint.url,
-                open_timeout=2,   # Fast timeout for health checks
+                open_timeout=5,   # Increased from 2s for better tolerance during high load
                 close_timeout=1,
                 ping_interval=None
             ) as ws:
@@ -302,7 +302,7 @@ class AnalyzerPool:
                 await ws.send(json.dumps({"type": "health_check"}))
 
                 # Wait for response
-                response = await asyncio.wait_for(ws.recv(), timeout=3)
+                response = await asyncio.wait_for(ws.recv(), timeout=8)  # Increased from 3s
                 data = json.loads(response)
 
                 if data.get('status') == 'healthy':

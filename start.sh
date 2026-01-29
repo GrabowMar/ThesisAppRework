@@ -115,6 +115,13 @@ initialize_environment() {
         # Use stat to get the group ID of the docker socket
         export DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
         write_status "  Docker GID detected: $DOCKER_GID" "Success"
+
+        # Verify socket is accessible
+        if docker info >/dev/null 2>&1; then
+            write_status "  Docker socket accessible" "Success"
+        else
+            write_status "  Warning: Docker socket not accessible (may need to restart)" "Warning"
+        fi
     else
         # Fallback to group lookup
         DOCKER_GID=$(getent group docker | cut -d: -f3)
@@ -125,6 +132,15 @@ initialize_environment() {
             export DOCKER_GID=0
             write_status "  Warning: Could not detect Docker GID, defaulting to 0" "Warning"
         fi
+    fi
+
+    # Write DOCKER_GID to .env for docker-compose
+    if ! grep -q "^DOCKER_GID=" "$ROOT_DIR/.env" 2>/dev/null; then
+        echo "DOCKER_GID=$DOCKER_GID" >> "$ROOT_DIR/.env"
+        write_status "  DOCKER_GID written to .env" "Success"
+    else
+        sed -i "s/^DOCKER_GID=.*/DOCKER_GID=$DOCKER_GID/" "$ROOT_DIR/.env"
+        write_status "  DOCKER_GID updated in .env" "Success"
     fi
     
     # Export env vars
@@ -367,21 +383,45 @@ start_local_stack() {
 
 start_docker_stack() {
     write_banner "Starting Docker Production Stack"
-    
+
     cd "$ROOT_DIR"
-    
-    local services=("caddy" "web" "celery-worker" "redis" "analyzer-gateway" "static-analyzer" "dynamic-analyzer" "performance-tester" "ai-analyzer")
+
+    local services=("nginx" "web" "celery-worker" "redis" "analyzer-gateway" "static-analyzer" "dynamic-analyzer" "performance-tester" "ai-analyzer")
     if [ "$CONCURRENT" = true ]; then
          services+=("static-analyzer-2" "static-analyzer-3" "dynamic-analyzer-2" "performance-tester-2" "ai-analyzer-2")
     fi
-    
+
     write_status "Building and starting stack..." "Info"
     docker compose up -d --build "${services[@]}"
-    
+
     echo "docker-compose" > "$RUN_DIR/docker.mode"
-    
+
     write_status "Docker stack started" "Success"
-    echo -e "${CYAN}URL: http://127.0.0.1:$PORT${NC}"
+    write_status "Waiting for services to be healthy..." "Info"
+    sleep 5
+
+    # Check celery-worker health
+    local max_wait=60
+    local waited=0
+    echo -n -e "  ⏳ Waiting for celery-worker to be healthy"
+    while [ $waited -lt $max_wait ]; do
+        local health=$(docker inspect --format='{{.State.Health.Status}}' thesisapprework-celery-worker-1 2>/dev/null || echo "unknown")
+        if [ "$health" == "healthy" ]; then
+            echo ""
+            write_status "  ✓ Celery worker healthy with Docker access" "Success"
+            break
+        fi
+        echo -n -e "${YELLOW}.${NC}"
+        sleep 2
+        waited=$((waited + 2))
+    done
+
+    if [ $waited -ge $max_wait ]; then
+        echo ""
+        write_status "  ⚠ Celery worker may not be fully healthy - check logs if issues occur" "Warning"
+    fi
+
+    echo -e "${CYAN}URL: http://127.0.0.1:80 (HTTP) or https://127.0.0.1:443 (HTTPS)${NC}"
 }
 
 start_dev_mode() {
