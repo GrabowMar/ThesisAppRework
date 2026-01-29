@@ -1,0 +1,370 @@
+[
+    {
+        "Id": "5da1d620c116970fe66395b92622677e3226ff0d6792e79dd6eda2661a1086c5",
+        "Created": "2026-01-28T21:23:10.505460506Z",
+        "Path": "bash",
+        "Args": [
+            "start_services.sh"
+        ],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 140425,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-01-28T21:23:10.567546524Z",
+            "FinishedAt": "0001-01-01T00:00:00Z",
+            "Health": {
+                "Status": "healthy",
+                "FailingStreak": 0,
+                "Log": [
+                    {
+                        "Start": "2026-01-29T05:58:28.573216373Z",
+                        "End": "2026-01-29T05:58:28.885601344Z",
+                        "ExitCode": 0,
+                        "Output": "Health check passed\n"
+                    },
+                    {
+                        "Start": "2026-01-29T05:58:58.886605508Z",
+                        "End": "2026-01-29T05:58:59.187512167Z",
+                        "ExitCode": 0,
+                        "Output": "Health check passed\n"
+                    },
+                    {
+                        "Start": "2026-01-29T05:59:29.189267209Z",
+                        "End": "2026-01-29T05:59:29.4799322Z",
+                        "ExitCode": 0,
+                        "Output": "Health check passed\n"
+                    },
+                    {
+                        "Start": "2026-01-29T05:59:59.481383901Z",
+                        "End": "2026-01-29T05:59:59.800484384Z",
+                        "ExitCode": 0,
+                        "Output": "Health check passed\n"
+                    },
+                    {
+                        "Start": "2026-01-29T06:00:29.801827483Z",
+                        "End": "2026-01-29T06:00:30.098720386Z",
+                        "ExitCode": 0,
+                        "Output": "Health check passed\n"
+                    }
+                ]
+            }
+        },
+        "Image": "sha256:1ca6f2e820551d755546e7c250451e47c073144287fbbe559dafef020ad12b3f",
+        "ResolvConfPath": "/var/lib/docker/containers/5da1d620c116970fe66395b92622677e3226ff0d6792e79dd6eda2661a1086c5/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/5da1d620c116970fe66395b92622677e3226ff0d6792e79dd6eda2661a1086c5/hostname",
+        "HostsPath": "/var/lib/docker/containers/5da1d620c116970fe66395b92622677e3226ff0d6792e79dd6eda2661a1086c5/hosts",
+        "LogPath": "/var/lib/docker/containers/5da1d620c116970fe66395b92622677e3226ff0d6792e79dd6eda2661a1086c5/5da1d620c116970fe66395b92622677e3226ff0d6792e79dd6eda2661a1086c5-json.log",
+        "Name": "/thesisapprework-dynamic-analyzer-1",
+        "RestartCount": 0,
+        "Driver": "overlay2",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "docker-default",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": [
+                "/var/run/docker.sock:/var/run/docker.sock:rw",
+                "/home/ubuntu/ThesisAppRework/generated/apps:/app/sources:ro",
+                "/home/ubuntu/ThesisAppRework/results:/app/results:rw"
+            ],
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {}
+            },
+            "NetworkMode": "thesis-apps-network",
+            "PortBindings": {
+                "2002/tcp": [
+                    {
+                        "HostIp": "",
+                        "HostPort": "2002"
+                    }
+                ]
+            },
+            "RestartPolicy": {
+                "Name": "unless-stopped",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": null,
+            "CapDrop": null,
+            "CgroupnsMode": "private",
+            "Dns": null,
+            "DnsOptions": null,
+            "DnsSearch": null,
+            "ExtraHosts": [
+                "host.docker.internal:host-gateway"
+            ],
+            "GroupAdd": [
+                "112"
+            ],
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": false,
+            "SecurityOpt": null,
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 1073741824,
+            "NanoCpus": 500000000,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": null,
+            "BlkioDeviceReadBps": null,
+            "BlkioDeviceWriteBps": null,
+            "BlkioDeviceReadIOps": null,
+            "BlkioDeviceWriteIOps": null,
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": null,
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": 2147483648,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": null,
+            "Ulimits": null,
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "MaskedPaths": [
+                "/proc/asound",
+                "/proc/acpi",
+                "/proc/interrupts",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/sys/firmware",
+                "/sys/devices/virtual/powercap",
+                "/sys/devices/system/cpu/cpu0/thermal_throttle",
+                "/sys/devices/system/cpu/cpu1/thermal_throttle",
+                "/sys/devices/system/cpu/cpu2/thermal_throttle",
+                "/sys/devices/system/cpu/cpu3/thermal_throttle",
+                "/sys/devices/system/cpu/cpu4/thermal_throttle",
+                "/sys/devices/system/cpu/cpu5/thermal_throttle",
+                "/sys/devices/system/cpu/cpu6/thermal_throttle",
+                "/sys/devices/system/cpu/cpu7/thermal_throttle",
+                "/sys/devices/system/cpu/cpu8/thermal_throttle",
+                "/sys/devices/system/cpu/cpu9/thermal_throttle",
+                "/sys/devices/system/cpu/cpu10/thermal_throttle",
+                "/sys/devices/system/cpu/cpu11/thermal_throttle"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ]
+        },
+        "GraphDriver": {
+            "Data": {
+                "ID": "5da1d620c116970fe66395b92622677e3226ff0d6792e79dd6eda2661a1086c5",
+                "LowerDir": "/var/lib/docker/overlay2/0d7fc4aedd9636b80d73806e1a4204c5c85626d26dfd1d69e1dcceb6fced8747-init/diff:/var/lib/docker/overlay2/wb4qn0jsft8vei4ubntgm9ce5/diff:/var/lib/docker/overlay2/xx9288uu7d9cn8vuli21mxsdf/diff:/var/lib/docker/overlay2/l18i9yo8evtrxj2uptzmy4w8t/diff:/var/lib/docker/overlay2/mv0s9l320b99yzmp273c84q16/diff:/var/lib/docker/overlay2/lx34p1t8p7615ajuuckme5hae/diff:/var/lib/docker/overlay2/wx38mgpbvc31hc9yx2u2a1tf1/diff:/var/lib/docker/overlay2/u71fw3yqw75ppc8d4c8h0rio3/diff:/var/lib/docker/overlay2/u3zm5n8lr7ib2d0oo0gh881ry/diff:/var/lib/docker/overlay2/9j7a05dzkv4thun1rftbpnzwt/diff:/var/lib/docker/overlay2/qibbgq1n9llqkx0ncxi8givze/diff:/var/lib/docker/overlay2/niirtpngqsa6ltupyjnch33sm/diff:/var/lib/docker/overlay2/9ayawo9ty1u8e36y6xf1sw87u/diff:/var/lib/docker/overlay2/krgobjv2xcp47ighwe33ggdqd/diff:/var/lib/docker/overlay2/xckxdmmwzsms2fs9t6jlqion4/diff:/var/lib/docker/overlay2/qfkzcxaxr8zw3gbhj0w9vj0bw/diff:/var/lib/docker/overlay2/vn8heshvbtodjm3sm7el8ikib/diff:/var/lib/docker/overlay2/29cdb569749c250ebbf1d2eaff91acd0009ae38a1fc6511fa0cd421ff80cfaea/diff:/var/lib/docker/overlay2/50c94fc8867839a2ba1b6b65da8bae94321357035293e4a47bfe9ab37c89aa2f/diff:/var/lib/docker/overlay2/805e1dd1b1e3aba354a89a711a8821bbdb4d38ebedc071bdeae8fae30e3e1ea6/diff:/var/lib/docker/overlay2/f96039ee83caf69e827155861b6747eba59835e785b9f642f8ca21192617ffaf/diff",
+                "MergedDir": "/var/lib/docker/overlay2/0d7fc4aedd9636b80d73806e1a4204c5c85626d26dfd1d69e1dcceb6fced8747/merged",
+                "UpperDir": "/var/lib/docker/overlay2/0d7fc4aedd9636b80d73806e1a4204c5c85626d26dfd1d69e1dcceb6fced8747/diff",
+                "WorkDir": "/var/lib/docker/overlay2/0d7fc4aedd9636b80d73806e1a4204c5c85626d26dfd1d69e1dcceb6fced8747/work"
+            },
+            "Name": "overlay2"
+        },
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": "/var/run/docker.sock",
+                "Destination": "/var/run/docker.sock",
+                "Mode": "rw",
+                "RW": true,
+                "Propagation": "rprivate"
+            },
+            {
+                "Type": "bind",
+                "Source": "/home/ubuntu/ThesisAppRework/generated/apps",
+                "Destination": "/app/sources",
+                "Mode": "ro",
+                "RW": false,
+                "Propagation": "rprivate"
+            },
+            {
+                "Type": "bind",
+                "Source": "/home/ubuntu/ThesisAppRework/results",
+                "Destination": "/app/results",
+                "Mode": "rw",
+                "RW": true,
+                "Propagation": "rprivate"
+            }
+        ],
+        "Config": {
+            "Hostname": "5da1d620c116",
+            "Domainname": "",
+            "User": "analyzer",
+            "AttachStdin": false,
+            "AttachStdout": true,
+            "AttachStderr": true,
+            "ExposedPorts": {
+                "2002/tcp": {},
+                "8090/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "LOG_LEVEL=INFO",
+                "WEBSOCKET_HOST=0.0.0.0",
+                "WEBSOCKET_PORT=2002",
+                "PYTHONPATH=/app",
+                "PYTHONUNBUFFERED=1",
+                "PATH=/zap/ZAP_2.16.1:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "LANG=C.UTF-8",
+                "GPG_KEY=A035C8C19219BA821ECEA86B64E628F8D684696D",
+                "PYTHON_VERSION=3.11.14",
+                "PYTHON_SHA256=8d3ed8ec5c88c1c95f5e558612a725450d2452813ddad5e58fdb1a53b1209b78",
+                "ZAP_VERSION=2.16.1",
+                "ZAP_PATH=/zap/ZAP_2.16.1"
+            ],
+            "Cmd": [
+                "bash",
+                "start_services.sh"
+            ],
+            "Healthcheck": {
+                "Test": [
+                    "CMD",
+                    "python",
+                    "health_check.py"
+                ],
+                "Interval": 30000000000,
+                "Timeout": 10000000000,
+                "StartPeriod": 20000000000,
+                "Retries": 3
+            },
+            "Image": "thesisapprework-dynamic-analyzer",
+            "Volumes": null,
+            "WorkingDir": "/app",
+            "Entrypoint": null,
+            "OnBuild": null,
+            "Labels": {
+                "com.docker.compose.config-hash": "1e9930d837b2779830077842f81e3ef506b1817d3d36eb19f9676c78d3f027e2",
+                "com.docker.compose.container-number": "1",
+                "com.docker.compose.depends_on": "",
+                "com.docker.compose.image": "sha256:1ca6f2e820551d755546e7c250451e47c073144287fbbe559dafef020ad12b3f",
+                "com.docker.compose.oneoff": "False",
+                "com.docker.compose.project": "thesisapprework",
+                "com.docker.compose.project.config_files": "/home/ubuntu/ThesisAppRework/docker-compose.yml",
+                "com.docker.compose.project.working_dir": "/home/ubuntu/ThesisAppRework",
+                "com.docker.compose.service": "dynamic-analyzer",
+                "com.docker.compose.version": "2.37.1"
+            }
+        },
+        "NetworkSettings": {
+            "Bridge": "",
+            "SandboxID": "dee6fea00d2d664b9b456c087ebbfe11fed251885b3ca7fca2754892901a6b45",
+            "SandboxKey": "/var/run/docker/netns/dee6fea00d2d",
+            "Ports": {
+                "2002/tcp": [
+                    {
+                        "HostIp": "0.0.0.0",
+                        "HostPort": "2002"
+                    },
+                    {
+                        "HostIp": "::",
+                        "HostPort": "2002"
+                    }
+                ],
+                "8090/tcp": null
+            },
+            "HairpinMode": false,
+            "LinkLocalIPv6Address": "",
+            "LinkLocalIPv6PrefixLen": 0,
+            "SecondaryIPAddresses": null,
+            "SecondaryIPv6Addresses": null,
+            "EndpointID": "",
+            "Gateway": "",
+            "GlobalIPv6Address": "",
+            "GlobalIPv6PrefixLen": 0,
+            "IPAddress": "",
+            "IPPrefixLen": 0,
+            "IPv6Gateway": "",
+            "MacAddress": "",
+            "Networks": {
+                "thesis-apps-network": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": [
+                        "thesisapprework-dynamic-analyzer-1",
+                        "dynamic-analyzer"
+                    ],
+                    "MacAddress": "6a:d0:6d:c6:fa:c5",
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "10180682dba10083a2024ba48364938dc390192bbeee9c815a464c572be57cfd",
+                    "EndpointID": "7f8ced2e6feed48473aa75d405cf7c1a2ecf1509f9a0eed6a72429faaa54dca4",
+                    "Gateway": "172.18.0.1",
+                    "IPAddress": "172.18.0.2",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "DNSNames": [
+                        "thesisapprework-dynamic-analyzer-1",
+                        "dynamic-analyzer",
+                        "5da1d620c116"
+                    ]
+                },
+                "thesisapprework_thesis-network": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": [
+                        "thesisapprework-dynamic-analyzer-1",
+                        "dynamic-analyzer"
+                    ],
+                    "MacAddress": "2a:0a:72:13:d7:d9",
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "200f203c0535a8d6115d148c4be82687217f6c3aeab2d8bb762ffcab6dd75320",
+                    "EndpointID": "4fec1fe01f066b28673f53a6dbe72b09d6d0679accbdc2aed050f836ab32ee52",
+                    "Gateway": "172.19.0.1",
+                    "IPAddress": "172.19.0.7",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "DNSNames": [
+                        "thesisapprework-dynamic-analyzer-1",
+                        "dynamic-analyzer",
+                        "5da1d620c116"
+                    ]
+                }
+            }
+        }
+    }
+]

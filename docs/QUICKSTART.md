@@ -138,7 +138,8 @@ Available modes:
 | `CleanRebuild` | Full rebuild without cache |
 | `Maintenance` | Manual cleanup (7-day orphan grace) |
 | `Reload` | Hot reload for code changes |
-| `Wipeout` | Full reset (WARNING: data loss) |
+| `Wipeout` | ⚠️ Reset state (DB, apps, results) |
+| `Nuke` | 🔥 **Full Reset + Rebuild** (Wipeout + CleanRebuild) |
 | `Password` | Reset admin password |
 | `Health` | Check service health |
 
@@ -150,6 +151,7 @@ Available modes:
 | `./start.ps1 -Mode Dev` | Start Flask locally (fast) |
 | `./start.ps1 -Mode Stop` | Stop all services |
 | `./start.ps1 -Mode Status` | View dashboard |
+| `./start.ps1 -Mode Nuke` | **Emergency reset**: Wipe everything and rebuild stack |
 
 #### Direct Python (Local Only)
 

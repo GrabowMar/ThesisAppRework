@@ -3,7 +3,9 @@
 {{ description }}
 
 ## Task
-Generate `app.py` - a **comprehensive, production-quality** Flask API. Aim for **300+ lines** of well-structured code.
+Generate `app.py` - a **comprehensive, production-quality** Flask API. Aim for **300+ lines** of well-structured code. 
+
+**IMPORTANT: Do not copy basic generic patterns. Each application should feel distinct in its logic, variable naming, and internal structure.**
 
 ## Requirements
 
@@ -17,152 +19,51 @@ Generate `app.py` - a **comprehensive, production-quality** Flask API. Aim for *
 - {{ req }}
 {% endfor %}
 
-### Data Model
+### Data Model Context
 {{ data_model }}
 
-### API Endpoints
+### API Endpoints (Minimum required)
 {{ api_endpoints }}
 
 {{ admin_api_endpoints }}
 
 ## Implementation Requirements
 
-### 1. Rich Data Models
-Each model should have **6+ meaningful fields**:
-- Core fields (title, description, etc.)
-- Status/state fields (status, priority, is_active)
-- Metadata (created_at, updated_at, view_count)
-- Relationships (user_id, category)
-- Feature flags (is_featured, is_public)
+### 1. Rich and Unique Data Models
+Each model must have **6+ meaningful fields** beyond just 'id' and 'name'. Use domain-specific naming:
+- Domain-specific core fields (e.g., `payload_size`, `coordinate_x`, `serial_number`, `stock_level`)
+- ENUM-like status fields using strings (e.g., `DRAFT`, `VALIDATED`, `PROCESSED`, `ARCHIVED`)
+- Realistic metadata (timers, counters, flags)
+- Clear relationships if specified in requirements
 
-### 2. Public Endpoints (REQUIRED for landing page)
-```python
-@app.route('/api/public/stats', methods=['GET'])
-def public_stats():
-    return jsonify({
-        'total_items': Item.query.count(),
-        'total_users': User.query.count(),
-        'active_count': Item.query.filter_by(is_active=True).count(),
-        'completed_count': Item.query.filter_by(completed=True).count(),
-        'recent_count': Item.query.filter(Item.created_at > datetime.utcnow() - timedelta(days=7)).count()
-    })
+### 2. Specialized Public Endpoints
+Implement logical public endpoints that match the application category:
+- **Statistics**: Summary metrics relevant to the app's purpose.
+- **Discovery**: Endpoints to fetch "featured", "recent", or "trending" items for a landing page.
+- **Helpers**: Domain-specific logic (e.g., converters, validators, generators).
 
-@app.route('/api/public/featured', methods=['GET'])
-def public_featured():
-    items = Item.query.filter_by(is_featured=True, is_active=True).limit(6).all()
-    return jsonify([item.to_dict() for item in items])
+### 3. Advanced Querying & Business Logic
+The main list endpoint must support:
+- **Search**: Multi-field search logic.
+- **Filtering**: At least 2 domain-specific filters.
+- **Sorting**: Flexible sorting on multiple fields.
+- **Pagination**: Standard industrial pagination (offset/limit).
+- **Domain Logic**: The code should not just be CRUD; implement the specific algorithms or logic implied by the app description.
 
-@app.route('/api/categories', methods=['GET'])
-def get_categories():
-    # Return categories with item counts
-    pass
-```
+### 4. Realistic and Diverse Seed Data (15+ records)
+Create a `seed_data()` function that populates the DB with **15-20 highly varied** records:
+- Use realistic, descriptive strings, not "Test 1", "Test 2".
+- Diversity in statuses, timestamps (spread over weeks), and priorities.
+- Distribute items across different "owners" or "categories".
 
-### 3. List Endpoint with Full Query Support
-```python
-@app.route('/api/{resource}', methods=['GET'])
-def get_items():
-    query = Item.query.filter_by(is_active=True)
+### 5. Secure Admin & Authentication
+- Implement robust JWT or Session-based auth logic (mocked if necessary, but structurally present).
+- Admin endpoints must have decorator-based protection.
+- Admin dashboard should return a rich JSON structure with complex aggregation metrics.
 
-    # Search
-    if search := request.args.get('search'):
-        query = query.filter(
-            db.or_(
-                Item.title.ilike(f'%{search}%'),
-                Item.description.ilike(f'%{search}%')
-            )
-        )
+## Output Structure
+- One single `app.py` file.
+- Use Flask-SQLAlchemy, Flask-CORS, and standard Python libraries.
+- **Aim for 300+ lines.** If needed, expand on validation logic, helper functions, and detailed docstrings.
 
-    # Filter by category
-    if category := request.args.get('category'):
-        query = query.filter_by(category=category)
-
-    # Filter by status
-    if status := request.args.get('status'):
-        query = query.filter_by(status=status)
-
-    # Sort
-    sort = request.args.get('sort', 'created_at')
-    order = request.args.get('order', 'desc')
-    # Apply sorting...
-
-    # Pagination
-    page = request.args.get('page', 1, type=int)
-    limit = request.args.get('limit', 12, type=int)
-
-    total = query.count()
-    items = query.offset((page-1)*limit).limit(limit).all()
-
-    return jsonify({
-        'items': [item.to_dict() for item in items],
-        'total': total,
-        'page': page,
-        'pages': (total + limit - 1) // limit
-    })
-```
-
-### 4. Comprehensive Seed Data (15+ records)
-```python
-def seed_data():
-    if User.query.first():
-        return
-
-    # Users
-    admin = User(username='admin', email='admin@demo.com', is_admin=True)
-    admin.set_password('admin123')
-    demo = User(username='demo', email='demo@demo.com')
-    demo.set_password('demo123')
-    user = User(username='user', email='user@demo.com')
-    user.set_password('user123')
-    db.session.add_all([admin, demo, user])
-    db.session.commit()
-
-    # Create 15-20 items with:
-    # - 3-4 different categories
-    # - Various statuses (active, completed, pending, archived)
-    # - Various priorities (low, medium, high, urgent)
-    # - Some featured (is_featured=True)
-    # - Dates spread over last 30 days
-    # - Realistic, varied titles and descriptions
-    # - Different users as owners
-
-    items = [
-        Item(title='...', description='...', category='...', status='active',
-             priority='high', is_featured=True, user_id=demo.id,
-             created_at=datetime.utcnow() - timedelta(days=1)),
-        # ... 14+ more with variety
-    ]
-    db.session.add_all(items)
-    db.session.commit()
-```
-
-### 5. Admin Dashboard Endpoint
-```python
-@app.route('/api/admin/dashboard', methods=['GET'])
-@admin_required
-def admin_dashboard(current_user):
-    return jsonify({
-        'users': {
-            'total': User.query.count(),
-            'active': User.query.filter_by(is_active=True).count(),
-            'admins': User.query.filter_by(is_admin=True).count()
-        },
-        'items': {
-            'total': Item.query.count(),
-            'by_status': {
-                'active': Item.query.filter_by(status='active').count(),
-                'completed': Item.query.filter_by(status='completed').count(),
-                'pending': Item.query.filter_by(status='pending').count()
-            },
-            'by_priority': {
-                'high': Item.query.filter_by(priority='high').count(),
-                'medium': Item.query.filter_by(priority='medium').count(),
-                'low': Item.query.filter_by(priority='low').count()
-            }
-        },
-        'recent_items': [i.to_dict() for i in Item.query.order_by(Item.created_at.desc()).limit(5).all()]
-    })
-```
-
-## Output
-Generate complete, comprehensive `app.py` now. Aim for 300+ lines.
+**START GENERATION NOW.**

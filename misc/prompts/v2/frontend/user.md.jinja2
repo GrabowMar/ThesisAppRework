@@ -5,14 +5,10 @@
 ## Task
 Generate `App.jsx` - a **comprehensive, production-quality** React application. Aim for **400+ lines** of well-structured code with **6+ distinct pages**.
 
-## Backend API
-{{ backend_api_context }}
+**IMPORTANT: Each application MUST have a unique visual identity. Do not use the same layouts or color schemes for every app. Be creative with Tailwind CSS and layout structures.**
 
-**Key endpoints to use:**
-- `GET /api/public/stats` - Statistics for landing page
-- `GET /api/public/featured` - Featured items for landing page
-- `GET /api/{resource}?search=&category=&sort=&page=` - List with filters
-- `GET /api/categories` - Category list
+## Backend API Context
+{{ backend_api_context }}
 
 ## Requirements
 
@@ -26,150 +22,46 @@ Generate `App.jsx` - a **comprehensive, production-quality** React application. 
 - {{ req }}
 {% endfor %}
 
-## Pages to Implement
+## Design Guidelines
 
-### 1. Landing Page (/) - Make it impressive!
-```jsx
-function LandingPage() {
-  const [stats, setStats] = useState(null);
-  const [featured, setFeatured] = useState([]);
-  const [loading, setLoading] = useState(true);
+### 1. Unique Visual Identity
+- **Color Palette**: Choose a unique, harmonious color scheme that fits the app's brand (e.g., "Neon Cyberpunk" for gaming, "Serene Emerald" for healthcare, "Modern Industrial" for inventory).
+- **Typography**: Use distinct font weights and sizes to create a clear hierarchy.
+- **Animations**: Implement subtle entrance animations and hover effects using standard CSS or Tailwind.
 
-  useEffect(() => {
-    Promise.all([
-      api.get('/public/stats'),
-      api.get('/public/featured')
-    ]).then(([statsRes, featuredRes]) => {
-      setStats(statsRes.data);
-      setFeatured(featuredRes.data);
-    }).finally(() => setLoading(false));
-  }, []);
+### 2. Impressive Landing Page (/)
+Build a high-conversion landing page with:
+- **Unique Hero Section**: Instead of a generic centered title, try split screens, large image backgrounds, or floating 3D-effect cards.
+- **Dynamic Stats**: Use the `/api/public/stats` endpoint to show social proof.
+- **Feature Showcases**: Multi-column layouts with custom icons or cards.
+- **Visual Flourishes**: Use gradients, glassmorphism, or custom decorative elements.
 
-  return (
-    <div className={styles.page}>
-      {/* Hero with gradient animation */}
-      <section className="text-center py-24">
-        <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-          {APP_TITLE}
-        </h1>
-        <p className="text-xl text-slate-300 mt-6 max-w-2xl mx-auto">
-          {APP_DESCRIPTION}
-        </p>
-        <div className="mt-10 flex justify-center gap-4">
-          <Link to="/browse" className={styles.primaryBtn}>
-            <MagnifyingGlassIcon className="h-5 w-5 mr-2" />
-            Browse Items
-          </Link>
-          <Link to="/login" className={styles.secondaryBtn}>
-            Get Started
-          </Link>
-        </div>
-      </section>
+### 3. Comprehensive Page Suite
+Implement at least 6 distinct views:
+- **Landing Page**: The face of the app.
+- **Browse/Search Page**: Robust filtering (category, status, etc.) with a grid or list view.
+- **Item Detail Page**: Rich view of a single resource.
+- **User Dashboard**: Personalized overview for signed-in users.
+- **Auth Pages**: Beautifully designed Login and Register views.
+- **Admin Panel**: Data-heavy view for moderation and metrics.
 
-      {/* Stats Grid - 4 cards */}
-      <section className="grid md:grid-cols-4 gap-6 max-w-5xl mx-auto -mt-8">
-        <StatCard icon={DocumentIcon} label="Total Items" value={stats?.total_items} color="blue" />
-        <StatCard icon={UserIcon} label="Users" value={stats?.total_users} color="purple" />
-        <StatCard icon={CheckIcon} label="Completed" value={stats?.completed_count} color="green" />
-        <StatCard icon={ClockIcon} label="This Week" value={stats?.recent_count} color="pink" />
-      </section>
+### 4. Component Architecture
+Create reusable, styled components within the same file:
+- Custom Buttons, Inputs, and Badges.
+- Sophisticated Data Tables and Stat Cards.
+- Navigation with responsive mobile support.
+- Loading states and Skeleton screens.
 
-      {/* Featured Grid - 6 cards */}
-      <section className="mt-20">
-        <h2 className="text-3xl font-bold text-center mb-10">Featured</h2>
-        <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
-          {featured.map(item => (
-            <ItemCard key={item.id} item={item} />
-          ))}
-        </div>
-      </section>
+## Technical Constraints
+- Use **Vite + React + Tailwind CSS**.
+- Required packages: `react`, `react-router-dom`, `axios`, `react-hot-toast`, `@heroicons/react`, `date-fns`, `clsx`.
+- **Single File**: All components and pages must be in `App.jsx`. Use internal functions and constants to organize.
+- **API URLs**: Use relative paths (e.g., `/api/items`) or handle base URL via `import.meta.env.VITE_API_BASE_URL`.
 
-      {/* Features Showcase - 3-4 cards */}
-      <section className="mt-24 max-w-5xl mx-auto">
-        <h2 className="text-3xl font-bold text-center mb-10">Why Choose Us</h2>
-        <div className="grid md:grid-cols-3 gap-8">
-          <FeatureCard icon={BoltIcon} title="Fast" desc="Lightning quick performance" />
-          <FeatureCard icon={ShieldIcon} title="Secure" desc="Enterprise-grade security" />
-          <FeatureCard icon={SparklesIcon} title="Modern" desc="Beautiful, intuitive design" />
-        </div>
-      </section>
+## Performance & Quality
+- No stubs or "TODO" comments.
+- Implement real error handling for all API calls.
+- Full responsiveness (mobile, tablet, desktop).
+- **Aim for 400+ lines of high-quality code.**
 
-      {/* CTA */}
-      <section className="mt-24 text-center pb-20">
-        <div className={styles.card + " max-w-2xl mx-auto"}>
-          <h2 className="text-2xl font-bold mb-4">Ready to get started?</h2>
-          <p className="text-slate-400 mb-6">Join thousands of users today</p>
-          <Link to="/register" className={styles.primaryBtn}>Create Free Account</Link>
-        </div>
-      </section>
-    </div>
-  );
-}
-```
-
-### 2. Browse Page (/browse) - Full filtering
-- Search input with debounce
-- Category dropdown filter
-- Status filter buttons
-- Sort dropdown (newest, oldest, name, popular)
-- 12-item grid with cards
-- Pagination component
-- Loading skeleton
-- Empty state when no results
-
-### 3. Detail Page (/item/:id)
-- Full item information
-- Status/priority badges
-- Owner info
-- Action buttons (edit, delete, favorite)
-- Related items section
-- Back navigation
-
-### 4. Login Page (/login)
-- Centered glass card
-- Username and password fields
-- Loading state on submit
-- Error handling with toast
-- Link to register
-- Demo credentials hint
-
-### 5. Dashboard (/dashboard)
-- Welcome header with user name
-- 4 stat cards (my items, completed, pending, favorites)
-- Recent activity list
-- My items table with inline actions
-- Quick add form
-- Empty states
-
-### 6. Admin Panel (/admin)
-- Admin stats overview
-- Users table with search
-- User status toggle buttons
-- Items moderation section
-- Activity log
-
-## Reusable Components
-Include these for consistency:
-```jsx
-function StatCard({ icon: Icon, label, value, color }) { ... }
-function ItemCard({ item, showActions, onEdit, onDelete }) { ... }
-function SearchInput({ value, onChange, placeholder }) { ... }
-function FilterDropdown({ label, options, value, onChange }) { ... }
-function Pagination({ page, totalPages, onPageChange }) { ... }
-function Badge({ type, children }) { ... }
-function LoadingSpinner() { ... }
-function EmptyState({ icon: Icon, title, description, action }) { ... }
-```
-
-## Allowed Packages
-react, react-router-dom, axios, react-hot-toast, @heroicons/react, date-fns, clsx
-
-## Forbidden
-- BrowserRouter (already wrapped externally)
-- process.env (use import.meta.env)
-- Switch/useHistory (React Router v5)
-- Empty functions or stubs
-- Minimal implementations
-
-## Output
-Generate complete, comprehensive `App.jsx` now. Aim for 400+ lines.
+**GENERATE COMPLETE APP.JSX NOW.**

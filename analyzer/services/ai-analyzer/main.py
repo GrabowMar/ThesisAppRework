@@ -195,8 +195,8 @@ class AIAnalyzer(BaseWSService):
             self.openrouter_api_key = os.getenv('OPENROUTER_API_KEY')
             
             # Default models - Gemini Flash is cheaper than Claude Haiku
-            # Available models: google/gemini-2.5-flash (cheap), anthropic/claude-3.5-haiku, openai/gpt-4o-mini
-            self.default_openrouter_model = os.getenv('AI_MODEL', 'google/gemini-2.5-flash')
+            # Available models: google/gemini-3-flash-preview-20251217 (fast), anthropic/claude-3.5-haiku, openai/gpt-4o-mini
+            self.default_openrouter_model = os.getenv('AI_MODEL', 'google/gemini-3-flash-preview-20251217')
             
             # Cost optimization settings (defaults are cheap mode)
             # BATCH_MODE: true = batch all requirements in single API call (recommended)

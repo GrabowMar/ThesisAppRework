@@ -6,11 +6,12 @@ Reference documentation for supported AI models and their capabilities.
 
 | Provider | Models | Capabilities |
 |----------|--------|--------------|
-| OpenAI | GPT-4, GPT-4 Turbo, GPT-3.5 | Code generation, analysis |
-| Anthropic | Claude 3 Opus, Sonnet, Haiku | Code generation, reasoning |
-| Google | Gemini Pro, Gemini Ultra | Multi-modal analysis |
-| Meta | Llama 2, Code Llama | Open-source alternatives |
-| Mistral | Mistral 7B, Mixtral | Fast inference |
+| OpenAI | o1, o3-mini, GPT-4o, GPT-4o-mini | Reasoning, fast generation, multi-modal |
+| Anthropic | Claude 3.7 Sonnet, 3.5 Sonnet, 3.5 Haiku | Advanced reasoning, coding specialized |
+| Google | Gemini 2.0 Flash, 1.5 Pro | Large context, multi-modal analysis |
+| DeepSeek | DeepSeek-R1, DeepSeek-V3 | Reasoning, competitive coding performance |
+| Qwen | Qwen2.5-Coder (32B, 7B) | Coding specialized open-weights |
+| Meta | Llama 3.3, Llama 3.1 | Strong general-purpose open-weights |
 
 ## Model Slug Format
 
@@ -49,10 +50,11 @@ All models support generating:
 
 | Model | Static | Dynamic | Performance | AI Review |
 |-------|--------|---------|-------------|-----------|
-| GPT-4 | ✓ | ✓ | ✓ | ✓ |
-| Claude 3 | ✓ | ✓ | ✓ | ✓ |
-| Gemini | ✓ | ✓ | ✓ | ✓ |
-| Llama 2 | ✓ | ✓ | ✓ | Limited |
+| o1/o3-mini | ✓ | ✓ | ✓ | ✓ |
+| Claude 3.x | ✓ | ✓ | ✓ | ✓ |
+| Gemini 2.0 | ✓ | ✓ | ✓ | ✓ |
+| DeepSeek-R1 | ✓ | ✓ | ✓ | ✓ |
+| Llama 3.3 | ✓ | ✓ | ✓ | Limited |
 
 ## Generated Application Structure
 
@@ -85,8 +87,10 @@ Generated apps are tracked in the database (`GeneratedApplication` model) with:
 - `missing_since` - Timestamp when filesystem directory went missing (7-day grace period before deletion)
 - `parent_app_id` - Links to parent if regeneration
 - `batch_id` - Groups apps created together
-- Generation failure tracking: `generation_failed`, `failure_reason`, `failure_count`
-- Fix tracking: `fixes_applied`, `fix_count`, `last_fix_applied_at`, `analysis_status`
+- `is_generation_failed` - Boolean flag for failure
+- `error_message` - Raw error from generation service
+- `automatic_fixes` - Count of issues healed by `DependencyHealer`
+- `metadata_json` - JSON blob containing logs and extra metrics (e.g., `healing_logs`)
 
 > **Note**: If an app's filesystem directory is deleted, it's marked with `missing_since` but not removed from DB for 7 days, allowing recovery.
 

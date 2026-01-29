@@ -9,7 +9,7 @@ services:
       dockerfile: Dockerfile
     # Grant access to Docker socket (socket is owned by root:root on most hosts)
     group_add:
-      - "0" # root group for Docker socket access
+      - "${DOCKER_GID:-0}" # docker group on host (auto-detected)
     # ports:
     #   - "5000:5000"  # Exposed via Caddy
     environment:
@@ -102,7 +102,7 @@ services:
       dockerfile: Dockerfile
     # Grant access to Docker socket (socket is owned by root:root on most hosts)
     group_add:
-      - "0" # root group for Docker socket access
+      - "${DOCKER_GID:-0}" # docker group on host (auto-detected)
     command: >
       bash -c "
         echo 'Waiting for database initialization...';
@@ -250,9 +250,12 @@ services:
       - PYTHONUNBUFFERED=1
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    group_add:
+      - "${DOCKER_GID:-0}" # docker group on host (auto-detected)
     volumes:
       - ./generated/apps:/app/sources:ro
       - ./results:/app/results
+      - /var/run/docker.sock:/var/run/docker.sock:rw
     healthcheck:
       test: [ "CMD", "python", "health_check.py" ]
       interval: 30s
@@ -284,8 +287,11 @@ services:
       - PYTHONUNBUFFERED=1
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    group_add:
+      - "${DOCKER_GID:-0}" # docker group on host (auto-detected)
     volumes:
       - ./results:/app/reports
+      - /var/run/docker.sock:/var/run/docker.sock:rw
     healthcheck:
       test: [ "CMD", "python", "health_check.py" ]
       interval: 30s
@@ -316,8 +322,9 @@ services:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - AI_MODEL=${AI_MODEL:-google/gemini-3-flash-preview-20251217}
+
     volumes:
-      - ./generated/apps:/app/sources:ro
       - ./generated/apps:/app/sources:ro
       - ./results:/app/results
       - ./analyzer/services/ai-analyzer/main.py:/app/main.py
@@ -406,6 +413,8 @@ services:
     build:
       context: .
       dockerfile: analyzer/services/dynamic-analyzer/Dockerfile
+    group_add:
+      - "${DOCKER_GID:-0}" # docker group on host (auto-detected)
     ports:
       - "2053:2002"
     environment:
@@ -418,6 +427,7 @@ services:
     volumes:
       - ./generated/apps:/app/sources:ro
       - ./results:/app/results
+      - /var/run/docker.sock:/var/run/docker.sock:rw
     healthcheck:
       test: [ "CMD", "python", "health_check.py" ]
       interval: 30s
@@ -437,6 +447,8 @@ services:
     build:
       context: .
       dockerfile: analyzer/services/performance-tester/Dockerfile
+    group_add:
+      - "${DOCKER_GID:-0}" # docker group on host (auto-detected)
     ports:
       - "2054:2003"
     environment:
@@ -448,6 +460,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./results:/app/reports
+      - /var/run/docker.sock:/var/run/docker.sock:rw
     healthcheck:
       test: [ "CMD", "python", "health_check.py" ]
       interval: 30s
@@ -475,8 +488,9 @@ services:
       - WEBSOCKET_PORT=2004
       - PYTHONPATH=/app
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - AI_MODEL=${AI_MODEL:-google/gemini-3-flash-preview-20251217}
+
     volumes:
-      - ./generated/apps:/app/sources:ro
       - ./generated/apps:/app/sources:ro
       - ./results:/app/results
       - ./analyzer/services/ai-analyzer/main.py:/app/main.py

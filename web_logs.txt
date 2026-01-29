@@ -1,0 +1,100 @@
+web-1  | [05:47:04] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:04] "POST /api/apps/bulk-status HTTP/1.1" 200 -
+web-1  | [05:47:04] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (729ms)
+web-1  | [05:47:09] INFO     factory              [GROUPED] ✓ GET /applications/table → 200 (99ms) (repeated 2x in 60s)
+web-1  | [05:47:09] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:09] "GET /applications/table?per_page=25&page=7 HTTP/1.1" 200 -
+web-1  | [05:47:11] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (1130ms)
+web-1  | [05:47:11] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (1126ms)
+web-1  | [05:47:11] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:11] "POST /api/apps/bulk-status HTTP/1.1" 200 -
+web-1  | [05:47:11] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (1128ms)
+web-1  | [05:47:11] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (775ms)
+web-1  | [05:47:12] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (29ms)
+web-1  | [05:47:12] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:12] "POST /api/apps/bulk-status HTTP/1.1" 200 -
+web-1  | [05:47:15] INFO     factory              ✓ GET /applications/table → 200 (105ms)
+web-1  | [05:47:15] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:15] "GET /applications/table?per_page=25&page=8 HTTP/1.1" 200 -
+web-1  | [05:47:16] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (1322ms)
+web-1  | [05:47:16] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (1314ms)
+web-1  | [05:47:16] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (1319ms)
+web-1  | [05:47:16] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:16] "POST /api/apps/bulk-status HTTP/1.1" 200 -
+web-1  | [05:47:16] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (1315ms)
+web-1  | [05:47:16] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (957ms)
+web-1  | [05:47:25] INFO     task_service         [GROUPED] [QUEUE] get_next_tasks called with limit=5 (repeated 13x in 60s)
+web-1  | [05:47:25] INFO     werkzeug             127.0.0.1 - - [29/Jan/2026 05:47:25] "GET /health HTTP/1.1" 200 -
+web-1  | [05:47:28] INFO     factory              ✓ GET /applications/table → 200 (102ms)
+web-1  | [05:47:28] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:28] "GET /applications/table?per_page=25&page=1 HTTP/1.1" 200 -
+web-1  | [05:47:29] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (694ms)
+web-1  | [05:47:29] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (677ms)
+web-1  | [05:47:29] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:29] "POST /api/apps/bulk-status HTTP/1.1" 200 -
+web-1  | [05:47:29] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (682ms)
+web-1  | [05:47:29] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (680ms)
+web-1  | [05:47:29] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (491ms)
+web-1  | [05:47:29] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (489ms)
+web-1  | [05:47:29] INFO     factory              ✓ POST /api/apps/bulk-status → 200 (271ms)
+web-1  | [05:47:30] INFO     task_service         [QUEUE] get_next_tasks called with limit=5
+web-1  | [05:47:31] INFO     factory              ✓ GET /reports/ → 200 (19ms)
+web-1  | [05:47:31] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:31] "GET /reports/ HTTP/1.1" 200 -
+web-1  | [05:47:37] INFO     factory              ✓ GET /sample-generator/ → 200 (51ms)
+web-1  | [05:47:37] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:37] "GET /sample-generator/ HTTP/1.1" 200 -
+web-1  | [05:47:37] INFO     factory              ✓ GET /static/js/sample_generator_wizard.js → 200 (0ms)
+web-1  | [05:47:42] INFO     factory              ✓ GET /sample-generator/ → 200 (23ms)
+web-1  | [05:47:42] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:42] "GET /sample-generator/ HTTP/1.1" 200 -
+web-1  | [05:47:42] INFO     factory              ✓ GET /automation/ → 200 (122ms)
+web-1  | [05:47:42] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:42] "GET /automation/ HTTP/1.1" 200 -
+web-1  | [05:47:43] INFO     factory              ✓ GET /static/js/automation_wizard.js → 200 (2ms)
+web-1  | [05:47:44] WARNING  svc.model_ranking... [_log:72] HF_TOKEN not found. Some benchmark sources may have limited access.
+web-1  | [05:47:44] INFO     svc.model_ranking... No valid cache entries found (total in DB: 0)
+web-1  | [05:47:44] INFO     svc.model_ranking... Aggregating rankings from all sources...
+web-1  | [05:47:44] INFO     svc.model_ranking... Fetching models from OpenRouter API...
+web-1  | [05:47:45] INFO     svc.model_ranking... Fetched 347 models from OpenRouter
+web-1  | [05:47:45] INFO     svc.model_ranking... Fetching benchmark data (live=False)...
+web-1  | [05:47:45] INFO     svc.benchmark_fet... Loading static benchmark data (empty/removed)...
+web-1  | [05:47:45] INFO     svc.model_ranking... Cached 347 model rankings
+web-1  | [05:47:45] INFO     svc.model_ranking... Aggregated 347 models with benchmark data
+web-1  | [05:47:45] INFO     factory              ✓ GET /rankings/ → 200 (627ms)
+web-1  | [05:47:45] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:45] "GET /rankings/ HTTP/1.1" 200 -
+web-1  | [05:47:46] INFO     factory              ✓ GET /reports/ → 200 (3ms)
+web-1  | [05:47:46] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:46] "GET /reports/ HTTP/1.1" 200 -
+web-1  | [05:47:46] INFO     factory              ✓ GET /static/js/rankings.js → 200 (0ms)
+web-1  | [05:47:47] INFO     factory              ✓ GET /reports/new → 200 (5ms)
+web-1  | [05:47:47] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:47] "GET /reports/new HTTP/1.1" 200 -
+web-1  | [05:47:47] INFO     app.engines.conta... Initialized container tool registry with 24 tools
+web-1  | [05:47:47] INFO     factory              ✓ GET /api/reports/options → 200 (20ms)
+web-1  | [05:47:47] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:47:47] "GET /api/reports/options HTTP/1.1" 200 -
+web-1  | [05:47:55] INFO     werkzeug             127.0.0.1 - - [29/Jan/2026 05:47:55] "GET /health HTTP/1.1" 200 -
+web-1  | [05:48:00] INFO     svc.report_service   Generating model_analysis report report_3e9262936586
+web-1  | [05:48:00] INFO     svc.report_service   Generating model report for deepseek_deepseek-r1-0528 (normalized: deepseek_deepseek-r1-0528, variants: ['deepseek_deepseek-r1-0528', 'deepseek/deepseek-r1-0528', 'deepseek-deepseek-r1-0528', 'deepseek_deepseek_r1_0528'])
+web-1  | [05:48:03] WARNING  svc.unified_resul... [_log:72] No results found for task_bf112b879f4d
+web-1  | [05:48:03] WARNING  svc.unified_resul... [_log:72] No results found for task_3f6ecf097b89
+web-1  | [05:48:06] INFO     svc.report_service   Report report_3e9262936586 generated successfully
+web-1  | [05:48:06] INFO     factory              ✓ POST /api/reports/generate → 201 (5851ms)
+web-1  | [05:48:06] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:48:06] "[35m[1mPOST /api/reports/generate HTTP/1.1[0m" 201 -
+web-1  | [05:48:07] INFO     factory              ✓ GET /reports/ → 200 (272ms)
+web-1  | [05:48:07] INFO     werkzeug             37.30.61.112 - - [29/Jan/2026 05:48:07] "GET /reports/ HTTP/1.1" 200 -
+web-1  | [05:48:07] INFO     factory              ✓ GET /static/css/theme.css → 200 (2ms)
+web-1  | [05:48:07] INFO     factory              [GROUPED] ✓ GET /static/css/tables.css → 200 (1ms) (repeated 2x in 60s)
+web-1  | [05:48:07] INFO     factory              [GROUPED] ✓ GET /static/css/detail-pages.css → 200 (1ms) (repeated 2x in 60s)
+web-1  | [05:48:07] INFO     factory              ✓ GET /static/js/cookie-manager.js → 200 (5ms)
+web-1  | [05:48:07] INFO     factory              ✓ GET /static/js/sidebar.js → 200 (4ms)
+web-1  | [05:48:07] INFO     factory              ✓ GET /static/js/theme.js → 200 (4ms)
+web-1  | [05:48:07] INFO     factory              [GROUPED] ✓ GET /static/js/table-utils.js → 200 (2ms) (repeated 2x in 60s)
+web-1  | [05:48:07] INFO     factory              ✓ GET /static/js/app.js → 200 (5ms)
+web-1  | [05:48:08] INFO     factory              [GROUPED] ✓ GET /static/favicon.ico → 200 (0ms) (repeated 2x in 60s)
+web-1  | [05:48:10] INFO     task_executor_thread [GROUPED] [POLL] Service alive - no tasks selected by queue service (repeated 3x in 60s)
+web-1  | [05:48:25] INFO     werkzeug             127.0.0.1 - - [29/Jan/2026 05:48:25] "GET /health HTTP/1.1" 200 -
+web-1  | [05:48:30] INFO     task_service         [GROUPED] [QUEUE] get_next_tasks called with limit=5 (repeated 13x in 60s)
+web-1  | [05:48:35] INFO     task_service         [QUEUE] get_next_tasks called with limit=5
+web-1  | [05:48:55] INFO     werkzeug             127.0.0.1 - - [29/Jan/2026 05:48:55] "GET /health HTTP/1.1" 200 -
+web-1  | [05:49:00] INFO     task_executor_thread [POLL] Service alive - no tasks selected by queue service
+web-1  | [05:49:25] INFO     werkzeug             127.0.0.1 - - [29/Jan/2026 05:49:25] "GET /health HTTP/1.1" 200 -
+web-1  | [05:49:35] INFO     task_service         [GROUPED] [QUEUE] get_next_tasks called with limit=5 (repeated 13x in 60s)
+web-1  | [05:49:40] INFO     task_service         [QUEUE] get_next_tasks called with limit=5
+web-1  | [05:49:55] INFO     werkzeug             127.0.0.1 - - [29/Jan/2026 05:49:55] "GET /health HTTP/1.1" 200 -
+web-1  | [05:50:25] INFO     werkzeug             127.0.0.1 - - [29/Jan/2026 05:50:25] "GET /health HTTP/1.1" 200 -
+web-1  | [05:50:40] INFO     task_service         [GROUPED] [QUEUE] get_next_tasks called with limit=5 (repeated 13x in 60s)
+web-1  | [05:50:40] INFO     task_executor_thread [GROUPED] [POLL] Service alive - no tasks selected by queue service (repeated 3x in 60s)
+web-1  | [05:50:45] INFO     task_service         [QUEUE] get_next_tasks called with limit=5
+web-1  | [05:50:56] INFO     werkzeug             127.0.0.1 - - [29/Jan/2026 05:50:56] "GET /health HTTP/1.1" 200 -
+web-1  | [05:51:26] INFO     werkzeug             127.0.0.1 - - [29/Jan/2026 05:51:26] "GET /health HTTP/1.1" 200 -
+web-1  | [05:51:30] INFO     task_executor_thread [POLL] Service alive - no tasks selected by queue service
+web-1  | [05:51:45] INFO     task_service         [GROUPED] [QUEUE] get_next_tasks called with limit=5 (repeated 13x in 60s)
+web-1  | [05:51:50] INFO     task_service         [QUEUE] get_next_tasks called with limit=5
+web-1  | [05:51:56] INFO     werkzeug             127.0.0.1 - - [29/Jan/2026 05:51:56] "GET /health HTTP/1.1" 200 -

@@ -1,0 +1,100 @@
+celery-worker-1  | [2026-01-29 05:49:00,024: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:49:01,345: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:04,350: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:05,027: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:49:07,355: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:10,034: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:49:10,360: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:13,365: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:15,041: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:49:16,371: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:19,376: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:20,048: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:49:22,381: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:25,054: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:49:25,386: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:28,389: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:30,061: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:49:31,394: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:34,399: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:35,068: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:49:37,404: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:40,075: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:49:40,409: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:43,411: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:45,081: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:49:46,416: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:49,421: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:50,084: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:49:52,426: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:55,091: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:49:55,429: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:49:58,434: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:00,097: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:50:01,439: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:04,444: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:05,104: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:50:07,449: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:10,111: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:50:10,455: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:13,460: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:15,118: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:50:16,465: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:19,470: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:20,124: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:50:22,475: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:25,131: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:50:25,480: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:28,483: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:30,137: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:50:31,488: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:34,493: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:35,144: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:50:37,498: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:40,151: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:50:40,503: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:43,508: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:45,157: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:50:46,513: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:49,518: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:50,164: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:50:52,524: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:55,170: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:50:55,526: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:50:58,531: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:00,177: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:51:01,533: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:04,538: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:05,184: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:51:07,544: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:10,191: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:51:10,549: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:13,551: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:15,197: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:51:16,556: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:19,561: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:20,204: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:51:22,566: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:25,211: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:51:25,571: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:28,576: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:30,217: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:51:31,581: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:34,586: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:35,221: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:51:37,591: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:40,228: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:51:40,597: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:43,602: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:45,235: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:51:46,608: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:49,613: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:50,241: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:51:52,618: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:55,248: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:51:55,623: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:51:58,626: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:52:00,255: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5
+celery-worker-1  | [2026-01-29 05:52:01,630: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:52:04,633: INFO/ForkPoolWorker-1] [pipeline_4001fc0f46fd:GEN] Processing generation stage: status=in_progress, completed=158/240, failed=17
+celery-worker-1  | [2026-01-29 05:52:05,257: INFO/MainProcess] [QUEUE] get_next_tasks called with limit=5

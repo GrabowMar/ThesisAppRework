@@ -104,6 +104,15 @@ class CodeMerger:
         written = {}
         blocks = self._extract_code_blocks(raw_content)
 
+        # Fallback for models that don't use code blocks
+        if not blocks and self._looks_like_python(raw_content):
+            logger.info("No code blocks found, but content looks like Python. Using raw content.")
+            blocks = [{
+                'language': 'python',
+                'filename': 'app.py',
+                'code': raw_content.strip()
+            }]
+
         # Collect all Python code blocks
         python_blocks = []
         for block in blocks:
@@ -128,6 +137,27 @@ class CodeMerger:
                     'filename': filename or 'app.py',
                     'code': code
                 })
+
+        # IMPROVED FALLBACK: If no Python blocks found, but content looks like Python
+        if not python_blocks and self._looks_like_python(raw_content):
+            logger.info("No Python code blocks found, but content looks like Python. Attempting fallback extraction.")
+            
+            # If we found OTHER blocks (e.g. requirements), strip them out to isolate the code
+            clean_content = raw_content
+            if blocks:
+                pattern = re.compile(
+                    r"```(?P<lang>[a-zA-Z0-9_+\.-]+)?(?:[ \t]*[: ]?[ \t]*(?P<filename>[^\n\r`]+))?\s*[\r\n]+(.*?)```",
+                    re.DOTALL
+                )
+                clean_content = pattern.sub('', raw_content).strip()
+            
+            # If the remaining content still looks like Python, use it
+            if self._looks_like_python(clean_content):
+                logger.info("Fallback successful: Using remaining content as app.py")
+                python_blocks = [{
+                    'filename': 'app.py',
+                    'code': clean_content.strip()
+                }]
 
         if not python_blocks:
             logger.warning("No Python code blocks found in backend response")
@@ -418,6 +448,20 @@ class CodeMerger:
             r"return\s*\("
         )
         return any(re.search(pattern, code) for pattern in signals)
+
+    def _looks_like_python(self, code: str) -> bool:
+        """Heuristic check for Python code presence."""
+        if not code:
+            return False
+        signals = (
+            r"\bimport\s+\w+",
+            r"\bfrom\s+\w+\s+import\b",
+            r"\bdef\s+\w+\(.*\):",
+            r"\bclass\s+\w+\b",
+            r"app\s*=\s*Flask\(",
+            r"@app\.route\(",
+        )
+        return any(re.search(pattern, code, re.MULTILINE) for pattern in signals)
 
     def _merge_jsx_files(self, blocks: List[Dict[str, str]]) -> str:
         """Merge multiple JSX code blocks into a single App.jsx file.

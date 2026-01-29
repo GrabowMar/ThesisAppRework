@@ -1,0 +1,59 @@
+# Docker Compose for Generated React-Flask Application
+# Uses shared thesis-apps-network to prevent Docker network pool exhaustion
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ${PROJECT_NAME:-app1}_backend
+    ports:
+      - "${BACKEND_PORT:-5001}:5001"
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_RUN_HOST=0.0.0.0
+      - FLASK_RUN_PORT=5001
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8001}
+    volumes:
+      # Persist database
+      - backend-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5001/api/health || exit 1"]
+      interval: 120s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - thesis-apps-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ${PROJECT_NAME:-app1}_frontend
+    ports:
+      - "${FRONTEND_PORT:-8001}:80"
+    environment:
+      - VITE_BACKEND_URL=http://localhost:${BACKEND_PORT:-5001}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 120s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - thesis-apps-network
+
+volumes:
+  backend-data:
+    driver: local
+
+networks:
+  thesis-apps-network:
+    name: thesis-apps-network
+    external: true

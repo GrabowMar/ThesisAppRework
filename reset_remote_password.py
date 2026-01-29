@@ -11,7 +11,7 @@ def reset():
     with app.app_context():
         u = User.query.filter_by(username='admin').first()
         if not u:
-            print("User 'admin' not found. Creating...")
+            print("Creating admin user...")
             u = User(
                 username='admin',
                 email='admin@thesis.local',
@@ -20,6 +20,8 @@ def reset():
             u.is_admin = True
             u.is_active = True
             db.session.add(u)
+        else:
+            print("Updating admin user...")
         
         u.set_password('admin123')
         db.session.commit()

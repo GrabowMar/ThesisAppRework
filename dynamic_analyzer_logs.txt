@@ -1,0 +1,100 @@
+dynamic-analyzer-1  | ERROR:zap_scanner:Target http://meta-llama-llama-3.3-70b-instruct-app21_frontend:80 is unreachable: HTTPConnectionPool(host='meta-llama-llama-3.3-70b-instruct-app21_frontend', port=80): Max retries exceeded with url: / (Caused by NameResolutionError("HTTPConnection(host='meta-llama-llama-3.3-70b-instruct-app21_frontend', port=80): Failed to resolve 'meta-llama-llama-3.3-70b-instruct-app21_frontend' ([Errno -2] Name or service not known)"))
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | WARNING:dynamic-analyzer:⚠️  DYNAMIC ANALYSIS: NO TARGETS REACHABLE
+dynamic-analyzer-1  | WARNING:dynamic-analyzer:   🎯 URLs Tested: 2
+dynamic-analyzer-1  | WARNING:dynamic-analyzer:   ❌ Reachable: 0/2
+dynamic-analyzer-1  | WARNING:dynamic-analyzer:   ℹ️  No security analysis possible - app containers may not be running
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Dynamic analysis completed for meta-llama_llama-3.3-70b-instruct app 21
+dynamic-analyzer-1  | INFO:dynamic-analyzer:[HANDLE_MESSAGE] Received message type=dynamic_analyze, keys=['type', 'model_slug', 'app_number', 'tools', 'id', 'timestamp', 'target_urls']
+dynamic-analyzer-1  | INFO:dynamic-analyzer:[HANDLE_MESSAGE] Processing dynamic_analyze: model=meta-llama_llama-3.3-70b-instruct, app=13, target_urls=['http://localhost:5166', 'http://localhost:8166']
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Received explicit target_urls: ['http://localhost:5166', 'http://localhost:8166']
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Translated localhost target_urls to container network: ['http://meta-llama-llama-3.3-70b-instruct-app13_backend:5166', 'http://meta-llama-llama-3.3-70b-instruct-app13_frontend:80']
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Starting dynamic analysis for meta-llama_llama-3.3-70b-instruct app 13
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:🌐 DYNAMIC ANALYSIS: meta-llama_llama-3.3-70b-instruct app 13
+dynamic-analyzer-1  | INFO:dynamic-analyzer:   🎯 Targets: http://meta-llama-llama-3.3-70b-instruct-app13_backend:5166, http://meta-llama-llama-3.3-70b-instruct-app13_frontend:80
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:🔌 CONNECTIVITY TEST PHASE
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Testing connectivity to http://meta-llama-llama-3.3-70b-instruct-app13_backend:5166
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Testing connectivity to http://meta-llama-llama-3.3-70b-instruct-app13_frontend:80
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Port scanning meta-llama-llama-3.3-70b-instruct-app13_backend
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Running nmap command: nmap -p 8000,5000,5166,80,8080,3000,443 --open -T4 -sV --script vuln,http-headers,http-security-headers meta-llama-llama-3.3-70b-instruct-app13_backend
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:🔒 OWASP ZAP SECURITY SCAN PHASE
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:============================================================
+dynamic-analyzer-1  | INFO:dynamic-analyzer:OWASP ZAP Security Scan Started
+dynamic-analyzer-1  | INFO:dynamic-analyzer:  Target: http://meta-llama-llama-3.3-70b-instruct-app13_backend:5166
+dynamic-analyzer-1  | INFO:dynamic-analyzer:  Scan type: baseline
+dynamic-analyzer-1  | INFO:dynamic-analyzer:  Note: ZAP will probe for common paths (admin panels, tech-specific files)
+dynamic-analyzer-1  | INFO:dynamic-analyzer:        These probes are EXPECTED and will generate 404s on the target
+dynamic-analyzer-1  | INFO:dynamic-analyzer:============================================================
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Running baseline scan: thorough spider + passive scan with ZAP defaults
+dynamic-analyzer-1  | INFO:zap_scanner:Starting baseline scan on http://meta-llama-llama-3.3-70b-instruct-app13_backend:5166
+dynamic-analyzer-1  | ERROR:zap_scanner:Target http://meta-llama-llama-3.3-70b-instruct-app13_backend:5166 is unreachable: HTTPConnectionPool(host='meta-llama-llama-3.3-70b-instruct-app13_backend', port=5166): Max retries exceeded with url: / (Caused by NameResolutionError("HTTPConnection(host='meta-llama-llama-3.3-70b-instruct-app13_backend', port=5166): Failed to resolve 'meta-llama-llama-3.3-70b-instruct-app13_backend' ([Errno -2] Name or service not known)"))
+dynamic-analyzer-1  | INFO:dynamic-analyzer:============================================================
+dynamic-analyzer-1  | INFO:dynamic-analyzer:OWASP ZAP Security Scan Started
+dynamic-analyzer-1  | INFO:dynamic-analyzer:  Target: http://meta-llama-llama-3.3-70b-instruct-app13_frontend:80
+dynamic-analyzer-1  | INFO:dynamic-analyzer:  Scan type: baseline
+dynamic-analyzer-1  | INFO:dynamic-analyzer:  Note: ZAP will probe for common paths (admin panels, tech-specific files)
+dynamic-analyzer-1  | INFO:dynamic-analyzer:        These probes are EXPECTED and will generate 404s on the target
+dynamic-analyzer-1  | INFO:dynamic-analyzer:============================================================
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Running baseline scan: thorough spider + passive scan with ZAP defaults
+dynamic-analyzer-1  | INFO:zap_scanner:Starting baseline scan on http://meta-llama-llama-3.3-70b-instruct-app13_frontend:80
+dynamic-analyzer-1  | ERROR:zap_scanner:Target http://meta-llama-llama-3.3-70b-instruct-app13_frontend:80 is unreachable: HTTPConnectionPool(host='meta-llama-llama-3.3-70b-instruct-app13_frontend', port=80): Max retries exceeded with url: / (Caused by NameResolutionError("HTTPConnection(host='meta-llama-llama-3.3-70b-instruct-app13_frontend', port=80): Failed to resolve 'meta-llama-llama-3.3-70b-instruct-app13_frontend' ([Errno -2] Name or service not known)"))
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | WARNING:dynamic-analyzer:⚠️  DYNAMIC ANALYSIS: NO TARGETS REACHABLE
+dynamic-analyzer-1  | WARNING:dynamic-analyzer:   🎯 URLs Tested: 2
+dynamic-analyzer-1  | WARNING:dynamic-analyzer:   ❌ Reachable: 0/2
+dynamic-analyzer-1  | WARNING:dynamic-analyzer:   ℹ️  No security analysis possible - app containers may not be running
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Dynamic analysis completed for meta-llama_llama-3.3-70b-instruct app 13
+dynamic-analyzer-1  | INFO:dynamic-analyzer:[HANDLE_MESSAGE] Received message type=dynamic_analyze, keys=['type', 'model_slug', 'app_number', 'tools', 'id', 'timestamp', 'target_urls']
+dynamic-analyzer-1  | INFO:dynamic-analyzer:[HANDLE_MESSAGE] Processing dynamic_analyze: model=meta-llama_llama-3.3-70b-instruct, app=27, target_urls=['http://localhost:5180', 'http://localhost:8180']
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Received explicit target_urls: ['http://localhost:5180', 'http://localhost:8180']
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Translated localhost target_urls to container network: ['http://meta-llama-llama-3.3-70b-instruct-app27_backend:5180', 'http://meta-llama-llama-3.3-70b-instruct-app27_frontend:80']
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Starting dynamic analysis for meta-llama_llama-3.3-70b-instruct app 27
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:🌐 DYNAMIC ANALYSIS: meta-llama_llama-3.3-70b-instruct app 27
+dynamic-analyzer-1  | INFO:dynamic-analyzer:   🎯 Targets: http://meta-llama-llama-3.3-70b-instruct-app27_backend:5180, http://meta-llama-llama-3.3-70b-instruct-app27_frontend:80
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:🔌 CONNECTIVITY TEST PHASE
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Testing connectivity to http://meta-llama-llama-3.3-70b-instruct-app27_backend:5180
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Testing connectivity to http://meta-llama-llama-3.3-70b-instruct-app27_frontend:80
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Port scanning meta-llama-llama-3.3-70b-instruct-app27_backend
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Running nmap command: nmap -p 8000,5000,80,8080,3000,443,5180 --open -T4 -sV --script vuln,http-headers,http-security-headers meta-llama-llama-3.3-70b-instruct-app27_backend
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:🔒 OWASP ZAP SECURITY SCAN PHASE
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:============================================================
+dynamic-analyzer-1  | INFO:dynamic-analyzer:OWASP ZAP Security Scan Started
+dynamic-analyzer-1  | INFO:dynamic-analyzer:  Target: http://meta-llama-llama-3.3-70b-instruct-app27_backend:5180
+dynamic-analyzer-1  | INFO:dynamic-analyzer:  Scan type: baseline
+dynamic-analyzer-1  | INFO:dynamic-analyzer:  Note: ZAP will probe for common paths (admin panels, tech-specific files)
+dynamic-analyzer-1  | INFO:dynamic-analyzer:        These probes are EXPECTED and will generate 404s on the target
+dynamic-analyzer-1  | INFO:dynamic-analyzer:============================================================
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Running baseline scan: thorough spider + passive scan with ZAP defaults
+dynamic-analyzer-1  | INFO:zap_scanner:Starting baseline scan on http://meta-llama-llama-3.3-70b-instruct-app27_backend:5180
+dynamic-analyzer-1  | ERROR:zap_scanner:Target http://meta-llama-llama-3.3-70b-instruct-app27_backend:5180 is unreachable: HTTPConnectionPool(host='meta-llama-llama-3.3-70b-instruct-app27_backend', port=5180): Max retries exceeded with url: / (Caused by NameResolutionError("HTTPConnection(host='meta-llama-llama-3.3-70b-instruct-app27_backend', port=5180): Failed to resolve 'meta-llama-llama-3.3-70b-instruct-app27_backend' ([Errno -2] Name or service not known)"))
+dynamic-analyzer-1  | INFO:dynamic-analyzer:============================================================
+dynamic-analyzer-1  | INFO:dynamic-analyzer:OWASP ZAP Security Scan Started
+dynamic-analyzer-1  | INFO:dynamic-analyzer:  Target: http://meta-llama-llama-3.3-70b-instruct-app27_frontend:80
+dynamic-analyzer-1  | INFO:dynamic-analyzer:  Scan type: baseline
+dynamic-analyzer-1  | INFO:dynamic-analyzer:  Note: ZAP will probe for common paths (admin panels, tech-specific files)
+dynamic-analyzer-1  | INFO:dynamic-analyzer:        These probes are EXPECTED and will generate 404s on the target
+dynamic-analyzer-1  | INFO:dynamic-analyzer:============================================================
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Running baseline scan: thorough spider + passive scan with ZAP defaults
+dynamic-analyzer-1  | INFO:zap_scanner:Starting baseline scan on http://meta-llama-llama-3.3-70b-instruct-app27_frontend:80
+dynamic-analyzer-1  | ERROR:zap_scanner:Target http://meta-llama-llama-3.3-70b-instruct-app27_frontend:80 is unreachable: HTTPConnectionPool(host='meta-llama-llama-3.3-70b-instruct-app27_frontend', port=80): Max retries exceeded with url: / (Caused by NameResolutionError("HTTPConnection(host='meta-llama-llama-3.3-70b-instruct-app27_frontend', port=80): Failed to resolve 'meta-llama-llama-3.3-70b-instruct-app27_frontend' ([Errno -2] Name or service not known)"))
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | WARNING:dynamic-analyzer:⚠️  DYNAMIC ANALYSIS: NO TARGETS REACHABLE
+dynamic-analyzer-1  | WARNING:dynamic-analyzer:   🎯 URLs Tested: 2
+dynamic-analyzer-1  | WARNING:dynamic-analyzer:   ❌ Reachable: 0/2
+dynamic-analyzer-1  | WARNING:dynamic-analyzer:   ℹ️  No security analysis possible - app containers may not be running
+dynamic-analyzer-1  | INFO:dynamic-analyzer:════════════════════════════════════════════════════════════════════════════════
+dynamic-analyzer-1  | INFO:dynamic-analyzer:Dynamic analysis completed for meta-llama_llama-3.3-70b-instruct app 27

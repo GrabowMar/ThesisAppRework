@@ -90,6 +90,14 @@ initialize_environment() {
     mkdir -p "$LOGS_DIR"
     mkdir -p "$RUN_DIR"
     
+    # Ensure all required project directories exist (to avoid Docker creating them as root)
+    write_status "Ensuring project directories exist..." "Info"
+    mkdir -p "$ROOT_DIR/results"
+    mkdir -p "$ROOT_DIR/generated/apps"
+    mkdir -p "$ROOT_DIR/generated/raw"
+    mkdir -p "$ROOT_DIR/generated/metadata"
+    mkdir -p "$ROOT_DIR/src/data"
+    
     write_status "Ensuring shared Docker network exists..." "Info"
     if docker network ls --format "{{.Name}}" | grep -q "^thesis-apps-network$"; then
         write_status "  Shared network exists: thesis-apps-network" "Success"
@@ -98,6 +106,24 @@ initialize_environment() {
             write_status "  Created shared network: thesis-apps-network" "Success"
         else
             write_status "  Warning: Could not create shared network" "Warning"
+        fi
+    fi
+    
+    # Detect Docker GID for socket access (required for dynamic/performance analyzers)
+    write_status "Detecting Docker GID..." "Info"
+    if [ -S /var/run/docker.sock ]; then
+        # Use stat to get the group ID of the docker socket
+        export DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
+        write_status "  Docker GID detected: $DOCKER_GID" "Success"
+    else
+        # Fallback to group lookup
+        DOCKER_GID=$(getent group docker | cut -d: -f3)
+        if [ -n "$DOCKER_GID" ]; then
+            export DOCKER_GID=$DOCKER_GID
+            write_status "  Docker GID found via group lookup: $DOCKER_GID" "Success"
+        else
+            export DOCKER_GID=0
+            write_status "  Warning: Could not detect Docker GID, defaulting to 0" "Warning"
         fi
     fi
     
@@ -344,7 +370,7 @@ start_docker_stack() {
     
     cd "$ROOT_DIR"
     
-    local services=("web" "celery-worker" "redis" "analyzer-gateway" "static-analyzer" "dynamic-analyzer" "performance-tester" "ai-analyzer")
+    local services=("caddy" "web" "celery-worker" "redis" "analyzer-gateway" "static-analyzer" "dynamic-analyzer" "performance-tester" "ai-analyzer")
     if [ "$CONCURRENT" = true ]; then
          services+=("static-analyzer-2" "static-analyzer-3" "dynamic-analyzer-2" "performance-tester-2" "ai-analyzer-2")
     fi
@@ -428,50 +454,43 @@ invoke_wipeout() {
     invoke_cleanup
     
     write_status "Initializing fresh database..." "Info"
-    "$PYTHON_CMD" "$SRC_DIR/init_db.py" >/dev/null 2>&1
+    if ! ANALYZER_ENABLED=false "$PYTHON_CMD" "$SRC_DIR/init_db.py" >/dev/null 2>&1; then
+        write_status "  Local python init failed, trying via Docker..." "Warning"
+        if ! docker compose run --rm -e ANALYZER_ENABLED=false web python src/init_db.py; then
+            write_status "  ✗ Failed to initialize database" "Error"
+            return 1
+        fi
+    fi
 
     # Create Admin User
     write_status "Creating admin user..." "Info"
     local new_password=$(tr -dc 'A-Za-z0-9!@#$%^&*' < /dev/urandom | head -c 16)
-    local temp_script="$ROOT_DIR/temp_create_admin.py"
+    local temp_script_name="temp_create_admin.py"
+    local temp_script_host="$ROOT_DIR/$temp_script_name"
     
-    cat <<EOF > "$temp_script"
+    cat <<EOF > "$temp_script_host"
 import sys, os
-from pathlib import Path
-
-# Add src to path
-sys.path.insert(0, "$SRC_DIR")
-
+sys.path.insert(0, '/app/src')
+sys.path.insert(0, '$SRC_DIR')
 from app.factory import create_app
 from app.models import User
 from app.extensions import db
-
-def main():
-    app = create_app()
-    with app.app_context():
-        admin = User.query.filter_by(username='admin').first()
-        if not admin:
-            admin = User(
-                username='admin', 
-                email='admin@thesis.local', 
-                full_name='System Administrator'
-            )
-            admin.set_password('$new_password')
-            admin.is_admin = True
-            admin.is_active = True
-            db.session.add(admin)
-            print('CREATED')
-        else:
-            admin.set_password('$new_password')
-            print('UPDATED')
-        db.session.commit()
-
-if __name__ == '__main__':
-    main()
+app = create_app()
+with app.app_context():
+    admin = User.query.filter_by(username='admin').first() or User(username='admin', email='admin@thesis.local', full_name='System Administrator')
+    admin.set_password('$new_password')
+    admin.is_admin = True
+    admin.is_active = True
+    db.session.add(admin)
+    db.session.commit()
+    print('ADMIN_CREATED')
 EOF
 
-    local output=$("$PYTHON_CMD" "$temp_script" 2>&1)
-    rm -f "$temp_script"
+    if ! ANALYZER_ENABLED=false "$PYTHON_CMD" "$temp_script_host" >/dev/null 2>&1; then
+        write_status "  Local admin creation failed, trying via Docker..." "Warning"
+        docker compose run --rm -e ANALYZER_ENABLED=false -v "$temp_script_host:/app/$temp_script_name" web python "/app/$temp_script_name" >/dev/null 2>&1
+    fi
+    rm -f "$temp_script_host"
     
     write_status "Admin user initialized" "Success"
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
