@@ -1,38 +1,24 @@
-import sys
-import os
-from sqlalchemy import func
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.getcwd(), "src"))
-
-from app.factory import create_app
 from app.extensions import db
 from app.models import AnalysisTask
-from app.constants import AnalysisStatus
+from app import create_app
+import json
 
-def check_tasks():
-    app = create_app()
-    with app.app_context():
-        # Count by status
-        counts = db.session.query(
-            AnalysisTask.status, func.count(AnalysisTask.status)
-        ).group_by(AnalysisTask.status).all()
-        
-        print("\n=== Task Counts ===")
-        for status, count in counts:
-            print(f"{status.value}: {count}")
-            
-        # List RUNNING tasks
-        print("\n=== RUNNING Tasks ===")
-        running = AnalysisTask.query.filter_by(status=AnalysisStatus.RUNNING).all()
-        for t in running:
-            print(f"Task {t.task_id}: {t.task_name} (Created: {t.created_at})")
-            
-        # List PENDING tasks (first 5)
-        print("\n=== PENDING Tasks (First 5) ===")
-        pending = AnalysisTask.query.filter_by(status=AnalysisStatus.PENDING).limit(5).all()
-        for t in pending:
-            print(f"Task {t.task_id}: {t.task_name} (Created: {t.created_at})")
-
-if __name__ == "__main__":
-    check_tasks()
+app = create_app()
+with app.app_context():
+    task = AnalysisTask.query.first()
+    if task:
+        print(f"Task ID: {task.task_id}")
+        print(f"Status: {task.status}")
+        summary = task.get_result_summary()
+        print(f"Summary Keys: {list(summary.keys())}")
+        if 'services' in summary:
+            for s, res in summary['services'].items():
+                print(f"Service: {s}, Status: {res.get('status')}, Tools: {list(res.get('tools', {}).keys())}")
+        else:
+             # Basic format
+             for s, res in summary.items():
+                 if isinstance(res, dict) and 'status' in res:
+                     print(f"Service/Tool: {s}, Status: {res.get('status')}")
+    else:
+        print("No tasks found")
