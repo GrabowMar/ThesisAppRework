@@ -2700,7 +2700,7 @@ class TaskExecutionService:
                             frontend_port=frontend_port
                         )
                     )
-                    
+
                     # Check if result indicates connection failure (should retry)
                     if result.get('status') == 'error':
                         error_msg = str(result.get('error', '') or '')  # Ensure string even if None
@@ -2708,7 +2708,7 @@ class TaskExecutionService:
                             'connect call failed', 'connection refused', 'errno 111',
                             'connection reset', 'no route to host', 'network unreachable'
                         ])
-                        
+
                         if is_connection_error and attempt < max_retries:
                             wait_time = retry_delay * (2 ** (attempt - 1))  # Exponential backoff
                             self._log(
@@ -2719,22 +2719,37 @@ class TaskExecutionService:
                             last_error = error_msg
                             time.sleep(wait_time)
                             continue
-                    
+
                     return result
                 finally:
-                    loop.close()
+                    # CRITICAL FIX: Properly cleanup event loop and pending tasks
+                    try:
+                        # Cancel all remaining tasks
+                        pending = asyncio.all_tasks(loop)
+                        for task in pending:
+                            task.cancel()
+                        # Wait for cancellations to complete
+                        if pending:
+                            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                    except Exception as cleanup_err:
+                        self._log(f"[WebSocket] Error during loop cleanup: {cleanup_err}", level='debug')
+                    finally:
+                        loop.close()
+                        # Clear event loop reference to prevent reuse of closed loop
+                        asyncio.set_event_loop(None)
             
             except RuntimeError as e:
-                # Handle interpreter shutdown gracefully
+                # Handle interpreter shutdown and event loop errors gracefully
                 error_str = str(e)
-                if 'cannot schedule new futures' in error_str or 'interpreter shutdown' in error_str.lower():
+                if 'cannot schedule new futures' in error_str or 'interpreter shutdown' in error_str.lower() or 'event loop is closed' in error_str.lower():
                     self._log(
-                        f"[WebSocket] Interpreter shutdown detected while connecting to {service_name}",
+                        f"[WebSocket] Event loop error detected while connecting to {service_name}: {error_str}",
                         level='warning'
                     )
+                    # Don't retry on event loop errors - they indicate systemic issues
                     return {
                         'status': 'error',
-                        'error': f'Service unavailable (interpreter shutting down)',
+                        'error': f'Analysis service temporarily unavailable - please retry the task',
                         'payload': {}
                     }
                 # Re-raise other RuntimeErrors
@@ -3116,11 +3131,28 @@ class TaskExecutionService:
                 'error': f'Connection to {service_name} closed unexpectedly (code={cc.code})',
                 'payload': {}
             }
+        except RuntimeError as e:
+            # Handle event loop errors separately (more specific than general Exception)
+            error_str = str(e)
+            if 'cannot schedule new futures' in error_str or 'interpreter shutdown' in error_str.lower() or 'event loop is closed' in error_str.lower():
+                self._log(f"[WebSocket] Event loop error in {service_name}: {error_str}", level='warning')
+                return {
+                    'status': 'error',
+                    'error': f'Analysis service temporarily unavailable - event loop error',
+                    'payload': {}
+                }
+            # Re-raise other RuntimeErrors
+            self._log(f"[WebSocket] RuntimeError in {service_name}: {e}", level='error', exc_info=True)
+            return {
+                'status': 'error',
+                'error': f'Analysis error: {str(e)}',
+                'payload': {}
+            }
         except Exception as e:
             self._log(f"[WebSocket] Error connecting to {service_name}: {e}", level='error', exc_info=True)
             return {
                 'status': 'error',
-                'error': f'WebSocket error: {str(e)}',
+                'error': f'Connection error: {str(e)}',
                 'payload': {}
             }
     

@@ -56,7 +56,7 @@ def run_async_safely(coro: Coroutine[Any, Any, T]) -> T:
     # We always create a new loop to avoid issues with closed loops
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
+
     # Now run the coroutine in the loop
     logger.debug(f"Running async code via event loop in thread {threading.current_thread().name}")
     try:
@@ -65,24 +65,37 @@ def run_async_safely(coro: Coroutine[Any, Any, T]) -> T:
         logger.exception(f"Async execution failed: {e}")
         raise
     finally:
-        # Don't close the loop - it might be reused for subsequent calls
-        # in the same thread (e.g., multiple API calls in a generation job)
-        pass
+        # CRITICAL FIX: Close the loop to prevent memory leaks
+        # Cancel any pending tasks before closing
+        try:
+            # Cancel all remaining tasks
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            # Wait for cancellations to complete
+            if pending:
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        except Exception:
+            pass  # Ignore errors during cleanup
+        finally:
+            loop.close()
+            # Clear the event loop reference to avoid reuse of closed loop
+            asyncio.set_event_loop(None)
 
 
 def _run_in_new_thread(coro: Coroutine[Any, Any, T]) -> T:
     """Run a coroutine in a new thread with its own event loop.
-    
+
     This is used when we're already inside an async context and can't
     use the current event loop directly.
-    
+
     Uses a simple thread instead of ThreadPoolExecutor to avoid
     "cannot schedule new futures after shutdown" errors when the
     parent process is shutting down.
     """
     result = None
     exception = None
-    
+
     def _thread_runner():
         nonlocal result, exception
         loop = asyncio.new_event_loop()
@@ -92,12 +105,23 @@ def _run_in_new_thread(coro: Coroutine[Any, Any, T]) -> T:
         except Exception as e:
             exception = e
         finally:
-            loop.close()
-    
+            # Ensure proper cleanup of pending tasks
+            try:
+                pending = asyncio.all_tasks(loop)
+                for task in pending:
+                    task.cancel()
+                if pending:
+                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            except Exception:
+                pass
+            finally:
+                loop.close()
+                asyncio.set_event_loop(None)
+
     thread = threading.Thread(target=_thread_runner, daemon=True)
     thread.start()
     thread.join()  # Wait for completion
-    
+
     if exception is not None:
         raise exception
     return result
