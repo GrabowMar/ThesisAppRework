@@ -1,23 +1,27 @@
 {
   "analyzer_services": {
-    "host": "localhost",
+    "host": "host.docker.internal",
     "base_port": 2001,
     "services": {
       "static": {
         "port": 2001,
-        "name": "static-analyzer"
+        "name": "static-analyzer",
+        "host": "static-analyzer"
       },
       "dynamic": {
         "port": 2002,
-        "name": "dynamic-analyzer"
+        "name": "dynamic-analyzer",
+        "host": "dynamic-analyzer"
       },
       "performance": {
         "port": 2003,
-        "name": "performance-tester"
+        "name": "performance-tester",
+        "host": "performance-tester"
       },
       "ai": {
         "port": 2004,
-        "name": "ai-analyzer"
+        "name": "ai-analyzer",
+        "host": "ai-analyzer"
       }
     }
   },
