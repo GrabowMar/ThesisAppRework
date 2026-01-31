@@ -10,6 +10,7 @@ testing and port scanning capabilities.
 
 import asyncio
 import json
+import os
 import subprocess
 import time
 from datetime import datetime
