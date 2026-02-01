@@ -35,6 +35,8 @@ services:
       # Disable pipeline service in web container - celery-worker handles pipelines
       # This prevents race conditions from two processes polling the same pipeline
       - ENABLE_PIPELINE_SERVICE=false
+      # Queue concurrency - increased for scaled analyzers
+      - QUEUE_MAX_CONCURRENT_TASKS=20
       # Authentication & Security
       - REGISTRATION_ENABLED=${REGISTRATION_ENABLED:-false}
       - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}
@@ -133,6 +135,8 @@ services:
       - AI_ANALYZER_URLS=ws://ai-analyzer:2004,ws://ai-analyzer-2:2004
       # Enable pipeline service in celery-worker - this is the ONLY container that should process pipelines
       - ENABLE_PIPELINE_SERVICE=true
+      # Queue concurrency - increased for scaled analyzers
+      - QUEUE_MAX_CONCURRENT_TASKS=20
     volumes:
       - ./generated/apps:/app/generated/apps
       - ./generated/raw:/app/generated/raw
