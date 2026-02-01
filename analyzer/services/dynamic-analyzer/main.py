@@ -956,7 +956,8 @@ class DynamicAnalyzer(BaseWSService):
                     # Try to resolve target URLs from app configuration
                     # In Docker, use container names for thesis-apps-network communication
                     # Container naming pattern: {model_slug}-app{N}_backend/frontend
-                    safe_slug = model_slug.replace('_', '-')
+                    # Replace underscores AND dots with hyphens (matches docker_manager._get_project_name)
+                    safe_slug = model_slug.replace('_', '-').replace('.', '-')
                     container_prefix = f"{safe_slug}-app{app_number}"
 
                     # Try to read ports from app .env file (mounted at /app/sources)
@@ -992,7 +993,8 @@ class DynamicAnalyzer(BaseWSService):
                     try:
                         from pathlib import Path
                         if any(u.startswith('http://localhost') or u.startswith('http://127.0.0.1') for u in target_urls):
-                            safe_slug = model_slug.replace('_', '-')
+                            # Replace underscores AND dots with hyphens (matches docker_manager._get_project_name)
+                            safe_slug = model_slug.replace('_', '-').replace('.', '-')
                             container_prefix = f"{safe_slug}-app{app_number}"
                             # Try to discover ports from .env to map appropriately
                             backend_port = 5000

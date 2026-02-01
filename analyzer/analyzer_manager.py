@@ -742,7 +742,7 @@ class AnalyzerManager:
 
             # PRIORITY 3: Attempt to inspect running Docker containers to discover internal ports
             try:
-                safe_slug = model_slug.replace('_', '-')
+                safe_slug = model_slug.replace('_', '-').replace('.', '-')
                 backend_container = f"{safe_slug}-app{app_number}_backend"
                 frontend_container = f"{safe_slug}-app{app_number}_frontend"
 
@@ -1376,7 +1376,7 @@ class AnalyzerManager:
             # Container names follow pattern: {model_slug}-app{N}_backend/frontend
             # The containers are on thesis-apps-network, same as analyzers
             # Note: Docker Compose converts underscores to hyphens in container names
-            safe_slug = normalized_slug.replace('_', '-')
+            safe_slug = normalized_slug.replace('_', '-').replace('.', '-')
             container_prefix = f"{safe_slug}-app{app_number}"
             resolved_urls = [
                 f"http://{container_prefix}_backend:{backend_port}",
@@ -1427,8 +1427,8 @@ class AnalyzerManager:
             # Use Docker container names for container-to-container communication
             # Container names follow pattern: {model_slug}-app{N}_backend/frontend
             # The containers are on thesis-apps-network, same as analyzers
-            # Note: Docker Compose converts underscores to hyphens in container names
-            safe_slug = normalized_slug.replace('_', '-')
+            # Note: Docker Compose converts underscores AND dots to hyphens in container names
+            safe_slug = normalized_slug.replace('_', '-').replace('.', '-')
             container_prefix = f"{safe_slug}-app{app_number}"
             urls = [
                 f"http://{container_prefix}_backend:{backend_port}",
@@ -1850,7 +1850,7 @@ class AnalyzerManager:
             # Container names follow pattern: {model_slug}-app{N}_backend/frontend
             # The containers are on thesis-apps-network, same as analyzers
             # Note: Docker Compose converts underscores to hyphens in container names
-            safe_slug = normalized_slug.replace('_', '-')
+            safe_slug = normalized_slug.replace('_', '-').replace('.', '-')
             container_prefix = f"{safe_slug}-app{app_number}"
             resolved_urls = [
                 f"http://{container_prefix}_backend:{backend_port}",
@@ -1905,7 +1905,7 @@ class AnalyzerManager:
             
             backend_port, frontend_port = ports
             # Use Docker container names for container-to-container communication
-            safe_slug = normalized_slug.replace('_', '-')
+            safe_slug = normalized_slug.replace('_', '-').replace('.', '-')
             container_prefix = f"{safe_slug}-app{app_number}"
             urls = [
                 f"http://{container_prefix}_backend:{backend_port}",
