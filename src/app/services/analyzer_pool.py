@@ -86,7 +86,7 @@ class AnalyzerPoolConfig:
     cooldown_period: int = 20  # Seconds to wait before retrying unhealthy endpoint (reduced from 60 for faster recovery)
     ping_interval: int = 30  # Websocket ping interval to detect dead connections
     ping_timeout: int = 10  # Timeout waiting for pong response
-    message_timeout: int = 120  # Timeout for receiving individual messages (progress updates)
+    message_timeout: int = 300  # Timeout for receiving individual messages (progress updates) - ZAP scans can take 30s+ per phase
 
 
 class AnalyzerPool:
