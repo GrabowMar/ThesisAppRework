@@ -271,7 +271,8 @@ class DockerManager:
             return results
     
     def start_containers(self, model: str, app_num: int, wait_for_healthy: bool = True,
-                         timeout_seconds: Optional[int] = None) -> Dict[str, Any]:
+                         timeout_seconds: Optional[int] = None,
+                         build_id: Optional[str] = None) -> Dict[str, Any]:
         """Start containers for a model/app using docker-compose.
         
         Args:
@@ -279,6 +280,7 @@ class DockerManager:
             app_num: Application number
             wait_for_healthy: If True, wait for containers to become healthy (default: True)
             timeout_seconds: Max seconds to wait for health (default: CONTAINER_READY_TIMEOUT env, or 180s)
+            build_id: Optional short UUID for unique container naming
         
         Returns:
             Dict with success status, health check results, and any errors
@@ -292,9 +294,13 @@ class DockerManager:
                 'error': f'Docker compose file not found: {compose_path}'
             }
         
+        # If no build_id provided, try to get from database
+        if not build_id:
+            build_id = self._get_or_create_build_id(model, app_num, force_new=False)
+        
         # Execute docker compose up -d
         result = self._execute_compose_command(
-            compose_path, ['up', '-d'], model, app_num
+            compose_path, ['up', '-d'], model, app_num, build_id=build_id
         )
         
         if not result.get('success'):
@@ -307,13 +313,13 @@ class DockerManager:
                 timeout_seconds = int(os.environ.get('CONTAINER_READY_TIMEOUT', '180'))
             
             health_result = self._wait_for_container_health(
-                model, app_num, timeout_seconds=timeout_seconds
+                model, app_num, timeout_seconds=timeout_seconds, build_id=build_id
             )
             result['health_check'] = health_result
             
             # Check if containers are in a crash loop (permanent failure)
             if not health_result.get('all_healthy'):
-                crash_check = self._check_for_crash_loop(model, app_num)
+                crash_check = self._check_for_crash_loop(model, app_num, build_id=build_id)
                 result['crash_loop'] = crash_check
                 
                 if crash_check.get('has_crash_loop'):
@@ -327,8 +333,14 @@ class DockerManager:
         
         return result
     
-    def stop_containers(self, model: str, app_num: int) -> Dict[str, Any]:
-        """Stop containers for a model/app using docker-compose."""
+    def stop_containers(self, model: str, app_num: int, build_id: Optional[str] = None) -> Dict[str, Any]:
+        """Stop containers for a model/app using docker-compose.
+        
+        Args:
+            model: Model slug
+            app_num: Application number
+            build_id: Optional short UUID for unique container naming
+        """
         compose_path = self._get_compose_path(model, app_num)
         if not compose_path.exists():
             return {
@@ -336,21 +348,35 @@ class DockerManager:
                 'error': f'Docker compose file not found: {compose_path}'
             }
         
+        # If no build_id provided, try to get from database
+        if not build_id:
+            build_id = self._get_or_create_build_id(model, app_num, force_new=False)
+        
         return self._execute_compose_command(
-            compose_path, ['down', '--remove-orphans'], model, app_num
+            compose_path, ['down', '--remove-orphans'], model, app_num, build_id=build_id
         )
     
-    def restart_containers(self, model: str, app_num: int) -> Dict[str, Any]:
-        """Restart containers for a model/app."""
+    def restart_containers(self, model: str, app_num: int, build_id: Optional[str] = None) -> Dict[str, Any]:
+        """Restart containers for a model/app.
+        
+        Args:
+            model: Model slug
+            app_num: Application number
+            build_id: Optional short UUID for unique container naming
+        """
+        # If no build_id provided, try to get from database
+        if not build_id:
+            build_id = self._get_or_create_build_id(model, app_num, force_new=False)
+        
         # Stop first
-        stop_result = self.stop_containers(model, app_num)
+        stop_result = self.stop_containers(model, app_num, build_id=build_id)
         if not stop_result.get('success', False):
             return stop_result
 
         # Then start
-        return self.start_containers(model, app_num)
+        return self.start_containers(model, app_num, build_id=build_id)
 
-    def get_container_health(self, model: str, app_num: int) -> Dict[str, Any]:
+    def get_container_health(self, model: str, app_num: int, build_id: Optional[str] = None) -> Dict[str, Any]:
         """Get current health status of containers without waiting.
 
         Public wrapper for getting immediate health status of app containers.
@@ -358,6 +384,7 @@ class DockerManager:
         Args:
             model: Model slug
             app_num: Application number
+            build_id: Optional short UUID for unique container naming
 
         Returns:
             Dictionary with health status information:
@@ -366,7 +393,11 @@ class DockerManager:
             - container_count: int - Number of containers found
         """
         try:
-            project_name = self._get_project_name(model, app_num)
+            # If no build_id provided, try to get from database
+            if not build_id:
+                build_id = self._get_or_create_build_id(model, app_num, force_new=False)
+            
+            project_name = self._get_project_name(model, app_num, build_id)
             containers = self.client.containers.list(
                 filters={'label': f'com.docker.compose.project={project_name}'}
             )
@@ -412,11 +443,17 @@ class DockerManager:
                 'error': str(e)
             }
 
-    def _check_for_crash_loop(self, model: str, app_num: int) -> Dict[str, Any]:
+    def _check_for_crash_loop(self, model: str, app_num: int,
+                               build_id: Optional[str] = None) -> Dict[str, Any]:
         """Check if any containers are in a crash/restart loop.
         
         Detects containers that are continuously restarting due to application errors.
         This is a permanent failure state that won't be fixed by waiting longer.
+        
+        Args:
+            model: Model slug
+            app_num: Application number
+            build_id: Optional short UUID for unique container naming
         
         Returns:
             Dict with has_crash_loop boolean and list of affected containers
@@ -424,7 +461,7 @@ class DockerManager:
         if not self.client:
             return {'has_crash_loop': False, 'error': 'Docker client unavailable'}
         
-        project_name = self._get_project_name(model, app_num)
+        project_name = self._get_project_name(model, app_num, build_id)
         crash_containers = []
         
         try:
@@ -462,7 +499,8 @@ class DockerManager:
             return {'has_crash_loop': False, 'error': str(e)}
     
     def _wait_for_container_health(self, model: str, app_num: int, 
-                                    timeout_seconds: int = 180) -> Dict[str, Any]:
+                                    timeout_seconds: int = 180,
+                                    build_id: Optional[str] = None) -> Dict[str, Any]:
         """Wait for containers to become healthy after startup.
         
         Polls container health status with retries to handle slow startup times.
@@ -474,19 +512,20 @@ class DockerManager:
             app_num: Application number
             timeout_seconds: Maximum time to wait for health (default: 180s to exceed
                            docker-compose healthcheck start_period + interval)
+            build_id: Optional short UUID for unique container naming
         
         Returns:
             Dictionary with health check results
         """
         import time
         
-        project_name = self._get_project_name(model, app_num)
+        project_name = self._get_project_name(model, app_num, build_id)
         start_time = time.time()
         poll_interval = 2  # seconds
         
         self.logger.info(
-            "[HEALTH] Waiting up to %ds for containers to become healthy: %s/app%s",
-            timeout_seconds, model, app_num
+            "[HEALTH] Waiting up to %ds for containers to become healthy: %s/app%s (build_id=%s)",
+            timeout_seconds, model, app_num, build_id
         )
         
         while (time.time() - start_time) < timeout_seconds:
@@ -665,6 +704,10 @@ class DockerManager:
                 'error': f'Docker compose file not found: {compose_path}'
             }
         
+        # Generate new build_id for this build to ensure unique container names
+        build_id = self._get_or_create_build_id(model, app_num, force_new=no_cache)
+        self.logger.info("Building containers for %s/app%s with build_id=%s", model, app_num, build_id)
+        
         # Clean up existing images to prevent conflicts
         cleanup_result = self._cleanup_images_before_build(model, app_num)
         
@@ -677,19 +720,20 @@ class DockerManager:
             compose_path, cmd, model, app_num,
             timeout=600,  # 10 minutes for build
             max_retries=3,
-            operation_name='build'
+            operation_name='build',
+            build_id=build_id
         )
         if not build_result.get('success') or not start_after:
             return build_result
 
         # Start containers (docker compose up -d)
         up_result = self._execute_compose_command(
-            compose_path, ['up', '-d'], model, app_num, timeout=300
+            compose_path, ['up', '-d'], model, app_num, timeout=300, build_id=build_id
         )
         
         # Wait for containers to become healthy (addresses intermittent health check failures)
         if up_result.get('success'):
-            health_result = self._wait_for_container_health(model, app_num, timeout_seconds=60)
+            health_result = self._wait_for_container_health(model, app_num, timeout_seconds=60, build_id=build_id)
             up_result['health_check'] = health_result
             if not health_result.get('all_healthy'):
                 self.logger.warning(
@@ -697,7 +741,7 @@ class DockerManager:
                     model, app_num, health_result.get('unhealthy_containers', [])
                 )
                 # Cleanup on health failure to prevent "failing containers" from lingering
-                self.stop_containers(model, app_num)
+                self.stop_containers(model, app_num, build_id=build_id)
                 # Mark as failed in the result
                 up_result['success'] = False
                 up_result['error'] = f"Containers failed health check: {health_result.get('unhealthy_containers', [])}"
@@ -706,13 +750,14 @@ class DockerManager:
              self.logger.warning(
                  "Container start failed for %s/app%s. Cleaning up...", model, app_num
              )
-             self.stop_containers(model, app_num)
+             self.stop_containers(model, app_num, build_id=build_id)
 
         # Merge summaries
         merged = {
             'success': build_result.get('success') and up_result.get('success'),
             'build': build_result,
-            'up': up_result
+            'up': up_result,
+            'build_id': build_id
         }
         # Add top-level error if either step failed
         if not merged['success']:
@@ -832,15 +877,67 @@ class DockerManager:
             'docker_engine': diag.get('engine_info'),
         }
     
-    def _get_project_name(self, model: str, app_num: int) -> str:
-        """Get Docker Compose project name for model/app."""
+    def _get_project_name(self, model: str, app_num: int, build_id: Optional[str] = None) -> str:
+        """Get Docker Compose project name for model/app.
+        
+        Args:
+            model: Model slug
+            app_num: Application number
+            build_id: Optional short UUID for unique container naming (e.g., 'a3f2c1b9')
+        
+        Returns:
+            Project name like 'model-name-app1-a3f2c1b9' or 'model-name-app1' if no build_id
+        """
         # Replace underscores and dots with hyphens for Docker compatibility
         safe_model = model.replace('_', '-').replace('.', '-')
+        if build_id:
+            return f"{safe_model}-app{app_num}-{build_id}"
         return f"{safe_model}-app{app_num}"
+    
+    def _generate_build_id(self) -> str:
+        """Generate a short UUID for unique container naming."""
+        import uuid
+        return uuid.uuid4().hex[:8]
+    
+    def _get_or_create_build_id(self, model: str, app_num: int, force_new: bool = False) -> Optional[str]:
+        """Get existing build_id from database or create a new one.
+        
+        Args:
+            model: Model slug
+            app_num: Application number
+            force_new: If True, always generate a new build_id (for rebuilds)
+        
+        Returns:
+            Build ID string or None if app not found
+        """
+        from flask import current_app
+        from app.models import GeneratedApplication
+        from app.extensions import db
+        
+        try:
+            with current_app.app_context():
+                app = GeneratedApplication.query.filter_by(
+                    model_slug=model, app_number=app_num
+                ).first()
+                
+                if not app:
+                    self.logger.warning(f"App not found for build_id lookup: {model}/app{app_num}")
+                    return self._generate_build_id()  # Generate anyway for standalone builds
+                
+                if force_new or not app.build_id:
+                    app.build_id = self._generate_build_id()
+                    db.session.commit()
+                    self.logger.info(f"Generated new build_id for {model}/app{app_num}: {app.build_id}")
+                
+                return app.build_id
+        except Exception as e:
+            self.logger.warning(f"Could not get/create build_id: {e}, generating new one")
+            return self._generate_build_id()
     
     def _execute_compose_with_retry(self, compose_path: Path, command: List[str],
                                    model: str, app_num: int, timeout: int = 300,
-                                   max_retries: int = 3, operation_name: str = 'compose') -> Dict[str, Any]:
+                                   max_retries: int = 3, operation_name: str = 'compose',
+                                   build_id: Optional[str] = None) -> Dict[str, Any]:
         """Execute docker compose command with exponential backoff retry logic.
         
         Handles transient BuildKit failures that occur at Dockerfile:59 (React build step).
@@ -854,6 +951,7 @@ class DockerManager:
             timeout: Command timeout in seconds
             max_retries: Maximum retry attempts (default: 3)
             operation_name: Human-readable operation name for logging
+            build_id: Optional short UUID for unique container naming
         
         Returns:
             Result dictionary with success/error information
@@ -862,12 +960,12 @@ class DockerManager:
         
         for attempt in range(1, max_retries + 1):
             self.logger.info(
-                "[RETRY] Attempt %d/%d for %s operation: %s/app%s",
-                attempt, max_retries, operation_name, model, app_num
+                "[RETRY] Attempt %d/%d for %s operation: %s/app%s (build_id=%s)",
+                attempt, max_retries, operation_name, model, app_num, build_id
             )
             
             result = self._execute_compose_command(
-                compose_path, command, model, app_num, timeout
+                compose_path, command, model, app_num, timeout, build_id=build_id
             )
             
             if result.get('success'):
@@ -923,22 +1021,32 @@ class DockerManager:
         }
     
     def _execute_compose_command(self, compose_path: Path, command: List[str], 
-                                model: str, app_num: int, timeout: int = 300) -> Dict[str, Any]:
+                                model: str, app_num: int, timeout: int = 300,
+                                build_id: Optional[str] = None) -> Dict[str, Any]:
         """Execute a docker compose command (v2 preferred, v1 fallback).
 
         Adds richer logging so we can debug why UI build/start buttons may
         appear to do nothing. Returns structured result including stdout/stderr.
+        
+        Args:
+            compose_path: Path to docker-compose.yml
+            command: Compose command arguments (e.g., ['build', '--no-cache'])
+            model: Model slug
+            app_num: Application number
+            timeout: Command timeout in seconds
+            build_id: Optional short UUID for unique container naming
         """
         import subprocess
 
         docker_path = shutil.which('docker')
         docker_compose_path = shutil.which('docker-compose')
         # Pre-compute project name for diagnostics (was previously referenced before assignment)
-        project_name = self._get_project_name(model, app_num)
+        project_name = self._get_project_name(model, app_num, build_id)
         cli_diagnostics: Dict[str, Any] = {
             'docker_in_path': bool(docker_path),
             'docker_compose_in_path': bool(docker_compose_path),
             'project_name': project_name,
+            'build_id': build_id,
             'compose_file_exists': compose_path.exists(),
             'compose_file': str(compose_path)
         }
@@ -963,11 +1071,12 @@ class DockerManager:
         cmd = base_cmd + ['-f', str(compose_path), '-p', project_name] + command
         cwd = compose_path.parent
         self.logger.info(
-            "Compose exec variant=%s docker_path=%s compose_path=%s project=%s action=%s cwd=%s",
+            "Compose exec variant=%s docker_path=%s compose_path=%s project=%s build_id=%s action=%s cwd=%s",
             compose_variant,
             docker_path or docker_compose_path,
             compose_path,
             project_name,
+            build_id,
             ' '.join(command),
             cwd
         )

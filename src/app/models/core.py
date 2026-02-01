@@ -165,6 +165,7 @@ class GeneratedApplication(db.Model):
     backend_framework = db.Column(db.String(50))
     frontend_framework = db.Column(db.String(50))
     container_status = db.Column(db.String(50), default='stopped')
+    build_id = db.Column(db.String(8), nullable=True)  # Short UUID for unique container/image naming (e.g., 'a3f2c1b9')
     last_status_check = db.Column(db.DateTime(timezone=True))
     missing_since = db.Column(db.DateTime(timezone=True), nullable=True)  # Track when filesystem directory went missing (for 7-day grace period)
     

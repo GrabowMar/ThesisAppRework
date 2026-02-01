@@ -2913,13 +2913,28 @@ class TaskExecutionService:
 
                     if is_docker:
                         # Container-to-container: use Docker container names and resolved internal ports
-                        safe_slug = model_slug.replace('_', '-')
-                        container_prefix = f"{safe_slug}-app{app_number}"
+                        # Look up build_id for unique container naming
+                        build_id = None
+                        try:
+                            from app.models import GeneratedApplication
+                            app = GeneratedApplication.query.filter_by(
+                                model_slug=model_slug, app_number=app_number
+                            ).first()
+                            if app and app.build_id:
+                                build_id = app.build_id
+                        except Exception as e:
+                            self._log(f"[WebSocket] Could not lookup build_id: {e}", level='debug')
+                        
+                        safe_slug = model_slug.replace('_', '-').replace('.', '-')
+                        if build_id:
+                            container_prefix = f"{safe_slug}-app{app_number}-{build_id}"
+                        else:
+                            container_prefix = f"{safe_slug}-app{app_number}"
                         target_urls = [
                             f"http://{container_prefix}_backend:{backend_p}",
                             f"http://{container_prefix}_frontend:{frontend_p}"
                         ]
-                        self._log(f"[WebSocket] Resolved target URLs for {service_name} (container network, docker detected): {target_urls}")
+                        self._log(f"[WebSocket] Resolved target URLs for {service_name} (container network, docker detected, build_id={build_id}): {target_urls}")
                     else:
                         # Host-to-host: use localhost mapped ports returned by _resolve_app_ports
                         target_urls = [
