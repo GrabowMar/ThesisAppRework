@@ -84,6 +84,9 @@ class AnalyzerPoolConfig:
     connection_timeout: int = 10
     max_consecutive_failures: int = 5  # Mark unhealthy after N failures (increased from 3 for high-concurrency tolerance)
     cooldown_period: int = 20  # Seconds to wait before retrying unhealthy endpoint (reduced from 60 for faster recovery)
+    ping_interval: int = 30  # Websocket ping interval to detect dead connections
+    ping_timeout: int = 10  # Timeout waiting for pong response
+    message_timeout: int = 120  # Timeout for receiving individual messages (progress updates)
 
 
 class AnalyzerPool:
@@ -368,18 +371,47 @@ class AnalyzerPool:
                 )
 
                 # Connect and send request
+                # Enable ping/pong to detect dead connections early
                 async with websockets.connect(
                     endpoint.url,
                     open_timeout=self.config.connection_timeout,
                     close_timeout=5,
-                    ping_interval=None,
+                    ping_interval=self.config.ping_interval,
+                    ping_timeout=self.config.ping_timeout,
                     max_size=100 * 1024 * 1024  # 100MB for large responses
                 ) as ws:
                     await ws.send(json.dumps(message))
 
-                    # Wait for response (handle streaming responses)
+                    # Wait for response with timeout protection
+                    # Use per-message timeout to detect stalled connections
                     result = None
-                    async for response_msg in ws:
+                    overall_deadline = time.time() + timeout
+                    
+                    while time.time() < overall_deadline:
+                        remaining = overall_deadline - time.time()
+                        # Use smaller of message_timeout or remaining time
+                        recv_timeout = min(self.config.message_timeout, remaining)
+                        
+                        try:
+                            response_msg = await asyncio.wait_for(
+                                ws.recv(), 
+                                timeout=recv_timeout
+                            )
+                        except asyncio.TimeoutError:
+                            if time.time() >= overall_deadline:
+                                raise RuntimeError(
+                                    f"Request timeout after {timeout}s waiting for response"
+                                )
+                            # Message timeout but overall deadline not reached - 
+                            # this means no progress updates for message_timeout seconds
+                            logger.warning(
+                                f"No message from {endpoint.url} for {self.config.message_timeout}s, "
+                                f"connection may be stalled"
+                            )
+                            raise RuntimeError(
+                                f"Connection stalled: no response for {self.config.message_timeout}s"
+                            )
+                        
                         data = json.loads(response_msg)
                         msg_type = data.get('type', '')
 
@@ -391,8 +423,10 @@ class AnalyzerPool:
                             logger.debug(f"Request queued at {endpoint.url}: {data}")
                         elif msg_type == 'progress_update':
                             logger.debug(f"Progress from {endpoint.url}: {data.get('stage')}")
-
+                    
                     if not result:
+                        if time.time() >= overall_deadline:
+                            raise RuntimeError(f"Request timeout after {timeout}s")
                         raise RuntimeError("No result received from analyzer (connection closed?)")
 
                     # Success - update metrics
