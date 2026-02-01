@@ -2948,7 +2948,7 @@ class TaskExecutionService:
                             container_prefix = f"{safe_slug}-app{app_number}"
                         target_urls = [
                             f"http://{container_prefix}_backend:{bp}",
-                            f"http://{container_prefix}_frontend:{fp}"
+                            f"http://{container_prefix}_frontend:80"  # ALWAYS use port 80 for frontend in Docker network
                         ]
                         self._log(f"[WebSocket] Resolved target URLs for {service_name} (container network, build_id={build_id}): {target_urls}")
                     else:
