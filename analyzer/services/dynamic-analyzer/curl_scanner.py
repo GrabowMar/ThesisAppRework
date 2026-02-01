@@ -110,14 +110,24 @@ class CurlScanner:
         """
         try:
             self.log.info(f"Starting curl endpoint testing for {model_slug} app {app_number}")
+            self.log.info(f"Target URLs received: {target_urls}")
             
-            # Determine base URL (backend)
+            # Determine base URL (backend) - look for _backend in URL, or exclude frontend
             base_url = None
             for url in target_urls:
-                if '_backend' in url or ':5000' in url:
+                # Primary check: look for _backend container name
+                if '_backend' in url:
                     base_url = url
                     break
             
+            # Fallback: find URL that's not the frontend (doesn't end with :80 or have _frontend)
+            if not base_url:
+                for url in target_urls:
+                    if '_frontend' not in url and not url.endswith(':80'):
+                        base_url = url
+                        break
+            
+            # Last resort: use first URL
             if not base_url and target_urls:
                 base_url = target_urls[0]
             
