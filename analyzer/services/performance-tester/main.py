@@ -165,7 +165,9 @@ class PerformanceTester(BaseWSService):
             
             # Run test with shorter timeout for faster tests (was 600s)
             start_ts = time.time()
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=45, cwd=str(self.test_output_dir))
+            result = await asyncio.to_thread(
+                subprocess.run, cmd, capture_output=True, text=True, timeout=45, cwd=str(self.test_output_dir)
+            )
             duration = time.time() - start_ts
             
             # Log command completion
@@ -309,7 +311,9 @@ class SimpleUser(HttpUser):
             
             # Run test with shorter timeout for faster tests (was 900s)
             start_ts = time.time()
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=str(self.test_output_dir))
+            result = await asyncio.to_thread(
+                subprocess.run, cmd, capture_output=True, text=True, timeout=120, cwd=str(self.test_output_dir)
+            )
             duration = time.time() - start_ts
             
             if result.returncode == 0:
@@ -416,7 +420,9 @@ scenarios:
             
             # Run test with shorter timeout for faster tests (was 600s)
             start_ts = time.time()
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=str(self.test_output_dir))
+            result = await asyncio.to_thread(
+                subprocess.run, cmd, capture_output=True, text=True, timeout=120, cwd=str(self.test_output_dir)
+            )
             duration_actual = time.time() - start_ts
             
             if result.returncode == 0:

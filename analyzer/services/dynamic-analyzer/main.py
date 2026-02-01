@@ -76,12 +76,14 @@ class DynamicAnalyzer(BaseWSService):
         })
         entry['duration_seconds'] += duration
 
-    def _exec(self, tool: str, cmd: List[str], timeout: int = 30) -> subprocess.CompletedProcess:
+    async def _exec(self, tool: str, cmd: List[str], timeout: int = 30) -> subprocess.CompletedProcess:
         # Log command start
         self.tool_logger.log_command_start(tool, cmd)
         
         start = time.time()
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        proc = await asyncio.to_thread(
+            subprocess.run, cmd, capture_output=True, text=True, timeout=timeout
+        )
         self._record(tool, cmd, proc, start)
         return proc
     
@@ -461,7 +463,9 @@ class DynamicAnalyzer(BaseWSService):
                     test_url = url.rstrip('/') + path
                     try:
                         cmd = ['curl', '-I', '--connect-timeout', '5', '--max-time', '10', test_url]
-                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                        result = await asyncio.to_thread(
+                            subprocess.run, cmd, capture_output=True, text=True, timeout=15
+                        )
                         
                         if result.returncode == 0 and result.stdout:
                             status_line = result.stdout.split('\n')[0]
@@ -532,7 +536,9 @@ class DynamicAnalyzer(BaseWSService):
             cmd.append(host)
             
             self.log.info(f"Running nmap command: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_seconds)
+            result = await asyncio.to_thread(
+                subprocess.run, cmd, capture_output=True, text=True, timeout=timeout_seconds
+            )
             
             if result.returncode == 0:
                 open_ports = []
@@ -593,7 +599,7 @@ class DynamicAnalyzer(BaseWSService):
             try:
                 # Use netcat or similar if available
                 cmd = ['curl', '--connect-timeout', '2', f'http://{host}:{port}']
-                result = self._exec('curl', cmd, timeout=5)
+                result = await self._exec('curl', cmd, timeout=5)
                 
                 # If curl doesn't immediately fail, port might be open
                 if result.returncode != 7:  # 7 = couldn't connect

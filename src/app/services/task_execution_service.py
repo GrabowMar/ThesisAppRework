@@ -1958,17 +1958,19 @@ class TaskExecutionService:
                 status_summary = docker_mgr.container_status_summary(model_slug, app_number)  # type: ignore[union-attr]
                 containers_found = status_summary.get('containers_found', 0)
                 states = set(status_summary.get('states', []))
+                active_build_id = status_summary.get('active_build_id')
                 
                 self._log(
-                    f"[CONTAINER-MGMT] {model_slug}/app{app_number}: found={containers_found}, states={states}"
+                    f"[CONTAINER-MGMT] {model_slug}/app{app_number}: found={containers_found}, "
+                    f"states={states}, active_build_id={active_build_id}"
                 )
                 
                 # Case A: Containers exist and running → already ready
                 if containers_found > 0 and 'running' in states:
-                    self._log(f"[CONTAINER-MGMT] Containers already running")
+                    self._log(f"[CONTAINER-MGMT] Containers already running (build_id={active_build_id})")
                     return self._check_target_app_containers_ready(
                         model_slug, app_number, timeout_seconds=10
-                    ) | {'action_taken': 'none'}
+                    ) | {'action_taken': 'none', 'build_id': active_build_id}
                 
                 # Case B: Containers exist but stopped → start them
                 if containers_found > 0 and 'running' not in states:
@@ -1976,11 +1978,12 @@ class TaskExecutionService:
                         return {
                             'ready': False,
                             'action_taken': 'none',
-                            'error': f'Containers exist but not running (states: {states}). Auto-start disabled.'
+                            'error': f'Containers exist but not running (states: {states}). Auto-start disabled.',
+                            'build_id': active_build_id
                         }
                     
-                    self._log(f"[CONTAINER-MGMT] Starting stopped containers...")
-                    start_result = docker_mgr.start_containers(model_slug, app_number)  # type: ignore[union-attr]
+                    self._log(f"[CONTAINER-MGMT] Starting stopped containers (build_id={active_build_id})...")
+                    start_result = docker_mgr.start_containers(model_slug, app_number, build_id=active_build_id)  # type: ignore[union-attr]
                     
                     if not start_result.get('success'):
                         error_msg = start_result.get('error', 'Unknown start error')
@@ -1988,7 +1991,8 @@ class TaskExecutionService:
                         return {
                             'ready': False,
                             'action_taken': 'failed',
-                            'error': f'Failed to start containers: {error_msg}'
+                            'error': f'Failed to start containers: {error_msg}',
+                            'build_id': active_build_id
                         }
                     
                     self._log(f"[CONTAINER-MGMT] Containers started, waiting for ready...")
@@ -1996,6 +2000,7 @@ class TaskExecutionService:
                         model_slug, app_number, timeout_seconds=wait_timeout
                     )
                     check_result['action_taken'] = 'started'
+                    check_result['build_id'] = active_build_id
                     return check_result
                 
                 # Case C: No containers exist → need to build
@@ -2023,11 +2028,13 @@ class TaskExecutionService:
                             'error': f'Failed to build containers: {error_msg}'
                         }
                     
-                    self._log(f"[CONTAINER-MGMT] Containers built and started, waiting for ready...")
+                    new_build_id = build_result.get('build_id')
+                    self._log(f"[CONTAINER-MGMT] Containers built (build_id={new_build_id}), waiting for ready...")
                     check_result = self._check_target_app_containers_ready(
                         model_slug, app_number, timeout_seconds=wait_timeout
                     )
                     check_result['action_taken'] = 'rebuilt'
+                    check_result['build_id'] = new_build_id
                     return check_result
                 
                 # Shouldn't reach here
@@ -2888,42 +2895,51 @@ class TaskExecutionService:
                 from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
                 analyzer_mgr = get_analyzer_wrapper().manager
                 
-                # If ports were passed explicitly (from container pre-flight check), use them
-                # This ensures we use the correct external mappings for localhost access
-                if backend_port and frontend_port:
-                    target_urls = [
-                        f"http://localhost:{backend_port}",
-                        f"http://localhost:{frontend_port}"
-                    ]
-                    self._log(f"[WebSocket] Using localhost target URLs with mapped ports: {target_urls}")
-                # Fallback to resolving via manager (might be internal container names)
-                elif ports := analyzer_mgr._resolve_app_ports(model_slug, app_number):
-                    backend_p, frontend_p = ports
-                    # Use analyzer manager to decide whether analyzers/apps are running in Docker
+                # Get port configuration - prefer explicitly passed ports, else resolve from app
+                bp = backend_port
+                fp = frontend_port
+                if not (bp and fp):
+                    ports = analyzer_mgr._resolve_app_ports(model_slug, app_number)
+                    if ports:
+                        bp, fp = ports
+                
+                if bp and fp:
+                    # Determine if we're running in Docker
                     try:
                         is_docker = analyzer_mgr._is_running_in_docker()
                     except Exception:
                         is_docker = False
-
-                    # Also consider configured analyzer URLs as an indicator (docker-compose uses container names)
+                    
+                    # Also check env vars as Docker indicator
                     da_urls = os.environ.get('DYNAMIC_ANALYZER_URLS', '') + os.environ.get('DYNAMIC_ANALYZER_URL', '')
-                    if not is_docker and da_urls and service_name in da_urls:
+                    if not is_docker and da_urls:
                         is_docker = True
-                        self._log(f"[WebSocket] Inferred Docker environment for {service_name} from DYNAMIC_ANALYZER_URL(S)", level='debug')
-
+                        self._log(f"[WebSocket] Inferred Docker environment from analyzer env vars", level='debug')
+                    
                     if is_docker:
-                        # Container-to-container: use Docker container names and resolved internal ports
-                        # Look up build_id for unique container naming
+                        # Container-to-container: use Docker container names with build_id
                         build_id = None
                         try:
-                            from app.models import GeneratedApplication
-                            app = GeneratedApplication.query.filter_by(
-                                model_slug=model_slug, app_number=app_number
-                            ).first()
-                            if app and app.build_id:
-                                build_id = app.build_id
+                            docker_mgr = ServiceLocator.get_docker_manager()
+                            if docker_mgr:
+                                build_id = docker_mgr.get_running_build_id(model_slug, app_number)
+                                if build_id:
+                                    self._log(f"[WebSocket] Using build_id from running container: {build_id}", level='debug')
                         except Exception as e:
-                            self._log(f"[WebSocket] Could not lookup build_id: {e}", level='debug')
+                            self._log(f"[WebSocket] Could not get build_id from Docker: {e}", level='debug')
+                        
+                        # Fall back to database if not found in running containers
+                        if not build_id:
+                            try:
+                                from app.models import GeneratedApplication
+                                app = GeneratedApplication.query.filter_by(
+                                    model_slug=model_slug, app_number=app_number
+                                ).first()
+                                if app and app.build_id:
+                                    build_id = app.build_id
+                                    self._log(f"[WebSocket] Using build_id from database: {build_id}", level='debug')
+                            except Exception as e:
+                                self._log(f"[WebSocket] Could not lookup build_id from database: {e}", level='debug')
                         
                         safe_slug = model_slug.replace('_', '-').replace('.', '-')
                         if build_id:
@@ -2931,15 +2947,15 @@ class TaskExecutionService:
                         else:
                             container_prefix = f"{safe_slug}-app{app_number}"
                         target_urls = [
-                            f"http://{container_prefix}_backend:{backend_p}",
-                            f"http://{container_prefix}_frontend:{frontend_p}"
+                            f"http://{container_prefix}_backend:{bp}",
+                            f"http://{container_prefix}_frontend:{fp}"
                         ]
-                        self._log(f"[WebSocket] Resolved target URLs for {service_name} (container network, docker detected, build_id={build_id}): {target_urls}")
+                        self._log(f"[WebSocket] Resolved target URLs for {service_name} (container network, build_id={build_id}): {target_urls}")
                     else:
-                        # Host-to-host: use localhost mapped ports returned by _resolve_app_ports
+                        # Host-to-host: use localhost mapped ports
                         target_urls = [
-                            f"http://localhost:{backend_p}",
-                            f"http://localhost:{frontend_p}"
+                            f"http://localhost:{bp}",
+                            f"http://localhost:{fp}"
                         ]
                         self._log(f"[WebSocket] Resolved target URLs for {service_name} (localhost ports): {target_urls}")
                 else:

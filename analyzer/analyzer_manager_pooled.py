@@ -165,14 +165,20 @@ class PooledAnalyzerManager(BaseAnalyzerManager):
                 
                 backend_port, frontend_port = ports
                 # Use Docker container names for container-to-container communication
-                # Note: build_id lookup not available in pooled manager, use base pattern
                 safe_slug = normalized_slug.replace('_', '-').replace('.', '-')
-                container_prefix = f"{safe_slug}-app{app_number}"
+                
+                # Get the build_id of running containers for correct naming
+                build_id = self._get_running_build_id(normalized_slug, app_number)
+                if build_id:
+                    container_prefix = f"{safe_slug}-app{app_number}-{build_id}"
+                else:
+                    container_prefix = f"{safe_slug}-app{app_number}"
+                
                 resolved_urls = [
                     f"http://{container_prefix}_backend:{backend_port}",
                     f"http://{container_prefix}_frontend:80"
                 ]
-                logger.info(f"Target URLs for performance test: {resolved_urls}")
+                logger.info(f"Target URLs for performance test (build_id={build_id}): {resolved_urls}")
 
         message = {
             "type": "performance_test",

@@ -1,8 +1,34 @@
 # ThesisAppRework AI Agent Instructions
 
+## Build, Test, Lint
+
+```bash
+# Start full stack (Docker Compose)
+docker compose up -d
+
+# Start in dev mode (Flask only, no Docker overhead)
+./start.sh   # Linux
+./start.ps1 -Mode Dev   # Windows
+
+# Run fast unit tests
+pytest -m "not integration and not slow and not analyzer"
+
+# Run a single test file
+pytest tests/unit/test_pipeline.py -v
+
+# Run a specific test by name
+pytest -k "test_create_pipeline" -v
+
+# Linting
+ruff check src/
+mypy src/
+```
+
+---
+
 ## Architecture Overview
 
-This is a Flask-based platform for analyzing AI-generated applications. The system automates the full lifecycle: **generate apps from LLMs → build containers → run multi-tool analysis → aggregate results**.
+Flask-based platform for analyzing AI-generated applications. The system automates: **generate apps from LLMs → build containers → run multi-tool analysis → aggregate results**.
 
 ### System Layers
 
@@ -24,15 +50,18 @@ This is a Flask-based platform for analyzing AI-generated applications. The syst
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Key Files
+---
 
-| Component | Path | Purpose |
-|-----------|------|---------|
-| Pipeline Orchestration | `src/app/services/pipeline_execution_service.py` | Two-stage pipeline: generation → analysis |
-| Task Execution | `src/app/services/task_execution_service.py` | Celery tasks, WebSocket dispatch |
-| Docker Manager | `src/app/services/docker_manager.py` | Container lifecycle for generated apps |
-| WebSocket Protocol | `analyzer/shared/protocol.py` | Message types for Flask↔Analyzer communication |
-| Generation V2 | `src/app/services/generation_v2/` | LLM-based app generation |
+## Key Files
+
+| Component | Path |
+|-----------|------|
+| Pipeline Orchestration | `src/app/services/pipeline_execution_service.py` |
+| Task Execution | `src/app/services/task_execution_service.py` |
+| Docker Manager | `src/app/services/docker_manager.py` |
+| WebSocket Protocol | `analyzer/shared/protocol.py` |
+| Status Enums | `src/app/constants.py` |
+| Service Registry | `src/app/services/service_locator.py` |
 
 ---
 
@@ -160,14 +189,13 @@ docker_mgr = ServiceLocator.get_docker_manager()
 
 ### Model Slugs
 Format: `{provider}_{model-name}` (e.g., `anthropic_claude-4-5-sonnet-20250929`)
-- Used for directory paths: `generated/{model_slug}/app{N}/`
-- Used for results: `results/{model_slug}/app{N}/task_{id}/`
+- Directory paths: `generated/{model_slug}/app{N}/`
+- Results: `results/{model_slug}/app{N}/task_{id}/`
 
 ### Status Enums
 ```python
-from app.constants import AnalysisStatus, PipelineStatus
+from app.constants import AnalysisStatus, JobStatus
 task.status = AnalysisStatus.RUNNING
-pipeline.status = PipelineStatus.COMPLETED
 ```
 
 ### Time Handling
@@ -177,46 +205,19 @@ from app.utils.time import utc_now
 created_at = utc_now()
 ```
 
----
-
-## Development Commands
-
-```bash
-# Start full stack (Docker containers + Flask)
-./start.ps1 -Mode Start      # Windows
-./start.sh                   # Linux
-
-# Quick dev mode without analyzers
-./start.ps1 -Mode Dev -NoAnalyzer
-
-# Rebuild containers (fast, cached)
-./start.ps1 -Mode Rebuild
-
-# Full clean rebuild (wipes images)
-./start.ps1 -Mode CleanRebuild
-
-# Clean up generated app containers/images
-docker ps -a --format '{{.Names}}' | grep -E '^(anthropic|google|openai)' | xargs docker rm -f
-docker images --format '{{.Repository}}' | grep -E '^(anthropic|google|openai)' | xargs docker rmi -f
+### API Authentication
+All API routes use `@before_request` authentication. Supports session auth and Bearer tokens:
+```python
+# Routes pattern in src/app/routes/api/
+@api_bp.before_request
+def require_authentication():
+    # Allows session-based or Bearer token auth
+    ...
 ```
 
 ---
 
 ## Testing
-
-```bash
-# Fast unit tests (excludes integration/slow/analyzer)
-pytest -m "not integration and not slow and not analyzer"
-
-# Run specific test file
-pytest tests/unit/test_task_service.py -v
-
-# Integration tests (requires Docker analyzers)
-pytest tests/integration/ -m integration
-
-# Pipeline-specific tests
-pytest tests/unit/test_pipeline_execution_service.py -v
-```
 
 Test markers: `unit`, `integration`, `slow`, `analyzer`, `smoke`, `api`, `websocket`
 
@@ -259,36 +260,13 @@ results/              # Analysis outputs
 2. Add config in `analyzer/configs/`
 3. Update message handling if new message type needed
 
-### New Pipeline Stage
-1. Add stage handler in `PipelineExecutionService._process_{stage}_stage()`
-2. Update `_transition_to_{next_stage}()` logic
-3. Add progress tracking in `progress_json`
-
 ### New API Endpoint
 ```python
 # src/app/routes/api/
 @api_bp.route('/pipeline/<pipeline_id>/status', methods=['GET'])
-@require_api_key
 def get_pipeline_status(pipeline_id):
     pipeline = PipelineExecution.query.filter_by(pipeline_id=pipeline_id).first_or_404()
     return jsonify(pipeline.to_dict())
 ```
 
----
-
-## Troubleshooting
-
-### Dynamic Analyzer Can't Reach App Containers
-- Ensure app containers are on `thesis-apps-network`
-- Check container name resolution: `docker exec dynamic-analyzer ping {container-name}`
-- Verify ports are exposed correctly in generated `docker-compose.yml`
-
-### Pipeline Stuck in RUNNING
-- Check `celery-worker` logs: `docker logs thesisapprework-celery-worker-1`
-- Verify Redis is healthy: `docker exec redis redis-cli ping`
-- Check circuit breaker status in logs
-
-### Container Build Failures
-- Clean up old images: `docker system prune -f`
-- Check generated Dockerfile syntax in `generated/{model}/app{N}/`
-- Verify Docker socket permissions in container
+Register blueprints in `src/app/factory.py`.

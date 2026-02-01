@@ -205,18 +205,74 @@ class DockerManager:
         except Exception as e:
             return DockerStatus(False, 'error', f'Error checking container: {e}')
     
+    def get_running_build_id(self, model: str, app_num: int) -> Optional[str]:
+        """Extract build_id from currently running containers via Docker labels.
+        
+        Scans running containers for this model/app and extracts the build_id
+        from their compose project label. This is the authoritative source when
+        containers are already running but database build_id may be stale.
+        
+        Args:
+            model: Model slug (e.g., 'anthropic_claude-4.5-sonnet-20250929')
+            app_num: Application number
+            
+        Returns:
+            Build ID string (e.g., '6864b014') if found, None otherwise
+        """
+        if not self.client:
+            return None
+        
+        import re
+        # Construct the expected project name prefix (without build_id)
+        safe_model = model.replace('_', '-').replace('.', '-')
+        prefix_pattern = f"{safe_model}-app{app_num}"
+        
+        try:
+            # Search all running containers for matching project labels
+            for container in self.client.containers.list(all=False):  # Only running containers
+                labels = container.labels or {}
+                project = labels.get('com.docker.compose.project', '')
+                
+                # Check if this container belongs to our model/app
+                if project.startswith(prefix_pattern):
+                    # Extract build_id from project name: model-slug-appN-XXXXXXXX
+                    # Pattern: prefix-{8-char-hex-build_id}
+                    match = re.match(rf'^{re.escape(prefix_pattern)}-([a-f0-9]{{8}})$', project)
+                    if match:
+                        build_id = match.group(1)
+                        self.logger.debug(
+                            "Extracted build_id=%s from running container %s (project=%s)",
+                            build_id, container.name, project
+                        )
+                        return build_id
+                    elif project == prefix_pattern:
+                        # No build_id suffix (legacy container)
+                        self.logger.debug(
+                            "Found legacy container without build_id: %s (project=%s)",
+                            container.name, project
+                        )
+                        return None
+            
+            # No matching containers found
+            return None
+            
+        except Exception as e:
+            self.logger.warning("Error extracting build_id from containers: %s", e)
+            return None
+    
     def get_project_containers(self, model: str, app_num: int) -> List[Dict[str, Any]]:
         """Get containers for a model/app with resilient fallbacks.
 
         Fallback order:
-          1. Compose project label (standard case)
-          2. Explicit container_name entries parsed from compose file
-          3. Heuristic name prefix scan (model[_|-]{backend|frontend}_)
+          1. Compose project label with build_id pattern (e.g., model-app1-abc123)
+          2. Compose project label without build_id (legacy)
+          3. Explicit container_name entries parsed from compose file
+          4. Heuristic name prefix scan (matches any build_id variant)
         """
         if not self.client:
             return []
         import re
-        project_name = self._get_project_name(model, app_num)
+        base_project_name = self._get_project_name(model, app_num)  # Without build_id
         results: List[Dict[str, Any]] = []
 
         def _c_dict(c):
@@ -224,19 +280,38 @@ class DockerManager:
                 ports = c.ports
             except Exception:
                 ports = {}
+            # Extract build_id from project label if present
+            labels = getattr(c, 'labels', {})
+            project_label = labels.get('com.docker.compose.project', '')
+            build_id = None
+            if project_label.startswith(base_project_name + '-'):
+                # Extract the build_id suffix: "model-app1-abc123" -> "abc123"
+                build_id = project_label[len(base_project_name) + 1:]
             return {
                 'id': c.id[:12],
                 'name': c.name,
                 'status': getattr(c, 'status', 'unknown'),
                 'image': c.image.tags[0] if getattr(c.image, 'tags', []) else 'unknown',
                 'ports': ports,
-                'labels': getattr(c, 'labels', {})
+                'labels': labels,
+                'build_id': build_id
             }
         try:
-            # 1) Label-based
-            labeled = self.client.containers.list(all=True, filters={'label': f'com.docker.compose.project={project_name}'})
-            if labeled:
-                return [_c_dict(c) for c in labeled]
+            # 1) Label-based: Find ANY project starting with base_project_name
+            # This matches both "model-app1" and "model-app1-abc123"
+            all_containers = self.client.containers.list(all=True)
+            for c in all_containers:
+                project_label = getattr(c, 'labels', {}).get('com.docker.compose.project', '')
+                # Match exact base name OR base name with build_id suffix
+                if project_label == base_project_name or project_label.startswith(base_project_name + '-'):
+                    results.append(_c_dict(c))
+            
+            if results:
+                # Log which build_ids we found
+                build_ids = set(r.get('build_id') for r in results if r.get('build_id'))
+                if build_ids:
+                    self.logger.debug("Found containers for %s with build_ids: %s", base_project_name, build_ids)
+                return results
 
             # 2) Explicit names from compose file
             compose_path = self._get_compose_path(model, app_num)
@@ -250,21 +325,23 @@ class DockerManager:
                 except Exception:
                     pass
             if explicit:
-                for c in self.client.containers.list(all=True):
+                for c in all_containers:
                     if c.name in explicit:
                         results.append(_c_dict(c))
                 if results:
                     self.logger.debug("Containers resolved via explicit container_name entries: %s", explicit)
                     return results
 
-            # 3) Heuristic prefixes
-            variants = {model, model.replace('-', '_'), model.replace('_', '-')}
-            prefixes = []
-            for v in variants:
-                prefixes.extend([f"{v}_backend_", f"{v}_frontend_"])
-            for c in self.client.containers.list(all=True):
-                if any(c.name.startswith(p) for p in prefixes):
+            # 3) Heuristic prefix scan - matches containers with any build_id
+            # Pattern: {model-slug}-app{num}[-{build_id}]_{backend|frontend}
+            safe_model = model.replace('_', '-').replace('.', '-')
+            prefix_pattern = re.compile(
+                rf'^{re.escape(safe_model)}-app{app_num}(-[a-f0-9]+)?_(backend|frontend)$'
+            )
+            for c in all_containers:
+                if prefix_pattern.match(c.name):
                     results.append(_c_dict(c))
+            
             return results
         except Exception as e:  # pragma: no cover
             self.logger.error("Error getting project containers: %s", e)
@@ -380,59 +457,78 @@ class DockerManager:
         """Get current health status of containers without waiting.
 
         Public wrapper for getting immediate health status of app containers.
+        Uses smart container discovery to find containers with any build_id.
 
         Args:
             model: Model slug
             app_num: Application number
-            build_id: Optional short UUID for unique container naming
+            build_id: Optional short UUID for unique container naming (if None, discovers any running containers)
 
         Returns:
             Dictionary with health status information:
             - all_healthy: bool - True if all containers are healthy
             - containers: dict - Per-container health info
             - container_count: int - Number of containers found
+            - build_id: str - The build_id of discovered containers
         """
         try:
-            # If no build_id provided, try to get from database
-            if not build_id:
-                build_id = self._get_or_create_build_id(model, app_num, force_new=False)
+            # Use smart container discovery that finds containers with any build_id
+            discovered_containers = self.get_project_containers(model, app_num)
             
-            project_name = self._get_project_name(model, app_num, build_id)
-            containers = self.client.containers.list(
-                filters={'label': f'com.docker.compose.project={project_name}'}
-            )
-
-            if not containers:
+            if not discovered_containers:
                 return {
                     'all_healthy': False,
                     'containers': {},
-                    'message': 'No containers found'
+                    'container_count': 0,
+                    'message': 'No containers found',
+                    'build_id': None
                 }
-
+            
+            # Get the build_id from discovered containers
+            discovered_build_id = None
+            for c in discovered_containers:
+                if c.get('build_id'):
+                    discovered_build_id = c.get('build_id')
+                    break
+            
+            # Now get detailed health status for these containers
             container_status = {}
             all_healthy = True
-
-            for container in containers:
-                health_status = container.attrs.get('State', {}).get('Health', {}).get('Status')
-                state = container.attrs.get('State', {})
-                status = state.get('Status', 'unknown')
-
-                container_status[container.name] = {
-                    'health': health_status or 'no_healthcheck',
-                    'status': status,
-                    'running': status == 'running'
-                }
-
-                # Check if this container counts as "healthy"
-                if health_status not in ['healthy', None]:  # None means no healthcheck
-                    all_healthy = False
-                elif status != 'running':
+            
+            for c_info in discovered_containers:
+                container_name = c_info.get('name', 'unknown')
+                try:
+                    container = self.client.containers.get(container_name)
+                    health_status = container.attrs.get('State', {}).get('Health', {}).get('Status')
+                    state = container.attrs.get('State', {})
+                    status = state.get('Status', 'unknown')
+                    
+                    container_status[container_name] = {
+                        'health': health_status or 'no_healthcheck',
+                        'status': status,
+                        'running': status == 'running'
+                    }
+                    
+                    # Check if this container counts as "healthy"
+                    if health_status not in ['healthy', None]:  # None means no healthcheck
+                        all_healthy = False
+                    elif status != 'running':
+                        all_healthy = False
+                except Exception as e:
+                    self.logger.debug("Could not get health for container %s: %s", container_name, e)
+                    container_status[container_name] = {
+                        'health': 'unknown',
+                        'status': 'unknown',
+                        'running': False,
+                        'error': str(e)
+                    }
                     all_healthy = False
 
             return {
                 'all_healthy': all_healthy,
                 'containers': container_status,
-                'container_count': len(containers)
+                'container_count': len(discovered_containers),
+                'build_id': discovered_build_id
             }
 
         except Exception as e:
@@ -440,7 +536,9 @@ class DockerManager:
             return {
                 'all_healthy': False,
                 'containers': {},
-                'error': str(e)
+                'container_count': 0,
+                'error': str(e),
+                'build_id': None
             }
 
     def _check_for_crash_loop(self, model: str, app_num: int,
@@ -1174,15 +1272,42 @@ class DockerManager:
         }
 
     def container_status_summary(self, model: str, app_num: int) -> Dict[str, Any]:
-        """Summarize container statuses for the model/app pair."""
+        """Summarize container statuses for the model/app pair.
+        
+        Returns:
+            Dict with:
+                - model: Model slug
+                - app_num: App number
+                - containers_found: Number of containers discovered
+                - states: List of unique container states
+                - containers: List of container dicts
+                - build_ids: Set of build_ids found (for containers with build_id)
+                - active_build_id: The build_id of running containers (if any)
+        """
         containers = self.get_project_containers(model, app_num)
         states = {c['status'] for c in containers} if containers else set()
+        
+        # Extract build_ids from discovered containers
+        build_ids = set(c.get('build_id') for c in containers if c.get('build_id'))
+        
+        # Find the build_id of running containers (prefer running over stopped)
+        active_build_id = None
+        for c in containers:
+            if c.get('status') == 'running' and c.get('build_id'):
+                active_build_id = c.get('build_id')
+                break
+        # Fallback to any build_id if no running containers
+        if not active_build_id and build_ids:
+            active_build_id = next(iter(build_ids))
+        
         return {
             'model': model,
             'app_num': app_num,
             'containers_found': len(containers),
             'states': list(states),
             'containers': containers,
+            'build_ids': list(build_ids),
+            'active_build_id': active_build_id,
         }
     
     def list_all_containers(self) -> List[Dict[str, Any]]:

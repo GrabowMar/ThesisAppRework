@@ -472,17 +472,31 @@ def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, too
                     logger.debug(f"Inferred Docker environment for {service_name} from DYNAMIC_ANALYZER_URL(S)")
 
                 if is_docker:
-                    # Look up build_id for unique container naming
+                    # Look up build_id from RUNNING containers first (authoritative source)
+                    # Fall back to database only if no running containers found
                     build_id = None
                     try:
-                        from app.models import GeneratedApplication
-                        app_record = GeneratedApplication.query.filter_by(
-                            model_slug=model_slug, app_number=app_number
-                        ).first()
-                        if app_record and app_record.build_id:
-                            build_id = app_record.build_id
+                        from app.services.service_locator import ServiceLocator
+                        docker_mgr = ServiceLocator.get_docker_manager()
+                        if docker_mgr:
+                            build_id = docker_mgr.get_running_build_id(model_slug, app_number)
+                            if build_id:
+                                logger.debug(f"[CELERY] Using build_id from running container: {build_id}")
                     except Exception as e:
-                        logger.debug(f"[CELERY] Could not lookup build_id: {e}")
+                        logger.debug(f"[CELERY] Could not get build_id from Docker: {e}")
+                    
+                    # Fall back to database if not found in running containers
+                    if not build_id:
+                        try:
+                            from app.models import GeneratedApplication
+                            app_record = GeneratedApplication.query.filter_by(
+                                model_slug=model_slug, app_number=app_number
+                            ).first()
+                            if app_record and app_record.build_id:
+                                build_id = app_record.build_id
+                                logger.debug(f"[CELERY] Using build_id from database (no running container): {build_id}")
+                        except Exception as e:
+                            logger.debug(f"[CELERY] Could not lookup build_id from database: {e}")
                     
                     safe_slug = model_slug.replace('_', '-').replace('.', '-')
                     if build_id:

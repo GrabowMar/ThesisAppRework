@@ -24,10 +24,10 @@ services:
       # Docker environment flag for inter-container communication
       - IN_DOCKER=true
       # Load balancing configuration
-      - STATIC_ANALYZER_URLS=ws://static-analyzer:2001
-      - DYNAMIC_ANALYZER_URLS=ws://dynamic-analyzer:2002
-      - PERF_TESTER_URLS=ws://performance-tester:2003
-      - AI_ANALYZER_URLS=ws://ai-analyzer:2004
+      - STATIC_ANALYZER_URLS=ws://static-analyzer:2001,ws://static-analyzer-2:2001,ws://static-analyzer-3:2001
+      - DYNAMIC_ANALYZER_URLS=ws://dynamic-analyzer:2002,ws://dynamic-analyzer-2:2002
+      - PERF_TESTER_URLS=ws://performance-tester:2003,ws://performance-tester-2:2003
+      - AI_ANALYZER_URLS=ws://ai-analyzer:2004,ws://ai-analyzer-2:2004
       # Celery configuration for Docker environment
       - USE_CELERY_ANALYSIS=true
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -127,10 +127,10 @@ services:
       # Docker environment flag for inter-container communication
       - IN_DOCKER=true
       # Load balancing configuration
-      - STATIC_ANALYZER_URLS=ws://static-analyzer:2001
-      - DYNAMIC_ANALYZER_URLS=ws://dynamic-analyzer:2002
-      - PERF_TESTER_URLS=ws://performance-tester:2003
-      - AI_ANALYZER_URLS=ws://ai-analyzer:2004
+      - STATIC_ANALYZER_URLS=ws://static-analyzer:2001,ws://static-analyzer-2:2001,ws://static-analyzer-3:2001
+      - DYNAMIC_ANALYZER_URLS=ws://dynamic-analyzer:2002,ws://dynamic-analyzer-2:2002
+      - PERF_TESTER_URLS=ws://performance-tester:2003,ws://performance-tester-2:2003
+      - AI_ANALYZER_URLS=ws://ai-analyzer:2004,ws://ai-analyzer-2:2004
       # Enable pipeline service in celery-worker - this is the ONLY container that should process pipelines
       - ENABLE_PIPELINE_SERVICE=true
     volumes:

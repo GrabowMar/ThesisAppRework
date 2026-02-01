@@ -794,6 +794,62 @@ class AnalyzerManager:
             logger.error(f"Error resolving ports for {model_slug} app {app_number}: {e}")
         return None
 
+    def _get_running_build_id(self, model_slug: str, app_number: int) -> Optional[str]:
+        """Get the build_id of running containers for a model/app.
+        
+        Tries to find containers by querying Docker, then falls back to database.
+        
+        Args:
+            model_slug: Model identifier
+            app_number: App number
+            
+        Returns:
+            Build ID string or None if not found
+        """
+        try:
+            # Try to find running containers via docker CLI
+            safe_slug = model_slug.replace('_', '-').replace('.', '-')
+            base_prefix = f"{safe_slug}-app{app_number}"
+            
+            # Query docker for running containers matching the pattern
+            rc, out, err = self.run_command([
+                "docker", "ps", "--format", "{{.Names}}", "--filter", f"name={base_prefix}"
+            ], capture_output=True, timeout=10)
+            
+            if rc == 0 and out:
+                # Parse container names and extract build_id
+                # Expected format: model-app1-abc123_backend
+                import re
+                for line in out.strip().split('\n'):
+                    match = re.match(rf'^{re.escape(base_prefix)}-([a-f0-9]+)_', line)
+                    if match:
+                        build_id = match.group(1)
+                        logger.debug(f"Found running build_id via docker: {build_id}")
+                        return build_id
+            
+            # Fallback to database
+            try:
+                from app.models import GeneratedApplication
+                from flask import current_app
+                
+                with current_app.app_context():
+                    app_record = GeneratedApplication.query.filter_by(
+                        model_slug=model_slug,
+                        app_number=app_number
+                    ).first()
+                    
+                    if app_record and app_record.build_id:
+                        logger.debug(f"Found build_id from database: {app_record.build_id}")
+                        return app_record.build_id
+            except Exception as db_err:
+                logger.debug(f"Could not query database for build_id: {db_err}")
+            
+            return None
+            
+        except Exception as e:
+            logger.debug(f"Error getting build_id for {model_slug}/app{app_number}: {e}")
+            return None
+
     def _resolve_compose_cmd(self) -> List[str]:
         """Detect the appropriate docker compose command.
 
@@ -1373,16 +1429,23 @@ class AnalyzerManager:
             
             backend_port, frontend_port = ports
             # Use Docker container names for container-to-container communication
-            # Container names follow pattern: {model_slug}-app{N}_backend/frontend
+            # Container names follow pattern: {model_slug}-app{N}[-{build_id}]_backend/frontend
             # The containers are on thesis-apps-network, same as analyzers
             # Note: Docker Compose converts underscores to hyphens in container names
             safe_slug = normalized_slug.replace('_', '-').replace('.', '-')
-            container_prefix = f"{safe_slug}-app{app_number}"
+            
+            # Get the build_id of running containers for correct naming
+            build_id = self._get_running_build_id(normalized_slug, app_number)
+            if build_id:
+                container_prefix = f"{safe_slug}-app{app_number}-{build_id}"
+            else:
+                container_prefix = f"{safe_slug}-app{app_number}"
+            
             resolved_urls = [
                 f"http://{container_prefix}_backend:{backend_port}",
                 f"http://{container_prefix}_frontend:80"  # nginx serves on port 80 inside container
             ]
-            logger.info(f"Target URLs for dynamic analysis: {resolved_urls}")
+            logger.info(f"Target URLs for dynamic analysis (build_id={build_id}) [FIXED]: {resolved_urls}")
         
         message = {
             "type": "dynamic_analyze",
@@ -1425,16 +1488,23 @@ class AnalyzerManager:
             
             backend_port, frontend_port = ports
             # Use Docker container names for container-to-container communication
-            # Container names follow pattern: {model_slug}-app{N}_backend/frontend
+            # Container names follow pattern: {model_slug}-app{N}[-{build_id}]_backend/frontend
             # The containers are on thesis-apps-network, same as analyzers
             # Note: Docker Compose converts underscores AND dots to hyphens in container names
             safe_slug = normalized_slug.replace('_', '-').replace('.', '-')
-            container_prefix = f"{safe_slug}-app{app_number}"
+            
+            # Get the build_id of running containers for correct naming
+            build_id = self._get_running_build_id(normalized_slug, app_number)
+            if build_id:
+                container_prefix = f"{safe_slug}-app{app_number}-{build_id}"
+            else:
+                container_prefix = f"{safe_slug}-app{app_number}"
+            
             urls = [
                 f"http://{container_prefix}_backend:{backend_port}",
                 f"http://{container_prefix}_frontend:80"  # nginx serves on port 80 inside container
             ]
-            logger.info(f"Target URLs for performance test: {urls}")
+            logger.info(f"Target URLs for performance test (build_id={build_id}): {urls}")
         
         # Backwards compatible: we still include legacy 'target_url' key (first url or None)
         legacy_single = urls[0] if urls else target_url
@@ -1847,16 +1917,23 @@ class AnalyzerManager:
             
             backend_port, frontend_port = ports
             # Use Docker container names for container-to-container communication
-            # Container names follow pattern: {model_slug}-app{N}_backend/frontend
+            # Container names follow pattern: {model_slug}-app{N}[-{build_id}]_backend/frontend
             # The containers are on thesis-apps-network, same as analyzers
             # Note: Docker Compose converts underscores to hyphens in container names
             safe_slug = normalized_slug.replace('_', '-').replace('.', '-')
-            container_prefix = f"{safe_slug}-app{app_number}"
+            
+            # Get the build_id of running containers for correct naming
+            build_id = self._get_running_build_id(normalized_slug, app_number)
+            if build_id:
+                container_prefix = f"{safe_slug}-app{app_number}-{build_id}"
+            else:
+                container_prefix = f"{safe_slug}-app{app_number}"
+            
             resolved_urls = [
                 f"http://{container_prefix}_backend:{backend_port}",
                 f"http://{container_prefix}_frontend:80"  # nginx serves on port 80 inside container
             ]
-            logger.info(f"Target URLs for dynamic analysis: {resolved_urls}")
+            logger.info(f"Target URLs for dynamic analysis (build_id={build_id}) [FIXED]: {resolved_urls}")
         
         message = {
             "type": "dynamic_analyze",
@@ -1906,12 +1983,19 @@ class AnalyzerManager:
             backend_port, frontend_port = ports
             # Use Docker container names for container-to-container communication
             safe_slug = normalized_slug.replace('_', '-').replace('.', '-')
-            container_prefix = f"{safe_slug}-app{app_number}"
+            
+            # Get the build_id of running containers for correct naming
+            build_id = self._get_running_build_id(normalized_slug, app_number)
+            if build_id:
+                container_prefix = f"{safe_slug}-app{app_number}-{build_id}"
+            else:
+                container_prefix = f"{safe_slug}-app{app_number}"
+            
             urls = [
                 f"http://{container_prefix}_backend:{backend_port}",
                 f"http://{container_prefix}_frontend:80"
             ]
-            logger.info(f"Target URLs for performance test: {urls}")
+            logger.info(f"Target URLs for performance test (build_id={build_id}): {urls}")
 
         message = {
             "type": "performance_test",
