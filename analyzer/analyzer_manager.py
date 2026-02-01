@@ -2026,6 +2026,11 @@ class AnalyzerManager:
 
         # Run all analysis types including AI
         # Pass tools parameter to all analysis services so they can filter execution
+        
+        # NOTE: curl-endpoint-tester has been moved from 'ai' to 'dynamic' category
+        # If specific tools are requested, we must ensure the 'dynamic' task receives 
+        # the curl-endpoint-tester request, even if it was previously considered an AI tool.
+        
         analysis_tasks = [
             ('static', self.run_static_analysis(model_slug, app_number, tools=tools)),
             ('performance', self.run_performance_test(model_slug, app_number, tools=tools)),

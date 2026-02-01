@@ -1033,222 +1033,17 @@ Focus on whether the functionality described in the requirement is actually impl
         """Backwards compatibility wrapper for scan_requirements."""
         return await self.scan_requirements(model_slug, app_number, backend_port, frontend_port, config, analysis_id)
     
-    async def _test_single_endpoint(
-        self, 
-        base_url: str, 
-        method: str, 
-        path: str, 
-        auth_token: Optional[str] = None,
-        expected_status: Any = None
-    ) -> Dict[str, Any]:
-        """Test a single HTTP endpoint and return result."""
-        if expected_status is None:
-            expected_status = [200, 201]
-        
-        # Normalize expected_status to list
-        if isinstance(expected_status, int):
-            expected_status = [expected_status]
-        
-        try:
-            headers = {'Content-Type': 'application/json'}
-            if auth_token:
-                headers['Authorization'] = f'Bearer {auth_token}'
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.request(
-                    method, 
-                    f"{base_url}{path}", 
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=10)
-                ) as response:
-                    actual_status = response.status
-                    passed = actual_status in expected_status or (200 <= actual_status < 300)
-                    
-                    return {
-                        'endpoint': path,
-                        'method': method,
-                        'expected_status': expected_status,
-                        'actual_status': actual_status,
-                        'passed': passed
-                    }
-        except Exception as e:
-            error_msg = str(e)
-            if 'Cannot connect to host' in error_msg or 'Connection refused' in error_msg:
-                error_msg = f"App not running at {base_url}"
-            
-            return {
-                'endpoint': path,
-                'method': method,
-                'expected_status': expected_status,
-                'actual_status': None,
-                'passed': False,
-                'error': error_msg
-            }
+
 
     async def test_endpoints_only(self, model_slug: str, app_number: int, backend_port: int, frontend_port: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        CURL ENDPOINT TESTER - Pure HTTP endpoint validation without AI analysis.
-        
-        Tests:
-        - Backend API endpoints (GET, POST, PUT, DELETE)
-        - Frontend routes accessibility
-        - Admin endpoints with authentication
-        - Response codes and basic validation
-        
-        This is a lightweight tool that doesn't require AI/LLM - just functional HTTP tests.
+        CURL ENDPOINT TESTER - Deprecated in AI Analyzer.
         """
-        try:
-            self.log.info(f"Starting curl endpoint testing for {model_slug} app {app_number}")
-            await self.send_progress('starting', f"Starting endpoint tests for {model_slug} app {app_number}", analysis_id=analysis_id)
-            
-            # Find application and load template
-            app_path = self._resolve_app_path(model_slug, app_number)
-            if not app_path or not app_path.exists():
-                return {
-                    'status': 'error',
-                    'error': f'Application path not found: {model_slug} app {app_number}',
-                    'tool_name': 'curl-endpoint-tester'
-                }
-            
-            # Load template for endpoints with smart detection
-            template_slug = config.get('template_slug') if config else None
-            if not template_slug or template_slug == 'crud_todo_list':
-                detected_template = self._detect_template_from_app(model_slug, app_number)
-                if detected_template:
-                    template_slug = detected_template
-                else:
-                    template_slug = template_slug or 'crud_todo_list'
-            
-            requirements_file = self._find_requirements_template(template_slug)
-            if not requirements_file:
-                return {
-                    'status': 'error',
-                    'error': f'Requirements template not found: {template_slug}',
-                    'tool_name': 'curl-endpoint-tester'
-                }
-            
-            with open(requirements_file, 'r', encoding='utf-8') as f:
-                template_data = json.load(f)
-            
-            # Extract endpoints from template - normalize format
-            # Support both old format (control/admin objects) and new format (flat lists)
-            
-            # 1. Try new format (flat lists)
-            api_endpoints = template_data.get('api_endpoints', [])
-            control_endpoints = [
-                {
-                    'path': ep.get('path', '/'),
-                    'method': ep.get('method', 'GET'),
-                    'expected_status': 200,
-                    'description': ep.get('description', 'API endpoint'),
-                    'request_body': ep.get('request'),
-                    'requires_auth': False
-                }
-                for ep in api_endpoints
-            ]
-            
-            admin_api_endpoints = template_data.get('admin_api_endpoints', [])
-            admin_endpoints = [
-                {
-                    'path': ep.get('path', '/').replace(':id', '1'),
-                    'method': ep.get('method', 'GET'),
-                    'expected_status': 200,
-                    'description': ep.get('description', 'Admin API endpoint'),
-                    'request_body': ep.get('request'),
-                    'requires_auth': True
-                }
-                for ep in admin_api_endpoints
-            ]
-            
-            # 2. If empty, try old format (nested objects) as fallback
-            if not control_endpoints and not admin_endpoints:
-                control_endpoints = template_data.get('control', {}).get('endpoints', [])
-                admin_endpoints = template_data.get('admin', {}).get('endpoints', [])
-            
-            all_endpoints = control_endpoints + admin_endpoints
-            
-            if not all_endpoints:
-                return {
-                    'status': 'success',
-                    'message': 'No endpoints defined in template',
-                    'endpoint_tests': {'passed': 0, 'failed': 0, 'total': 0, 'results': []},
-                    'tool_name': 'curl-endpoint-tester'
-                }
-            
-            await self.send_progress('testing_endpoints', f"Testing {len(all_endpoints)} API endpoints ({len(control_endpoints)} public, {len(admin_endpoints)} admin)", analysis_id=analysis_id)
-            
-            # Build base URL with correct container naming for Docker network
-            safe_slug = model_slug.replace('_', '-').replace('.', '-')
-            container_prefix = f"{safe_slug}-app{app_number}"
-            # Use container name and standard internal port 5000 for backend
-            internal_backend_port = 5000 
-            base_url = f"http://{container_prefix}_backend:{internal_backend_port}"
-            self.log.info(f"Using base URL for endpoint testing: {base_url}")
-            
-            # Try to get auth token for admin endpoints
-            auth_token = None
-            if admin_endpoints:
-                auth_token = await self._get_auth_token(base_url)
-                if auth_token:
-                    self.log.info("Successfully obtained auth token for admin endpoint testing")
-                else:
-                    self.log.warning("Could not obtain auth token - admin endpoints will be tested without auth")
-            
-            # Test all endpoints
-            endpoint_results = []
-            passed = 0
-            failed = 0
-            
-            for i, endpoint in enumerate(all_endpoints, 1):
-                method = endpoint.get('method', 'GET').upper()
-                path = endpoint.get('path', '/')
-                is_admin = endpoint in admin_endpoints
-                
-                await self.send_progress('testing_endpoint', f"Testing endpoint {i}/{len(all_endpoints)}: {method} {path}", analysis_id=analysis_id)
-                
-                result = await self._test_single_endpoint(
-                    base_url, method, path, 
-                    auth_token=auth_token if is_admin else None,
-                    expected_status=endpoint.get('expected_status', [200, 201])
-                )
-                
-                result['is_admin'] = is_admin
-                result['endpoint_name'] = endpoint.get('name', path)
-                endpoint_results.append(result)
-                
-                if result.get('passed'):
-                    passed += 1
-                else:
-                    failed += 1
-            
-            # Calculate pass rate
-            total = len(endpoint_results)
-            pass_rate = (passed / total * 100) if total > 0 else 0
-            
-            await self.send_progress('completed', f"Endpoint testing complete: {passed}/{total} passed ({pass_rate:.1f}%)", analysis_id=analysis_id)
-            
-            return {
-                'status': 'success',
-                'tool_name': 'curl-endpoint-tester',
-                'endpoint_tests': {
-                    'passed': passed,
-                    'failed': failed,
-                    'total': total,
-                    'pass_rate': pass_rate,
-                    'results': endpoint_results
-                },
-                'summary': {
-                    'public_endpoints_tested': len(control_endpoints),
-                    'admin_endpoints_tested': len(admin_endpoints),
-                    'auth_token_obtained': auth_token is not None,
-                    'base_url': base_url
-                }
-            }
-            
-        except Exception as e:
-            self.log.error(f"Curl endpoint testing failed: {e}")
-            import traceback
-            traceback.print_exc()
+        self.log.warning("test_endpoints_only called in AI Analyzer - this tool has moved to Dynamic Analyzer")
+        return { 'status': 'error', 'error': 'Moved to Dynamic Analyzer' }
+        
+
+
             await self.send_progress('failed', f"Endpoint testing failed: {e}", analysis_id=analysis_id)
             return {
                 'status': 'error',
@@ -3008,16 +2803,8 @@ Focus on whether the admin panel functionality described in the requirement is a
                 
                 # Run curl-endpoint-tester if requested (endpoint testing without AI analysis)
                 if "curl-endpoint-tester" in tools:
-                    backend_port = config.get('backend_port', 5000) if config else 5000
-                    frontend_port = config.get('frontend_port', 8000) if config else 8000
-                    
-                    curl_result = await self.test_endpoints_only(
-                        model_slug, app_number, backend_port, frontend_port, config, analysis_id=analysis_id
-                    )
-                    aggregated_results['tools']['curl-endpoint-tester'] = curl_result
-                    tools_run += 1
-                    if curl_result.get('status') == 'error':
-                        errors.append(f"curl-endpoint-tester: {curl_result.get('error', 'Unknown error')}")
+                    self.log.info("curl-endpoint-tester requested but has been moved to dynamic-analyzer. Skipping in ai-analyzer.")
+                    # We don't error here, just skip. The orchestration layer should have routed it to dynamic-analyzer.
                 
                 # Run code-quality-analyzer if requested
                 if "code-quality-analyzer" in tools:

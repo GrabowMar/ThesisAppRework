@@ -20,6 +20,7 @@ from analyzer.shared.service_base import BaseWSService
 from analyzer.shared.tool_logger import ToolExecutionLogger
 from sarif_parsers import parse_tool_output_to_sarif, build_sarif_document
 from zap_scanner import ZAPScanner
+from curl_scanner import CurlScanner
 
 # Try to import ConfigLoader for enhanced configuration
 try:
@@ -42,12 +43,15 @@ class DynamicAnalyzer(BaseWSService):
         super().__init__(service_name="dynamic-analyzer", default_port=2002, version="2.0.0")
         self._tool_runs: Dict[str, Dict[str, Any]] = {}
         self.zap_scanner: Optional[ZAPScanner] = None
+        self.curl_scanner: Optional[CurlScanner] = None
         self._zap_started = False
         # Initialize tool execution logger for comprehensive output logging
         self.tool_logger = ToolExecutionLogger(self.log)
         
         # Lock for synchronizing ZAP scans (ZAP daemon is single-instance per container)
         self._zap_lock = asyncio.Lock()
+        
+        self.curl_scanner = CurlScanner()
 
     def _record(self, tool: str, cmd: List[str], proc: subprocess.CompletedProcess, start: float):
         duration = time.time() - start
@@ -735,6 +739,59 @@ class DynamicAnalyzer(BaseWSService):
                 issue_count = sum(v.get('total_vulnerabilities', 0) for v in vuln_results if isinstance(v, dict))
                 tool_summary['curl']['total_issues'] = issue_count
             
+            # -------------------------------------------------------------------------
+            # NEW: Curl Endpoint Scanner (Ported from AI Analyzer)
+            # -------------------------------------------------------------------------
+            # Runs if 'curl-endpoint-tester' is selected OR if 'all' is implicit
+            # Note: This tool performs detailed endpoint validation using the template
+            if selected_set is None or 'curl-endpoint-tester' in selected_set:
+                self.log.info("═" * 80)
+                self.log.info("📡 ENDPOINT VALIDATION PHASE (curl-endpoint-tester)")
+                self.log.info("═" * 80)
+                
+                try:
+                    start_ts = time.time()
+                    
+                    if not self.curl_scanner:
+                        self.curl_scanner = CurlScanner()
+
+                    # We pass tool_config which should contain template_slug
+                    endpoint_results = await self.curl_scanner.scan(
+                        model_slug, 
+                        app_number, 
+                        target_urls, 
+                        config=tool_config
+                    )
+                    
+                    duration = time.time() - start_ts
+                    endpoint_results['duration_seconds'] = duration
+                    
+                    results['results']['curl-endpoint-tester'] = endpoint_results
+                    results['tools_used'].append('curl-endpoint-tester')
+                    
+                    # Log run for summary
+                    tool_summary['curl-endpoint-tester'] = {
+                        'tool': 'curl-endpoint-tester',
+                        'status': endpoint_results.get('status', 'unknown'),
+                        'executed': True,
+                        'total_issues': endpoint_results.get('total_issues', 0),
+                        'duration_seconds': duration,
+                        'message': endpoint_results.get('message') or endpoint_results.get('error')
+                    }
+                    
+                except Exception as e:
+                    self.log.error(f"Endpoint scanner failed: {e}", exc_info=True)
+                    results['results']['curl-endpoint-tester'] = {
+                        'status': 'error',
+                        'error': str(e)
+                    }
+                    tool_summary['curl-endpoint-tester'] = {
+                        'tool': 'curl-endpoint-tester',
+                        'status': 'error',
+                        'executed': True,
+                        'error': str(e)
+                    }
+
             # Port scanning
             if target_urls:
                 # Extract hosts and ports from URLs
