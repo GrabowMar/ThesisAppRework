@@ -94,9 +94,16 @@ initialize_environment() {
     write_status "Ensuring project directories exist..." "Info"
     mkdir -p "$ROOT_DIR/results"
     mkdir -p "$ROOT_DIR/generated/apps"
-    mkdir -p "$ROOT_DIR/generated/raw"
-    mkdir -p "$ROOT_DIR/generated/metadata"
+    mkdir -p "$ROOT_DIR/generated/raw/responses"
+    mkdir -p "$ROOT_DIR/generated/raw/payloads"
+    mkdir -p "$ROOT_DIR/generated/metadata/indices"
     mkdir -p "$ROOT_DIR/src/data"
+
+    # Set proper permissions for directories that the app needs to write to
+    chmod -R 775 "$ROOT_DIR/results" 2>/dev/null || true
+    chmod -R 775 "$ROOT_DIR/generated" 2>/dev/null || true
+    chmod -R 775 "$ROOT_DIR/src/data" 2>/dev/null || true
+    chmod -R 775 "$ROOT_DIR/logs" 2>/dev/null || true
     
     write_status "Ensuring shared Docker network exists..." "Info"
     if docker network ls --format "{{.Name}}" | grep -q "^thesis-apps-network$"; then

@@ -62,8 +62,11 @@ COPY --chown=appuser:appuser container-start.sh ./start.sh
 RUN chmod +x ./start.sh
 
 # Create necessary directories with correct permissions
-RUN mkdir -p /app/src/data /app/logs /app/generated/apps /app/results && \
-    chown -R appuser:appuser /app/src/data /app/logs /app/generated /app/results
+RUN mkdir -p /app/src/data /app/logs /app/generated/apps /app/results \
+    /app/generated/raw/responses /app/generated/raw/payloads \
+    /app/generated/metadata/indices && \
+    chown -R appuser:appuser /app/src/data /app/logs /app/generated /app/results && \
+    chmod -R 775 /app/src/data /app/logs /app/generated /app/results
 
 # Switch to non-root user
 USER appuser
