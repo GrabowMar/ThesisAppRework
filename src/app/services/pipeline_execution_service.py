@@ -942,11 +942,23 @@ class PipelineExecutionService:
         completed = gen_progress.get('completed', 0)
         failed = gen_progress.get('failed', 0)
         status = gen_progress.get('status', 'pending')
-        
+
+        # Safety check: If all jobs are processed but status isn't completed, fix it
+        processed = completed + failed
+        if processed >= total and total > 0 and status not in ['completed', 'skipped']:
+            self._log(
+                "GEN", f"Auto-fixing stuck generation: {processed}/{total} jobs done but status={status}, marking as completed",
+                level='warning'
+            )
+            progress['generation']['status'] = 'completed'
+            pipeline.progress = progress
+            db.session.commit()
+            status = 'completed'
+
         self._log(
             "GEN", f"Processing generation stage: status={status}, completed={completed}/{total}, failed={failed}"
         )
-        
+
         # If already completed, transition to analysis
         if status == 'completed' or (completed + failed >= total and total > 0):
             self._log("GEN", f"Generation already complete, transitioning to analysis")

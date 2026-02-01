@@ -380,8 +380,10 @@ class ConcurrentGenerationRunner:
                 existing.updated_at = datetime.now(timezone.utc)
             else:
                 # Create new
+                # Extract provider from model slug (e.g., "openai_gpt-4" -> "openai")
+                provider = model.provider if hasattr(model, 'provider') else j.model_slug.split('_')[0] if '_' in j.model_slug else 'unknown'
+
                 app_record = GeneratedApplication(
-                    model_id=model.model_id,
                     model_slug=j.model_slug,
                     app_number=j.allocated_app_num,
                     template_slug=j.template_slug,
@@ -389,6 +391,8 @@ class ConcurrentGenerationRunner:
                     frontend_code=c_frontend,
                     generation_status='completed',
                     version=j.version,
+                    app_type='fullstack',  # All generated apps are fullstack (backend + frontend)
+                    provider=provider,
                 )
                 db.session.add(app_record)
             
