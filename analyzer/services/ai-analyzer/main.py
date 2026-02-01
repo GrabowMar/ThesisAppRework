@@ -719,10 +719,12 @@ Focus on whether the functionality described in the requirement is actually impl
             
             await self.send_progress('testing_endpoints', f"Testing {len(all_endpoints)} API endpoints ({len(control_endpoints)} public, {len(admin_endpoints)} admin)", analysis_id=analysis_id)
             
-            # Use host.docker.internal when running inside Docker container to reach host services
-            # localhost won't work from inside a container
-            host = os.getenv('TARGET_HOST', 'host.docker.internal')
-            base_url = f"http://{host}:{backend_port}"
+            # Build base URL with correct container naming for Docker network
+            safe_slug = model_slug.replace('_', '-').replace('.', '-')
+            container_prefix = f"{safe_slug}-app{app_number}"
+            # Use container name and standard internal port 5000 for backend
+            internal_backend_port = 5000 
+            base_url = f"http://{container_prefix}_backend:{internal_backend_port}"
             self.log.info(f"Using base URL for endpoint testing: {base_url}")
             
             # Get auth token for admin endpoints
@@ -1143,8 +1145,12 @@ Focus on whether the functionality described in the requirement is actually impl
             
             await self.send_progress('testing_endpoints', f"Testing {len(all_endpoints)} API endpoints ({len(control_endpoints)} public, {len(admin_endpoints)} admin)", analysis_id=analysis_id)
             
-            # Build base URL
-            base_url = f"http://host.docker.internal:{backend_port}"
+            # Build base URL with correct container naming for Docker network
+            safe_slug = model_slug.replace('_', '-').replace('.', '-')
+            container_prefix = f"{safe_slug}-app{app_number}"
+            # Use container name and standard internal port 5000 for backend
+            internal_backend_port = 5000 
+            base_url = f"http://{container_prefix}_backend:{internal_backend_port}"
             self.log.info(f"Using base URL for endpoint testing: {base_url}")
             
             # Try to get auth token for admin endpoints
