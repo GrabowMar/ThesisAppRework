@@ -488,6 +488,8 @@ invoke_wipeout() {
     
     write_status "Removing database..." "Info"
     rm -rf "$SRC_DIR/data"
+    mkdir -p "$SRC_DIR/data"
+    chmod 777 "$SRC_DIR/data"
     
     write_status "Removing generated apps..." "Info"
     rm -rf "$ROOT_DIR/generated"
