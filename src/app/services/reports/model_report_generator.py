@@ -213,10 +213,20 @@ class ModelReportGenerator(BaseReportGenerator):
             total_medium += severity_counts.get('medium', 0)
             total_low += severity_counts.get('low', 0)
             
-            # Extract tools - prefer top-level 'tools', then nested 'results.tools', fallback to services
-            tools = raw_data.get('tools') or results_wrapper.get('tools')
-            if not tools:
-                tools = self._extract_tools_from_services(results_wrapper.get('services', {}))
+            # Extract tools - merge top-level 'tools' with services tools
+            tools = raw_data.get('tools') or results_wrapper.get('tools') or {}
+            
+            # DEBUG
+            logger.info(f"DEBUG: Initial tools found: {list(tools.keys())}")
+            logger.info(f"DEBUG: Services keys: {list(results_wrapper.get('services', {}).keys())}")
+            
+            # Extract additional tools from services (e.g. ai-analyzer)
+            service_tools = self._extract_tools_from_services(results_wrapper.get('services', {}))
+            logger.info(f"DEBUG: Service tools extracted: {list(service_tools.keys())}")
+            
+            # Merge service tools into main tools dict (prefer service tools if duplicate)
+            if service_tools:
+                tools.update(service_tools)
             
             # Aggregate tool statistics
             for tool_name, tool_data in tools.items():
@@ -388,7 +398,9 @@ class ModelReportGenerator(BaseReportGenerator):
         'artillery': {'category': 'performance', 'language': 'http'},
         
         # AI Analysis
-        'requirements-checker': {'category': 'ai', 'language': 'multi'},
+        'requirements-scanner': {'category': 'ai', 'language': 'multi'},
+        'requirements-check': {'category': 'ai', 'language': 'multi'},
+        'curl-endpoint-tester': {'category': 'ai', 'language': 'runtime'},
         'code-quality-analyzer': {'category': 'ai', 'language': 'multi'},
         'openrouter-requirements': {'category': 'ai', 'language': 'multi'},
     }
@@ -424,6 +436,10 @@ class ModelReportGenerator(BaseReportGenerator):
             if not results:
                 analysis = service_data.get('analysis', {})
                 results = analysis.get('results', {}) if isinstance(analysis, dict) else {}
+                
+                # Pattern 2b: analysis -> tools (ai-analyzer format)
+                if not results and isinstance(analysis, dict):
+                    results = analysis.get('tools', {})
             
             # Pattern 3: direct results (fallback)
             if not results:

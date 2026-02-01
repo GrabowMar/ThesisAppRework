@@ -111,6 +111,9 @@ ANALYZER_CATEGORIES = {
             'ai-analyzer': {'category': 'ai', 'language': 'multi', 'focus': 'LLM code review'},
             'ai-review': {'category': 'ai', 'language': 'multi', 'focus': 'AI quality assessment'},
             'requirements-check': {'category': 'ai', 'language': 'multi', 'focus': 'requirements compliance'},
+            'requirements-scanner': {'category': 'ai', 'language': 'multi', 'focus': 'requirements compliance'},
+            'curl-endpoint-tester': {'category': 'ai', 'language': 'runtime', 'focus': 'endpoint verification'},
+            'code-quality-analyzer': {'category': 'ai', 'language': 'multi', 'focus': 'code quality analysis'},
         }
     },
 }
@@ -128,7 +131,7 @@ TOOL_CATEGORIES = {
     'types': ['mypy'],
     'complexity': ['radon'],
     'performance': ['locust', 'artillery', 'ab', 'aiohttp'],
-    'ai': ['ai-analyzer', 'ai-review', 'requirements-check'],
+    'ai': ['ai-analyzer', 'ai-review', 'requirements-check', 'requirements-scanner', 'curl-endpoint-tester', 'code-quality-analyzer'],
     'health': ['connectivity', 'curl'],
 }
 
@@ -2265,10 +2268,15 @@ class ReportService:
             elif db_issues_count:
                 findings_count = db_issues_count
             
-            # Extract tools
+            # Extract tools - merge top-level 'tools' with services tools
             tools = raw.get('tools') or results_wrapper.get('tools') or {}
-            if not tools:
-                tools = self._extract_tools_from_services(raw.get('services', {}))
+            
+            # Extract additional tools from services (e.g. ai-analyzer)
+            service_tools = self._extract_tools_from_services(raw.get('services', {}))
+            
+            # Merge service tools into main tools dict (prefer service tools if duplicate)
+            if service_tools:
+                tools.update(service_tools)
             
             # Extract services for subtask breakdown
             services = raw.get('services', {})
