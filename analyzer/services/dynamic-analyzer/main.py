@@ -742,9 +742,12 @@ class DynamicAnalyzer(BaseWSService):
             # -------------------------------------------------------------------------
             # NEW: Curl Endpoint Scanner (Ported from AI Analyzer)
             # -------------------------------------------------------------------------
-            # Runs if 'curl-endpoint-tester' is selected OR if 'all' is implicit
+            # Runs if 'curl-endpoint-tester' OR 'curl' is selected OR if 'all' is implicit
             # Note: This tool performs detailed endpoint validation using the template
-            if selected_set is None or 'curl-endpoint-tester' in selected_set:
+            run_endpoint_tester = (selected_set is None or 
+                                   'curl-endpoint-tester' in selected_set or 
+                                   'curl' in selected_set)
+            if run_endpoint_tester:
                 self.log.info("═" * 80)
                 self.log.info("📡 ENDPOINT VALIDATION PHASE (curl-endpoint-tester)")
                 self.log.info("═" * 80)

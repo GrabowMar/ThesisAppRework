@@ -933,7 +933,7 @@ class ContainerToolRegistry:
             name="curl-endpoint-tester",
             display_name="Curl Endpoint Tester",
             description="HTTP endpoint validation: tests API endpoints with curl requests, checks response codes and availability (no AI required)",
-            container=AnalyzerContainer.AI,
+            container=AnalyzerContainer.DYNAMIC,  # Moved from AI to Dynamic analyzer
             tags={"testing", "endpoints", "curl", "http", "api", "functional"},
             supported_languages={"web", "api"},
             available=True,  # Always available - doesn't require AI API key
