@@ -478,6 +478,12 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
         except Exception as e:
             logger.error(f"Failed to write results to filesystem: {e}")
 
+        # Cleanup: Stop and remove the analyzed app containers after successful analysis
+        try:
+            _cleanup_app_containers(main_task.target_model, main_task.target_app_number)
+        except Exception as e:
+            logger.warning(f"Failed to cleanup containers after analysis: {e}")
+
         return unified_payload
 
     except Exception as e:
@@ -741,3 +747,24 @@ def _write_results_to_fs(task, payload):
     }
     with open(out_dir / 'manifest.json', 'w', encoding='utf-8') as f:
         json.dump(manifest, f, indent=2)
+
+
+def _cleanup_app_containers(model_slug: str, app_number: int) -> None:
+    """Stop and remove containers for the analyzed app after analysis completes.
+    
+    This frees up resources by removing containers that are no longer needed
+    after analysis is complete.
+    """
+    try:
+        from app.services.docker_manager import DockerManager
+        
+        docker_mgr = DockerManager()
+        result = docker_mgr.stop_containers(model_slug, app_number)
+        
+        if result.get('success'):
+            logger.info(f"[CLEANUP] Stopped containers for {model_slug} app {app_number}")
+        else:
+            logger.warning(f"[CLEANUP] Failed to stop containers for {model_slug} app {app_number}: {result.get('error')}")
+            
+    except Exception as e:
+        logger.warning(f"[CLEANUP] Error cleaning up containers for {model_slug} app {app_number}: {e}")
