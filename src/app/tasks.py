@@ -95,6 +95,8 @@ def _extract_total_issues(payload: Dict[str, Any]) -> int:
 def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, tools: List[str], service_name: str) -> Dict[str, Any]:
     """
     Execute a single analysis subtask via WebSocket.
+    
+    Idempotency: If task is already RUNNING/COMPLETED/FAILED, skip re-execution.
     """
     import os
     import socket
@@ -107,8 +109,29 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
         if not subtask:
             return {'status': 'error', 'error': f'Subtask {subtask_id} not found'}
 
+        # Idempotency guard: Skip if already in a terminal or running state
+        if subtask.status in (AnalysisStatus.RUNNING, AnalysisStatus.COMPLETED, 
+                              AnalysisStatus.FAILED, AnalysisStatus.PARTIAL_SUCCESS):
+            logger.info(f"[CELERY] Subtask {subtask_id} already in state {subtask.status.value}, skipping re-execution")
+            return {
+                'status': 'skipped',
+                'reason': f'Task already in state: {subtask.status.value}',
+                'service_name': service_name,
+                'subtask_id': subtask_id
+            }
+
         # Mark as running (with distributed lock to prevent SQLite I/O errors)
         with database_write_lock(f"subtask_{subtask_id}_start"):
+            # Re-check status inside lock (double-check pattern)
+            db.session.refresh(subtask)
+            if subtask.status != AnalysisStatus.PENDING:
+                logger.info(f"[CELERY] Subtask {subtask_id} status changed to {subtask.status.value}, skipping")
+                return {
+                    'status': 'skipped',
+                    'reason': f'Task status changed: {subtask.status.value}',
+                    'service_name': service_name,
+                    'subtask_id': subtask_id
+                }
             subtask.status = AnalysisStatus.RUNNING
             subtask.started_at = datetime.now(timezone.utc)
             subtask.current_step = f"Starting {service_name} analysis..."
@@ -207,6 +230,8 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
 def execute_analysis(self, task_id: int) -> Dict[str, Any]:
     """
     Execute a full analysis task (comprehensive or specific type).
+    
+    Idempotency: If task is already RUNNING/COMPLETED/FAILED, skip re-execution.
     """
     logger.info(f"[CELERY] Starting analysis task {task_id}")
 
@@ -218,8 +243,27 @@ def execute_analysis(self, task_id: int) -> Dict[str, Any]:
         if not task:
             return {'status': 'error', 'error': f'Task {task_id} not found'}
         
+        # Idempotency guard: Skip if already in a terminal or running state
+        if task.status in (AnalysisStatus.RUNNING, AnalysisStatus.COMPLETED, 
+                           AnalysisStatus.FAILED, AnalysisStatus.PARTIAL_SUCCESS):
+            logger.info(f"[CELERY] Task {task_id} already in state {task.status.value}, skipping re-execution")
+            return {
+                'status': 'skipped',
+                'reason': f'Task already in state: {task.status.value}',
+                'task_id': task_id
+            }
+        
         # Mark as running (with distributed lock)
         with database_write_lock(f"task_{task_id}_start"):
+            # Re-check status inside lock (double-check pattern)
+            db.session.refresh(task)
+            if task.status != AnalysisStatus.PENDING:
+                logger.info(f"[CELERY] Task {task_id} status changed to {task.status.value}, skipping")
+                return {
+                    'status': 'skipped',
+                    'reason': f'Task status changed: {task.status.value}',
+                    'task_id': task_id
+                }
             task.status = AnalysisStatus.RUNNING
             task.started_at = datetime.now(timezone.utc)
             task.progress_percentage = 10.0
@@ -339,6 +383,8 @@ def execute_analysis(self, task_id: int) -> Dict[str, Any]:
 def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) -> Dict[str, Any]:
     """
     Aggregate results from parallel subtasks.
+    
+    Idempotency: If main task is already COMPLETED/FAILED, skip aggregation.
     """
     logger.info(f"[CELERY] Aggregating {len(results)} results for main task {main_task_id}")
     
@@ -346,6 +392,16 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
         main_task = AnalysisTask.query.filter_by(task_id=main_task_id).first()
         if not main_task:
             return {'status': 'error', 'error': 'Main task not found'}
+        
+        # Idempotency guard: Skip if main task already finalized
+        if main_task.status in (AnalysisStatus.COMPLETED, AnalysisStatus.FAILED, 
+                                 AnalysisStatus.PARTIAL_SUCCESS, AnalysisStatus.CANCELLED):
+            logger.info(f"[CELERY] Main task {main_task_id} already in state {main_task.status.value}, skipping aggregation")
+            return {
+                'status': 'skipped',
+                'reason': f'Main task already finalized: {main_task.status.value}',
+                'main_task_id': main_task_id
+            }
             
         all_services = {}
         all_findings = []

@@ -287,12 +287,12 @@ start_analyzers() {
     
     if [ "$CONCURRENT" = true ]; then
         write_status "Enable CONCURRENT mode..." "Info"
-        services+=("static-analyzer-2" "static-analyzer-3" "dynamic-analyzer-2" "performance-tester-2" "ai-analyzer-2")
-        expected_count=11
+        services+=("static-analyzer-2" "static-analyzer-3" "static-analyzer-4" "dynamic-analyzer-2" "dynamic-analyzer-3" "performance-tester-2" "ai-analyzer-2")
+        expected_count=13
         mode_label="Concurrent"
         
-        export STATIC_ANALYZER_URLS="ws://localhost:2001,ws://localhost:2051,ws://localhost:2052"
-        export DYNAMIC_ANALYZER_URLS="ws://localhost:2002,ws://localhost:2053"
+        export STATIC_ANALYZER_URLS="ws://localhost:2001,ws://localhost:2051,ws://localhost:2052,ws://localhost:2056"
+        export DYNAMIC_ANALYZER_URLS="ws://localhost:2002,ws://localhost:2053,ws://localhost:2057"
         export PERF_TESTER_URLS="ws://localhost:2003,ws://localhost:2054"
         export AI_ANALYZER_URLS="ws://localhost:2004,ws://localhost:2055"
     fi

@@ -24,8 +24,8 @@ services:
       # Docker environment flag for inter-container communication
       - IN_DOCKER=true
       # Load balancing configuration
-      - STATIC_ANALYZER_URLS=ws://static-analyzer:2001,ws://static-analyzer-2:2001,ws://static-analyzer-3:2001
-      - DYNAMIC_ANALYZER_URLS=ws://dynamic-analyzer:2002,ws://dynamic-analyzer-2:2002
+      - STATIC_ANALYZER_URLS=ws://static-analyzer:2001,ws://static-analyzer-2:2001,ws://static-analyzer-3:2001,ws://static-analyzer-4:2001
+      - DYNAMIC_ANALYZER_URLS=ws://dynamic-analyzer:2002,ws://dynamic-analyzer-2:2002,ws://dynamic-analyzer-3:2002
       - PERF_TESTER_URLS=ws://performance-tester:2003,ws://performance-tester-2:2003
       - AI_ANALYZER_URLS=ws://ai-analyzer:2004,ws://ai-analyzer-2:2004
       # Celery configuration for Docker environment
@@ -127,8 +127,8 @@ services:
       # Docker environment flag for inter-container communication
       - IN_DOCKER=true
       # Load balancing configuration
-      - STATIC_ANALYZER_URLS=ws://static-analyzer:2001,ws://static-analyzer-2:2001,ws://static-analyzer-3:2001
-      - DYNAMIC_ANALYZER_URLS=ws://dynamic-analyzer:2002,ws://dynamic-analyzer-2:2002
+      - STATIC_ANALYZER_URLS=ws://static-analyzer:2001,ws://static-analyzer-2:2001,ws://static-analyzer-3:2001,ws://static-analyzer-4:2001
+      - DYNAMIC_ANALYZER_URLS=ws://dynamic-analyzer:2002,ws://dynamic-analyzer-2:2002,ws://dynamic-analyzer-3:2002
       - PERF_TESTER_URLS=ws://performance-tester:2003,ws://performance-tester-2:2003
       - AI_ANALYZER_URLS=ws://ai-analyzer:2004,ws://ai-analyzer-2:2004
       # Enable pipeline service in celery-worker - this is the ONLY container that should process pipelines
@@ -409,6 +409,38 @@ services:
           memory: 1G
           cpus: '0.5'
 
+  static-analyzer-4:
+    build:
+      context: .
+      dockerfile: analyzer/services/static-analyzer/Dockerfile
+    ports:
+      - "2056:2001"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2001
+      - PYTHONPATH=/app
+    volumes:
+      - ./generated/apps:/app/sources:ro
+      - ./results:/app/results
+      - ./analyzer/services/static-analyzer/main.py:/app/main.py
+      - ./analyzer/services/static-analyzer/parsers.py:/app/parsers.py
+      - ./analyzer/services/static-analyzer/sarif_parsers.py:/app/sarif_parsers.py
+      - ./analyzer/shared:/app/analyzer/shared
+    healthcheck:
+      test: [ "CMD", "python", "health_check.py" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - thesis-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
   dynamic-analyzer-2:
     build:
       context: .
@@ -417,6 +449,40 @@ services:
       - "${DOCKER_GID:-0}" # docker group on host (auto-detected)
     ports:
       - "2053:2002"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2002
+      - PYTHONPATH=/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./generated/apps:/app/sources:ro
+      - ./results:/app/results
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    healthcheck:
+      test: [ "CMD", "python", "health_check.py" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - thesis-network
+      - thesis-apps-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  dynamic-analyzer-3:
+    build:
+      context: .
+      dockerfile: analyzer/services/dynamic-analyzer/Dockerfile
+    group_add:
+      - "${DOCKER_GID:-0}" # docker group on host (auto-detected)
+    ports:
+      - "2057:2002"
     environment:
       - LOG_LEVEL=INFO
       - WEBSOCKET_HOST=0.0.0.0

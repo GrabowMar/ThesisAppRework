@@ -135,11 +135,6 @@ class TaskExecutionService:
         
         self._log("INIT", "TaskExecutionService initialized with ThreadPoolExecutors and Container Locks")
 
-        self._locks_lock = threading.Lock()
-        self._container_locks: Dict[str, threading.Lock] = {}
-        
-        self._log("INIT", "TaskExecutionService initialized with ThreadPoolExecutors and Container Locks")
-
     def _is_redis_available(self) -> bool:
         """Check if Redis is available for Celery task dispatch.
 
