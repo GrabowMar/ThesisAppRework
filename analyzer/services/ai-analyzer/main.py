@@ -1130,9 +1130,41 @@ Focus on whether the functionality described in the requirement is actually impl
             with open(requirements_file, 'r', encoding='utf-8') as f:
                 template_data = json.load(f)
             
-            # Extract endpoints from template
-            control_endpoints = template_data.get('control', {}).get('endpoints', [])
-            admin_endpoints = template_data.get('admin', {}).get('endpoints', [])
+            # Extract endpoints from template - normalize format
+            # Support both old format (control/admin objects) and new format (flat lists)
+            
+            # 1. Try new format (flat lists)
+            api_endpoints = template_data.get('api_endpoints', [])
+            control_endpoints = [
+                {
+                    'path': ep.get('path', '/'),
+                    'method': ep.get('method', 'GET'),
+                    'expected_status': 200,
+                    'description': ep.get('description', 'API endpoint'),
+                    'request_body': ep.get('request'),
+                    'requires_auth': False
+                }
+                for ep in api_endpoints
+            ]
+            
+            admin_api_endpoints = template_data.get('admin_api_endpoints', [])
+            admin_endpoints = [
+                {
+                    'path': ep.get('path', '/').replace(':id', '1'),
+                    'method': ep.get('method', 'GET'),
+                    'expected_status': 200,
+                    'description': ep.get('description', 'Admin API endpoint'),
+                    'request_body': ep.get('request'),
+                    'requires_auth': True
+                }
+                for ep in admin_api_endpoints
+            ]
+            
+            # 2. If empty, try old format (nested objects) as fallback
+            if not control_endpoints and not admin_endpoints:
+                control_endpoints = template_data.get('control', {}).get('endpoints', [])
+                admin_endpoints = template_data.get('admin', {}).get('endpoints', [])
+            
             all_endpoints = control_endpoints + admin_endpoints
             
             if not all_endpoints:
