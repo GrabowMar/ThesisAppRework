@@ -165,7 +165,8 @@ class PooledAnalyzerManager(BaseAnalyzerManager):
                 
                 backend_port, frontend_port = ports
                 # Use Docker container names for container-to-container communication
-                safe_slug = normalized_slug.replace('_', '-')
+                # Note: build_id lookup not available in pooled manager, use base pattern
+                safe_slug = normalized_slug.replace('_', '-').replace('.', '-')
                 container_prefix = f"{safe_slug}-app{app_number}"
                 resolved_urls = [
                     f"http://{container_prefix}_backend:{backend_port}",

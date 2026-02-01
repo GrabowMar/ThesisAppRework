@@ -472,14 +472,29 @@ def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, too
                     logger.debug(f"Inferred Docker environment for {service_name} from DYNAMIC_ANALYZER_URL(S)")
 
                 if is_docker:
-                    safe_slug = model_slug.replace('_', '-')
-                    container_prefix = f"{safe_slug}-app{app_number}"
+                    # Look up build_id for unique container naming
+                    build_id = None
+                    try:
+                        from app.models import GeneratedApplication
+                        app_record = GeneratedApplication.query.filter_by(
+                            model_slug=model_slug, app_number=app_number
+                        ).first()
+                        if app_record and app_record.build_id:
+                            build_id = app_record.build_id
+                    except Exception as e:
+                        logger.debug(f"[CELERY] Could not lookup build_id: {e}")
+                    
+                    safe_slug = model_slug.replace('_', '-').replace('.', '-')
+                    if build_id:
+                        container_prefix = f"{safe_slug}-app{app_number}-{build_id}"
+                    else:
+                        container_prefix = f"{safe_slug}-app{app_number}"
                     # Container-to-container: use resolved internal ports when available
                     target_urls = [
                         f"http://{container_prefix}_backend:{backend_port}",
                         f"http://{container_prefix}_frontend:80"
                     ]
-                    logger.info(f"[CELERY] Resolved target URLs for {service_name} (container network): {target_urls}")
+                    logger.info(f"[CELERY] Resolved target URLs for {service_name} (container network, build_id={build_id}): {target_urls}")
                 else:
                     target_urls = [
                         f"http://localhost:{backend_port}",

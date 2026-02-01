@@ -124,13 +124,15 @@ class DockerStatusCache:
         safe_model = model_slug.replace('_', '-').replace('.', '-')
         return f"{safe_model}-app{app_number}"
 
-    def _generate_project_name_variants(self, model_slug: str, app_number: int) -> List[str]:
+    def _generate_project_name_variants(self, model_slug: str, app_number: int, 
+                                        build_id: Optional[str] = None) -> List[str]:
         """
         Generate all possible project name variants for container matching.
         
         Docker Compose project names can vary based on:
         - Underscore vs hyphen in model name
         - With/without dots
+        - With/without build_id suffix
         - Legacy naming conventions
         
         Returns list of possible project name prefixes to search for.
@@ -139,7 +141,24 @@ class DockerStatusCache:
         
         # Standard conversion (what DockerManager does)
         safe_model = model_slug.replace('_', '-').replace('.', '-')
-        variants.add(f"{safe_model}-app{app_number}")
+        base_name = f"{safe_model}-app{app_number}"
+        variants.add(base_name)
+        
+        # With build_id suffix (new naming scheme)
+        if build_id:
+            variants.add(f"{base_name}-{build_id}")
+        
+        # Try to get build_id from database if not provided
+        if not build_id:
+            try:
+                from app.models import GeneratedApplication
+                app = GeneratedApplication.query.filter_by(
+                    model_slug=model_slug, app_number=app_number
+                ).first()
+                if app and app.build_id:
+                    variants.add(f"{base_name}-{app.build_id}")
+            except Exception:
+                pass  # Silently ignore - we'll still match without build_id
         
         # Keep underscores (some older containers may use this)
         variants.add(f"{model_slug}-app{app_number}")
