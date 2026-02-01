@@ -493,7 +493,10 @@ invoke_wipeout() {
     
     write_status "Removing generated apps..." "Info"
     rm -rf "$ROOT_DIR/generated"
-    mkdir -p "$ROOT_DIR/generated"
+    mkdir -p "$ROOT_DIR/generated/apps"
+    mkdir -p "$ROOT_DIR/generated/raw/responses"
+    mkdir -p "$ROOT_DIR/generated/raw/payloads"
+    mkdir -p "$ROOT_DIR/generated/metadata/indices"
     touch "$ROOT_DIR/generated/.gitkeep"
     
     write_status "Removing results/reports..." "Info"

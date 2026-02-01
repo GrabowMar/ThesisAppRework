@@ -46,6 +46,7 @@ COPY --chown=analyzer:analyzer analyzer/config_loader.py ./analyzer/config_loade
 COPY --chown=analyzer:analyzer analyzer/configs ./analyzer/configs
 COPY --chown=analyzer:analyzer analyzer/services/dynamic-analyzer/main.py .
 COPY --chown=analyzer:analyzer analyzer/services/dynamic-analyzer/health_check.py .
+COPY --chown=analyzer:analyzer analyzer/services/dynamic-analyzer/curl_scanner.py .
 COPY --chown=analyzer:analyzer analyzer/services/dynamic-analyzer/zap_scanner.py .
 COPY --chown=analyzer:analyzer analyzer/services/dynamic-analyzer/sarif_parsers.py .
 COPY --chown=analyzer:analyzer analyzer/services/dynamic-analyzer/start_services.sh .

@@ -1044,12 +1044,7 @@ Focus on whether the functionality described in the requirement is actually impl
         
 
 
-            await self.send_progress('failed', f"Endpoint testing failed: {e}", analysis_id=analysis_id)
-            return {
-                'status': 'error',
-                'error': str(e),
-                'tool_name': 'curl-endpoint-tester'
-            }
+
 
     async def analyze_code_quality(self, model_slug: str, app_number: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
         """
