@@ -166,7 +166,7 @@
 {% block title %}{{ page_title }}{% endblock %}
 
 {% block content %}
-<div class="research-detail-shell" id="report-detail-container" data-report-id="{{ report.id }}"
+<div class="research-detail-shell" id="report-detail-container" data-report-id="{{ report.report_id }}"
   data-report-type="{{ report.report_type }}">
   {# Header #}
   <div class="research-header no-print">
@@ -243,7 +243,7 @@
   // Initialize report logic when DOM is ready
   document.addEventListener('DOMContentLoaded', function () {
     // Pass report ID and Type to global scope as fallback
-    window.REPORT_ID = "{{ report.id }}";
+    window.REPORT_ID = "{{ report.report_id }}";
     window.REPORT_TYPE = "{{ report.report_type }}";
 
     // Initialize the report handling
