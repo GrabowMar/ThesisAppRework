@@ -717,7 +717,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             cmd.append(str(source_path))
             cmd.append(str(source_path))
             # Retry Semgrep up to 2 times (3 total) to handle intermittent Sys_error/OpenSSL issues
-            result = await self._run_tool(cmd, 'semgrep', config=semgrep_config, skip_parser=True, retries=2)
+            result = await self._run_tool(cmd, 'semgrep', config=semgrep_config, skip_parser=True, retries=2, timeout=300)
             if result.get('status') != 'error' and 'output' in result:
                 try:
                     sarif_data = json.loads(result['output'])
