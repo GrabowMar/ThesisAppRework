@@ -2191,8 +2191,13 @@ class TaskExecutionService:
                     )
                 
                 # Execute via WebSocket to analyzer microservice
-                # AI analyzer gets longer timeout due to external API calls
-                service_timeout = 900 if service_name == 'ai-analyzer' else 600
+                # AI analyzer gets longer timeout for external API calls
+                if service_name == 'ai-analyzer':
+                    service_timeout = 600
+                elif service_name == 'static-analyzer':
+                    service_timeout = 300  # Tools have 60-90s individual timeouts
+                else:
+                    service_timeout = 300
                 result = self._execute_via_websocket(
                     service_name=service_name,
                     model_slug=model_slug,

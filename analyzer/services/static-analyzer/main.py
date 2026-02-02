@@ -580,7 +580,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
 
             # Run and read SARIF output
             # Run and read SARIF output
-            result = await self._run_tool(cmd, 'bandit', config=bandit_config, success_exit_codes=[0, 1], skip_parser=True, timeout=300)
+            result = await self._run_tool(cmd, 'bandit', config=bandit_config, success_exit_codes=[0, 1], skip_parser=True, timeout=60)
             if result.get('status') != 'error':
                 try:
                     if os.path.exists(bandit_output_file):
@@ -630,7 +630,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 cmd = ['pylint', '--rcfile', pylintrc_file, '--output-format=json'] + [str(f) for f in files_to_check]
                 
                 # Pylint uses bitflags: 1=fatal, 2=error, 4=warning, 8=refactor, 16=convention, 32=usage error
-                result = await self._run_tool(cmd, 'pylint', config=pylint_config, timeout=300, 
+                result = await self._run_tool(cmd, 'pylint', config=pylint_config, timeout=60, 
                                                         success_exit_codes=[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32])
                 
                 # Convert JSON to SARIF format manually
@@ -716,8 +716,8 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 cmd.extend(['--config', ruleset])
             cmd.append(str(source_path))
             cmd.append(str(source_path))
-            # Retry Semgrep up to 2 times (3 total) to handle intermittent Sys_error/OpenSSL issues
-            result = await self._run_tool(cmd, 'semgrep', config=semgrep_config, skip_parser=True, retries=2, timeout=300)
+            # Semgrep can be slow; use 180s timeout with 1 retry (2 total attempts = 360s max)
+            result = await self._run_tool(cmd, 'semgrep', config=semgrep_config, skip_parser=True, retries=1, timeout=90)
             if result.get('status') != 'error' and 'output' in result:
                 try:
                     sarif_data = json.loads(result['output'])
@@ -789,7 +789,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             # Parser now handles newline-delimited JSON natively
             # MyPy with JSON format (exit codes: 0=no issues, 1=issues found, 2=fatal error)
             # Parser now handles newline-delimited JSON natively
-            mypy_result = await self._run_tool(cmd, 'mypy', config=mypy_config, success_exit_codes=[0, 1], timeout=300)
+            mypy_result = await self._run_tool(cmd, 'mypy', config=mypy_config, success_exit_codes=[0, 1], timeout=60)
             results['mypy'] = mypy_result
             
             # Clean up cache dir
@@ -838,7 +838,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     # Use deprecated check command which works in non-interactive mode
                     # Pipe empty input to avoid EOF errors
                     cmd = ['safety', 'check', '-r', str(requirements_file), '--output', 'json']
-                    safety_result = await self._run_tool(cmd, 'safety', config=safety_config, success_exit_codes=[0, 1, 64], skip_parser=True, timeout=300)
+                    safety_result = await self._run_tool(cmd, 'safety', config=safety_config, success_exit_codes=[0, 1, 64], skip_parser=True, timeout=60)
                     
                     if safety_result.get('status') != 'error' and 'output' in safety_result:
                         try:
@@ -897,7 +897,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     self.log.info(f"Running pip-audit on: {requirements_file}")
                     cmd = ['pip-audit', '--format', 'json', '--requirement', str(requirements_file)]
                     
-                    pip_audit_result = await self._run_tool(cmd, 'pip-audit', config=pip_audit_config, success_exit_codes=[0, 1], skip_parser=True, timeout=300)
+                    pip_audit_result = await self._run_tool(cmd, 'pip-audit', config=pip_audit_config, success_exit_codes=[0, 1], skip_parser=True, timeout=60)
                     
                     if pip_audit_result.get('status') != 'error' and 'output' in pip_audit_result:
                         try:
@@ -972,7 +972,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             # Vulture returns: 0=no issues, 1=dead code found, 3=syntax errors in checked files
             # All are valid outcomes for analysis purposes
             # Note: Vulture outputs text, not JSON, so we parse it manually with skip_parser=True
-            vulture_result = await self._run_tool(cmd, 'vulture', success_exit_codes=[0, 1, 3], skip_parser=True, timeout=300)
+            vulture_result = await self._run_tool(cmd, 'vulture', success_exit_codes=[0, 1, 3], skip_parser=True, timeout=60)
 
             if vulture_result.get('status') == 'error':
                 results['vulture'] = vulture_result
@@ -1045,7 +1045,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             
             cmd.append(str(source_path))
             
-            result = await self._run_tool(cmd, 'ruff', config=ruff_config, success_exit_codes=[0, 1], skip_parser=True, timeout=300)
+            result = await self._run_tool(cmd, 'ruff', config=ruff_config, success_exit_codes=[0, 1], skip_parser=True, timeout=60)
             if result.get('status') != 'error' and 'output' in result:
                 try:
                     sarif_data = json.loads(result['output'])
@@ -1086,7 +1086,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             for ignore_dir in ['node_modules', 'venv', '.venv', '__pycache__', '.git']:
                 cmd.extend(['-e', f'*/{ignore_dir}/*'])
             
-            result = await self._run_tool(cmd, 'radon', config=radon_config, success_exit_codes=[0], timeout=300)
+            result = await self._run_tool(cmd, 'radon', config=radon_config, success_exit_codes=[0], timeout=60)
             
             # Calculate total complexity issues (functions with complexity > C grade)
             if result.get('status') in ('success', 'no_issues') and result.get('issues'):
@@ -1106,7 +1106,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             # Scan recursively
             cmd = ['detect-secrets', 'scan', str(source_path)]
             # detect-secrets outputs JSON to stdout
-            results['detect-secrets'] = await self._run_tool(cmd, 'detect-secrets', config=secrets_config, success_exit_codes=[0], timeout=300)
+            results['detect-secrets'] = await self._run_tool(cmd, 'detect-secrets', config=secrets_config, success_exit_codes=[0], timeout=60)
 
         
         # Summarize per-tool status for Python analyzers (always generate)
@@ -1207,7 +1207,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 else:
                     cmd.append(str(source_path))
 
-                result = await self._run_tool(cmd, 'eslint', config=eslint_config, success_exit_codes=[0, 1, 2], skip_parser=True, timeout=300)
+                result = await self._run_tool(cmd, 'eslint', config=eslint_config, success_exit_codes=[0, 1, 2], skip_parser=True, timeout=60)
                 if result.get('status') != 'error' and 'output' in result:
                     try:
                         sarif_data = json.loads(result['output'])
@@ -1298,7 +1298,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                             audit_dir = Path(temp_dir)
                         
                         cmd = ['npm', 'audit', '--json']
-                        npm_audit_result = await self._run_tool(cmd, 'npm-audit', config=npm_audit_config, success_exit_codes=[0, 1], skip_parser=True, timeout=300)
+                        npm_audit_result = await self._run_tool(cmd, 'npm-audit', config=npm_audit_config, success_exit_codes=[0, 1], skip_parser=True, timeout=60)
                         
                         if npm_audit_result.get('status') != 'error' and 'output' in npm_audit_result:
                             try:
@@ -1366,7 +1366,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         ):
             cmd = ['snyk', 'code', 'test', '--json', str(source_path)]
             
-            snyk_result = await self._run_tool(cmd, 'snyk', success_exit_codes=[0, 1], timeout=300)
+            snyk_result = await self._run_tool(cmd, 'snyk', success_exit_codes=[0, 1], timeout=60)
 
             if snyk_result.get('status') == 'error':
                 error_msg = snyk_result.get('error', '').lower()
@@ -1463,7 +1463,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
 
                 # Use _run_tool which now has StylelintParser registered
                 # Stylelint exit code 2 means issues found, which is a "success" for the tool
-                result = await self._run_tool(cmd, 'stylelint', config=stylelint_cfg, success_exit_codes=[0, 1, 2], timeout=300)
+                result = await self._run_tool(cmd, 'stylelint', config=stylelint_cfg, success_exit_codes=[0, 1, 2], timeout=60)
                 results['stylelint'] = result
                 
             except Exception as e:
@@ -1504,7 +1504,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
 
             # Use _run_tool with registered HTMLValidatorParser
             # html-validator-cli exit code 1 means issues found
-            result = await self._run_tool(cmd, 'html-validator', config=html_config, success_exit_codes=[0, 1], timeout=300)
+            result = await self._run_tool(cmd, 'html-validator', config=html_config, success_exit_codes=[0, 1], timeout=60)
             results['html-validator'] = result
         
         return results
