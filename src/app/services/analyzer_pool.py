@@ -411,6 +411,17 @@ class AnalyzerPool:
                             raise RuntimeError(
                                 f"Connection stalled: no response for {self.config.message_timeout}s"
                             )
+                        except websockets.ConnectionClosed as cc:
+                            # Connection closed by server - if code is 1000 (OK), treat as success
+                            if cc.code == 1000 and result:
+                                logger.debug(f"Connection closed normally (1000) with result")
+                                break
+                            elif cc.code == 1000:
+                                # Closed OK but no result yet - might have been sent before close
+                                logger.warning(f"Connection closed (1000) but no result captured from {endpoint.url}")
+                                raise RuntimeError(f"Connection closed before result received")
+                            else:
+                                raise RuntimeError(f"Connection closed with code {cc.code}: {cc.reason}")
                         
                         data = json.loads(response_msg)
                         msg_type = data.get('type', '')
