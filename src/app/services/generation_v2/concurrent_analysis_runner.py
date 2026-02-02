@@ -170,6 +170,7 @@ class ConcurrentAnalysisRunner:
             logger.warning("Analyzer containers not fully healthy, proceeding anyway (static analysis may work)")
         
         # STEP 2: Pre-build app containers in parallel (if enabled)
+        # Note: Even for "existing" apps, we should check/build containers unless explicitly skipped
         if auto_start_app_containers and not skip_container_build:
             logger.info("[STEP 2] Pre-building app containers...")
             await self._prebuild_app_containers(jobs)
@@ -334,13 +335,20 @@ class ConcurrentAnalysisRunner:
                 if not job.containers_ready and final_tools:
                     # Filter to only keep static tools
                     original_count = len(final_tools)
-                    final_tools = [t for t in final_tools if t.lower() in STATIC_ANALYSIS_TOOLS]
+                    # Normalize tool names for robust comparison
+                    filtered_tools = [
+                        t for t in final_tools 
+                        if t.lower() in STATIC_ANALYSIS_TOOLS or 
+                           any(st in t.lower() for st in STATIC_ANALYSIS_TOOLS)
+                    ]
 
-                    if original_count > len(final_tools):
+                    # If we filtered out non-static tools, log it
+                    if original_count > len(filtered_tools):
                         logger.warning(
                             f"Containers not ready for {job.model_slug}/app{job.app_number} - "
-                            f"downgraded to static analysis only (kept {len(final_tools)}/{original_count} tools)"
+                            f"downgraded to static analysis only (kept {len(filtered_tools)}/{original_count} tools)"
                         )
+                        final_tools = filtered_tools
 
                     # If no tools remain after filtering, log warning but continue with empty list
                     # The analyzer will use all available static tools as fallback
@@ -349,7 +357,9 @@ class ConcurrentAnalysisRunner:
                             f"{job.model_slug}/app{job.app_number}: No static tools in selection, "
                             f"will use all available static tools as fallback"
                         )
-                        # Don't set task_id to None - let it proceed with empty tool list (= all static tools)
+                        # Ensure we don't pass an empty list if we want fallback, 
+                        # OR if the downstream service handles empty list as "all static", then fine.
+                        # AnalysisTaskService.create_main_task_with_subtasks usually interprets empty as "all available for this category"
                 elif not job.containers_ready:
                     # No tools specified but containers failed - use all static tools
                     logger.info(
