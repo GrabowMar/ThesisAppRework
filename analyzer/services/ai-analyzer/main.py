@@ -722,9 +722,8 @@ Focus on whether the functionality described in the requirement is actually impl
             # Build base URL with correct container naming for Docker network
             safe_slug = model_slug.replace('_', '-').replace('.', '-')
             container_prefix = f"{safe_slug}-app{app_number}"
-            # Use container name and standard internal port 5000 for backend
-            internal_backend_port = 5000 
-            base_url = f"http://{container_prefix}_backend:{internal_backend_port}"
+            # Use detected backend port (from .env or default)
+            base_url = f"http://{container_prefix}_backend:{backend_port}"
             self.log.info(f"Using base URL for endpoint testing: {base_url}")
             
             # Get auth token for admin endpoints
