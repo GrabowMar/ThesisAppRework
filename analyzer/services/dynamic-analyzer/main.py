@@ -1008,6 +1008,15 @@ class DynamicAnalyzer(BaseWSService):
             msg_type = message_data.get("type", "unknown")
             self.log.info(f"[HANDLE_MESSAGE] Received message type={msg_type}, keys={list(message_data.keys())}")
 
+            if msg_type == "health_check":
+                # Handle standard health check messages
+                return {
+                    "type": "health_check_response",
+                    "status": "healthy",
+                    "timestamp": datetime.now().isoformat(),
+                    "id": message_data.get("id", "response")
+                }
+
             if msg_type == "dynamic_analyze":
                 model_slug = message_data.get("model_slug", "unknown")
                 app_number = message_data.get("app_number", 1)
