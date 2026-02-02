@@ -691,6 +691,7 @@ class PipelineExecutionService:
 
         # Check if analysis is enabled at all
         if not analysis_config.get('enabled', True):
+            self._log("ANAL", "Analysis disabled - using batch mode")
             return False
 
         # Check for explicit streaming mode flag (default: True for immediate analysis)
@@ -698,9 +699,12 @@ class PipelineExecutionService:
         
         # Disable streaming for existing mode (must use batch to submit tasks)
         gen_config = config.get('generation', {})
-        if gen_config.get('mode') == 'existing':
+        gen_mode = gen_config.get('mode')
+        if gen_mode == 'existing':
+            self._log("ANAL", f"Existing mode detected (gen_mode={gen_mode}) - forcing batch mode")
             return False
-            
+        
+        self._log("ANAL", f"Streaming mode={streaming_mode}, gen_mode={gen_mode}")
         return streaming_mode
 
     def _trigger_immediate_analysis(
