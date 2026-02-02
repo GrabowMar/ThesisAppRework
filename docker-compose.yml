@@ -326,7 +326,7 @@ services:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-      - AI_MODEL=${AI_MODEL:-google/gemini-2.0-flash-001}
+      - AI_MODEL=${AI_MODEL:-google/gemini-2.5-flash}
 
     volumes:
       - ./generated/apps:/app/sources:ro
@@ -558,7 +558,7 @@ services:
       - WEBSOCKET_PORT=2004
       - PYTHONPATH=/app
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-      - AI_MODEL=${AI_MODEL:-google/gemini-2.0-flash-001}
+      - AI_MODEL=${AI_MODEL:-google/gemini-2.5-flash}
 
     volumes:
       - ./generated/apps:/app/sources:ro

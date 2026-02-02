@@ -195,8 +195,8 @@ class AIAnalyzer(BaseWSService):
             self.openrouter_api_key = os.getenv('OPENROUTER_API_KEY')
             
             # Default models - Gemini Flash is cheaper than Claude Haiku
-            # Available models: google/gemini-2.0-flash-001 (fast), google/gemini-3-flash-preview-20251217, anthropic/claude-3.5-haiku
-            self.default_openrouter_model = os.getenv('AI_MODEL', 'google/gemini-2.0-flash-001')
+            # Available models: google/gemini-2.5-flash (fast), google/gemini-3-flash-preview-20251217, anthropic/claude-3.5-haiku
+            self.default_openrouter_model = os.getenv('AI_MODEL', 'google/gemini-2.5-flash')
             
             # Cost optimization settings (defaults are cheap mode)
             # BATCH_MODE: true = batch all requirements in single API call (recommended)
@@ -2860,7 +2860,7 @@ Focus on whether the admin panel functionality described in the requirement is a
                         "batch_max_response_tokens": self.batch_max_response_tokens,
                         "quality_analyzer_enabled": self.quality_analyzer_enabled,
                         "configurable_via_env": [
-                            "AI_MODEL - Default model (google/gemini-2.0-flash-001, anthropic/claude-3.5-haiku, etc.)",
+                            "AI_MODEL - Default model (google/gemini-2.5-flash, anthropic/claude-3.5-haiku, etc.)",
                             "AI_BATCH_MODE - true/false (true = cheap batch mode, false = granular mode)",
                             "AI_OPTIMIZED_MODE - true/false (true = only LLM-generated files, ~60-70% token reduction)",
                             "AI_CODE_TRUNCATION_LIMIT - Max code chars per request (default: 4000)",
@@ -2912,7 +2912,7 @@ async def main():
         print("[ai-analyzer] Starting AI Analyzer Service...")
         print("[ai-analyzer] ============================================")
         print("[ai-analyzer] COST-OPTIMIZED MODE (Dec 2025)")
-        print("[ai-analyzer] - Default model: google/gemini-2.0-flash-001 (cheaper than Haiku)")
+        print("[ai-analyzer] - Default model: google/gemini-2.5-flash (cheaper than Haiku)")
         print("[ai-analyzer] - Batch mode: ON (3-4 API calls instead of 20+)")
         print("[ai-analyzer] - Optimized mode: ON (only LLM-generated files, ~60-70% token reduction)")
         print("[ai-analyzer] - Code limit: 30000 chars (reduced tokens)")
@@ -2923,7 +2923,7 @@ async def main():
             print("[ai-analyzer] WARNING: OPENROUTER_API_KEY not set - OpenRouter analysis will be limited")
         
         # Log configuration
-        print(f"[ai-analyzer] AI_MODEL={os.getenv('AI_MODEL', 'google/gemini-2.0-flash-001')} (env or default)")
+        print(f"[ai-analyzer] AI_MODEL={os.getenv('AI_MODEL', 'google/gemini-2.5-flash')} (env or default)")
         print(f"[ai-analyzer] AI_BATCH_MODE={os.getenv('AI_BATCH_MODE', 'true')} (env or default)")
         print(f"[ai-analyzer] AI_OPTIMIZED_MODE={os.getenv('AI_OPTIMIZED_MODE', 'true')} (env or default)")
         print(f"[ai-analyzer] AI_CODE_TRUNCATION_LIMIT={os.getenv('AI_CODE_TRUNCATION_LIMIT', '30000')} (env or default)")
