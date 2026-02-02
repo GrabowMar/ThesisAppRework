@@ -695,6 +695,12 @@ class PipelineExecutionService:
 
         # Check for explicit streaming mode flag (default: True for immediate analysis)
         streaming_mode = analysis_config.get('options', {}).get('streamingAnalysis', True)
+        
+        # Disable streaming for existing mode (must use batch to submit tasks)
+        gen_config = config.get('generation', {})
+        if gen_config.get('mode') == 'existing':
+            return False
+            
         return streaming_mode
 
     def _trigger_immediate_analysis(
@@ -1574,16 +1580,35 @@ class PipelineExecutionService:
         tools = analysis_config.get('tools', [])
         auto_start_containers = analysis_opts.get('autoStartContainers', True)
         
-        # Collect apps to analyze from generation results
-        gen_results = progress.get('generation', {}).get('results', [])
+        # Collect apps to analyze
         apps_to_analyze = []
+        gen_config = config.get('generation', {})
         
-        for result in gen_results:
-            if result.get('success'):
-                apps_to_analyze.append({
-                    'model_slug': result.get('model_slug'),
-                    'app_number': result.get('app_number'),
-                })
+        if gen_config.get('mode') == 'existing':
+            # Existing mode - get from config
+            existing_apps = gen_config.get('existingApps', [])
+            for app_str in existing_apps:
+                # Format: "model_slug:app_number" or dict
+                if isinstance(app_str, dict):
+                    apps_to_analyze.append({
+                        'model_slug': app_str.get('model'),
+                        'app_number': app_str.get('app')
+                    })
+                elif ':' in app_str:
+                    parts = app_str.rsplit(':', 1)
+                    apps_to_analyze.append({
+                        'model_slug': parts[0],
+                        'app_number': int(parts[1])
+                    })
+        else:
+            # Generate mode - get from generation results
+            gen_results = progress.get('generation', {}).get('results', [])
+            for result in gen_results:
+                if result.get('success'):
+                    apps_to_analyze.append({
+                        'model_slug': result.get('model_slug'),
+                        'app_number': result.get('app_number'),
+                    })
         
         if not apps_to_analyze:
             self._log("ANAL", "No successful generated apps to analyze, transitioning to done")
