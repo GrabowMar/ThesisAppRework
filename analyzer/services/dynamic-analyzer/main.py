@@ -517,13 +517,13 @@ class DynamicAnalyzer(BaseWSService):
                 service_detection = nmap_config.get('service_detection', True)
                 scripts = nmap_config.get('scripts', ['vuln', 'http-headers', 'http-security-headers'])
                 timing = nmap_config.get('timing', 4)
-                timeout_seconds = nmap_config.get('timeout_seconds', 120)
+                timeout_seconds = nmap_config.get('timeout_seconds', 300)
             else:
                 # Fallback defaults with service detection enabled
                 service_detection = nmap_config.get('service_detection', True)
                 scripts = nmap_config.get('scripts', ['vuln', 'http-headers', 'http-security-headers'])
                 timing = nmap_config.get('timing', 4)
-                timeout_seconds = nmap_config.get('timeout_seconds', 120)
+                timeout_seconds = nmap_config.get('timeout_seconds', 300)
             
             port_list = ','.join(map(str, ports))
             cmd = ['nmap', '-p', port_list, '--open', f'-T{timing}']
