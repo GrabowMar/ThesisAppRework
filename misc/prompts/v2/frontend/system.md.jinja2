@@ -18,7 +18,7 @@ Return ONE code block:
 - react-router-dom v6 (Routes, Route, Link, useNavigate, useParams)
 - axios for API calls
 - react-hot-toast for notifications
-- @heroicons/react for icons (use multiple icon types)
+- Font Awesome for icons (use multiple icon types)
 - Tailwind CSS (dark theme)
 - clsx for conditional classes
 - date-fns for date formatting
@@ -28,20 +28,31 @@ Return ONE code block:
 - **Router**: Explicitly import `Routes`, `Route`, `Link`, `useNavigate`, `Navigate`, `useParams` etc. from `react-router-dom`.
 - **Toast**: Import `toast, { Toaster }` from `react-hot-toast`.
 
-## Heroicons v2 - CRITICAL
-**ONLY use icons from this list.** Do NOT invent icon names. Common icons:
-- Navigation: `HomeIcon`, `Bars3Icon`, `XMarkIcon`, `ChevronDownIcon`, `ChevronRightIcon`, `ArrowLeftIcon`, `ArrowRightIcon`
-- Actions: `PlusIcon`, `MinusIcon`, `TrashIcon`, `PencilSquareIcon`, `CheckIcon`, `XMarkIcon`, `MagnifyingGlassIcon`
-- User: `UserIcon`, `UserCircleIcon`, `UserGroupIcon`, `UserPlusIcon`, `UsersIcon`
-- Auth: `ArrowRightStartOnRectangleIcon` (logout), `ArrowLeftEndOnRectangleIcon` (login), `LockClosedIcon`, `KeyIcon`
-- Status: `CheckCircleIcon`, `ExclamationCircleIcon`, `ExclamationTriangleIcon`, `InformationCircleIcon`, `XCircleIcon`
-- Commerce: `ShoppingCartIcon`, `ShoppingBagIcon`, `CreditCardIcon`, `BanknotesIcon`, `ReceiptPercentIcon`
-- Data: `ChartBarIcon`, `ChartPieIcon`, `ArrowTrendingUpIcon`, `ArrowTrendingDownIcon`, `PresentationChartLineIcon`
-- UI: `StarIcon`, `HeartIcon`, `BellIcon`, `CogIcon`, `EyeIcon`, `EyeSlashIcon`, `SparklesIcon`, `FireIcon`
-- Documents: `DocumentIcon`, `DocumentTextIcon`, `ClipboardIcon`, `FolderIcon`, `ArchiveBoxIcon`
-- Communication: `EnvelopeIcon`, `ChatBubbleLeftIcon`, `PhoneIcon`, `ShareIcon`, `LinkIcon`
-- **WRONG names (DO NOT USE)**: `LogOutIcon`, `LogInIcon`, `TrendingUpIcon`, `SettingsIcon`, `CloseIcon`, `MenuIcon`, `SearchIcon`
-Import from: `@heroicons/react/24/outline`
+## Font Awesome Icons - USAGE
+Import icons from Font Awesome packages. Use the `FontAwesomeIcon` component.
+
+```jsx
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { 
+  faHome, faUser, faSearch, faCog, faSignOutAlt, faSignInAlt,
+  faPlus, faMinus, faTrash, faEdit, faCheck, faTimes,
+  faChartBar, faChartPie, faChartLine, faBell, faEnvelope,
+  faShoppingCart, faCreditCard, faStar, faHeart, faEye,
+  faEyeSlash, faLock, faUnlock, faFilter, faSort, faDownload,
+  faUpload, faCopy, faShare, faLink, faExclamationTriangle,
+  faCheckCircle, faTimesCircle, faInfoCircle, faQuestionCircle,
+  faArrowLeft, faArrowRight, faArrowUp, faArrowDown,
+  faChevronLeft, faChevronRight, faChevronUp, faChevronDown,
+  faBars, faEllipsisH, faEllipsisV, faSpinner, faSync
+} from '@fortawesome/free-solid-svg-icons';
+
+// Usage in JSX:
+<FontAwesomeIcon icon={faHome} className="w-5 h-5" />
+<FontAwesomeIcon icon={faUser} className="text-blue-500" />
+<FontAwesomeIcon icon={faSpinner} spin /> // animated spinner
+```
+
+Common icons: `faHome`, `faUser`, `faSearch`, `faCog`, `faSignOutAlt`, `faSignInAlt`, `faPlus`, `faTrash`, `faEdit`, `faCheck`, `faTimes`, `faChartBar`, `faBell`, `faShoppingCart`, `faStar`, `faHeart`, `faEye`, `faLock`, `faFilter`, `faSort`
 
 ## Design System
 ```jsx
