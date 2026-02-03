@@ -55,6 +55,7 @@ Create reusable, styled components within the same file:
 ## Technical Constraints
 - Use **Vite + React + Tailwind CSS**.
 - Required packages: `react`, `react-router-dom`, `axios`, `react-hot-toast`, `@heroicons/react`, `date-fns`, `clsx`.
+- **Heroicons**: ONLY use valid v2.1 icon names. Examples: `HomeIcon`, `UserIcon`, `CogIcon`, `TrashIcon`, `PlusIcon`, `ArrowRightStartOnRectangleIcon` (logout). Do NOT use: `LogOutIcon`, `LogInIcon`, `TrendingUpIcon`, `SettingsIcon` - these do NOT exist!
 - **Single File**: All components and pages must be in `App.jsx`. Use internal functions and constants to organize.
 - **API URLs**: Use relative paths (e.g., `/api/items`) or handle base URL via `import.meta.env.VITE_API_BASE_URL`.
 

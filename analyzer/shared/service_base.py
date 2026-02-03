@@ -175,8 +175,9 @@ class BaseWSService:
                     if msg_type in ("analysis_request", "static_analyze", "dynamic_analyze", "performance_test", "ai_analyze"):
                         # Analysis requests are terminal - close connection gracefully after response sent
                         self.log.debug(f"Analysis complete for {client}, closing connection")
-                        # IMPORTANT: Close from server side to ensure response is fully sent before close
-                        # This prevents race condition where client closes before reading full response
+                        # IMPORTANT: Wait briefly to ensure the response is fully transmitted to client
+                        # before initiating close handshake. Large responses (100MB+) need time to flush.
+                        await asyncio.sleep(0.5)
                         await websocket.close(code=1000, reason="Analysis complete")
                         break  # Exit the message loop after closing
 

@@ -25,9 +25,23 @@ Return ONE code block:
 
 ## Imports Checklist
 - **MUST** import every used component and hook from its package.
-- **Heroicons**: Only use valid v2 names like `ShieldCheckIcon`, `TrashIcon`, `PencilSquareIcon` from `@heroicons/react/24/outline`.
 - **Router**: Explicitly import `Routes`, `Route`, `Link`, `useNavigate`, `Navigate`, `useParams` etc. from `react-router-dom`.
 - **Toast**: Import `toast, { Toaster }` from `react-hot-toast`.
+
+## Heroicons v2 - CRITICAL
+**ONLY use icons from this list.** Do NOT invent icon names. Common icons:
+- Navigation: `HomeIcon`, `Bars3Icon`, `XMarkIcon`, `ChevronDownIcon`, `ChevronRightIcon`, `ArrowLeftIcon`, `ArrowRightIcon`
+- Actions: `PlusIcon`, `MinusIcon`, `TrashIcon`, `PencilSquareIcon`, `CheckIcon`, `XMarkIcon`, `MagnifyingGlassIcon`
+- User: `UserIcon`, `UserCircleIcon`, `UserGroupIcon`, `UserPlusIcon`, `UsersIcon`
+- Auth: `ArrowRightStartOnRectangleIcon` (logout), `ArrowLeftEndOnRectangleIcon` (login), `LockClosedIcon`, `KeyIcon`
+- Status: `CheckCircleIcon`, `ExclamationCircleIcon`, `ExclamationTriangleIcon`, `InformationCircleIcon`, `XCircleIcon`
+- Commerce: `ShoppingCartIcon`, `ShoppingBagIcon`, `CreditCardIcon`, `BanknotesIcon`, `ReceiptPercentIcon`
+- Data: `ChartBarIcon`, `ChartPieIcon`, `ArrowTrendingUpIcon`, `ArrowTrendingDownIcon`, `PresentationChartLineIcon`
+- UI: `StarIcon`, `HeartIcon`, `BellIcon`, `CogIcon`, `EyeIcon`, `EyeSlashIcon`, `SparklesIcon`, `FireIcon`
+- Documents: `DocumentIcon`, `DocumentTextIcon`, `ClipboardIcon`, `FolderIcon`, `ArchiveBoxIcon`
+- Communication: `EnvelopeIcon`, `ChatBubbleLeftIcon`, `PhoneIcon`, `ShareIcon`, `LinkIcon`
+- **WRONG names (DO NOT USE)**: `LogOutIcon`, `LogInIcon`, `TrendingUpIcon`, `SettingsIcon`, `CloseIcon`, `MenuIcon`, `SearchIcon`
+Import from: `@heroicons/react/24/outline`
 
 ## Design System
 ```jsx
