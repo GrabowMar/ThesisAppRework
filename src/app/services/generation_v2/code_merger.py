@@ -419,6 +419,9 @@ class CodeMerger:
 
         # Fix API URLs
         code = self._fix_api_urls(code)
+        
+        # Fix invalid heroicon imports (common LLM mistakes)
+        code = self._fix_heroicons(code)
 
         # Ensure default export for App component
         if 'export default' not in code:
@@ -571,6 +574,101 @@ class CodeMerger:
         """Fix API URLs for Docker networking."""
         if 'localhost:5000' in code or 'localhost:5001' in code:
             code = re.sub(r'http://localhost:500[01]', '', code, flags=re.IGNORECASE)
+        return code
+
+    def _fix_heroicons(self, code: str) -> str:
+        """Fix common heroicons v2 import errors.
+        
+        LLMs frequently hallucinate icon names that don't exist in heroicons v2.
+        This method replaces common invalid names with correct equivalents.
+        """
+        # Map of invalid icon names to valid heroicons v2 replacements
+        icon_fixes = {
+            # Logout/Login icons
+            'LogOutIcon': 'ArrowRightStartOnRectangleIcon',
+            'LogoutIcon': 'ArrowRightStartOnRectangleIcon',
+            'SignOutIcon': 'ArrowRightStartOnRectangleIcon',
+            'LogInIcon': 'ArrowLeftEndOnRectangleIcon',
+            'LoginIcon': 'ArrowLeftEndOnRectangleIcon',
+            'SignInIcon': 'ArrowLeftEndOnRectangleIcon',
+            # Common misnomers
+            'SettingsIcon': 'Cog6ToothIcon',
+            'GearIcon': 'Cog6ToothIcon',
+            'CloseIcon': 'XMarkIcon',
+            'CrossIcon': 'XMarkIcon',
+            'MenuIcon': 'Bars3Icon',
+            'HamburgerIcon': 'Bars3Icon',
+            'SearchIcon': 'MagnifyingGlassIcon',
+            'TrendingUpIcon': 'ArrowTrendingUpIcon',
+            'TrendingDownIcon': 'ArrowTrendingDownIcon',
+            'RefreshIcon': 'ArrowPathIcon',
+            'ReloadIcon': 'ArrowPathIcon',
+            # Chart icons
+            'BarChartIcon': 'ChartBarIcon',
+            'LineChartIcon': 'ChartBarIcon',
+            'PieChartIcon': 'ChartPieIcon',
+            # Zoom icons
+            'ZoomInIcon': 'MagnifyingGlassPlusIcon',
+            'ZoomOutIcon': 'MagnifyingGlassMinusIcon',
+            # Message icons
+            'MessageSquareIcon': 'ChatBubbleLeftIcon',
+            'MessageIcon': 'ChatBubbleLeftIcon',
+            'ChatIcon': 'ChatBubbleLeftIcon',
+            'CommentIcon': 'ChatBubbleLeftIcon',
+            # Navigation
+            'LeftArrowIcon': 'ArrowLeftIcon',
+            'RightArrowIcon': 'ArrowRightIcon',
+            'UpArrowIcon': 'ArrowUpIcon',
+            'DownArrowIcon': 'ArrowDownIcon',
+            'BackIcon': 'ArrowLeftIcon',
+            'ForwardIcon': 'ArrowRightIcon',
+            # Other common ones
+            'MoreIcon': 'EllipsisHorizontalIcon',
+            'DotsIcon': 'EllipsisHorizontalIcon',
+            'MoreVerticalIcon': 'EllipsisVerticalIcon',
+            'VerticalDotsIcon': 'EllipsisVerticalIcon',
+            'FilterIcon': 'FunnelIcon',
+            'SortIcon': 'BarsArrowDownIcon',
+            'DownloadIcon': 'ArrowDownTrayIcon',
+            'UploadIcon': 'ArrowUpTrayIcon',
+            'SaveIcon': 'ArrowDownTrayIcon',
+            'DeleteIcon': 'TrashIcon',
+            'RemoveIcon': 'TrashIcon',
+            'EditIcon': 'PencilSquareIcon',
+            'ModifyIcon': 'PencilSquareIcon',
+            'AddIcon': 'PlusIcon',
+            'CreateIcon': 'PlusIcon',
+            'CopyIcon': 'DocumentDuplicateIcon',
+            'DuplicateIcon': 'DocumentDuplicateIcon',
+            'ShareIcon': 'ShareIcon',  # This one actually exists, kept for completeness
+            'LinkIcon': 'LinkIcon',  # This one exists too
+            'MailIcon': 'EnvelopeIcon',
+            'EmailIcon': 'EnvelopeIcon',
+            'NotificationIcon': 'BellIcon',
+            'AlertIcon': 'ExclamationTriangleIcon',
+            'WarningIcon': 'ExclamationTriangleIcon',
+            'ErrorIcon': 'ExclamationCircleIcon',
+            'InfoIcon': 'InformationCircleIcon',
+            'HelpIcon': 'QuestionMarkCircleIcon',
+            'ProfileIcon': 'UserIcon',
+            'AccountIcon': 'UserIcon',
+            'LockIcon': 'LockClosedIcon',
+            'UnlockIcon': 'LockOpenIcon',
+            'VisibleIcon': 'EyeIcon',
+            'HiddenIcon': 'EyeSlashIcon',
+            'ShowIcon': 'EyeIcon',
+            'HideIcon': 'EyeSlashIcon',
+        }
+        
+        changes_made = []
+        for invalid, valid in icon_fixes.items():
+            if invalid in code and invalid != valid:
+                code = code.replace(invalid, valid)
+                changes_made.append(f"{invalid} → {valid}")
+        
+        if changes_made:
+            logger.info(f"Fixed heroicons: {', '.join(changes_made)}")
+        
         return code
     
     def _merge_requirements(self, requirements_content: str) -> None:
