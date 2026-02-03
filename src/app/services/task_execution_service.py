@@ -2191,11 +2191,17 @@ class TaskExecutionService:
                     )
                 
                 # Execute via WebSocket to analyzer microservice
-                # AI analyzer gets longer timeout for external API calls
+                # Timeout per service based on typical execution times:
+                # - AI analyzer: 600s (external API calls can be slow)
+                # - Dynamic analyzer: 600s (ZAP spider + passive scan for 2 targets ~5-8 min)
+                # - Static analyzer: 480s (14 tools, some like mypy/semgrep are slow)
+                # - Performance tester: 300s (load tests with warmup)
                 if service_name == 'ai-analyzer':
                     service_timeout = 600
+                elif service_name == 'dynamic-analyzer':
+                    service_timeout = 600  # ZAP scans take 5-8 min for 2 targets
                 elif service_name == 'static-analyzer':
-                    service_timeout = 300  # Tools have 60-90s individual timeouts
+                    service_timeout = 480  # 14 tools, some are slow
                 else:
                     service_timeout = 300
                 result = self._execute_via_websocket(

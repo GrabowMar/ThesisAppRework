@@ -84,8 +84,11 @@ class AnalyzerPoolConfig:
     connection_timeout: int = 10
     max_consecutive_failures: int = 5  # Mark unhealthy after N failures (increased from 3 for high-concurrency tolerance)
     cooldown_period: int = 20  # Seconds to wait before retrying unhealthy endpoint (reduced from 60 for faster recovery)
-    ping_interval: int = 30  # Websocket ping interval to detect dead connections
-    ping_timeout: int = 10  # Timeout waiting for pong response
+    # DISABLED: ping_interval/ping_timeout cause false-positive connection closures when
+    # analyzers are running long synchronous subprocesses (ZAP, bandit, etc.) that block
+    # the event loop and prevent timely pong responses. Server already disables pings.
+    ping_interval: Optional[int] = None  # Disabled - analyzers can't respond during sync work
+    ping_timeout: Optional[int] = None   # Disabled - relies on message_timeout instead
     message_timeout: int = 600  # Timeout for receiving individual messages (progress updates) - increased to 10 min to match request_timeout for long-running static analyses
 
 
