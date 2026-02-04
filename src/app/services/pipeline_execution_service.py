@@ -2151,6 +2151,47 @@ class PipelineExecutionService:
             self._log(
                 "ANAL", f"Created analysis task {task.task_id} for {model_slug} app {app_number} (unified={len(tools_by_service) > 1}, services={len(tools_by_service)}, tools={len(valid_tool_names)}, subtasks={len(subtask_ids)})"
             )
+            
+            # ========== FIX: IMMEDIATELY DISPATCH SUBTASKS ==========
+            # Instead of relying on TaskExecutionService daemon to pick up the task (which can
+            # cause race conditions), dispatch subtasks directly here. This ensures tasks are
+            # executed as soon as they're created.
+            if subtask_ids:
+                try:
+                    # Mark main task as RUNNING before dispatch
+                    task.status = AnalysisStatus.RUNNING
+                    task.started_at = datetime.now(timezone.utc)
+                    db.session.commit()
+                    
+                    # Get TaskExecutionService and dispatch subtasks
+                    from app.services.service_locator import ServiceLocator
+                    task_exec_service = ServiceLocator.get_task_execution_service()
+                    
+                    if task_exec_service:
+                        self._log(
+                            "ANAL", f"Dispatching {len(subtask_ids)} subtasks for {task.task_id} immediately"
+                        )
+                        dispatch_result = task_exec_service.submit_parallel_subtasks(
+                            task.task_id, subtask_ids
+                        )
+                        dispatch_status = dispatch_result.get('status', 'unknown')
+                        self._log(
+                            "ANAL", f"Subtask dispatch for {task.task_id}: status={dispatch_status}"
+                        )
+                    else:
+                        self._log(
+                            "ANAL", f"TaskExecutionService not available - task {task.task_id} will be picked up by daemon",
+                            level='warning'
+                        )
+                except Exception as dispatch_err:
+                    # Log but don't fail - daemon can still pick up the task
+                    self._log(
+                        "ANAL", f"Failed to dispatch subtasks for {task.task_id}: {dispatch_err}. "
+                        "Task will be picked up by daemon.",
+                        level='warning'
+                    )
+            # ========== END FIX ==========
+            
             return task.task_id
             
         except Exception as e:

@@ -211,7 +211,8 @@ class AIAnalyzer(BaseWSService):
             # Batch max tokens - larger for batch mode since it contains multiple results
             self.batch_max_response_tokens = int(os.getenv('AI_BATCH_MAX_TOKENS', '1500'))
             # Enable/disable code quality analyzer tool (8 extra API calls when granular)
-            self.quality_analyzer_enabled = os.getenv('AI_QUALITY_ANALYZER_ENABLED', 'false').lower() == 'true'
+            # Default: true - enabled by default as it's a core AI analyzer feature
+            self.quality_analyzer_enabled = os.getenv('AI_QUALITY_ANALYZER_ENABLED', 'true').lower() == 'true'
             
             # OPTIMIZED MODE: Only scan LLM-generated files (not scaffolding)
             # This dramatically reduces token usage by ~60-70%
@@ -2768,6 +2769,11 @@ Focus on whether the admin panel functionality described in the requirement is a
                 if not self.quality_analyzer_enabled and "code-quality-analyzer" in tools:
                     tools.remove("code-quality-analyzer")
                     self.log.info("[TOOL-ROUTING] code-quality-analyzer disabled via AI_QUALITY_ANALYZER_ENABLED=false")
+                
+                # Safety: If all requested tools were disabled/filtered, fall back to defaults
+                if not tools:
+                    tools = ["requirements-scanner"]
+                    self.log.info("[TOOL-ROUTING] No valid tools after filtering - defaulting to requirements-scanner")
                 
                 # Validate template_slug is provided in config
                 if not config or not config.get('template_slug'):

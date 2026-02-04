@@ -214,11 +214,15 @@ class PooledAnalyzerManager(BaseAnalyzerManager):
         Returns:
             AI analysis results dictionary
         """
+        # Apply default tools if none specified (matching base class behavior)
+        if tools is None:
+            tools = ['requirements-scanner', 'code-quality-analyzer']
+        
         message = {
             "type": "ai_analyze",
             "model_slug": model_slug,
             "app_number": app_number,
-            "tools": tools or [],
+            "tools": tools,
             "config": config or {},
         }
 
