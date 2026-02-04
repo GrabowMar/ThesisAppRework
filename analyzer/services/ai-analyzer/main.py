@@ -598,7 +598,7 @@ Focus on whether the functionality described in the requirement is actually impl
         
         return env_vars
 
-    async def scan_requirements(self, model_slug: str, app_number: int, backend_port: int, frontend_port: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
+    async def scan_requirements(self, model_slug: str, app_number: int, backend_port: int, frontend_port: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None, target_urls: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         UNIFIED REQUIREMENTS SCANNER - Analyzes Backend + Frontend + Admin requirements.
         
@@ -609,6 +609,10 @@ Focus on whether the functionality described in the requirement is actually impl
         4. API endpoints testing (public + admin with auth)
         
         Scans backend/ and frontend/ directories for code analysis.
+        
+        Args:
+            target_urls: Optional list of pre-resolved container URLs [backend_url, frontend_url].
+                        If provided, these are used for endpoint testing instead of constructing from model_slug.
         """
         try:
             # Find application path
@@ -719,12 +723,23 @@ Focus on whether the functionality described in the requirement is actually impl
             
             await self.send_progress('testing_endpoints', f"Testing {len(all_endpoints)} API endpoints ({len(control_endpoints)} public, {len(admin_endpoints)} admin)", analysis_id=analysis_id)
             
-            # Build base URL with correct container naming for Docker network
-            safe_slug = model_slug.replace('_', '-').replace('.', '-')
-            container_prefix = f"{safe_slug}-app{app_number}"
-            # Use detected backend port (from .env or default)
-            base_url = f"http://{container_prefix}_backend:{backend_port}"
-            self.log.info(f"Using base URL for endpoint testing: {base_url}")
+            # Build base URL - prefer pre-resolved target_urls if available
+            if target_urls:
+                # Extract backend URL from target_urls (first URL with '_backend' or first URL)
+                base_url = None
+                for url in target_urls:
+                    if '_backend' in url:
+                        base_url = url
+                        break
+                if not base_url and target_urls:
+                    base_url = target_urls[0]
+                self.log.info(f"Using pre-resolved target URL for endpoint testing: {base_url}")
+            else:
+                # Fallback: construct from model_slug (legacy behavior, may fail with build_id containers)
+                safe_slug = model_slug.replace('_', '-').replace('.', '-')
+                container_prefix = f"{safe_slug}-app{app_number}"
+                base_url = f"http://{container_prefix}_backend:{backend_port}"
+                self.log.warning(f"No target_urls provided, using constructed URL (may fail with build_id containers): {base_url}")
             
             # Get auth token for admin endpoints
             auth_token = None
@@ -1028,9 +1043,9 @@ Focus on whether the functionality described in the requirement is actually impl
             }
     
     # Backwards compatibility alias
-    async def check_requirements_with_curl(self, model_slug: str, app_number: int, backend_port: int, frontend_port: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
+    async def check_requirements_with_curl(self, model_slug: str, app_number: int, backend_port: int, frontend_port: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None, target_urls: Optional[List[str]] = None) -> Dict[str, Any]:
         """Backwards compatibility wrapper for scan_requirements."""
-        return await self.scan_requirements(model_slug, app_number, backend_port, frontend_port, config, analysis_id)
+        return await self.scan_requirements(model_slug, app_number, backend_port, frontend_port, config, analysis_id, target_urls)
     
 
 
@@ -2728,6 +2743,10 @@ Focus on whether the admin panel functionality described in the requirement is a
                 app_number = message_data.get("app_number", 1)
                 config = message_data.get("config", None)
                 analysis_id = message_data.get("id")
+                # Extract target_urls for endpoint testing (pre-resolved by task_execution_service)
+                target_urls = message_data.get("target_urls", None)
+                if target_urls:
+                    self.log.info(f"[HANDLE_MESSAGE] Received pre-resolved target_urls: {target_urls}")
                 # Tool selection - support both old and new names, default to requirements only
                 requested_tools = list(self.extract_selected_tools(message_data) or ["requirements-scanner"])
                 
@@ -2788,7 +2807,7 @@ Focus on whether the admin panel functionality described in the requirement is a
                     frontend_port = config.get('frontend_port', 8000) if config else 8000
                     
                     req_result = await self.scan_requirements(
-                        model_slug, app_number, backend_port, frontend_port, config, analysis_id=analysis_id
+                        model_slug, app_number, backend_port, frontend_port, config, analysis_id=analysis_id, target_urls=target_urls
                     )
                     aggregated_results['tools']['requirements-scanner'] = req_result
                     tools_run += 1

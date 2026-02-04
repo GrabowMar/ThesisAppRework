@@ -2894,9 +2894,9 @@ class TaskExecutionService:
         
         message_type = MESSAGE_TYPES.get(service_name, 'analysis_request')
         
-        # Resolve target URLs for dynamic/performance analysis
+        # Resolve target URLs for dynamic/performance/AI analysis
         target_urls = []
-        if service_name in ('performance-tester', 'dynamic-analyzer'):
+        if service_name in ('performance-tester', 'dynamic-analyzer', 'ai-analyzer'):
             try:
                 from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
                 analyzer_mgr = get_analyzer_wrapper().manager
