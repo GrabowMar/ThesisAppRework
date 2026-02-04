@@ -295,7 +295,7 @@
   text-decoration: none;
   border-radius: calc(var(--tblr-border-radius) - 2px);
   white-space: nowrap;
-  transition: all 0.15s ease;
+  transition: color 0.15s ease, background-color 0.15s ease;
   position: relative;
 }
 

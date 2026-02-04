@@ -663,17 +663,12 @@ body.sidebar-collapsed footer.footer {
 
 /* Enhanced button styles */
 .btn {
-	transition: all 0.2s ease;
+	transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 	box-shadow: var(--shadow-sm);
 }
 
 .btn:hover {
-	transform: translateY(0);
 	box-shadow: var(--shadow-sm);
-}
-
-.btn:active {
-	transform: translateY(0);
 }
 
 .btn-primary:hover {
@@ -1065,11 +1060,10 @@ a:hover {
 /* Card hover effects */
 .card-link.hover-shadow:hover {
 	box-shadow: var(--shadow-md);
-	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .card-link {
-	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Enhanced input and form controls */
@@ -1095,12 +1089,11 @@ a:hover {
 }
 
 .table tbody tr {
-	transition: background-color 0.15s ease, transform 0.15s ease;
+	transition: background-color 0.15s ease;
 }
 
 .table tbody tr:hover {
 	background-color: rgba(13, 110, 253, 0.04);
-	transform: scale(1.002);
 }
 
 :root[data-bs-theme='dark'] .table tbody tr:hover {
@@ -1132,7 +1125,7 @@ a:hover {
 
 .selectable-card {
 	cursor: pointer;
-	transition: all 0.2s ease;
+	transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
 	border: 2px solid transparent;
 }
 
@@ -1147,7 +1140,7 @@ a:hover {
 }
 
 .selectable-card.selected .avatar {
-	transform: scale(1.05);
+	box-shadow: 0 0 0 2px var(--tblr-primary);
 }
 
 /* Mode warning badge animation */

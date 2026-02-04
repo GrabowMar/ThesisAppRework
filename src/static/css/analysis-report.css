@@ -270,11 +270,10 @@ pre code {
 
 /* Tool Detail Button */
 .tool-detail-btn {
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .tool-detail-btn:hover {
-  transform: scale(1.1);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
