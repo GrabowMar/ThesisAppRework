@@ -343,6 +343,7 @@ services:
     restart: unless-stopped
     networks:
       - thesis-network
+      - thesis-apps-network
     deploy:
       resources:
         limits:
@@ -574,6 +575,7 @@ services:
     restart: unless-stopped
     networks:
       - thesis-network
+      - thesis-apps-network
     deploy:
       resources:
         limits:
