@@ -321,14 +321,14 @@ class DependencyHealer:
             result.issues_fixed += api_fix['fixed_count']
             result.changes_made.extend(api_fix['changes'])
         
-        # 5. Fix heroicons v2.x import paths (common LLM mistake)
-        heroicons_fix = self._fix_heroicons_imports(src_dir, auto_fix=self.auto_fix)
-        for issue in heroicons_fix['issues']:
+        # 5. Fix icon import issues (FA hallucinations, stray heroicons)
+        icon_fix = self._fix_icon_imports(src_dir, auto_fix=self.auto_fix)
+        for issue in icon_fix['issues']:
             result.frontend_issues.append(issue)
             result.issues_found += 1
-        if heroicons_fix['fixed_count'] > 0:
-            result.issues_fixed += heroicons_fix['fixed_count']
-            result.changes_made.extend(heroicons_fix['changes'])
+        if icon_fix['fixed_count'] > 0:
+            result.issues_fixed += icon_fix['fixed_count']
+            result.changes_made.extend(icon_fix['changes'])
 
         # 6. Fix react-hot-toast usage (ToastContainer -> Toaster)
         toast_fix = self._fix_react_hot_toast_usage(src_dir, auto_fix=self.auto_fix)
@@ -750,151 +750,70 @@ class DependencyHealer:
                 result.errors.append(f"Failed to rename {old_path.name}: {e}")
                 logger.error(f"[DependencyHealer] Failed to rename {old_path}: {e}")
 
-    def _fix_heroicons_imports(self, src_dir: Path, auto_fix: bool) -> Dict[str, Any]:
-        """Fix heroicons v1.x import paths to v2.x format.
-        
-        LLMs often generate heroicons imports using the old v1.x format:
-          import { CheckIcon } from '@heroicons/react/solid'
-          import { CheckIcon } from '@heroicons/react/outline'
-        
-        But heroicons v2.x (which is in package.json) uses:
-          import { CheckIcon } from '@heroicons/react/24/solid'
-          import { CheckIcon } from '@heroicons/react/24/outline'
-          import { CheckIcon } from '@heroicons/react/20/solid'
-        
-        Also fixes icon name changes in v2.x (XIcon -> XMarkIcon, etc.)
+    def _fix_icon_imports(self, src_dir: Path, auto_fix: bool) -> Dict[str, Any]:
+        """Fix common icon import issues in generated frontend code.
+
+        Handles:
+        1. Font Awesome hallucinated names -> correct FA names
+        2. Heroicons imports -> stripped (not in package.json)
         """
         issues: List[str] = []
         changes: List[str] = []
         fixed_count = 0
-        
-        # Icon name changes from v1 to v2
-        icon_renames = {
-            'XIcon': 'XMarkIcon',
-            'MenuIcon': 'Bars3Icon',
-            'MenuAlt1Icon': 'Bars3CenterLeftIcon',
-            'MenuAlt2Icon': 'Bars3BottomLeftIcon',
-            'MenuAlt3Icon': 'Bars3BottomRightIcon',
-            'MenuAlt4Icon': 'Bars2Icon',
-            'DotsVerticalIcon': 'EllipsisVerticalIcon',
-            'DotsHorizontalIcon': 'EllipsisHorizontalIcon',
-            'ExternalLinkIcon': 'ArrowTopRightOnSquareIcon',
-            'DuplicateIcon': 'DocumentDuplicateIcon',
-            'SaveIcon': 'ArrowDownTrayIcon',
-            'SaveAsIcon': 'ArrowDownOnSquareIcon',
-            'UploadIcon': 'ArrowUpTrayIcon',
-            'DownloadIcon': 'ArrowDownTrayIcon',
-            'RefreshIcon': 'ArrowPathIcon',
-            'ReplyIcon': 'ArrowUturnLeftIcon',
-            'SwitchHorizontalIcon': 'ArrowsRightLeftIcon',
-            'SwitchVerticalIcon': 'ArrowsUpDownIcon',
-            'LogoutIcon': 'ArrowRightOnRectangleIcon',
-            'LoginIcon': 'ArrowLeftOnRectangleIcon',
-            'SortAscendingIcon': 'BarsArrowUpIcon',
-            'SortDescendingIcon': 'BarsArrowDownIcon',
-            'BadgeCheckIcon': 'CheckBadgeIcon',
-            'ChipIcon': 'CpuChipIcon',
-            'DesktopComputerIcon': 'ComputerDesktopIcon',
-            'DeviceMobileIcon': 'DevicePhoneMobileIcon',
-            'EmojiHappyIcon': 'FaceSmileIcon',
-            'EmojiSadIcon': 'FaceFrownIcon',
-            'LocationMarkerIcon': 'MapPinIcon',
-            'MailIcon': 'EnvelopeIcon',
-            'MailOpenIcon': 'EnvelopeOpenIcon',
-            'OfficeBuildingIcon': 'BuildingOfficeIcon',
-            'PencilIcon': 'PencilSquareIcon',
-            'PencilAltIcon': 'PencilSquareIcon',
-            'PhotographIcon': 'PhotoIcon',
-            'SearchIcon': 'MagnifyingGlassIcon',
-            'SearchCircleIcon': 'MagnifyingGlassCircleIcon',
-            'SelectorIcon': 'ChevronUpDownIcon',
-            'StatusOnlineIcon': 'SignalIcon',
-            'StatusOfflineIcon': 'SignalSlashIcon',
-            'SupportIcon': 'LifebuoyIcon',
-            'TerminalIcon': 'CommandLineIcon',
-            'ThumbUpIcon': 'HandThumbUpIcon',
-            'ThumbDownIcon': 'HandThumbDownIcon',
-            'TranslateIcon': 'LanguageIcon',
-            'TrendingUpIcon': 'ArrowTrendingUpIcon',
-            'TrendingDownIcon': 'ArrowTrendingDownIcon',
-            'UserAddIcon': 'UserPlusIcon',
-            'UserRemoveIcon': 'UserMinusIcon',
-            'ViewBoardsIcon': 'ViewColumnsIcon',
-            'ViewGridIcon': 'Squares2X2Icon',
-            'ViewGridAddIcon': 'SquaresPlusIcon',
-            'ViewListIcon': 'Bars4Icon',
-            'VolumeUpIcon': 'SpeakerWaveIcon',
-            'VolumeOffIcon': 'SpeakerXMarkIcon',
-            'ZoomInIcon': 'MagnifyingGlassPlusIcon',
-            'ZoomOutIcon': 'MagnifyingGlassMinusIcon',
-            # Common Hallucinations
-            'ShieldIcon': 'ShieldCheckIcon',
-            'HistoryIcon': 'ClockIcon',
-            'FilterIcon': 'FunnelIcon',
-            'RefreshIcon': 'ArrowPathIcon',
-            'EditIcon': 'PencilSquareIcon',
-            'DeleteIcon': 'TrashIcon',
-            'AddIcon': 'PlusIcon',
-            'SettingsIcon': 'Cog6ToothIcon',
-            'SearchIcon': 'MagnifyingGlassIcon',
-            'HomeIcon': 'HomeIcon',
-            'UserIcon': 'UserIcon',
-            'BellIcon': 'BellIcon',
-            'MailIcon': 'EnvelopeIcon',
-            'CalendarIcon': 'CalendarIcon',
-            'ChartIcon': 'ChartBarIcon',
-            'DatabaseIcon': 'CircleStackIcon',
-            'LockIcon': 'LockClosedIcon',
-            'UnlockIcon': 'LockOpenIcon',
-            'CameraIcon': 'CameraIcon',
-            'FolderIcon': 'FolderIcon',
+
+        # Common FA icon name hallucinations -> correct FA 6 names
+        fa_fixes = {
+            'faAlertCircle': 'faCircleExclamation',
+            'faTasks': 'faListCheck',
+            'faBarChart': 'faChartBar',
+            'faDotCircle': 'faCircleDot',
+            'faShield': 'faShieldHalved',
+            'faZap': 'faBolt',
+            'faMousePointer': 'faArrowPointer',
+            'faCalendarAlt': 'faCalendarDays',
+            'faHistory': 'faClockRotateLeft',
+            'faAlertTriangle': 'faTriangleExclamation',
+            'faKanban': 'faColumns',
         }
-        
-        # Patterns to match old v1.x heroicons imports
-        heroicons_v1_patterns = [
-            (re.compile(r"from\s+['\"]@heroicons/react/solid['\"]"), "@heroicons/react/24/solid"),
-            (re.compile(r"from\s+['\"]@heroicons/react/outline['\"]"), "@heroicons/react/24/outline"),
-        ]
-        
+
         for file_path in src_dir.rglob('*'):
             if file_path.suffix not in {'.js', '.jsx', '.ts', '.tsx'}:
                 continue
-            
+
             try:
                 content = file_path.read_text(encoding='utf-8')
                 original_content = content
-                file_changed = False
-                
-                # Fix heroicons import paths (v1 -> v2)
-                for pattern, replacement in heroicons_v1_patterns:
-                    if pattern.search(content):
-                        issues.append(
-                            f"{file_path.relative_to(src_dir.parent)}: heroicons v1.x import path needs update"
-                        )
-                        if auto_fix:
-                            content = pattern.sub(f"from '{replacement}'", content)
-                            file_changed = True
-                
-                # Fix icon name renames (v1 -> v2)
-                for old_name, new_name in icon_renames.items():
-                    # Match the icon name in import statements
-                    if re.search(rf'\b{old_name}\b', content):
-                        issues.append(
-                            f"{file_path.relative_to(src_dir.parent)}: {old_name} renamed to {new_name} in heroicons v2"
-                        )
-                        if auto_fix:
-                            content = re.sub(rf'\b{old_name}\b', new_name, content)
-                            file_changed = True
-                
-                if auto_fix and file_changed and content != original_content:
-                    file_path.write_text(content, encoding='utf-8')
-                    changes.append(f"Fixed heroicons imports in {file_path.relative_to(src_dir.parent)}")
-                    fixed_count += 1
-                    logger.info(f"[DependencyHealer] Fixed heroicons in {file_path.name}")
-                    
+                file_changes: List[str] = []
+
+                # 1. Fix FA hallucinations
+                for invalid, valid in fa_fixes.items():
+                    if invalid in content:
+                        content = content.replace(invalid, valid)
+                        file_changes.append(f"{invalid} → {valid}")
+
+                # 2. Strip heroicons imports (package not in dependencies)
+                if '@heroicons/react' in content:
+                    content = re.sub(
+                        r'^import\s+\{[^}]*\}\s+from\s+[\'"]@heroicons/react[^\'"]*[\'"];?\s*$',
+                        '// [auto-removed: heroicons not available]',
+                        content, flags=re.MULTILINE
+                    )
+                    file_changes.append("stripped heroicons imports")
+
+                if file_changes:
+                    rel = file_path.relative_to(src_dir.parent)
+                    for ch in file_changes:
+                        issues.append(f"{rel}: {ch}")
+
+                    if auto_fix and content != original_content:
+                        file_path.write_text(content, encoding='utf-8')
+                        changes.append(f"Fixed icon imports in {rel}")
+                        fixed_count += 1
+                        logger.info(f"[DependencyHealer] Fixed icon imports in {file_path.name}: {', '.join(file_changes)}")
+
             except Exception as e:
                 logger.debug(f"[DependencyHealer] Failed to process {file_path}: {e}")
-        
+
         return {
             'issues': issues,
             'changes': changes,

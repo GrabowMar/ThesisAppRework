@@ -18,7 +18,6 @@ Return ONE code block:
 - react-router-dom v6 (Routes, Route, Link, useNavigate, useParams)
 - axios for API calls
 - react-hot-toast for notifications
-- Font Awesome for icons (use multiple icon types)
 - Tailwind CSS (dark theme)
 - clsx for conditional classes
 - date-fns for date formatting
@@ -28,74 +27,17 @@ Return ONE code block:
 - **Router**: Explicitly import `Routes`, `Route`, `Link`, `useNavigate`, `Navigate`, `useParams` etc. from `react-router-dom`.
 - **Toast**: Import `toast, { Toaster }` from `react-hot-toast`.
 
-## Font Awesome Icons - USAGE
-Import icons from Font Awesome packages. Use the `FontAwesomeIcon` component.
-
-```jsx
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { 
-  faHome, faUser, faSearch, faCog, faSignOutAlt, faSignInAlt,
-  faPlus, faMinus, faTrash, faEdit, faCheck, faTimes,
-  faChartBar, faChartPie, faChartLine, faBell, faEnvelope,
-  faShoppingCart, faCreditCard, faStar, faHeart, faEye,
-  faEyeSlash, faLock, faUnlock, faFilter, faSort, faDownload,
-  faUpload, faCopy, faShare, faLink, faExclamationTriangle,
-  faCheckCircle, faTimesCircle, faInfoCircle, faQuestionCircle,
-  faArrowLeft, faArrowRight, faArrowUp, faArrowDown,
-  faChevronLeft, faChevronRight, faChevronUp, faChevronDown,
-  faBars, faEllipsisH, faEllipsisV, faSpinner, faSync
-} from '@fortawesome/free-solid-svg-icons';
-
-// Usage in JSX:
-<FontAwesomeIcon icon={faHome} className="w-5 h-5" />
-<FontAwesomeIcon icon={faUser} className="text-blue-500" />
-<FontAwesomeIcon icon={faSpinner} spin /> // animated spinner
-```
-
-Common icons: `faHome`, `faUser`, `faSearch`, `faCog`, `faSignOutAlt`, `faSignInAlt`, `faPlus`, `faTrash`, `faEdit`, `faCheck`, `faTimes`, `faChartBar`, `faBell`, `faShoppingCart`, `faStar`, `faHeart`, `faEye`, `faLock`, `faFilter`, `faSort`
-
 ## Design System
-```jsx
-const styles = {
-  // Layout
-  page: "min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white",
-  container: "max-w-7xl mx-auto px-4 py-8",
+Create a cohesive visual language using Tailwind CSS. Define a `styles` object with classes for:
+- **Layout**: page background with gradient, container with max-width
+- **Cards**: semi-transparent with backdrop-blur, rounded corners, hover effects
+- **Buttons**: primary (gradient), secondary (outlined), danger variants with transitions
+- **Inputs**: styled for dark theme with focus ring states
+- **Typography**: gradient text for headings, muted colors for labels
+- **Badges**: color-coded status variants (success, warning, danger, info)
+- **Tables**: styled headers, subtle row separators
 
-  // Cards
-  card: "bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 p-6 hover:bg-white/15 transition-all",
-  cardHover: "hover:scale-[1.02] hover:shadow-xl hover:shadow-purple-500/10",
-
-  // Buttons
-  primaryBtn: "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-semibold transition-all hover:scale-105",
-  secondaryBtn: "border border-white/30 hover:bg-white/10 text-white px-6 py-3 rounded-xl transition-all",
-  dangerBtn: "bg-red-500/20 hover:bg-red-500/40 text-red-300 px-4 py-2 rounded-lg transition-all",
-
-  // Inputs
-  input: "w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20",
-  select: "bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white",
-
-  // Typography
-  heading: "text-4xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent",
-  subheading: "text-xl text-slate-300",
-
-  // Stats
-  statCard: "bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl p-6 text-center",
-  statNumber: "text-4xl font-bold text-white",
-  statLabel: "text-sm text-slate-400 mt-1",
-
-  // Badges
-  badge: "px-3 py-1 rounded-full text-xs font-medium",
-  badgeSuccess: "bg-green-500/20 text-green-300",
-  badgeWarning: "bg-yellow-500/20 text-yellow-300",
-  badgeDanger: "bg-red-500/20 text-red-300",
-  badgeInfo: "bg-blue-500/20 text-blue-300",
-
-  // Tables
-  table: "w-full",
-  th: "text-left text-slate-400 text-sm font-medium pb-4",
-  td: "py-4 border-b border-white/10",
-};
-```
+Design qualities: dark theme base, glassmorphism, gradient accents, smooth hover transitions, consistent spacing hierarchy.
 
 ## Required Pages
 
@@ -103,11 +45,11 @@ const styles = {
 - Hero section with animated gradient
 - Stats bar (4 metrics from /api/public/stats)
 - Featured items grid (6 cards from /api/public/featured)
-- Features showcase (3-4 feature cards with icons)
+- Features showcase (3-4 feature cards with visual elements)
 - Call-to-action section
 
 ### 2. Browse Page (/browse)
-- Search input with icon
+- Search input with visual indicator
 - Category filter dropdown
 - Status filter buttons
 - Sort dropdown (newest, oldest, popular)
@@ -141,17 +83,14 @@ const styles = {
 - Charts/graphs placeholder
 
 ## Component Patterns
-```jsx
-// Reusable components to include:
-function StatCard({ icon: Icon, label, value, color }) { ... }
-function ItemCard({ item, onEdit, onDelete }) { ... }
-function SearchInput({ value, onChange, placeholder }) { ... }
-function FilterDropdown({ options, value, onChange }) { ... }
-function Pagination({ page, pages, onPageChange }) { ... }
-function Modal({ isOpen, onClose, title, children }) { ... }
-function LoadingSpinner() { ... }
-function EmptyState({ icon: Icon, title, description }) { ... }
-```
+Create reusable components within App.jsx for:
+- Stat display card (metric value + label)
+- Item card (key info + action buttons)
+- Search/filter controls (inputs + dropdowns)
+- Pagination (page numbers + prev/next)
+- Modal dialog (overlay for forms/confirmations)
+- Loading indicator (spinner or skeleton)
+- Empty state (message when no data)
 
 ## Forbidden
 - `BrowserRouter` in App.jsx (already wrapped externally)

@@ -13,7 +13,7 @@
   ],
   "frontend_requirements": [
     "Public guest view of notifications with CTA to sign in for management",
-    "1. Notification list with icon based on type, message, time ago",
+    "1. Notification list with visual indicator based on type, message, time ago",
     "2. Unread count badge in header",
     "3. Unread notifications highlighted",
     "4. 'Mark as read' button per notification",

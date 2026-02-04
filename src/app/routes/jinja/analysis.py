@@ -746,11 +746,18 @@ def analysis_result_detail(result_id: str):
         for full_name, service_data in raw_services.items():
             short_name = SERVICE_NAME_MAP.get(full_name, full_name)
             if isinstance(service_data, dict):
-                # CRITICAL FIX: Check 'analysis' first (new format), fallback to 'payload' (legacy)
-                # This ensures both pipeline results and individual runs work correctly
+                # CRITICAL FIX: Handle nested structure variations
+                # Format 1: service_data.analysis.results (direct)
+                # Format 2: service_data.payload.analysis.results (nested from Celery tasks)
+                # Format 3: service_data.payload.results (legacy)
                 analysis_data = service_data.get('analysis', {})
                 if not analysis_data:
-                    analysis_data = service_data.get('payload', {})
+                    payload = service_data.get('payload', {})
+                    # Check if payload has nested 'analysis' key (Celery task format)
+                    if isinstance(payload, dict) and 'analysis' in payload:
+                        analysis_data = payload.get('analysis', {})
+                    else:
+                        analysis_data = payload
                 
                 # AI analyzer has different structure: tools instead of results
                 if full_name == 'ai-analyzer':
