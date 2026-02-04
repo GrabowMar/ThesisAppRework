@@ -429,8 +429,19 @@ class AnalyzerPool:
                         data = json.loads(response_msg)
                         msg_type = data.get('type', '')
 
-                        # Handle different message types
-                        if msg_type in ('analysis_result', 'error', 'ai_analysis_result', 'scan_result'):
+                        # Handle different message types - use lenient detection
+                        # to match all analyzer response types (static_analysis_result,
+                        # dynamic_analysis_result, performance_analysis_result, etc.)
+                        has_analysis = isinstance(data.get('analysis'), dict)
+                        is_terminal = (
+                            msg_type == 'error' or
+                            ('analysis_result' in msg_type) or
+                            ('_result' in msg_type and has_analysis) or
+                            (msg_type.endswith('_analysis') and has_analysis) or
+                            (data.get('status', '').lower() in ('success', 'completed') and has_analysis) or
+                            (msg_type == 'result' and has_analysis)
+                        )
+                        if is_terminal:
                             result = data
                             break
                         elif msg_type == 'request_queued':
