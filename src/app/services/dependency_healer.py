@@ -751,35 +751,43 @@ class DependencyHealer:
                 logger.error(f"[DependencyHealer] Failed to rename {old_path}: {e}")
 
     def _fix_icon_imports(self, src_dir: Path, auto_fix: bool) -> Dict[str, Any]:
-        """Fix common icon import issues in generated frontend code.
+        """Fix icon import issues in generated frontend code.
 
         Handles:
-        1. Font Awesome hallucinated names -> correct FA names
+        1. Font Awesome imports -> convert to Lucide equivalents or strip
         2. Heroicons imports -> stripped (not in package.json)
+        3. Invalid Lucide imports -> strip unknown icons
         """
         issues: List[str] = []
         changes: List[str] = []
         fixed_count = 0
 
-        # Common FA icon name hallucinations -> correct FA 6 names
-        fa_fixes = {
-            'faAlertCircle': 'faCircleExclamation',
-            'faTasks': 'faListCheck',
-            'faBarChart': 'faChartBar',
-            'faDotCircle': 'faCircleDot',
-            'faShield': 'faShieldHalved',
-            'faZap': 'faBolt',
-            'faMousePointer': 'faArrowPointer',
-            'faCalendarAlt': 'faCalendarDays',
-            'faHistory': 'faClockRotateLeft',
-            'faAlertTriangle': 'faTriangleExclamation',
-            'faKanban': 'faColumns',
-            'faArrowLeftRight': 'faArrowsLeftRight',
-            'faArrowUpDown': 'faArrowsUpDown',
-            'faExchange': 'faArrowRightArrowLeft',
-            'faExchangeAlt': 'faArrowRightArrowLeft',
-            'faRandom': 'faShuffle',
-            'faCircleNotch': 'faSpinner',
+        # Common FA -> Lucide mappings (covers most common icons)
+        fa_to_lucide = {
+            'faHome': 'Home', 'faUser': 'User', 'faSearch': 'Search', 'faCog': 'Settings',
+            'faSignOutAlt': 'LogOut', 'faSignInAlt': 'LogIn', 'faPlus': 'Plus', 'faMinus': 'Minus',
+            'faTrash': 'Trash2', 'faEdit': 'Edit', 'faCheck': 'Check', 'faTimes': 'X',
+            'faChevronLeft': 'ChevronLeft', 'faChevronRight': 'ChevronRight',
+            'faChevronUp': 'ChevronUp', 'faChevronDown': 'ChevronDown',
+            'faArrowLeft': 'ArrowLeft', 'faArrowRight': 'ArrowRight',
+            'faArrowUp': 'ArrowUp', 'faArrowDown': 'ArrowDown',
+            'faBars': 'Menu', 'faEllipsisH': 'MoreHorizontal', 'faEllipsisV': 'MoreVertical',
+            'faSpinner': 'Loader2', 'faSync': 'RefreshCw', 'faDownload': 'Download',
+            'faUpload': 'Upload', 'faCopy': 'Copy', 'faShare': 'Share', 'faLink': 'Link',
+            'faExclamationTriangle': 'AlertTriangle', 'faCheckCircle': 'CheckCircle',
+            'faTimesCircle': 'XCircle', 'faInfoCircle': 'Info', 'faQuestionCircle': 'HelpCircle',
+            'faStar': 'Star', 'faHeart': 'Heart', 'faEye': 'Eye', 'faEyeSlash': 'EyeOff',
+            'faLock': 'Lock', 'faUnlock': 'Unlock', 'faFilter': 'Filter', 'faSort': 'ArrowUpDown',
+            'faBell': 'Bell', 'faEnvelope': 'Mail', 'faShoppingCart': 'ShoppingCart',
+            'faCreditCard': 'CreditCard', 'faChartBar': 'BarChart3', 'faChartPie': 'PieChart',
+            'faChartLine': 'TrendingUp', 'faSave': 'Save', 'faFile': 'File', 'faFolder': 'Folder',
+            'faCalendar': 'Calendar', 'faClock': 'Clock', 'faGlobe': 'Globe',
+            'faDatabase': 'Database', 'faServer': 'Server', 'faCloud': 'Cloud',
+            'faImage': 'Image', 'faVideo': 'Video', 'faMusic': 'Music',
+            'faComments': 'MessageCircle', 'faComment': 'MessageSquare',
+            'faThumbsUp': 'ThumbsUp', 'faThumbsDown': 'ThumbsDown',
+            'faPaperPlane': 'Send', 'faRocket': 'Rocket', 'faFire': 'Flame',
+            'faLightbulb': 'Lightbulb', 'faMoon': 'Moon', 'faSun': 'Sun',
         }
 
         for file_path in src_dir.rglob('*'):
@@ -791,20 +799,54 @@ class DependencyHealer:
                 original_content = content
                 file_changes: List[str] = []
 
-                # 1. Fix FA hallucinations
-                for invalid, valid in fa_fixes.items():
-                    if invalid in content:
-                        content = content.replace(invalid, valid)
-                        file_changes.append(f"{invalid} → {valid}")
+                # 1. Strip Font Awesome imports entirely (Lucide is now the standard)
+                if '@fortawesome' in content:
+                    # Remove FA import lines
+                    content = re.sub(
+                        r'^import\s+\{[^}]*\}\s+from\s+[\'"]@fortawesome/[^\'"]*[\'"];?\s*$',
+                        '',
+                        content, flags=re.MULTILINE
+                    )
+                    # Remove FontAwesomeIcon component import
+                    content = re.sub(
+                        r'^import\s+\{\s*FontAwesomeIcon\s*\}\s+from\s+[\'"]@fortawesome/react-fontawesome[\'"];?\s*$',
+                        '',
+                        content, flags=re.MULTILINE
+                    )
+                    file_changes.append("stripped Font Awesome imports (use lucide-react)")
+                    
+                    # Replace FontAwesomeIcon usages with a placeholder comment
+                    if 'FontAwesomeIcon' in content:
+                        content = re.sub(
+                            r'<FontAwesomeIcon\s+icon=\{[^}]+\}[^/]*/>',
+                            '{/* icon removed - use Lucide */}',
+                            content
+                        )
+                        file_changes.append("replaced FontAwesomeIcon usages with placeholder")
 
-                # 2. Strip heroicons imports (package not in dependencies)
+                # 2. Strip heroicons imports (not in dependencies)
                 if '@heroicons/react' in content:
                     content = re.sub(
                         r'^import\s+\{[^}]*\}\s+from\s+[\'"]@heroicons/react[^\'"]*[\'"];?\s*$',
-                        '// [auto-removed: heroicons not available]',
+                        '',
                         content, flags=re.MULTILINE
                     )
-                    file_changes.append("stripped heroicons imports")
+                    file_changes.append("stripped heroicons imports (use lucide-react)")
+
+                # 3. Strip other unsupported icon libraries
+                for lib in ['react-icons', '@mui/icons-material', '@ant-design/icons']:
+                    if lib in content:
+                        content = re.sub(
+                            rf'^import\s+\{{[^}}]*\}}\s+from\s+[\'\"]{re.escape(lib)}[^\'\"]*/[^\'\"]*/[^\'\"]*[\'\""];?\s*$',
+                            '',
+                            content, flags=re.MULTILINE
+                        )
+                        content = re.sub(
+                            rf'^import\s+\{{[^}}]*\}}\s+from\s+[\'\"]{re.escape(lib)}[\'\""];?\s*$',
+                            '',
+                            content, flags=re.MULTILINE
+                        )
+                        file_changes.append(f"stripped {lib} imports (use lucide-react)")
 
                 if file_changes:
                     rel = file_path.relative_to(src_dir.parent)

@@ -54,7 +54,8 @@ Create reusable, styled components within the same file:
 
 ## Technical Constraints
 - Use **Vite + React + Tailwind CSS**.
-- Required packages: `react`, `react-router-dom`, `axios`, `react-hot-toast`, `date-fns`, `clsx`.
+- Required packages: `react`, `react-router-dom`, `axios`, `react-hot-toast`, `lucide-react`, `date-fns`, `clsx`.
+- **Icons**: Use `lucide-react` only. Import icons by PascalCase name: `import { Home, User } from 'lucide-react';`
 - **Single File**: All components and pages must be in `App.jsx`. Use internal functions and constants to organize.
 - **API URLs**: Use relative paths (e.g., `/api/items`) or handle base URL via `import.meta.env.VITE_API_BASE_URL`.
 
