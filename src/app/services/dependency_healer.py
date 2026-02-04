@@ -774,6 +774,12 @@ class DependencyHealer:
             'faHistory': 'faClockRotateLeft',
             'faAlertTriangle': 'faTriangleExclamation',
             'faKanban': 'faColumns',
+            'faArrowLeftRight': 'faArrowsLeftRight',
+            'faArrowUpDown': 'faArrowsUpDown',
+            'faExchange': 'faArrowRightArrowLeft',
+            'faExchangeAlt': 'faArrowRightArrowLeft',
+            'faRandom': 'faShuffle',
+            'faCircleNotch': 'faSpinner',
         }
 
         for file_path in src_dir.rglob('*'):
