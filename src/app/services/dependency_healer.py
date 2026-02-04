@@ -1511,11 +1511,94 @@ class DependencyHealer:
     # =========================================================================
     # Backend Healing
     # =========================================================================
-    
+
+    # Known incorrect package names that LLMs commonly generate.
+    # Maps the wrong import-style name to the correct pip package name.
+    PACKAGE_NAME_CORRECTIONS: Dict[str, str] = {
+        'jwt': 'PyJWT',
+        'dotenv': 'python-dotenv',
+        'cv2': 'opencv-python',
+        'bs4': 'beautifulsoup4',
+        'yaml': 'PyYAML',
+        'PIL': 'Pillow',
+        'sklearn': 'scikit-learn',
+        'gi': 'PyGObject',
+        'serial': 'pyserial',
+        'usb': 'pyusb',
+        'magic': 'python-magic',
+        'dateutil': 'python-dateutil',
+    }
+
+    def _normalize_requirements(self, requirements_path: Path, result: HealingResult) -> None:
+        """Fix known incorrect package names in requirements.txt and remove duplicates.
+
+        LLMs frequently list the Python *import* name instead of the pip
+        package name (e.g. ``jwt`` instead of ``PyJWT``).  This method
+        corrects those entries and deduplicates any lines that become
+        identical after correction.
+        """
+        if not requirements_path.exists():
+            return
+
+        content = requirements_path.read_text(encoding='utf-8')
+        lines = content.splitlines()
+        corrected_lines: List[str] = []
+        changes: List[str] = []
+        seen_packages: Set[str] = set()
+        duplicates_removed = 0
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith('#'):
+                corrected_lines.append(line)
+                continue
+
+            pkg_name = re.split(r'[<>=!~\[]', stripped, 1)[0].strip()
+            version_part = stripped[len(pkg_name):]
+
+            # Correct wrong package name if applicable
+            if pkg_name in self.PACKAGE_NAME_CORRECTIONS:
+                corrected = self.PACKAGE_NAME_CORRECTIONS[pkg_name]
+                changes.append(f"{pkg_name} -> {corrected}")
+                pkg_name = corrected
+
+            # Deduplicate (case-insensitive on package name)
+            pkg_key = pkg_name.lower().replace('-', '_')
+            if pkg_key in seen_packages:
+                duplicates_removed += 1
+                continue
+            seen_packages.add(pkg_key)
+
+            corrected_lines.append(pkg_name + version_part)
+
+        if changes or duplicates_removed:
+            requirements_path.write_text('\n'.join(corrected_lines) + '\n', encoding='utf-8')
+            for change in changes:
+                result.backend_issues.append(f"Corrected package name: {change}")
+                result.issues_found += 1
+                result.issues_fixed += 1
+            if duplicates_removed:
+                result.backend_issues.append(f"Removed {duplicates_removed} duplicate requirement(s)")
+                result.issues_found += duplicates_removed
+                result.issues_fixed += duplicates_removed
+            total = len(changes) + duplicates_removed
+            result.changes_made.append(
+                f"Normalized requirements.txt ({len(changes)} name corrections, {duplicates_removed} duplicates removed)"
+            )
+            logger.info(
+                f"[DependencyHealer] Normalized requirements.txt: "
+                f"{', '.join(changes) if changes else 'no name changes'}, "
+                f"{duplicates_removed} duplicates removed"
+            )
+
     def _heal_backend(self, backend_dir: Path, result: HealingResult) -> None:
         """Heal backend-specific issues."""
         requirements_path = backend_dir / 'requirements.txt'
-        
+
+        # 0. Normalize incorrect package names (MUST run before missing dep scan)
+        if self.auto_fix:
+            self._normalize_requirements(requirements_path, result)
+
         # 1. Scan Python files for missing dependencies
         missing_deps = self._find_missing_python_deps(backend_dir, requirements_path)
         if missing_deps:

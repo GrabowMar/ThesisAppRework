@@ -291,22 +291,27 @@ class GenerationService:
             merger = CodeMerger(app_dir)
             written = merger.merge(code)
             result.artifacts = written
+            merger_fixes = merger.fixes_applied
 
             # Step 4: Heal dependencies
             logger.info("Step 4/3: Healing dependencies...")
-            fixes_count = 0
-            healing_logs = []
+            healer_fixes_count = 0
+            healer_logs: List[str] = []
             try:
                 healer = DependencyHealer(auto_fix=True)
                 healing_result = healer.heal_app(app_dir)
-                fixes_count = healing_result.issues_fixed
-                healing_logs = healing_result.changes_made
+                healer_fixes_count = healing_result.issues_fixed
+                healer_logs = healing_result.changes_made
                 if healing_result.issues_found > 0:
                     logger.info(f"   Healed {healing_result.issues_fixed}/{healing_result.issues_found} issues")
                     for change in healing_result.changes_made:
                         logger.info(f"   - {change}")
             except Exception as e:
                 logger.warning(f"   Healing failed (non-critical): {e}")
+
+            # Combine merger and healer fixes
+            healing_logs = merger_fixes + healer_logs
+            fixes_count = len(merger_fixes) + healer_fixes_count
 
             # Persist to database
             logger.info("Persisting to database...")
@@ -354,17 +359,22 @@ class GenerationService:
             merger = CodeMerger(app_dir)
             written = merger.merge(code)
             result.artifacts = written
+            merger_fixes = merger.fixes_applied
 
             # Step 4: Heal dependencies
-            fixes_count = 0
-            healing_logs = []
+            healer_fixes_count = 0
+            healer_logs: List[str] = []
             try:
                 healer = DependencyHealer(auto_fix=True)
                 healing_result = healer.heal_app(app_dir)
-                fixes_count = healing_result.issues_fixed
-                healing_logs = healing_result.changes_made
+                healer_fixes_count = healing_result.issues_fixed
+                healer_logs = healing_result.changes_made
             except Exception as e:
                 logger.warning(f"Healing failed (non-critical): {e}")
+
+            # Combine merger and healer fixes
+            healing_logs = merger_fixes + healer_logs
+            fixes_count = len(merger_fixes) + healer_fixes_count
 
             # Persist to database
             self._persist_to_database(config, app_dir, code, automatic_fixes=fixes_count, healing_logs=healing_logs)

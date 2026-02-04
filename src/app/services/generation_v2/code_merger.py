@@ -36,6 +36,12 @@ class CodeMerger:
         self._stdlib_modules = DependencyHealer.PYTHON_STDLIB
         self._local_prefixes = DependencyHealer.LOCAL_PREFIXES
         self._package_version_map = DependencyHealer.KNOWN_PYTHON_PACKAGES
+        self._fixes_applied: List[str] = []
+
+    @property
+    def fixes_applied(self) -> List[str]:
+        """List of automatic fixes applied during merge."""
+        return list(self._fixes_applied)
     
     def merge(self, code: Dict[str, str]) -> Dict[str, Path]:
         """Merge generated code into app directory.
@@ -177,6 +183,9 @@ class CodeMerger:
             # Multiple files case - merge into single app.py
             logger.info(f"Merging {len(python_blocks)} Python files into app.py")
             code = self._merge_python_files(python_blocks)
+
+        # Fix hardcoded port in app.run() to use environment variable
+        code = self._fix_backend_port(code)
 
         # Write the merged app.py
         target_path = self.backend_dir / 'app.py'
@@ -419,7 +428,10 @@ class CodeMerger:
 
         # Fix API URLs
         code = self._fix_api_urls(code)
-        
+
+        # Decode HTML entities that LLMs embed in JSX string attributes
+        code = self._sanitize_jsx_html_entities(code)
+
         # Fix icon import issues (FA hallucinations, stray heroicons)
         code = self._fix_icon_imports(code)
 
@@ -572,8 +584,62 @@ class CodeMerger:
     
     def _fix_api_urls(self, code: str) -> str:
         """Fix API URLs for Docker networking."""
+        original = code
         if 'localhost:5000' in code or 'localhost:5001' in code:
             code = re.sub(r'http://localhost:500[01]', '', code, flags=re.IGNORECASE)
+        if code != original:
+            self._fixes_applied.append("Fixed API URLs for Docker networking (removed localhost:500x)")
+        return code
+
+    def _fix_backend_port(self, code: str) -> str:
+        """Fix hardcoded port in app.run() to use environment variable.
+
+        LLMs often hardcode a port number in ``app.run(port=NNNN)``.  The
+        Docker template sets ``FLASK_RUN_PORT`` via docker-compose, so the
+        generated code must respect that env var to avoid healthcheck
+        mismatches.
+        """
+        original = code
+        code = re.sub(
+            r'(app\.run\([^)]*?)port\s*=\s*\d+',
+            r'\1port=int(os.environ.get("FLASK_RUN_PORT", 5000))',
+            code
+        )
+        # Ensure os is imported if we added the env var reference
+        if 'os.environ.get("FLASK_RUN_PORT"' in code and 'import os' not in code:
+            code = 'import os\n' + code
+        if code != original:
+            self._fixes_applied.append("Fixed hardcoded port in app.run() → uses FLASK_RUN_PORT env var")
+        return code
+
+    def _sanitize_jsx_html_entities(self, code: str) -> str:
+        """Decode HTML entities that LLMs embed in JSX string attributes.
+
+        LLMs sometimes generate JSX like placeholder="line1&#10;line2" which is
+        invalid in JSX (unlike HTML). This decodes entities within quoted
+        attribute values so the code compiles.
+        """
+        import html
+        original = code
+
+        def decode_attr(match: re.Match) -> str:
+            prefix = match.group(1)
+            value = html.unescape(match.group(2))
+            quote = match.group(3)
+            return f'{prefix}{value}{quote}'
+
+        # Double-quoted attribute values containing HTML entities
+        code = re.sub(
+            r'(=\s*")([^"]*&(?:#\d+|#x[0-9a-fA-F]+|amp|lt|gt|quot|apos);[^"]*?)(")',
+            decode_attr, code
+        )
+        # Single-quoted attribute values containing HTML entities
+        code = re.sub(
+            r"(=\s*')([^']*&(?:#\d+|#x[0-9a-fA-F]+|amp|lt|gt|quot|apos);[^']*?)(')",
+            decode_attr, code
+        )
+        if code != original:
+            self._fixes_applied.append("Decoded HTML entities in JSX attributes")
         return code
 
     def _fix_icon_imports(self, code: str) -> str:
@@ -615,6 +681,7 @@ class CodeMerger:
 
         if changes_made:
             logger.info(f"Fixed icon imports: {', '.join(changes_made)}")
+            self._fixes_applied.append(f"Fixed icon imports: {', '.join(changes_made)}")
         return code
     
     def _merge_requirements(self, requirements_content: str) -> None:
