@@ -218,6 +218,32 @@ TRANSIENT_FAILURE_MAX_RETRIES=3
 ANALYZER_STARTUP_TIMEOUT=180
 ```
 
+### Container Healthcheck Failures
+
+**Symptoms:** Container startup fails with "container is unhealthy" even though app works manually
+
+**Cause:** Timing mismatch between Docker healthcheck and pipeline timeout.
+
+**Current Configuration:**
+- Docker healthcheck `start_period`: 15s (waits before first check)
+- Docker healthcheck `interval`: 30s (between checks)
+- Pipeline health wait timeout: 180s (total wait time)
+
+**Diagnosis:**
+```bash
+# Manual test of container
+docker run --rm -p 5001:5000 thesisapp-model-app1-backend
+curl http://localhost:5001/health
+
+# Check container health status
+docker inspect <container_id> --format='{{.State.Health.Status}}'
+```
+
+**Solutions:**
+1. Increase pipeline timeout in `docker_manager.py` (default: 180s)
+2. Ensure healthcheck endpoint exists and returns quickly
+3. Check container startup logs for slow initialization
+
 ### Analysis Timeout
 
 **Symptoms:** `Task exceeded timeout`
@@ -445,6 +471,28 @@ Check `logs/app.log` for maintenance output:
 [MaintenanceService] Marked 2 apps as missing (grace period: 7 days)
 [MaintenanceService] Restored 1 apps (filesystem directories reappeared)
 [MaintenanceService] Found 1 orphan apps ready for deletion (missing for >7 days)
+```
+
+## Icon Library Issues
+
+### Hallucinated Icon Names
+
+**Symptoms:** Build fails with errors like `faArrowLeftRight is not exported from @fortawesome/free-solid-svg-icons`
+
+**Cause:** LLMs sometimes hallucinate non-existent icon names from Font Awesome or other libraries.
+
+**Solution:** The system uses **Lucide React** exclusively, which has simpler PascalCase naming that LLMs handle better. The `DependencyHealer` automatically strips imports from other icon libraries:
+
+- Font Awesome (`@fortawesome/*`)
+- Heroicons (`@heroicons/react`)
+- react-icons (`react-icons/*`)
+- MUI Icons (`@mui/icons-material`)
+- Ant Design Icons (`@ant-design/icons`)
+
+If you see icon-related build failures, the healer should have stripped them. Check:
+```bash
+# View healer logs
+docker compose logs celery-worker | grep -i icon
 ```
 
 ## Getting Help

@@ -369,6 +369,10 @@ See [analyzer/README.md](../analyzer/README.md) for detailed result format docum
 | **Retry Configuration** | | |
 | `PREFLIGHT_MAX_RETRIES` | Pre-flight check retry attempts | `3` |
 | `TRANSIENT_FAILURE_MAX_RETRIES` | Transient failure recovery attempts | `3` |
+| **Container Health** | | |
+| Container health wait | Pipeline timeout waiting for healthy containers | `180s` |
+| Healthcheck start_period | Docker delay before first health check | `15s` |
+| Healthcheck interval | Time between health checks | `30s` |
 | **Startup Cleanup** | | |
 | `STARTUP_CLEANUP_ENABLED` | Enable startup task cleanup | `true` |
 | `STARTUP_CLEANUP_RUNNING_TIMEOUT` | RUNNING task timeout at startup (min) | `120` |

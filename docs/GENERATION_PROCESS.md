@@ -310,6 +310,9 @@ The `DependencyHealer` performs automatic fixes:
 | Undefined exports | Create stub exports |
 | Missing npm packages | Add to `package.json` |
 | Python import errors | Add to `requirements.txt` |
+| Non-Lucide icon imports | Strip FA/Heroicons/react-icons imports |
+
+> **Icon Library Normalization**: The healer automatically removes imports from non-standard icon libraries (Font Awesome, Heroicons, react-icons, MUI Icons, Ant Design Icons) to prevent build failures from hallucinated icon names. Applications should only use `lucide-react`.
 
 ## Technology Stack
 
@@ -336,7 +339,9 @@ The `DependencyHealer` performs automatic fixes:
 | Tailwind CSS | 3.4.0 | Utility CSS |
 | Axios | 1.6.0 | HTTP client |
 | react-hot-toast | 2.4.1 | Notifications |
-| @heroicons/react | 2.1.0 | Icons |
+| lucide-react | 0.469.0 | Icons |
+
+> **Note**: Lucide React is used instead of Font Awesome or Heroicons because its simple PascalCase naming convention (e.g., `Home`, `User`, `Search`) reduces LLM hallucination issues during code generation.
 
 ### Database
 
