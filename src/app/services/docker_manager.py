@@ -831,7 +831,7 @@ class DockerManager:
         
         # Wait for containers to become healthy (addresses intermittent health check failures)
         if up_result.get('success'):
-            health_result = self._wait_for_container_health(model, app_num, timeout_seconds=60, build_id=build_id)
+            health_result = self._wait_for_container_health(model, app_num, timeout_seconds=180, build_id=build_id)
             up_result['health_check'] = health_result
             if not health_result.get('all_healthy'):
                 self.logger.warning(
