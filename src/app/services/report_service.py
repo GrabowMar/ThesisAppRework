@@ -329,9 +329,11 @@ class ReportService:
                 new_data = self._generate_template_comparison(config, report)
             elif report.report_type == 'tool_analysis':
                 new_data = self._generate_tool_report(config, report)
+            elif report.report_type == 'generation_analytics':
+                new_data = self._generate_generation_analytics(config, report)
             else:
                 logger.error(f"Unknown report type: {report.report_type}")
-                return None
+                raise ValueError(f"Unknown report type: {report.report_type}")
             
             # Update report with new data
             import json
@@ -470,7 +472,18 @@ class ReportService:
         db.session.commit()
         
         # Calculate aggregated statistics
-        severity_counts = self._count_severities(all_findings)
+        # IMPORTANT: Use per-app severity_counts (from DB/full results), NOT from
+        # the truncated all_findings list (which is capped at 50 findings per app).
+        aggregated_severity = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
+        for app_entry in apps_data:
+            app_sev = app_entry.get('severity_counts', {})
+            for sev_key in aggregated_severity:
+                aggregated_severity[sev_key] += app_sev.get(sev_key, 0)
+        severity_counts = aggregated_severity
+
+        # Correct total findings from per-app findings_count (not truncated findings list)
+        correct_total_findings = sum(a.get('findings_count', 0) for a in apps_data)
+
         scientific_metrics = self._calculate_metrics(apps_data)
         
         # Finalize tool stats with display-friendly fields
@@ -548,19 +561,20 @@ class ReportService:
         loc_metrics = _count_loc_from_files(model_slug, app_numbers)
         
         # Calculate issues_per_100_loc if we have LOC data
+        # Use correct_total_findings (from findings_count), NOT len(all_findings) which is truncated
         total_loc = loc_metrics.get('total_loc', 0)
         if total_loc > 0:
-            loc_metrics['issues_per_100_loc'] = round((len(all_findings) / total_loc) * 100, 4)
+            loc_metrics['issues_per_100_loc'] = round((correct_total_findings / total_loc) * 100, 4)
         else:
             loc_metrics['issues_per_100_loc'] = None
-        
+
         # Add issues_count and issues_per_100_loc to each per_app entry
-        # Build a map of app_number -> findings count from apps_data
+        # Use findings_count (correct total), NOT len(findings) which is capped at 50 per app
         findings_per_app = {}
         for app_entry in apps_data:
             app_num = app_entry.get('app_number')
             if app_num is not None:
-                findings_per_app[app_num] = len(app_entry.get('findings', []))
+                findings_per_app[app_num] = app_entry.get('findings_count', 0)
         
         # Enrich per_app entries with issues data
         for app_num, per_app_data in loc_metrics.get('per_app', {}).items():
@@ -588,9 +602,9 @@ class ReportService:
             'summary': {
                 'total_apps': len(apps_data),
                 'total_analyses': len(tasks),
-                'total_findings': len(all_findings),
+                'total_findings': correct_total_findings,
                 'severity_breakdown': severity_counts,
-                'avg_findings_per_app': len(all_findings) / len(apps_data) if apps_data else 0,
+                'avg_findings_per_app': correct_total_findings / len(apps_data) if apps_data else 0,
                 # Extended metrics
                 'avg_duration_seconds': avg_duration,
                 'total_duration_seconds': total_duration,
@@ -833,8 +847,15 @@ class ReportService:
         db.session.commit()
         
         # Calculate comparison metrics
-        severity_counts = self._count_severities(all_findings)
-        
+        # Use per-model severity_counts (correct), NOT truncated all_findings
+        aggregated_severity = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
+        for model_entry in models_data:
+            model_sev = model_entry.get('severity_counts', {})
+            for sev_key in aggregated_severity:
+                aggregated_severity[sev_key] += model_sev.get(sev_key, 0)
+        severity_counts = aggregated_severity
+        correct_total_findings = sum(m.get('findings_count', 0) for m in models_data)
+
         # Find common vs unique issues
         common_issues, unique_issues = self._identify_common_issues(models_data)
         
@@ -901,7 +922,7 @@ class ReportService:
                 'template_complexity_score': template_metadata.get('complexity_score', 0),
                 'models_compared': len(models_data),
                 'total_analyses': total_analyses,
-                'total_findings': len(all_findings),
+                'total_findings': correct_total_findings,
                 'severity_breakdown': severity_counts,
                 'common_issues_count': len(common_issues),
                 'unique_issues_count': sum(len(v) for v in unique_issues.values()) if isinstance(unique_issues, dict) else len(unique_issues),
@@ -1940,9 +1961,9 @@ class ReportService:
     # GENERATION ANALYTICS
     # ==========================================================================
     
-    def _generate_generation_analytics(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def _generate_generation_analytics(self, config: Dict[str, Any], report: 'Report') -> Dict[str, Any]:
         """Generate analytics about app generation success/failure patterns.
-        
+
         Provides insights into:
         - Success rates by model and template
         - Common failure stages and error patterns
@@ -1951,12 +1972,15 @@ class ReportService:
         """
         from datetime import datetime, timedelta
         from sqlalchemy import func
-        
+
+        report.update_progress(10)
+        db.session.commit()
+
         # Get filter parameters
         model_filter = config.get('model_slug')
         template_filter = config.get('template_slug')
         days_back = config.get('days_back', 30)
-        
+
         # Base query
         query = GeneratedApplication.query
         
@@ -1964,7 +1988,7 @@ class ReportService:
         if model_filter:
             query = query.filter(GeneratedApplication.model_slug == model_filter)
         if template_filter:
-            query = query.filter(GeneratedApplication.template_name == template_filter)
+            query = query.filter(GeneratedApplication.template_slug == template_filter)
         if days_back:
             cutoff = datetime.utcnow() - timedelta(days=days_back)
             query = query.filter(GeneratedApplication.created_at >= cutoff)
@@ -1983,11 +2007,14 @@ class ReportService:
                 }
             }
         
+        report.update_progress(30)
+        db.session.commit()
+
         # Aggregate statistics
         total_apps = len(apps)
         successful_apps = [a for a in apps if not a.is_generation_failed]
         failed_apps = [a for a in apps if a.is_generation_failed]
-        
+
         # Model breakdown
         models_stats = {}
         for app in apps:
@@ -2009,7 +2036,7 @@ class ReportService:
         # Template breakdown
         templates_stats = {}
         for app in apps:
-            tmpl = app.template_name or 'unknown'
+            tmpl = app.template_slug or 'unknown'
             if tmpl not in templates_stats:
                 templates_stats[tmpl] = {'total': 0, 'success': 0, 'failed': 0}
             templates_stats[tmpl]['total'] += 1
@@ -2057,13 +2084,16 @@ class ReportService:
             recent_failures.append({
                 'model_slug': app.model_slug,
                 'app_number': app.app_number,
-                'template': app.template_name,
+                'template': app.template_slug,
                 'failure_stage': app.failure_stage,
                 'error_message': (app.error_message[:200] + '...') if app.error_message and len(app.error_message) > 200 else app.error_message,
                 'attempts': app.generation_attempts,
                 'timestamp': app.last_error_at.isoformat() if app.last_error_at else None
             })
         
+        report.update_progress(70)
+        db.session.commit()
+
         # Sort models and templates by success rate
         sorted_models = sorted(
             [{'model': k, **v} for k, v in models_stats.items()],
