@@ -6,11 +6,11 @@
     <div class="btn-group w-100" role="group" aria-label="Generation mode">
       <input type="radio" class="btn-check" name="generation_mode" id="mode-generate" value="generate" checked autocomplete="off" onchange="toggleGenerationMode(this.value)">
       <label class="btn btn-outline-primary" for="mode-generate">
-        <i class="fas fa-magic me-2"></i>Generate New Apps
+        <i class="fa-solid fa-magic me-2"></i>Generate New Apps
       </label>
       <input type="radio" class="btn-check" name="generation_mode" id="mode-existing" value="existing" autocomplete="off" onchange="toggleGenerationMode(this.value)">
       <label class="btn btn-outline-primary" for="mode-existing">
-        <i class="fas fa-folder-open me-2"></i>Use Existing Apps
+        <i class="fa-solid fa-folder-open me-2"></i>Use Existing Apps
       </label>
     </div>
   </div>
@@ -23,7 +23,7 @@
     <div class="col-12 col-xl-6">
       <div class="card card-table-compact h-100">
         <div class="card-header d-flex justify-content-between align-items-center py-2">
-          <h3 class="h6 mb-0"><i class="fas fa-file-code text-primary me-2"></i>Templates</h3>
+          <h3 class="h6 mb-0"><i class="fa-solid fa-file-code text-primary me-2"></i>Templates</h3>
           <div class="btn-group btn-group-sm" role="group">
             <button type="button" class="btn btn-ghost-primary" id="select-all-templates">Select all</button>
             <button type="button" class="btn btn-ghost-secondary" id="clear-all-templates">Clear</button>
@@ -32,7 +32,7 @@
         <div class="card-body border-top p-0">
           <div class="p-3 border-bottom">
             <div class="input-group input-group-sm">
-              <span class="input-group-text"><i class="fas fa-search"></i></span>
+              <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
               <input type="search" class="form-control" placeholder="Search templates..." id="template-search" 
                      oninput="filterTemplates(this.value)">
             </div>
@@ -78,7 +78,7 @@
             {% else %}
             <div class="empty py-5">
               <div class="empty-icon">
-                <i class="fas fa-inbox fa-3x text-muted"></i>
+                <i class="fa-solid fa-inbox fa-3x text-muted"></i>
               </div>
               <p class="empty-title h5">No templates available</p>
               <p class="empty-subtitle text-muted">Templates may not be configured yet.</p>
@@ -93,7 +93,7 @@
     <div class="col-12 col-xl-6">
       <div class="card card-table-compact h-100">
         <div class="card-header d-flex justify-content-between align-items-center py-2">
-          <h3 class="h6 mb-0"><i class="fas fa-brain text-primary me-2"></i>Models</h3>
+          <h3 class="h6 mb-0"><i class="fa-solid fa-brain text-primary me-2"></i>Models</h3>
           <div class="btn-group btn-group-sm" role="group">
             <button type="button" class="btn btn-ghost-primary" id="select-all-models">Select all</button>
             <button type="button" class="btn btn-ghost-secondary" id="clear-all-models">Clear</button>
@@ -102,7 +102,7 @@
         <div class="card-body border-top p-0">
           <div class="p-3 border-bottom">
             <div class="input-group input-group-sm">
-              <span class="input-group-text"><i class="fas fa-search"></i></span>
+              <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
               <input type="search" class="form-control" placeholder="Search models..." id="model-search"
                      oninput="filterModels(this.value)">
             </div>
@@ -125,7 +125,7 @@
                     {% set current_provider.value = model.provider %}
                     <tr class="provider-header bg-body-secondary" data-provider="{{ model.provider }}">
                       <td colspan="4" class="py-1 px-3 small fw-bold text-muted text-uppercase">
-                        <i class="fas fa-layer-group me-1"></i>{{ model.provider }}
+                        <i class="fa-solid fa-layer-group me-1"></i>{{ model.provider }}
                       </td>
                     </tr>
                   {% endif %}
@@ -145,7 +145,7 @@
             {% else %}
             <div class="empty py-5">
               <div class="empty-icon">
-                <i class="fas fa-robot fa-3x text-muted"></i>
+                <i class="fa-solid fa-robot fa-3x text-muted"></i>
               </div>
               <p class="empty-title h5">No models available</p>
               <p class="empty-subtitle text-muted">Models may not be configured yet.</p>
@@ -202,10 +202,10 @@
   {# Generation Options #}
   <div class="card mt-4">
     <div class="card-header d-flex align-items-center py-2">
-      <h3 class="h6 mb-0"><i class="fas fa-cogs text-primary me-2"></i>Generation Options</h3>
+      <h3 class="h6 mb-0"><i class="fa-solid fa-cogs text-primary me-2"></i>Generation Options</h3>
       <button type="button" class="btn btn-ghost-secondary btn-sm ms-auto" 
               data-bs-toggle="collapse" data-bs-target="#generation-options-collapse">
-        <i class="fas fa-chevron-down"></i>
+        <i class="fa-solid fa-chevron-down"></i>
       </button>
     </div>
     <div class="collapse show" id="generation-options-collapse">
@@ -237,7 +237,7 @@
 
   {# Help Alert for Generate New #}
   <div class="alert alert-info mt-4">
-    <i class="fas fa-lightbulb me-2"></i>
+    <i class="fa-solid fa-lightbulb me-2"></i>
     Select templates and models to generate. Each template × model combination creates one generation job.
     The pipeline will generate applications using AI and prepare them for analysis.
   </div>
@@ -247,7 +247,7 @@
 <div id="existing-apps-section" class="d-none">
   <div class="card card-table-compact">
     <div class="card-header d-flex justify-content-between align-items-center py-2">
-      <h3 class="h6 mb-0"><i class="fas fa-folder-open text-primary me-2"></i>Select Existing Applications</h3>
+      <h3 class="h6 mb-0"><i class="fa-solid fa-folder-open text-primary me-2"></i>Select Existing Applications</h3>
       <div class="btn-group btn-group-sm" role="group">
         <button type="button" class="btn btn-ghost-primary" id="select-all-existing-apps">Select all</button>
         <button type="button" class="btn btn-ghost-secondary" id="clear-all-existing-apps">Clear</button>
@@ -259,7 +259,7 @@
         <div class="row g-2">
           <div class="col-md-4">
             <div class="input-group input-group-sm">
-              <span class="input-group-text"><i class="fas fa-search"></i></span>
+              <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
               <input type="search" class="form-control" placeholder="Search apps..." id="existing-apps-search"
                      oninput="filterExistingApps(this.value)">
             </div>
@@ -334,19 +334,19 @@
               <td>
                 {% if app.status == 'completed' %}
                   <span class="badge bg-success-lt text-success">
-                    <i class="fas fa-check me-1"></i>Completed
+                    <i class="fa-solid fa-check me-1"></i>Completed
                   </span>
                 {% elif app.status == 'pending' %}
                   <span class="badge bg-warning-lt text-warning">
-                    <i class="fas fa-clock me-1"></i>Pending
+                    <i class="fa-solid fa-clock me-1"></i>Pending
                   </span>
                 {% elif app.status == 'failed' %}
                   <span class="badge bg-danger-lt text-danger">
-                    <i class="fas fa-times me-1"></i>Failed
+                    <i class="fa-solid fa-times me-1"></i>Failed
                   </span>
                 {% else %}
                   <span class="badge bg-secondary-lt text-secondary">
-                    <i class="fas fa-question me-1"></i>Unknown
+                    <i class="fa-solid fa-question me-1"></i>Unknown
                   </span>
                 {% endif %}
               </td>
@@ -357,7 +357,7 @@
         {% else %}
         <div class="empty py-5">
           <div class="empty-icon">
-            <i class="fas fa-folder-open fa-3x text-muted"></i>
+            <i class="fa-solid fa-folder-open fa-3x text-muted"></i>
           </div>
           <p class="empty-title h5">No existing applications found</p>
           <p class="empty-subtitle text-muted">
@@ -387,7 +387,7 @@
 
   {# Help Alert for Existing Apps #}
   <div class="alert alert-info mt-4">
-    <i class="fas fa-info-circle me-2"></i>
+    <i class="fa-solid fa-info-circle me-2"></i>
     Select existing generated applications to run analysis and generate reports.
     This skips the generation step and proceeds directly to analysis.
   </div>

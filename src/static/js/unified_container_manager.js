@@ -323,25 +323,25 @@
 
                 // Update progress
                 this.updateBatchProgress(i, apps.length, `${action}: ${appLabel}`);
-                this.addBatchLogEntry(`<i class="fas fa-spinner fa-spin me-1"></i>${appLabel}...`, 'text-muted', i);
+                this.addBatchLogEntry(`<i class="fa-solid fa-spinner fa-spin me-1"></i>${appLabel}...`, 'text-muted', i);
 
                 try {
                     const result = await this.performSingleBatchAction(app.modelSlug, app.appNumber, action, options);
 
                     if (result.success) {
                         results.completed++;
-                        this.updateBatchLogEntry(i, `<i class="fas fa-check text-success me-1"></i>${appLabel}`, 'text-success');
+                        this.updateBatchLogEntry(i, `<i class="fa-solid fa-check text-success me-1"></i>${appLabel}`, 'text-success');
                     } else {
                         results.failed++;
                         const errMsg = result.error ? `: ${result.error.substring(0, 30)}` : '';
-                        this.updateBatchLogEntry(i, `<i class="fas fa-times text-danger me-1"></i>${appLabel}${errMsg}`, 'text-danger');
+                        this.updateBatchLogEntry(i, `<i class="fa-solid fa-times text-danger me-1"></i>${appLabel}${errMsg}`, 'text-danger');
                     }
 
                     results.details.push({ app, success: result.success, error: result.error });
 
                 } catch (error) {
                     results.failed++;
-                    this.updateBatchLogEntry(i, `<i class="fas fa-times text-danger me-1"></i>${appLabel}: ${error.message}`, 'text-danger');
+                    this.updateBatchLogEntry(i, `<i class="fa-solid fa-times text-danger me-1"></i>${appLabel}: ${error.message}`, 'text-danger');
                     results.details.push({ app, success: false, error: error.message });
                 }
 
@@ -666,10 +666,10 @@
             if (resultEl) {
                 resultEl.innerHTML = `
                 <div class="alert alert-${alertClass} py-2 mb-0 mt-2 d-flex align-items-center gap-2">
-                    <i class="fas fa-${icon}"></i>
+                    <i class="fa-solid fa-${icon}"></i>
                     <span>${message}</span>
                     <button class="btn btn-sm btn-link ms-auto p-0" onclick="window.unifiedContainerManager.resetBatchUI()">
-                        <i class="fas fa-redo"></i> New
+                        <i class="fa-solid fa-redo"></i> New
                     </button>
                 </div>
             `;
@@ -716,7 +716,7 @@
 
             const config = statusConfig[status] || statusConfig.pending;
             statusBadge.className = config.class;
-            statusBadge.innerHTML = `<i class="fas ${config.icon} fa-xs me-1"></i>${step || config.text}`;
+            statusBadge.innerHTML = `<i class="fa-solid ${config.icon} fa-xs me-1"></i>${step || config.text}`;
 
             // Update actions visibility
             const runningGroup = row.querySelector('.actions-group-running');
@@ -778,10 +778,10 @@
             const container = this.getToastContainer();
 
             const iconMap = {
-                success: '<i class="fas fa-check-circle text-success me-2"></i>',
-                danger: '<i class="fas fa-exclamation-circle text-danger me-2"></i>',
-                warning: '<i class="fas fa-exclamation-triangle text-warning me-2"></i>',
-                info: '<i class="fas fa-info-circle text-info me-2"></i>'
+                success: '<i class="fa-solid fa-check-circle text-success me-2"></i>',
+                danger: '<i class="fa-solid fa-exclamation-circle text-danger me-2"></i>',
+                warning: '<i class="fa-solid fa-exclamation-triangle text-warning me-2"></i>',
+                info: '<i class="fa-solid fa-info-circle text-info me-2"></i>'
             };
 
             const bgMap = {
@@ -799,7 +799,7 @@
                 ${iconMap[type] || iconMap.info}
                 <span class="flex-grow-1">${this.escapeHtml(message)}</span>
                 <button class="btn btn-sm p-0 border-0 ms-2" onclick="this.closest('.card').remove()" title="Dismiss">
-                    <i class="fas fa-times text-muted"></i>
+                    <i class="fa-solid fa-times text-muted"></i>
                 </button>
             </div>
         `;

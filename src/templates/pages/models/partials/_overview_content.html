@@ -14,21 +14,21 @@
 	<div class="card-header d-flex flex-wrap align-items-center gap-3">
 		<div class="d-flex flex-wrap align-items-center gap-2">
 			<h3 class="card-title d-flex align-items-center gap-2 mb-0">
-				<i class="fas fa-brain text-primary"></i>
+				<i class="fa-solid fa-brain text-primary"></i>
 				<span>Models</span>
 			</h3>
 			<div class="d-flex flex-wrap align-items-center gap-1 status-indicators ms-2">
 				<span class="badge bg-primary-lt text-primary d-inline-flex align-items-center gap-1" title="Total models">
-					<i class="fas fa-brain fa-xs"></i><span id="total-models">{{ models_stats.total_models }}</span>
+					<i class="fa-solid fa-brain fa-xs"></i><span id="total-models">{{ models_stats.total_models }}</span>
 				</span>
 				<span class="badge bg-success-lt text-success d-inline-flex align-items-center gap-1" title="Active models">
-					<i class="fas fa-check-circle fa-xs"></i><span id="active-models">{{ models_stats.active_models }}</span>
+					<i class="fa-solid fa-check-circle fa-xs"></i><span id="active-models">{{ models_stats.active_models }}</span>
 				</span>
 				<span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1" title="Unique providers">
-					<i class="fas fa-building fa-xs"></i><span id="unique-providers">{{ models_stats.unique_providers }}</span>
+					<i class="fa-solid fa-building fa-xs"></i><span id="unique-providers">{{ models_stats.unique_providers }}</span>
 				</span>
 				<span class="badge bg-warning-lt text-orange d-inline-flex align-items-center gap-1" title="Avg cost per 1K tokens">
-					<i class="fas fa-dollar-sign fa-xs"></i><span id="avg-cost">{{ models_stats.avg_cost_per_1k|round(4) }}</span>
+					<i class="fa-solid fa-dollar-sign fa-xs"></i><span id="avg-cost">{{ models_stats.avg_cost_per_1k|round(4) }}</span>
 				</span>
 			</div>
 		</div>
@@ -43,32 +43,32 @@
 				</select>
 			</label>
 			<div class="btn-group btn-group-sm" role="group" aria-label="Model data source">
-				<button type="button" class="btn btn-outline-secondary active" id="src-db" onclick="setModelsSource('db')"><i class="fas fa-database me-1" aria-hidden="true"></i>All</button>
-				<button type="button" class="btn btn-outline-secondary" id="src-used" onclick="setModelsSource('used')" title="Models used for app generation"><i class="fas fa-tag me-1" aria-hidden="true"></i>Used</button>
+				<button type="button" class="btn btn-outline-secondary active" id="src-db" onclick="setModelsSource('db')"><i class="fa-solid fa-database me-1" aria-hidden="true"></i>All</button>
+				<button type="button" class="btn btn-outline-secondary" id="src-used" onclick="setModelsSource('used')" title="Models used for app generation"><i class="fa-solid fa-tag me-1" aria-hidden="true"></i>Used</button>
 			</div>
 			<button type="button" class="btn btn-sm btn-outline-info" id="btn-sync-openrouter" onclick="syncFromOpenRouter()" title="Refresh models from OpenRouter API">
-				<i class="fas fa-cloud-download-alt me-1" aria-hidden="true"></i><span class="d-none d-md-inline">Sync OpenRouter</span>
+				<i class="fa-solid fa-cloud-download-alt me-1" aria-hidden="true"></i><span class="d-none d-md-inline">Sync OpenRouter</span>
 			</button>
 			<span class="text-muted small" id="models-source-indicator"></span>
 			<div class="btn-list">
-				<button class="btn btn-sm btn-primary" onclick="compareSelectedModels()" title="Compare selected models" type="button" id="compare-models-btn" disabled><i class="fas fa-balance-scale me-1" aria-hidden="true"></i>Compare</button>
+				<button class="btn btn-sm btn-primary" onclick="compareSelectedModels()" title="Compare selected models" type="button" id="compare-models-btn" disabled><i class="fa-solid fa-balance-scale me-1" aria-hidden="true"></i>Compare</button>
 				<a href="{{ url_for('rankings.rankings_index') }}" class="btn btn-sm btn-outline-warning" title="View coding benchmark rankings">
-					<i class="fas fa-trophy me-1" aria-hidden="true"></i>Rankings
+					<i class="fa-solid fa-trophy me-1" aria-hidden="true"></i>Rankings
 				</a>
 				<div class="btn-group btn-group-sm">
 					<button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-						<i class="fas fa-download me-1"></i>Export
+						<i class="fa-solid fa-download me-1"></i>Export
 					</button>
 					<ul class="dropdown-menu">
-						<li><a class="dropdown-item" href="#" onclick="exportModels('json'); return false;"><i class="fas fa-file-code me-2"></i>JSON</a></li>
-						<li><a class="dropdown-item" href="#" onclick="exportModels('csv'); return false;"><i class="fas fa-file-csv me-2"></i>CSV</a></li>
+						<li><a class="dropdown-item" href="#" onclick="exportModels('json'); return false;"><i class="fa-solid fa-file-code me-2"></i>JSON</a></li>
+						<li><a class="dropdown-item" href="#" onclick="exportModels('csv'); return false;"><i class="fa-solid fa-file-csv me-2"></i>CSV</a></li>
 					</ul>
 				</div>
 			</div>
 			<div class="d-flex align-items-center gap-2">
 				<span class="text-primary small fw-bold" id="models-selection-indicator"></span>
 				<button class="btn btn-sm btn-ghost-danger" onclick="clearModelSelection()" title="Clear selection" type="button" id="clear-selection-btn" style="display: none;">
-					<i class="fas fa-times" aria-hidden="true"></i>
+					<i class="fa-solid fa-times" aria-hidden="true"></i>
 				</button>
 			</div>
 		</div>
@@ -78,11 +78,11 @@
 		<div class="row g-2 mb-3">
 			<div class="col-12">
 				<div class="input-group input-group-flat">
-					<span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
+					<span class="input-group-text"><i class="fa-solid fa-search" aria-hidden="true"></i></span>
 					<input type="text" id="model-search" class="form-control" placeholder="Search by model name, ID, or description..." value="{{ search_term }}" onkeyup="debounceSearch()" aria-label="Search models" />
-					<button class="btn btn-outline-secondary" onclick="clearSearch()" type="button" title="Clear search" aria-label="Clear search"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+					<button class="btn btn-outline-secondary" onclick="clearSearch()" type="button" title="Clear search" aria-label="Clear search"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
 					<button class="btn btn-outline-primary" onclick="toggleAdvancedFilters()" type="button" title="Advanced filters" aria-label="Toggle advanced filters">
-						<i class="fas fa-filter me-1" aria-hidden="true"></i>
+						<i class="fa-solid fa-filter me-1" aria-hidden="true"></i>
 						<span class="d-none d-md-inline">Advanced Filters</span>
 						<span class="badge bg-primary ms-1" id="active-filters-count" style="display: none;">0</span>
 					</button>
@@ -95,7 +95,7 @@
 			<div class="col-auto">
 				<label class="d-flex align-items-center gap-2 mb-0">
 					<span class="text-muted d-flex align-items-center gap-1">
-						<i class="fas fa-building" aria-hidden="true"></i>
+						<i class="fa-solid fa-building" aria-hidden="true"></i>
 						<span>Provider</span>
 					</span>
 					<select class="form-select form-select-sm" style="min-width: 140px;" id="provider-filter" onchange="applyFilters()">
@@ -109,7 +109,7 @@
 			<div class="col-auto">
 				<label class="d-flex align-items-center gap-2 mb-0">
 					<span class="text-muted d-flex align-items-center gap-1">
-						<i class="fas fa-dollar-sign" aria-hidden="true"></i>
+						<i class="fa-solid fa-dollar-sign" aria-hidden="true"></i>
 						<span>Price</span>
 					</span>
 					<select class="form-select form-select-sm" style="min-width: 120px;" id="price-filter" onchange="applyFilters()">
@@ -124,7 +124,7 @@
 			<div class="col-auto">
 				<label class="d-flex align-items-center gap-2 mb-0">
 					<span class="text-muted d-flex align-items-center gap-1">
-						<i class="fas fa-memory" aria-hidden="true"></i>
+						<i class="fa-solid fa-memory" aria-hidden="true"></i>
 						<span>Context</span>
 					</span>
 					<select class="form-select form-select-sm" style="min-width: 130px;" id="context-filter" onchange="applyFilters()">
@@ -138,7 +138,7 @@
 			</div>
 			<div class="col-auto ms-auto">
 				<button class="btn btn-sm btn-ghost-secondary" onclick="clearAllFilters()" type="button">
-					<i class="fas fa-times-circle me-1"></i>Clear Filters
+					<i class="fa-solid fa-times-circle me-1"></i>Clear Filters
 				</button>
 			</div>
 		</div>
@@ -147,19 +147,19 @@
 		<div id="advanced-filters-panel" class="mt-3" style="display: none;">
 			<div class="card">
 				<div class="card-header">
-					<h4 class="card-title mb-0"><i class="fas fa-sliders-h me-2"></i>Advanced Filters</h4>
+					<h4 class="card-title mb-0"><i class="fa-solid fa-sliders-h me-2"></i>Advanced Filters</h4>
 				</div>
 				<div class="card-body">
 					<div class="row g-4">
 						
 						{# Column 1: Feature Support #}
 						<div class="col-md-6 col-lg-3">
-							<h6 class="mb-3 fw-bold text-primary"><i class="fas fa-cogs me-1"></i> Feature Support</h6>
+							<h6 class="mb-3 fw-bold text-primary"><i class="fa-solid fa-cogs me-1"></i> Feature Support</h6>
 							<div class="form-selectgroup form-selectgroup-boxes d-flex flex-column gap-2">
 								<label class="form-selectgroup-item">
 									<input type="checkbox" class="form-selectgroup-input feature-filter" id="filter-function-calling" value="function_calling" onchange="applyFilters()">
 									<div class="form-selectgroup-label d-flex align-items-center p-2">
-										<div class="me-2"><i class="fas fa-code text-primary"></i></div>
+										<div class="me-2"><i class="fa-solid fa-code text-primary"></i></div>
 										<div class="form-selectgroup-label-content">
 											<span class="form-selectgroup-title small mb-0">Function Calling</span>
 										</div>
@@ -168,7 +168,7 @@
 								<label class="form-selectgroup-item">
 									<input type="checkbox" class="form-selectgroup-input feature-filter" id="filter-vision" value="vision" onchange="applyFilters()">
 									<div class="form-selectgroup-label d-flex align-items-center p-2">
-										<div class="me-2"><i class="fas fa-eye text-info"></i></div>
+										<div class="me-2"><i class="fa-solid fa-eye text-info"></i></div>
 										<div class="form-selectgroup-label-content">
 											<span class="form-selectgroup-title small mb-0">Vision</span>
 										</div>
@@ -177,7 +177,7 @@
 								<label class="form-selectgroup-item">
 									<input type="checkbox" class="form-selectgroup-input feature-filter" id="filter-json-mode" value="json_mode" onchange="applyFilters()">
 									<div class="form-selectgroup-label d-flex align-items-center p-2">
-										<div class="me-2"><i class="fas fa-brackets-curly text-success"></i></div>
+										<div class="me-2"><i class="fa-solid fa-brackets-curly text-success"></i></div>
 										<div class="form-selectgroup-label-content">
 											<span class="form-selectgroup-title small mb-0">JSON Mode</span>
 										</div>
@@ -186,7 +186,7 @@
 								<label class="form-selectgroup-item">
 									<input type="checkbox" class="form-selectgroup-input feature-filter" id="filter-streaming" value="streaming" onchange="applyFilters()">
 									<div class="form-selectgroup-label d-flex align-items-center p-2">
-										<div class="me-2"><i class="fas fa-stream text-warning"></i></div>
+										<div class="me-2"><i class="fa-solid fa-stream text-warning"></i></div>
 										<div class="form-selectgroup-label-content">
 											<span class="form-selectgroup-title small mb-0">Streaming</span>
 										</div>
@@ -197,7 +197,7 @@
 
 						{# Column 2: Input Modalities & Architecture #}
 						<div class="col-md-6 col-lg-3">
-							<h6 class="mb-3 fw-bold text-primary"><i class="fas fa-layer-group me-1"></i> Modalities & Architecture</h6>
+							<h6 class="mb-3 fw-bold text-primary"><i class="fa-solid fa-layer-group me-1"></i> Modalities & Architecture</h6>
 							
 							<div class="mb-3">
 								<label class="form-label small fw-semibold mb-2">Input Modalities</label>
@@ -246,7 +246,7 @@
 
 						{# Column 3: Parameters & Technical #}
 						<div class="col-md-6 col-lg-3">
-							<h6 class="mb-3 fw-bold text-primary"><i class="fas fa-sliders-h me-1"></i> Parameters & Technical</h6>
+							<h6 class="mb-3 fw-bold text-primary"><i class="fa-solid fa-sliders-h me-1"></i> Parameters & Technical</h6>
 							
 							<div class="mb-3">
 								<label class="form-label small fw-semibold mb-2">Supported Parameters</label>
@@ -291,18 +291,18 @@
 
 						{# Column 4: Status & Quality Metrics #}
 						<div class="col-md-6 col-lg-3">
-							<h6 class="mb-3 fw-bold text-primary"><i class="fas fa-chart-line me-1"></i> Status & Quality</h6>
+							<h6 class="mb-3 fw-bold text-primary"><i class="fa-solid fa-chart-line me-1"></i> Status & Quality</h6>
 							
 							<div class="mb-3">
 								<label class="form-label small fw-semibold mb-2">Model Status</label>
 								<div class="d-flex flex-column gap-1">
 									<label class="form-check">
 										<input class="form-check-input" type="checkbox" id="filter-free-models" onchange="applyFilters()">
-										<span class="form-check-label small"><i class="fas fa-gift text-success me-1"></i>Free Models</span>
+										<span class="form-check-label small"><i class="fa-solid fa-gift text-success me-1"></i>Free Models</span>
 									</label>
 									<label class="form-check">
 										<input class="form-check-input" type="checkbox" id="filter-installed-only" onchange="applyFilters()">
-										<span class="form-check-label small"><i class="fas fa-download text-info me-1"></i>Installed Only</span>
+										<span class="form-check-label small"><i class="fa-solid fa-download text-info me-1"></i>Installed Only</span>
 									</label>
 								</div>
 							</div>
@@ -334,10 +334,10 @@
 						<div class="col-12">
 							<div class="d-flex justify-content-between align-items-center">
 								<button class="btn btn-outline-secondary btn-sm" onclick="clearAllFilters()" type="button">
-									<i class="fas fa-times-circle me-1"></i>Clear All Filters
+									<i class="fa-solid fa-times-circle me-1"></i>Clear All Filters
 								</button>
 								<button class="btn btn-primary btn-sm" onclick="toggleAdvancedFilters()" type="button">
-									<i class="fas fa-check me-1"></i>Apply & Close
+									<i class="fa-solid fa-check me-1"></i>Apply & Close
 								</button>
 							</div>
 						</div>

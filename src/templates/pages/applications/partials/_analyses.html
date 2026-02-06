@@ -6,21 +6,21 @@
       <div class="card-body py-2">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
           <div class="d-flex align-items-center gap-3">
-            <span class="text-muted small"><i class="fas fa-flask text-info me-1"></i>Analysis Summary:</span>
-            <span class="badge bg-primary-lt"><i class="fas fa-list me-1"></i>{{ analysis_tasks|length|default(0) }} Total</span>
+            <span class="text-muted small"><i class="fa-solid fa-flask text-info me-1"></i>Analysis Summary:</span>
+            <span class="badge bg-primary-lt"><i class="fa-solid fa-list me-1"></i>{{ analysis_tasks|length|default(0) }} Total</span>
             {% set completed_count = 0 %}{% set running_count = 0 %}{% set failed_count = 0 %}
             {% if analysis_tasks %}{% for t in analysis_tasks %}
               {% if t.status and t.status.value == 'COMPLETED' %}{% set completed_count = completed_count + 1 %}
               {% elif t.status and t.status.value == 'RUNNING' %}{% set running_count = running_count + 1 %}
               {% elif t.status and t.status.value == 'FAILED' %}{% set failed_count = failed_count + 1 %}{% endif %}
             {% endfor %}{% endif %}
-            <span class="badge bg-success-lt"><i class="fas fa-check me-1"></i>{{ completed_count }} Done</span>
-            {% if running_count > 0 %}<span class="badge bg-warning-lt"><i class="fas fa-spinner fa-spin me-1"></i>{{ running_count }} Running</span>{% endif %}
-            {% if failed_count > 0 %}<span class="badge bg-danger-lt"><i class="fas fa-times me-1"></i>{{ failed_count }} Failed</span>{% endif %}
+            <span class="badge bg-success-lt"><i class="fa-solid fa-check me-1"></i>{{ completed_count }} Done</span>
+            {% if running_count > 0 %}<span class="badge bg-warning-lt"><i class="fa-solid fa-spinner fa-spin me-1"></i>{{ running_count }} Running</span>{% endif %}
+            {% if failed_count > 0 %}<span class="badge bg-danger-lt"><i class="fa-solid fa-times me-1"></i>{{ failed_count }} Failed</span>{% endif %}
           </div>
           <a href="{{ url_for('analysis.analysis_create') }}?model={{ app_data.model_slug }}&app={{ app_data.app_number }}" 
              class="btn btn-primary btn-sm py-1">
-            <i class="fas fa-plus me-1"></i>New
+            <i class="fa-solid fa-plus me-1"></i>New
           </a>
         </div>
       </div>
@@ -32,13 +32,13 @@
     <div class="card card-sm">
       <div class="card-header py-2 d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center">
-          <i class="fas fa-tasks text-primary me-2"></i>
+          <i class="fa-solid fa-tasks text-primary me-2"></i>
           <span class="fw-bold">Tasks</span>
         </div>
         <button class="btn btn-sm btn-ghost-secondary py-0" 
                 hx-get="{{ url_for('applications.application_section_analyses', model_slug=app_data.model_slug, app_number=app_data.app_number) }}"
                 hx-target="#section-analyses" hx-swap="innerHTML">
-          <i class="fas fa-sync"></i>
+          <i class="fa-solid fa-sync"></i>
         </button>
       </div>
       <div class="card-body p-0">
@@ -85,10 +85,10 @@
                 <td class="text-end">
                   <div class="btn-list flex-nowrap justify-content-end gap-1">
                     {% if status_str == 'COMPLETED' %}
-                    <a href="{{ url_for('analysis.analysis_result_detail', result_id=task.task_id) }}" class="btn btn-sm btn-ghost-primary py-0" title="View"><i class="fas fa-eye"></i></a>
-                    <a href="{{ url_for('analysis.export_task_sarif', task_id=task.task_id) }}" class="btn btn-sm btn-ghost-success py-0" title="SARIF"><i class="fas fa-download"></i></a>
+                    <a href="{{ url_for('analysis.analysis_result_detail', result_id=task.task_id) }}" class="btn btn-sm btn-ghost-primary py-0" title="View"><i class="fa-solid fa-eye"></i></a>
+                    <a href="{{ url_for('analysis.export_task_sarif', task_id=task.task_id) }}" class="btn btn-sm btn-ghost-success py-0" title="SARIF"><i class="fa-solid fa-download"></i></a>
                     {% elif status_str == 'FAILED' %}
-                    <button class="btn btn-sm btn-ghost-warning py-0" title="Error" onclick="showTaskError('{{ task.task_id }}', '{{ task.error_message|default('Error')|e }}')"><i class="fas fa-exclamation-triangle"></i></button>
+                    <button class="btn btn-sm btn-ghost-warning py-0" title="Error" onclick="showTaskError('{{ task.task_id }}', '{{ task.error_message|default('Error')|e }}')"><i class="fa-solid fa-exclamation-triangle"></i></button>
                     {% else %}<span class="text-muted">—</span>{% endif %}
                   </div>
                 </td>
@@ -100,10 +100,10 @@
         </div>
         {% else %}
         <div class="text-center py-4">
-          <i class="fas fa-flask text-muted fa-2x mb-2"></i>
+          <i class="fa-solid fa-flask text-muted fa-2x mb-2"></i>
           <p class="mb-2 text-muted">No analysis tasks yet</p>
           <a href="{{ url_for('analysis.analysis_create') }}?model={{ app_data.model_slug }}&app={{ app_data.app_number }}" class="btn btn-primary btn-sm">
-            <i class="fas fa-plus me-1"></i>Create Analysis
+            <i class="fa-solid fa-plus me-1"></i>Create Analysis
           </a>
         </div>
         {% endif %}
@@ -120,7 +120,7 @@ function showTaskError(taskId, errorMessage) {
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header py-2">
-          <h6 class="modal-title"><i class="fas fa-exclamation-triangle text-danger me-2"></i>Task Error</h6>
+          <h6 class="modal-title"><i class="fa-solid fa-exclamation-triangle text-danger me-2"></i>Task Error</h6>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">

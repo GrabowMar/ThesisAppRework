@@ -17,7 +17,7 @@
           {# Status Column #}
           <div class="col-md-6">
             <div class="d-flex align-items-center mb-2">
-              <i class="fas fa-heartbeat text-{{ status_color }} me-2"></i>
+              <i class="fa-solid fa-heartbeat text-{{ status_color }} me-2"></i>
               <span class="text-muted small text-uppercase fw-bold">Status</span>
             </div>
             <div class="d-flex align-items-center gap-2 mb-2">
@@ -38,7 +38,7 @@
           {# Runtime Column #}
           <div class="col-md-6">
             <div class="d-flex align-items-center mb-2">
-              <i class="fas fa-info-circle text-info me-2"></i>
+              <i class="fa-solid fa-info-circle text-info me-2"></i>
               <span class="text-muted small text-uppercase fw-bold">Runtime</span>
             </div>
             <div class="row row-cols-2 g-1 small">
@@ -69,7 +69,7 @@
     <div class="card card-sm h-100">
       <div class="card-body py-2">
         <div class="d-flex align-items-center mb-2">
-          <i class="fas fa-gamepad text-purple me-2"></i>
+          <i class="fa-solid fa-gamepad text-purple me-2"></i>
           <span class="text-muted small text-uppercase fw-bold">Controls</span>
         </div>
         <div class="row g-2">
@@ -78,18 +78,18 @@
             <div class="btn-group w-100" role="group">
               {% if status == 'running' %}
                 <button type="button" id="btn-container-restart" class="btn btn-warning" style="flex: 1;">
-                  <i class="fas fa-rotate me-1"></i>Restart
+                  <i class="fa-solid fa-rotate me-1"></i>Restart
                 </button>
                 <button type="button" id="btn-container-stop" class="btn btn-danger" style="flex: 1;">
-                  <i class="fas fa-stop me-1"></i>Stop
+                  <i class="fa-solid fa-stop me-1"></i>Stop
                 </button>
               {% else %}
                 <button type="button" id="btn-container-start" class="btn btn-success" style="flex: 1;">
-                  <i class="fas fa-play me-1"></i>Start
+                  <i class="fa-solid fa-play me-1"></i>Start
                 </button>
                 {% if app_data.has_docker_compose %}
                   <button type="button" id="btn-container-build" class="btn btn-primary" style="flex: 1;">
-                    <i class="fas fa-hammer me-1"></i>Build
+                    <i class="fa-solid fa-hammer me-1"></i>Build
                   </button>
                 {% endif %}
               {% endif %}
@@ -99,13 +99,13 @@
           <div class="col-12">
             <div class="btn-group w-100" role="group">
               <button type="button" id="btn-diagnostics-refresh" class="btn btn-ghost-secondary" style="flex: 1;">
-                <i class="fas fa-sync me-1"></i>Refresh
+                <i class="fa-solid fa-sync me-1"></i>Refresh
               </button>
               <button type="button" id="btn-logs-refresh" class="btn btn-ghost-secondary" style="flex: 1;">
-                <i class="fas fa-file-lines me-1"></i>Logs
+                <i class="fa-solid fa-file-lines me-1"></i>Logs
               </button>
               <button type="button" id="btn-logs-download" class="btn btn-ghost-secondary" style="flex: 1;" title="Download Logs">
-                <i class="fas fa-download me-1"></i>Download
+                <i class="fa-solid fa-download me-1"></i>Download
               </button>
             </div>
           </div>

@@ -278,18 +278,38 @@ Bearer token authentication via `Authorization: Bearer <token>` header. Tokens m
 
 ```mermaid
 flowchart TB
-    subgraph Host["Host Machine"]
-        Flask["Flask App\n:5000"]
-        Gateway["WS Gateway\n:8765"]
+    subgraph External["External Access"]
+        Client["Browser/API Client"]
     end
 
-    subgraph Docker["Docker Compose"]
-        Static["static-analyzer\n:2001"]
-        Dynamic["dynamic-analyzer\n:2002"]
-        Perf["performance-tester\n:2003"]
-        AI["ai-analyzer\n:2004"]
+    subgraph Host["Docker Compose Stack"]
+        Nginx["Nginx Proxy\n:80, :443"]
+        Flask["Flask App\n:5000 (internal)"]
+        Gateway["WS Gateway\n:8765"]
         Redis["Redis\n:6379"]
         Celery["Celery Worker"]
+    end
+
+    subgraph Analyzers["Scaled Analyzer Services"]
+        subgraph Static["Static Analyzer (4x)"]
+            S1[":2001"]
+            S2[":2051"]
+            S3[":2052"]
+            S4[":2056"]
+        end
+        subgraph Dynamic["Dynamic Analyzer (3x)"]
+            D1[":2002"]
+            D2[":2053"]
+            D3[":2057"]
+        end
+        subgraph Perf["Performance Tester (2x)"]
+            P1[":2003"]
+            P2[":2054"]
+        end
+        subgraph AI["AI Analyzer (2x)"]
+            A1[":2004"]
+            A2[":2055"]
+        end
     end
 
     subgraph Volumes["Mounted Volumes"]
@@ -297,31 +317,47 @@ flowchart TB
         Res["results/\n(read-write)"]
     end
 
-    Flask -->|WebSocket| Static
-    Flask -->|WebSocket| Dynamic
-    Flask -->|WebSocket| Perf
-    Flask -->|WebSocket| AI
-    Gateway --> Static
-    Gateway --> Dynamic
-    Gateway --> Perf
-    Gateway --> AI
+    Client -->|HTTP/HTTPS| Nginx
+    Nginx --> Flask
+    Flask -->|WebSocket| Analyzers
     Celery --> Redis
-    Static --> Apps
-    Static --> Res
-    Dynamic --> Apps
-    Dynamic --> Res
+    Analyzers --> Apps
+    Analyzers --> Res
 ```
+
+### Nginx Reverse Proxy
+
+| Port | Protocol | Purpose |
+|------|----------|--------|
+| 80 | HTTP | Redirect to HTTPS or direct access |
+| 443 | HTTPS | Secure access with self-signed cert |
+
+### Scaled Analyzer Replicas
+
+For high-throughput analysis, analyzer services run multiple replicas with load balancing:
+
+| Service | Replicas | Port Range | Load Balancing |
+|---------|----------|------------|----------------|
+| static-analyzer | 4 | 2001, 2051-2052, 2056 | `STATIC_ANALYZER_URLS` env var |
+| dynamic-analyzer | 3 | 2002, 2053, 2057 | `DYNAMIC_ANALYZER_URLS` env var |
+| performance-tester | 2 | 2003, 2054 | `PERF_TESTER_URLS` env var |
+| ai-analyzer | 2 | 2004, 2055 | `AI_ANALYZER_URLS` env var |
+
+> **Note**: Load balancing is configured via comma-separated URLs in environment variables. The `AnalyzerPool` service distributes requests across available replicas.
 
 ### Container Resources
 
-| Service | Memory | CPU |
-|---------|--------|-----|
-| gateway | 256MB | 0.2 |
-| static-analyzer | 1GB | 0.5 |
-| dynamic-analyzer | 1GB | 0.5 |
-| performance-tester | 2GB | 1.0 |
-| ai-analyzer | 2GB | 1.0 |
-| celery-worker | 1GB | 1.0 |
+| Service | Memory | CPU | Replicas |
+|---------|--------|-----|----------|
+| nginx | 128MB | 0.1 | 1 |
+| web (Flask) | 2GB | 1.0 | 1 |
+| redis | 256MB | 0.2 | 1 |
+| gateway | 256MB | 0.2 | 1 |
+| static-analyzer | 1GB | 0.5 | 4 |
+| dynamic-analyzer | 1GB | 0.5 | 3 |
+| performance-tester | 2GB | 1.0 | 2 |
+| ai-analyzer | 2GB | 1.0 | 2 |
+| celery-worker | 1GB | 1.0 | 1 |
 
 ## Results Storage
 

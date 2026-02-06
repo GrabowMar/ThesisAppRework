@@ -11,7 +11,7 @@
 <div class="research-header">
   {# Icon with optional status indicator #}
   <div class="research-header-icon">
-    <i class="{{ view.icon or 'fas fa-cube' }}" aria-hidden="true"></i>
+    <i class="{{ view.icon or 'fa-solid fa-cube' }}" aria-hidden="true"></i>
   </div>
   
   {# Status badge (for running containers, active processes, etc.) #}
@@ -285,7 +285,7 @@
   {% endfor %}
 </div>
 {% else %}
-  {{ research_empty_state('fas fa-inbox', 'No Data', 'No items to display.') }}
+  {{ research_empty_state('fa-solid fa-inbox', 'No Data', 'No items to display.') }}
 {% endif %}
 {% endmacro %}
 

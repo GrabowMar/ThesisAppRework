@@ -53,7 +53,7 @@
   <div class="page">
     {# Sidebar Navigation #}
     {% include 'shared/ui/_sidebar.html' %}
-    <div class="sidebar-backdrop d-lg-none" id="sidebar-backdrop" aria-hidden="true"></div>
+    {# sidebar-backdrop is defined inside _sidebar.html #}
     
     {# Header #}
     {% include 'shared/ui/_header.html' %}
@@ -93,7 +93,7 @@
   {# Cookie Banner & Management #}
   {% include 'shared/ui/_cookie_banner.html' %}
 
-  {# Search Modal #}
+  {# Search Modal - disabled pending backend integration
   <div class="modal modal-blur fade" id="search-modal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-sm modal-dialog-centered">
       <div class="modal-content">
@@ -107,6 +107,7 @@
       </div>
     </div>
   </div>
+  #}
 
   {# Modal Region for HTMX-loaded modals #}
   <div id="modal-region"></div>
@@ -298,7 +299,7 @@
       var toast = document.createElement('div');
       toast.className = 'alert ' + bg + ' text-white d-flex align-items-center mb-2';
       toast.style.cssText = 'box-shadow:0 4px 12px rgba(0,0,0,.15);animation:toastSlideIn .3s ease';
-      toast.innerHTML = '<i class="fas ' + icon + ' me-2"></i><span>' + message + '</span>';
+      toast.innerHTML = '<i class="fa-solid ' + icon + ' me-2"></i><span>' + message + '</span>';
       container.appendChild(toast);
       
       // Auto-remove

@@ -159,7 +159,7 @@ class ContainerLogsModal {
             this.autoScroll = !this.autoScroll;
             const icon = document.querySelector('#log-scroll-toggle i');
             if (icon) {
-                icon.className = this.autoScroll ? 'fas fa-arrow-down' : 'fas fa-pause';
+                icon.className = this.autoScroll ? 'fa-solid fa-arrow-down' : 'fa-solid fa-pause';
             }
             if (this.autoScroll) {
                 this.scrollToBottom();

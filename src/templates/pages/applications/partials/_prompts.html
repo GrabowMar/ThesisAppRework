@@ -14,10 +14,10 @@
       <div class="card-body py-2">
         <div class="d-flex align-items-center flex-wrap gap-2">
           <span class="text-muted small fw-bold">Sources:</span>
-          <span class="badge prompt-source-template badge-xs"><i class="fas fa-file-code"></i> Template</span>
-          <span class="badge prompt-source-requirements badge-xs"><i class="fas fa-list-check"></i> Requirements</span>
-          <span class="badge prompt-source-scaffolding badge-xs"><i class="fas fa-cubes"></i> Scaffolding</span>
-          <span class="badge prompt-source-metadata badge-xs"><i class="fas fa-info-circle"></i> Metadata</span>
+          <span class="badge prompt-source-template badge-xs"><i class="fa-solid fa-file-code"></i> Template</span>
+          <span class="badge prompt-source-requirements badge-xs"><i class="fa-solid fa-list-check"></i> Requirements</span>
+          <span class="badge prompt-source-scaffolding badge-xs"><i class="fa-solid fa-cubes"></i> Scaffolding</span>
+          <span class="badge prompt-source-metadata badge-xs"><i class="fa-solid fa-info-circle"></i> Metadata</span>
         </div>
       </div>
     </div>
@@ -28,10 +28,10 @@
     <div class="card card-sm">
       <div class="card-header py-2 d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center">
-          <i class="fas fa-file-lines text-primary me-2"></i>
+          <i class="fa-solid fa-file-lines text-primary me-2"></i>
           <span class="fw-bold">Explorer</span>
         </div>
-        <button class="btn btn-ghost-primary btn-sm py-0 d-none" id="prompt-copy-btn" onclick="copyCurrentPrompt()"><i class="fas fa-copy me-1"></i>Copy</button>
+        <button class="btn btn-ghost-primary btn-sm py-0 d-none" id="prompt-copy-btn" onclick="copyCurrentPrompt()"><i class="fa-solid fa-copy me-1"></i>Copy</button>
       </div>
       <div class="card-body p-0">
         <div class="row g-0">
@@ -40,40 +40,40 @@
             <div class="list-group list-group-flush" id="prompt-file-tree">
               {# === BACKEND SECTION === #}
               <div class="list-group-item py-1 px-2 bg-light-lt small fw-bold text-muted">
-                <i class="fas fa-server me-1"></i>Backend
+                <i class="fa-solid fa-server me-1"></i>Backend
               </div>
               {% if has_backend_prompt %}
               <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small active" data-prompt-id="backend-prompt" data-prompt-content="{{ prompts.backend|e }}">
-                <span><i class="fas fa-file-lines me-1 text-success"></i>Prompt</span>
+                <span><i class="fa-solid fa-file-lines me-1 text-success"></i>Prompt</span>
                 <span class="badge bg-success-lt badge-xxs">Q1</span>
               </button>
               {% endif %}
               {% if has_backend_response %}
               <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="backend-response" data-prompt-content="{{ responses.backend|e }}">
-                <span><i class="fas fa-reply me-1 text-success"></i>Response</span>
+                <span><i class="fa-solid fa-reply me-1 text-success"></i>Response</span>
                 <span class="badge bg-success-lt badge-xxs">R1</span>
               </button>
               {% endif %}
 
               {# === FRONTEND SECTION === #}
               <div class="list-group-item py-1 px-2 bg-light-lt small fw-bold text-muted">
-                <i class="fas fa-desktop me-1"></i>Frontend
+                <i class="fa-solid fa-desktop me-1"></i>Frontend
               </div>
               {% if has_frontend_prompt %}
               <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="frontend-prompt" data-prompt-content="{{ prompts.frontend|e }}">
-                <span><i class="fas fa-file-lines me-1 text-info"></i>Prompt</span>
+                <span><i class="fa-solid fa-file-lines me-1 text-info"></i>Prompt</span>
                 <span class="badge bg-info-lt badge-xxs">Q2</span>
               </button>
               {% endif %}
               {% if has_frontend_response %}
               <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-prompt-id="frontend-response" data-prompt-content="{{ responses.frontend|e }}">
-                <span><i class="fas fa-reply me-1 text-info"></i>Response</span>
+                <span><i class="fa-solid fa-reply me-1 text-info"></i>Response</span>
                 <span class="badge bg-info-lt badge-xxs">R2</span>
               </button>
               {% endif %}
               {% if not has_any_content %}
               <div class="list-group-item py-2 text-muted small text-center">
-                <i class="fas fa-file-circle-question me-1"></i>No prompts recorded
+                <i class="fa-solid fa-file-circle-question me-1"></i>No prompts recorded
               </div>
               {% endif %}
             </div>
@@ -87,7 +87,7 @@
               {% elif not has_any_content %}
               {# Empty state with explanation #}
               <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted py-4 px-3">
-                <i class="fas fa-file-circle-xmark fa-3x mb-3 text-warning"></i>
+                <i class="fa-solid fa-file-circle-xmark fa-3x mb-3 text-warning"></i>
                 <h6 class="mb-2">Prompt Exchange Not Recorded</h6>
                 <p class="small text-center mb-3 prompt-empty-text">
                   The prompts and responses for this application were not saved during generation.
@@ -99,7 +99,7 @@
                 </div>
               </div>
               {% else %}
-              <div class="text-center text-muted py-5"><i class="fas fa-mouse-pointer fa-2x mb-2"></i><p class="mb-0 small">Select a prompt to preview</p></div>
+              <div class="text-center text-muted py-5"><i class="fa-solid fa-mouse-pointer fa-2x mb-2"></i><p class="mb-0 small">Select a prompt to preview</p></div>
               {% endif %}
             </div>
           </div>
@@ -150,10 +150,10 @@
   
   // Define these first before they're used
   const sectionTypes = {
-    metadata: { icon: 'fas fa-info-circle', name: 'Meta' },
-    template: { icon: 'fas fa-file-code', name: 'Tmpl' },
-    requirements: { icon: 'fas fa-list-check', name: 'Reqs' },
-    scaffolding: { icon: 'fas fa-cubes', name: 'Scaf' }
+    metadata: { icon: 'fa-solid fa-info-circle', name: 'Meta' },
+    template: { icon: 'fa-solid fa-file-code', name: 'Tmpl' },
+    requirements: { icon: 'fa-solid fa-list-check', name: 'Reqs' },
+    scaffolding: { icon: 'fa-solid fa-cubes', name: 'Scaf' }
   };
   
   function escapeHtml(text) { const d = document.createElement('div'); d.textContent = text; return d.innerHTML; }

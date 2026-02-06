@@ -192,13 +192,12 @@ Create a JSON file with model and app number pairs:
 
 ## Service Architecture
 
-The analyzer consists of 5 containerized services:
+The analyzer consists of 4 containerized services (with replicas for concurrency):
 
-- **static-analyzer** (port 2001): Static code analysis with PyLint, Flake8, ESLint
-- **dynamic-analyzer** (port 2002): OWASP ZAP security scanning  
-- **performance-tester** (port 2003): Locust-based load testing
-- **ai-analyzer** (port 2004): AI-powered code analysis via OpenRouter
-- **security-analyzer** (port 2005): Security scanning with Bandit, Safety
+- **static-analyzer** (port 2001, 4 replicas): Static code analysis with Bandit, Semgrep, PyLint, Ruff, ESLint
+- **dynamic-analyzer** (port 2002, 3 replicas): OWASP ZAP security scanning, nmap, curl probes
+- **performance-tester** (port 2003, 2 replicas): Locust-based load testing, aiohttp, Apache ab
+- **ai-analyzer** (port 2004, 2 replicas): AI-powered code analysis via OpenRouter
 
 ## Results Structure
 

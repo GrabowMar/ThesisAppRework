@@ -651,9 +651,9 @@ function renderModelsTable(models) {
     
     // Build badges - compact with consistent sizing
     const badges = [];
-    if (isFree) badges.push('<span class="badge bg-success-lt text-success ms-2" title="Free tier available"><i class="fas fa-gift fa-xs"></i></span>');
-    if (hasApps) badges.push('<span class="badge bg-info-lt text-info ms-1" title="Has generated apps"><i class="fas fa-box fa-xs"></i></span>');
-    if (isInstalled) badges.push('<span class="badge bg-primary-lt text-primary ms-1" title="Used in project"><i class="fas fa-check fa-xs"></i></span>');
+    if (isFree) badges.push('<span class="badge bg-success-lt text-success ms-2" title="Free tier available"><i class="fa-solid fa-gift fa-xs"></i></span>');
+    if (hasApps) badges.push('<span class="badge bg-info-lt text-info ms-1" title="Has generated apps"><i class="fa-solid fa-box fa-xs"></i></span>');
+    if (isInstalled) badges.push('<span class="badge bg-primary-lt text-primary ms-1" title="Used in project"><i class="fa-solid fa-check fa-xs"></i></span>');
     
     // Modality - show all available input types from capabilities
     const caps_raw = m.capabilities_raw || {};
@@ -663,26 +663,26 @@ function renderModelsTable(models) {
     
     // Parse modality string (e.g., "text+image->text") - use subtle badges
     if (modality_str.toLowerCase().includes('text')) {
-      modalities.push('<span class="badge bg-azure-lt text-azure" title="Text"><i class="fas fa-font fa-xs"></i></span>');
+      modalities.push('<span class="badge bg-azure-lt text-azure" title="Text"><i class="fa-solid fa-font fa-xs"></i></span>');
     }
     if (modality_str.toLowerCase().includes('image') || m.supports_vision) {
-      modalities.push('<span class="badge bg-cyan-lt text-cyan" title="Image/Vision"><i class="fas fa-eye fa-xs"></i></span>');
+      modalities.push('<span class="badge bg-cyan-lt text-cyan" title="Image/Vision"><i class="fa-solid fa-eye fa-xs"></i></span>');
     }
     if (modality_str.toLowerCase().includes('audio')) {
-      modalities.push('<span class="badge bg-purple-lt text-purple" title="Audio"><i class="fas fa-microphone fa-xs"></i></span>');
+      modalities.push('<span class="badge bg-purple-lt text-purple" title="Audio"><i class="fa-solid fa-microphone fa-xs"></i></span>');
     }
     if (modality_str.toLowerCase().includes('video')) {
-      modalities.push('<span class="badge bg-pink-lt text-pink" title="Video"><i class="fas fa-video fa-xs"></i></span>');
+      modalities.push('<span class="badge bg-pink-lt text-pink" title="Video"><i class="fa-solid fa-video fa-xs"></i></span>');
     }
     
-    const modalityHtml = modalities.length > 0 ? `<div class="d-flex gap-1 justify-content-center">${modalities.join('')}</div>` : '<span class="badge bg-azure-lt text-azure"><i class="fas fa-font fa-xs"></i></span>';
+    const modalityHtml = modalities.length > 0 ? `<div class="d-flex gap-1 justify-content-center">${modalities.join('')}</div>` : '<span class="badge bg-azure-lt text-azure"><i class="fa-solid fa-font fa-xs"></i></span>';
     
     // All available features - compact icon display
     const features = [];
-    if (m.supports_function_calling) features.push('<span class="badge bg-primary-lt text-primary" title="Function Calling"><i class="fas fa-code fa-xs"></i></span>');
-    if (m.supports_vision) features.push('<span class="badge bg-cyan-lt text-cyan" title="Vision"><i class="fas fa-eye fa-xs"></i></span>');
-    if (m.supports_json_mode) features.push('<span class="badge bg-green-lt text-green" title="JSON Mode"><i class="fas fa-file-code fa-xs"></i></span>');
-    if (m.supports_streaming) features.push('<span class="badge bg-yellow-lt text-yellow" title="Streaming"><i class="fas fa-stream fa-xs"></i></span>');
+    if (m.supports_function_calling) features.push('<span class="badge bg-primary-lt text-primary" title="Function Calling"><i class="fa-solid fa-code fa-xs"></i></span>');
+    if (m.supports_vision) features.push('<span class="badge bg-cyan-lt text-cyan" title="Vision"><i class="fa-solid fa-eye fa-xs"></i></span>');
+    if (m.supports_json_mode) features.push('<span class="badge bg-green-lt text-green" title="JSON Mode"><i class="fa-solid fa-file-code fa-xs"></i></span>');
+    if (m.supports_streaming) features.push('<span class="badge bg-yellow-lt text-yellow" title="Streaming"><i class="fa-solid fa-stream fa-xs"></i></span>');
     
     const featuresHtml = features.length ? '<div class="d-flex gap-1 justify-content-center flex-wrap">' + features.join('') + '</div>' : '<span class="text-muted small">—</span>';
     
@@ -715,9 +715,9 @@ function renderModelsTable(models) {
       if (instLower === 'none' || instLower === 'base') {
         instructHtml = '<span class="badge badge-outline text-secondary">Base</span>';
       } else if (instLower.includes('chat')) {
-        instructHtml = '<span class="badge badge-outline text-info" title="Chat model"><i class="fas fa-comments fa-xs"></i> Chat</span>';
+        instructHtml = '<span class="badge badge-outline text-info" title="Chat model"><i class="fa-solid fa-comments fa-xs"></i> Chat</span>';
       } else if (instLower.includes('instruct')) {
-        instructHtml = '<span class="badge badge-outline text-primary" title="Instruction-tuned"><i class="fas fa-terminal fa-xs"></i> Inst</span>';
+        instructHtml = '<span class="badge badge-outline text-primary" title="Instruction-tuned"><i class="fa-solid fa-terminal fa-xs"></i> Inst</span>';
       } else {
         instructHtml = `<span class="badge badge-outline text-muted">${instructType.substring(0, 4)}</span>`;
       }
@@ -757,7 +757,7 @@ function renderModelsTable(models) {
     const variantCount = m.variant_count || 0;
     const variantBadge = variantCount > 1
       ? `<span class="badge bg-purple-lt text-purple cursor-pointer ms-1" onclick="showVariantDropdown('${m.slug}', this)" title="${variantCount} pricing tiers available">
-           <i class="fas fa-layer-group fa-xs"></i>
+           <i class="fa-solid fa-layer-group fa-xs"></i>
          </span>`
       : '';
     
@@ -782,10 +782,10 @@ function renderModelsTable(models) {
       <td>
         <div class="btn-group btn-group-sm" role="group">
           <button type="button" class="btn btn-icon btn-ghost-primary" onclick="viewModelDetails('${m.slug}')" title="View details" aria-label="View details">
-            <i class="fas fa-eye"></i>
+            <i class="fa-solid fa-eye"></i>
           </button>
           <button type="button" class="btn btn-icon btn-ghost-info" onclick="openOnOpenRouter('${m.model_id || m.slug}')" title="View on OpenRouter" aria-label="View on OpenRouter">
-            <i class="fas fa-external-link-alt"></i>
+            <i class="fa-solid fa-external-link-alt"></i>
           </button>
         </div>
       </td>
@@ -923,7 +923,7 @@ function syncFromOpenRouter() {
   
   // Set loading state
   btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i><span class="d-none d-md-inline">Syncing...</span>';
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i><span class="d-none d-md-inline">Syncing...</span>';
   
   fetch('/api/models/load-openrouter', { 
     method: 'POST',
@@ -947,7 +947,7 @@ function syncFromOpenRouter() {
       const message = `Successfully synced ${upserted} models from OpenRouter (${fetched} total fetched)`;
       
       // Create temporary success indicator
-      btn.innerHTML = '<i class="fas fa-check text-success me-1"></i><span class="d-none d-md-inline">Synced!</span>';
+      btn.innerHTML = '<i class="fa-solid fa-check text-success me-1"></i><span class="d-none d-md-inline">Synced!</span>';
       
       // Show a brief success notification
       if (window.bootstrap && window.bootstrap.Toast) {
@@ -957,7 +957,7 @@ function syncFromOpenRouter() {
         toastEl.setAttribute('role', 'alert');
         toastEl.innerHTML = `
           <div class="d-flex">
-            <div class="toast-body"><i class="fas fa-check-circle me-2"></i>${message}</div>
+            <div class="toast-body"><i class="fa-solid fa-check-circle me-2"></i>${message}</div>
             <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
           </div>
         `;
@@ -982,7 +982,7 @@ function syncFromOpenRouter() {
       console.error('Failed to sync from OpenRouter:', err);
       
       // Show error state
-      btn.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-1"></i><span class="d-none d-md-inline">Error</span>';
+      btn.innerHTML = '<i class="fa-solid fa-exclamation-triangle text-danger me-1"></i><span class="d-none d-md-inline">Error</span>';
       
       // Show error notification
       if (window.bootstrap && window.bootstrap.Toast) {
@@ -992,7 +992,7 @@ function syncFromOpenRouter() {
         toastEl.setAttribute('role', 'alert');
         toastEl.innerHTML = `
           <div class="d-flex">
-            <div class="toast-body"><i class="fas fa-exclamation-circle me-2"></i>Sync failed: ${err.message || 'Unknown error'}</div>
+            <div class="toast-body"><i class="fa-solid fa-exclamation-circle me-2"></i>Sync failed: ${err.message || 'Unknown error'}</div>
             <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
           </div>
         `;
@@ -1027,7 +1027,7 @@ function rescanUsedModels() {
   
   // Set loading state
   btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i><span class="d-none d-md-inline">Scanning...</span>';
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i><span class="d-none d-md-inline">Scanning...</span>';
   
   fetch('/api/models/rescan-used', { 
     method: 'POST',
@@ -1055,7 +1055,7 @@ function rescanUsedModels() {
       }
       
       // Show success message
-      btn.innerHTML = '<i class="fas fa-check text-success me-1"></i><span class="d-none d-md-inline">Rescanned!</span>';
+      btn.innerHTML = '<i class="fa-solid fa-check text-success me-1"></i><span class="d-none d-md-inline">Rescanned!</span>';
       alert(message);
       
       // Refresh the models table to show updated data
@@ -1071,7 +1071,7 @@ function rescanUsedModels() {
       console.error('Failed to rescan used models:', err);
       
       // Show error state
-      btn.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-1"></i><span class="d-none d-md-inline">Error</span>';
+      btn.innerHTML = '<i class="fa-solid fa-exclamation-triangle text-danger me-1"></i><span class="d-none d-md-inline">Error</span>';
       
       // Show error message
       alert(`Failed to rescan used models: ${err.message || 'Unknown error'}`);
@@ -1461,7 +1461,7 @@ function showProviderDropdown(slug, element) {
       if (providers.length === 0) {
         providerModal.querySelector('.modal-body').innerHTML = `
           <div class="alert alert-info mb-0">
-            <i class="fas fa-info-circle me-2"></i>
+            <i class="fa-solid fa-info-circle me-2"></i>
             No provider information available for this model.
           </div>
         `;
@@ -1508,7 +1508,7 @@ function showProviderDropdown(slug, element) {
           </table>
         </div>
         <div class="alert alert-info mt-3 mb-0">
-          <i class="fas fa-info-circle me-2"></i>
+          <i class="fa-solid fa-info-circle me-2"></i>
           OpenRouter automatically routes requests to the best available provider based on latency, throughput, and pricing.
         </div>
       `;
@@ -1518,7 +1518,7 @@ function showProviderDropdown(slug, element) {
     .catch(err => {
       providerModal.querySelector('.modal-body').innerHTML = `
         <div class="alert alert-danger mb-0">
-          <i class="fas fa-exclamation-triangle me-2"></i>
+          <i class="fa-solid fa-exclamation-triangle me-2"></i>
           Error loading providers: ${err.message}
         </div>
       `;
@@ -1598,7 +1598,7 @@ function showVariantDropdown(slug, element) {
       if (variants.length === 0) {
         variantModal.querySelector('.modal-body').innerHTML = `
           <div class="alert alert-info mb-0">
-            <i class="fas fa-info-circle me-2"></i>
+            <i class="fa-solid fa-info-circle me-2"></i>
             No variant information available for this model.
           </div>
         `;
@@ -1654,7 +1654,7 @@ function showVariantDropdown(slug, element) {
           </table>
         </div>
         <div class="alert alert-info mt-3 mb-0">
-          <i class="fas fa-info-circle me-2"></i>
+          <i class="fa-solid fa-info-circle me-2"></i>
           Some models offer multiple pricing tiers with different features, rate limits, or quality levels.
         </div>
       `;
@@ -1664,7 +1664,7 @@ function showVariantDropdown(slug, element) {
     .catch(err => {
       variantModal.querySelector('.modal-body').innerHTML = `
         <div class="alert alert-danger mb-0">
-          <i class="fas fa-exclamation-triangle me-2"></i>
+          <i class="fa-solid fa-exclamation-triangle me-2"></i>
           Error loading variants: ${err.message}
         </div>
       `;

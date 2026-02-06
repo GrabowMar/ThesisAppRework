@@ -20,7 +20,7 @@
     <div class="card card-sm h-100">
       <div class="card-body py-2">
         <div class="d-flex align-items-center">
-          <span class="bg-success-lt text-success avatar avatar-sm me-2"><i class="fas fa-arrow-down"></i></span>
+          <span class="bg-success-lt text-success avatar avatar-sm me-2"><i class="fa-solid fa-arrow-down"></i></span>
           <div>
             <div class="text-muted small">Input</div>
             <div class="fw-bold">{% if prompt_price %}${{ '%.6f'|format(prompt_price) }}{% else %}<span class="text-muted">—</span>{% endif %}</div>
@@ -34,7 +34,7 @@
     <div class="card card-sm h-100">
       <div class="card-body py-2">
         <div class="d-flex align-items-center">
-          <span class="bg-primary-lt text-primary avatar avatar-sm me-2"><i class="fas fa-arrow-up"></i></span>
+          <span class="bg-primary-lt text-primary avatar avatar-sm me-2"><i class="fa-solid fa-arrow-up"></i></span>
           <div>
             <div class="text-muted small">Output</div>
             <div class="fw-bold">{% if completion_price %}${{ '%.6f'|format(completion_price) }}{% else %}<span class="text-muted">—</span>{% endif %}</div>
@@ -48,7 +48,7 @@
     <div class="card card-sm h-100">
       <div class="card-body py-2">
         <div class="d-flex align-items-center">
-          <span class="bg-info-lt text-info avatar avatar-sm me-2"><i class="fas fa-balance-scale"></i></span>
+          <span class="bg-info-lt text-info avatar avatar-sm me-2"><i class="fa-solid fa-balance-scale"></i></span>
           <div>
             <div class="text-muted small">Efficiency</div>
             <div class="fw-bold">{% if model.get('cost_efficiency') %}{{ '%.2f'|format(model.get('cost_efficiency')) }}{% else %}<span class="text-muted">—</span>{% endif %}</div>
@@ -62,7 +62,7 @@
     <div class="card card-sm h-100">
       <div class="card-body py-2">
         <div class="d-flex align-items-center">
-          <span class="{% if model.get('is_free') %}bg-success-lt text-success{% else %}bg-secondary-lt text-secondary{% endif %} avatar avatar-sm me-2"><i class="fas fa-{% if model.get('is_free') %}gift{% else %}dollar-sign{% endif %}"></i></span>
+          <span class="{% if model.get('is_free') %}bg-success-lt text-success{% else %}bg-secondary-lt text-secondary{% endif %} avatar avatar-sm me-2"><i class="fa-solid fa-{% if model.get('is_free') %}gift{% else %}dollar-sign{% endif %}"></i></span>
           <div>
             <div class="text-muted small">Tier</div>
             <div class="fw-bold">{% if model.get('is_free') %}Free{% else %}Paid{% endif %}</div>
@@ -77,7 +77,7 @@
     <div class="card card-sm h-100">
       <div class="card-body py-2">
         <div class="d-flex align-items-center mb-2">
-          <i class="fas fa-file-invoice-dollar text-warning me-2" aria-hidden="true"></i>
+          <i class="fa-solid fa-file-invoice-dollar text-warning me-2" aria-hidden="true"></i>
           <span class="text-muted small text-uppercase fw-bold">Additional Pricing</span>
         </div>
         {% set addon_ns = namespace(has_addons=false) %}
@@ -106,7 +106,7 @@
     <div class="card card-sm h-100">
       <div class="card-body py-2">
         <div class="d-flex align-items-center mb-2">
-          <i class="fas fa-chart-bar text-info me-2" aria-hidden="true"></i>
+          <i class="fa-solid fa-chart-bar text-info me-2" aria-hidden="true"></i>
           <span class="text-muted small text-uppercase fw-bold">vs Average</span>
         </div>
         {% if stats and (stats.get('avg_prompt_price') or stats.get('avg_completion_price')) %}
@@ -124,7 +124,7 @@
   {# Pricing Notes - Inline #}
   <div class="col-12">
     <div class="text-muted small text-center">
-      <i class="fas fa-info-circle me-1"></i>Prices from OpenRouter catalog; confirm with provider before cost-sensitive deployments.
+      <i class="fa-solid fa-info-circle me-1"></i>Prices from OpenRouter catalog; confirm with provider before cost-sensitive deployments.
     </div>
   </div>
 </div>

@@ -4,10 +4,10 @@
   <div class="col-12">
     <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="h6 mb-0"><i class="fas fa-spinner fa-spin me-2"></i>Pipeline Execution</h3>
+        <h3 class="h6 mb-0"><i class="fa-solid fa-spinner fa-spin me-2"></i>Pipeline Execution</h3>
         <div class="d-flex align-items-center gap-2">
           <button type="button" class="btn btn-sm btn-outline-primary" onclick="openDetailedProgressModal()" title="View Detailed Progress">
-            <i class="fas fa-expand-alt me-1"></i>Details
+            <i class="fa-solid fa-expand-alt me-1"></i>Details
           </button>
           <span class="badge bg-primary" id="exec-status-badge">Running</span>
           <span class="text-muted small ms-2" id="exec-elapsed-time">00:00</span>
@@ -36,7 +36,7 @@
                 <div class="d-flex align-items-center">
                   <div class="me-3">
                     <span class="avatar avatar-sm bg-azure-lt" id="stage-icon-generation">
-                      <i class="fas fa-code"></i>
+                      <i class="fa-solid fa-code"></i>
                     </span>
                   </div>
                   <div class="flex-fill">
@@ -59,7 +59,7 @@
                 <div class="d-flex align-items-center">
                   <div class="me-3">
                     <span class="avatar avatar-sm bg-green-lt" id="stage-icon-analysis">
-                      <i class="fas fa-search-plus"></i>
+                      <i class="fa-solid fa-search-plus"></i>
                     </span>
                   </div>
                   <div class="flex-fill">
@@ -90,7 +90,7 @@
       <div class="card-body">
         <div id="current-job-details">
           <div class="text-center text-muted py-4">
-            <i class="fas fa-hourglass-start fa-2x mb-2"></i>
+            <i class="fa-solid fa-hourglass-start fa-2x mb-2"></i>
             <div>Waiting to start...</div>
           </div>
         </div>
@@ -104,7 +104,7 @@
       <div class="card-header py-2 d-flex justify-content-between align-items-center">
         <h3 class="h6 mb-0">Activity Log</h3>
         <button class="btn btn-ghost-secondary btn-sm" onclick="clearActivityLog()">
-          <i class="fas fa-trash"></i>
+          <i class="fa-solid fa-trash"></i>
         </button>
       </div>
       <div class="card-body p-0">
@@ -138,7 +138,7 @@
             <tbody id="completed-jobs-table">
               <tr>
                 <td colspan="6" class="text-center text-muted py-3">
-                  <i class="fas fa-inbox me-2"></i>No completed jobs yet
+                  <i class="fa-solid fa-inbox me-2"></i>No completed jobs yet
                 </td>
               </tr>
             </tbody>
@@ -153,18 +153,18 @@
 <div class="d-flex justify-content-between align-items-center mt-4">
   <div>
     <button type="button" class="btn btn-warning me-2" id="pause-pipeline-btn" onclick="pausePipeline()">
-      <i class="fas fa-pause me-1"></i>Pause
+      <i class="fa-solid fa-pause me-1"></i>Pause
     </button>
     <button type="button" class="btn btn-danger" id="cancel-pipeline-btn" onclick="cancelPipeline()">
-      <i class="fas fa-stop me-1"></i>Cancel
+      <i class="fa-solid fa-stop me-1"></i>Cancel
     </button>
   </div>
   <div id="completion-actions" style="display: none;">
     <a href="{{ url_for('reports.reports_index') }}" class="btn btn-outline-primary me-2">
-      <i class="fas fa-chart-bar me-1"></i>View Reports
+      <i class="fa-solid fa-chart-bar me-1"></i>View Reports
     </a>
     <button type="button" class="btn btn-primary" onclick="resetWizard()">
-      <i class="fas fa-redo me-1"></i>New Pipeline
+      <i class="fa-solid fa-redo me-1"></i>New Pipeline
     </button>
   </div>
 </div>

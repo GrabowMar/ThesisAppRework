@@ -8,7 +8,7 @@
           {# Identity Column #}
           <div class="col-md-6">
             <div class="d-flex align-items-center mb-2">
-              <i class="fas fa-id-badge text-primary me-2" aria-hidden="true"></i>
+              <i class="fa-solid fa-id-badge text-primary me-2" aria-hidden="true"></i>
               <span class="text-muted small text-uppercase fw-bold">Identity</span>
             </div>
             <div class="row row-cols-2 g-2">
@@ -34,7 +34,7 @@
           {# Lifecycle Column #}
           <div class="col-md-6">
             <div class="d-flex align-items-center mb-2">
-              <i class="fas fa-life-ring text-success me-2" aria-hidden="true"></i>
+              <i class="fa-solid fa-life-ring text-success me-2" aria-hidden="true"></i>
               <span class="text-muted small text-uppercase fw-bold">Lifecycle</span>
             </div>
             <div class="row row-cols-2 g-2">
@@ -73,7 +73,7 @@
     <div class="card card-sm h-100">
       <div class="card-body py-2">
         <div class="d-flex align-items-center mb-2">
-          <i class="fas fa-chart-bar text-info me-2" aria-hidden="true"></i>
+          <i class="fa-solid fa-chart-bar text-info me-2" aria-hidden="true"></i>
           <span class="text-muted small text-uppercase fw-bold">Code Footprint</span>
         </div>
         <div class="row g-2 text-center">
@@ -104,7 +104,7 @@
     <div class="card card-sm h-100">
       <div class="card-body py-2">
         <div class="d-flex align-items-center mb-2">
-          <i class="fas fa-wrench text-orange me-2" aria-hidden="true"></i>
+          <i class="fa-solid fa-wrench text-orange me-2" aria-hidden="true"></i>
           <span class="text-muted small text-uppercase fw-bold">Fixes Applied</span>
           {% if total_fixes > 0 %}
           <span class="badge bg-orange-lt text-orange ms-2">{{ total_fixes }}</span>
@@ -114,7 +114,7 @@
           <div class="col">
             <div class="d-flex align-items-center justify-content-between">
               <span class="text-muted small" title="Retry attempts during generation">
-                <i class="fas fa-redo me-1"></i>Retry
+                <i class="fa-solid fa-redo me-1"></i>Retry
               </span>
               <span class="fw-medium {{ 'text-orange' if app_data.retry_fixes|default(0) > 0 else 'text-muted' }}">
                 {{ app_data.retry_fixes|default(0) }}
@@ -124,7 +124,7 @@
           <div class="col">
             <div class="d-flex align-items-center justify-content-between">
               <span class="text-muted small" title="Script-based automatic fixes during generation">
-                <i class="fas fa-magic me-1"></i>Auto
+                <i class="fa-solid fa-magic me-1"></i>Auto
               </span>
               <div class="d-flex align-items-center gap-2">
                 <span class="fw-medium {{ 'text-info' if app_data.automatic_fixes|default(0) > 0 else 'text-muted' }}">
@@ -133,7 +133,7 @@
                 {% if app_data.metadata.healing_logs %}
                 <button class="btn btn-ghost-info btn-icon btn-sm rounded-circle" data-bs-toggle="modal"
                   data-bs-target="#healingLogsModal" title="View detailed healing logs">
-                  <i class="fas fa-eye"></i>
+                  <i class="fa-solid fa-eye"></i>
                 </button>
                 {% endif %}
               </div>
@@ -142,7 +142,7 @@
           <div class="col">
             <div class="d-flex align-items-center justify-content-between">
               <span class="text-muted small" title="LLM-based fixes applied during generation">
-                <i class="fas fa-robot me-1"></i>LLM
+                <i class="fa-solid fa-robot me-1"></i>LLM
               </span>
               <span class="fw-medium {{ 'text-purple' if app_data.llm_fixes|default(0) > 0 else 'text-muted' }}">
                 {{ app_data.llm_fixes|default(0) }}
@@ -152,7 +152,7 @@
           <div class="col">
             <div class="d-flex align-items-center justify-content-between">
               <span class="text-muted small" title="Manual fixes applied post-generation">
-                <i class="fas fa-user-edit me-1"></i>Manual
+                <i class="fa-solid fa-user-edit me-1"></i>Manual
               </span>
               <span class="fw-medium {{ 'text-success' if app_data.manual_fixes|default(0) > 0 else 'text-muted' }}">
                 {{ app_data.manual_fixes|default(0) }}
@@ -162,7 +162,7 @@
         </div>
         {% if total_fixes == 0 %}
         <div class="text-center text-muted small mt-1">
-          <i class="fas fa-check-circle text-success me-1"></i>No fixes
+          <i class="fa-solid fa-check-circle text-success me-1"></i>No fixes
         </div>
         {% endif %}
       </div>
@@ -177,27 +177,27 @@
           {# Frameworks #}
           {% if app_data.backend_framework or app_data.frontend_framework %}
           <div class="d-flex align-items-center gap-2">
-            <i class="fas fa-layer-group text-purple" aria-hidden="true"></i>
+            <i class="fa-solid fa-layer-group text-purple" aria-hidden="true"></i>
             <span class="text-muted small">Frameworks:</span>
             {% if app_data.backend_framework %}
-            <span class="badge bg-success-lt text-success"><i class="fas fa-server me-1"></i>{{
+            <span class="badge bg-success-lt text-success"><i class="fa-solid fa-server me-1"></i>{{
               app_data.backend_framework }}</span>
             {% endif %}
             {% if app_data.frontend_framework %}
-            <span class="badge bg-info-lt text-info"><i class="fas fa-desktop me-1"></i>{{ app_data.frontend_framework
+            <span class="badge bg-info-lt text-info"><i class="fa-solid fa-desktop me-1"></i>{{ app_data.frontend_framework
               }}</span>
             {% endif %}
           </div>
           {% endif %}
           {# Highlights #}
           <div class="d-flex align-items-center gap-2">
-            <i class="fas fa-bolt text-warning" aria-hidden="true"></i>
-            <span class="badge bg-secondary-lt"><i class="fas fa-layer-group me-1"></i>{{ model.apps_count }} sibling
+            <i class="fa-solid fa-bolt text-warning" aria-hidden="true"></i>
+            <span class="badge bg-secondary-lt"><i class="fa-solid fa-layer-group me-1"></i>{{ model.apps_count }} sibling
               apps</span>
             {% if app_data.has_docker_compose %}
-            <span class="badge bg-success-lt"><i class="fas fa-cubes me-1"></i>Compose Ready</span>
+            <span class="badge bg-success-lt"><i class="fa-solid fa-cubes me-1"></i>Compose Ready</span>
             {% endif %}
-            <span class="badge bg-secondary-lt"><i class="fas fa-clock me-1"></i>{{ app_data.updated_at.strftime('%m/%d
+            <span class="badge bg-secondary-lt"><i class="fa-solid fa-clock me-1"></i>{{ app_data.updated_at.strftime('%m/%d
               %H:%M') if app_data.updated_at else '—' }}</span>
           </div>
         </div>
@@ -214,7 +214,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="healingLogsLabel">
-          <i class="fas fa-magic text-info me-2"></i>Automated Healing Logs
+          <i class="fa-solid fa-magic text-info me-2"></i>Automated Healing Logs
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
@@ -225,7 +225,7 @@
           {% for log in app_data.metadata.healing_logs %}
           <div class="list-group-item px-0 py-2">
             <div class="d-flex align-items-start gap-2">
-              <i class="fas fa-check-circle text-success mt-1"></i>
+              <i class="fa-solid fa-check-circle text-success mt-1"></i>
               <span class="small">{{ log }}</span>
             </div>
           </div>

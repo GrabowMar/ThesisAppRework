@@ -9,11 +9,11 @@
   <div class="research-header">
     <div class="research-header-left">
       <a href="{{ url_for('applications.applications_index') }}" class="btn btn-ghost-secondary btn-sm me-3">
-        <i class="fas fa-arrow-left me-1"></i>Back
+        <i class="fa-solid fa-arrow-left me-1"></i>Back
       </a>
       <div class="research-header-title">
         <span class="avatar avatar-sm bg-danger-lt me-2">
-          <i class="fas fa-skull-crossbones text-danger"></i>
+          <i class="fa-solid fa-skull-crossbones text-danger"></i>
         </span>
         <div>
           <h1 class="h3 mb-0">{{ model_display_name }} #{{ app_number }}</h1>
@@ -23,17 +23,17 @@
     </div>
     <div class="research-header-right">
       <span class="badge bg-danger me-2">
-        <i class="fas fa-skull-crossbones me-1"></i>Dead
+        <i class="fa-solid fa-skull-crossbones me-1"></i>Dead
       </span>
       <button class="btn btn-warning btn-sm" onclick="retryGeneration('{{ model_slug }}', {{ app_number }})">
-        <i class="fas fa-redo me-1"></i>Retry
+        <i class="fa-solid fa-redo me-1"></i>Retry
       </button>
     </div>
   </div>
 
   {# Compact Alert #}
   <div class="alert alert-danger py-2 mb-3" role="alert">
-    <i class="fas fa-exclamation-circle me-2"></i>
+    <i class="fa-solid fa-exclamation-circle me-2"></i>
     This application failed during generation and is marked as dead. It will be skipped by all analyzers.
   </div>
 
@@ -83,7 +83,7 @@
       <div class="card mb-3">
         <div class="card-header py-2">
           <h5 class="card-title mb-0">
-            <i class="fas fa-exclamation-triangle text-danger me-2"></i>Error Message
+            <i class="fa-solid fa-exclamation-triangle text-danger me-2"></i>Error Message
           </h3>
         </div>
         <div class="card-body py-2">
@@ -102,10 +102,10 @@
       <div class="card mb-3">
         <div class="card-header py-2 d-flex justify-content-between align-items-center">
           <h5 class="card-title mb-0">
-            <i class="fas fa-file-alt me-2"></i>Error Log
+            <i class="fa-solid fa-file-alt me-2"></i>Error Log
           </h3>
           <button class="btn btn-sm btn-ghost-secondary" onclick="copyErrorLog()">
-            <i class="fas fa-copy me-1"></i>Copy
+            <i class="fa-solid fa-copy me-1"></i>Copy
           </button>
         </div>
         <div class="card-body p-0">
@@ -119,7 +119,7 @@
       <div class="card">
         <div class="card-header py-2">
           <h5 class="card-title mb-0">
-            <i class="fas fa-list-ol me-2"></i>Generation Errors ({{ metadata.errors|length }})
+            <i class="fa-solid fa-list-ol me-2"></i>Generation Errors ({{ metadata.errors|length }})
           </h3>
         </div>
         <div class="card-body py-2">
@@ -139,12 +139,12 @@
       <div class="card mb-3">
         <div class="card-body text-center py-3">
           <span class="avatar avatar-lg bg-danger-lt mb-2">
-            <i class="fas fa-skull-crossbones fa-lg text-danger"></i>
+            <i class="fa-solid fa-skull-crossbones fa-lg text-danger"></i>
           </span>
           <h4 class="text-danger mb-1">Dead Application</h4>
           <p class="text-muted small mb-2">Cannot be analyzed or started</p>
           <button class="btn btn-warning btn-sm w-100" onclick="retryGeneration('{{ model_slug }}', {{ app_number }})">
-            <i class="fas fa-redo me-1"></i>Retry Generation
+            <i class="fa-solid fa-redo me-1"></i>Retry Generation
           </button>
         </div>
       </div>
@@ -153,7 +153,7 @@
       <div class="card mb-3">
         <div class="card-header py-2">
           <h5 class="card-title mb-0">
-            <i class="fas fa-clock me-2"></i>Timeline
+            <i class="fa-solid fa-clock me-2"></i>Timeline
           </h3>
         </div>
         <div class="card-body py-2">
@@ -169,9 +169,9 @@
             <span class="text-muted small">Files</span>
             <span class="small">
               {% if app_dir_exists %}
-                <i class="fas fa-folder text-warning me-1"></i>Partial
+                <i class="fa-solid fa-folder text-warning me-1"></i>Partial
               {% else %}
-                <i class="fas fa-folder-minus text-muted me-1"></i>None
+                <i class="fa-solid fa-folder-minus text-muted me-1"></i>None
               {% endif %}
             </span>
           </div>
@@ -182,28 +182,28 @@
       <div class="card">
         <div class="card-header py-2">
           <h5 class="card-title mb-0">
-            <i class="fas fa-info-circle me-2"></i>Impact
+            <i class="fa-solid fa-info-circle me-2"></i>Impact
           </h3>
         </div>
         <div class="card-body py-2">
           <div class="d-flex align-items-start py-1">
-            <i class="fas fa-times text-danger me-2 mt-1" style="width: 14px;"></i>
+            <i class="fa-solid fa-times text-danger me-2 mt-1" style="width: 14px;"></i>
             <span class="small">Skipped by analyzers</span>
           </div>
           <div class="d-flex align-items-start py-1">
-            <i class="fas fa-times text-danger me-2 mt-1" style="width: 14px;"></i>
+            <i class="fa-solid fa-times text-danger me-2 mt-1" style="width: 14px;"></i>
             <span class="small">Cannot start containers</span>
           </div>
           <div class="d-flex align-items-start py-1">
-            <i class="fas fa-times text-danger me-2 mt-1" style="width: 14px;"></i>
+            <i class="fa-solid fa-times text-danger me-2 mt-1" style="width: 14px;"></i>
             <span class="small">Files may be incomplete</span>
           </div>
           <div class="d-flex align-items-start py-1">
-            <i class="fas fa-check text-success me-2 mt-1" style="width: 14px;"></i>
+            <i class="fa-solid fa-check text-success me-2 mt-1" style="width: 14px;"></i>
             <span class="small">Errors preserved for debug</span>
           </div>
           <div class="d-flex align-items-start py-1">
-            <i class="fas fa-check text-success me-2 mt-1" style="width: 14px;"></i>
+            <i class="fa-solid fa-check text-success me-2 mt-1" style="width: 14px;"></i>
             <span class="small">Retry available anytime</span>
           </div>
         </div>
@@ -221,7 +221,7 @@ function retryGeneration(modelSlug, appNumber) {
   const buttons = document.querySelectorAll('button[onclick*="retryGeneration"]');
   buttons.forEach(btn => {
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>...';
   });
   
   fetch(`/api/app/${modelSlug}/${appNumber}/retry-generation`, {
@@ -246,7 +246,7 @@ function retryGeneration(modelSlug, appNumber) {
 function resetButtons(buttons) {
   buttons.forEach(btn => {
     btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-redo me-1"></i>Retry';
+    btn.innerHTML = '<i class="fa-solid fa-redo me-1"></i>Retry';
   });
 }
 

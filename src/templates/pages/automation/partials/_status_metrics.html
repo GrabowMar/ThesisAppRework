@@ -2,7 +2,7 @@
 <div class="card card-sm shadow-sm">
   <div class="card-header py-2">
     <h6 class="card-title mb-0">
-      <i class="fas fa-tachometer-alt me-2 text-primary"></i>Pipeline Status
+      <i class="fa-solid fa-tachometer-alt me-2 text-primary"></i>Pipeline Status
     </h6>
   </div>
   <div class="card-body p-0">
@@ -14,12 +14,12 @@
           <span class="fw-semibold" id="metrics-status-text">Ready</span>
         </div>
         <span class="badge bg-primary-lt text-primary" id="metrics-status-badge">
-          <i class="fas fa-play fa-xs me-1" id="metrics-status-icon"></i>Idle
+          <i class="fa-solid fa-play fa-xs me-1" id="metrics-status-icon"></i>Idle
         </span>
       </div>
       {# Current Stage - shown when running #}
       <div class="text-muted small mt-1" id="current-stage-row" style="display: none;">
-        <i class="fas fa-layer-group fa-xs me-1"></i>
+        <i class="fa-solid fa-layer-group fa-xs me-1"></i>
         <span id="metrics-current-stage">-</span>
       </div>
     </div>
@@ -74,10 +74,10 @@
     <div class="px-3 py-2 border-top" id="quick-actions-panel">
       <div class="d-flex gap-2">
         <button class="btn btn-sm btn-outline-warning flex-fill" onclick="pausePipeline()" id="quick-pause-btn">
-          <i class="fas fa-pause me-1"></i>Pause
+          <i class="fa-solid fa-pause me-1"></i>Pause
         </button>
         <button class="btn btn-sm btn-outline-danger flex-fill" onclick="cancelPipeline()" id="quick-cancel-btn">
-          <i class="fas fa-stop me-1"></i>Cancel
+          <i class="fa-solid fa-stop me-1"></i>Cancel
         </button>
       </div>
     </div>
@@ -90,17 +90,17 @@
   <div class="card-body text-center py-3">
     <div class="mb-2">
       <span class="avatar avatar-lg bg-success-lt text-success">
-        <i class="fas fa-check fa-lg"></i>
+        <i class="fa-solid fa-check fa-lg"></i>
       </span>
     </div>
     <h4 class="mb-1">Pipeline Complete!</h4>
     <p class="text-muted small mb-3" id="final-summary">All tasks completed successfully</p>
     <div class="d-grid gap-2">
       <a href="{{ url_for('reports.reports_index') }}" class="btn btn-primary">
-        <i class="fas fa-chart-bar me-1"></i>View Reports
+        <i class="fa-solid fa-chart-bar me-1"></i>View Reports
       </a>
       <button class="btn btn-outline-secondary" onclick="resetWizard()">
-        <i class="fas fa-redo me-1"></i>New Pipeline
+        <i class="fa-solid fa-redo me-1"></i>New Pipeline
       </button>
     </div>
   </div>

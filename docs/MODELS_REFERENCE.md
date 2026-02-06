@@ -142,16 +142,18 @@ When analyzing generated apps, consider:
 
 ## Templates
 
-Available application templates in `misc/requirements/`:
+The system includes **30 application templates** across 20+ categories in `misc/requirements/`. Example templates:
 
 | Template | Category | Description |
 |----------|----------|-------------|
-| `crud_todo_list` | CRUD | Basic todo application |
-| `crud_book_library` | CRUD | Book management system |
-| `auth_user_login` | Auth | User authentication |
-| `ecommerce_cart` | E-commerce | Shopping cart |
-| `realtime_chat_room` | Real-time | WebSocket chat |
-| `api_weather_display` | API | Weather data display |
+| `crud_todo_list` | CRUD | Task management with soft delete |
+| `crud_book_library` | CRUD | Book collection management |
+| `auth_user_login` | Auth | User registration and login |
+| `ecommerce_cart` | E-commerce | Shopping cart functionality |
+| `realtime_chat_room` | Real-time | WebSocket-based messaging |
+| `api_weather_display` | API | External weather API integration |
+
+> See [TEMPLATE_SPECIFICATION.md](./TEMPLATE_SPECIFICATION.md) for the complete list of all 30 templates with detailed JSON schema documentation.
 
 ## Related
 

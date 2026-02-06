@@ -91,7 +91,7 @@ function copyAdjacentPre(btn) {
   
   navigator.clipboard.writeText(pre.innerText).then(() => {
     const orig = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied';
+    btn.innerHTML = '<i class="fa-solid fa-check me-1"></i>Copied';
     btn.classList.add('btn-success');
     btn.classList.remove('btn-outline-primary');
     setTimeout(() => {
@@ -230,19 +230,19 @@ document.addEventListener('htmx:responseError', evt => {
   section.innerHTML = `
     <div class="research-section-header">
       <h2 class="research-section-title">
-        <i class="fas fa-exclamation-triangle text-warning" aria-hidden="true"></i>
+        <i class="fa-solid fa-exclamation-triangle text-warning" aria-hidden="true"></i>
         <span>Failed to load ${sectionTitle}</span>
       </h2>
     </div>
     <div class="research-empty-state">
       <div class="research-empty-icon">
-        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+        <i class="fa-solid fa-exclamation-triangle" aria-hidden="true"></i>
       </div>
       <div class="research-empty-title">Content could not be loaded</div>
       <div class="research-empty-message">There was an error loading this section. Please try again.</div>
       <div class="research-empty-action">
         <button class="btn btn-primary" onclick="htmx.ajax('GET', '${section.getAttribute('hx-get')}', { target: '[data-research-section=\\'${sectionId}\\']', swap: 'innerHTML' })">
-          <i class="fas fa-refresh me-1"></i>Retry
+          <i class="fa-solid fa-refresh me-1"></i>Retry
         </button>
       </div>
     </div>

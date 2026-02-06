@@ -42,13 +42,14 @@ docker compose up -d
 ```
 
 This starts the complete stack:
-- Flask web application (port 5000)
+- **Nginx proxy** (ports 80, 443) - reverse proxy for external access
+- Flask web application (port 5000 internal)
 - Redis (Celery broker)
 - Celery worker (background tasks)
-- All analyzer services (static, dynamic, performance, AI)
+- All analyzer services with replicas (4x static, 3x dynamic, 2x perf, 2x AI)
 - WebSocket gateway (port 8765)
 
-Access the application at **http://localhost:5000**
+Access the application at **http://localhost** (or **https://localhost** for HTTPS)
 
 ### Local Development Setup (Optional)
 

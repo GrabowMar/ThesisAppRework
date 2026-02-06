@@ -179,22 +179,21 @@ misc/scaffolding/react-flask/
 ├── .env.example          → .env (with allocated ports)
 ├── docker-compose.yml    → docker-compose.yml
 ├── backend/
+│   ├── .dockerignore
 │   ├── Dockerfile
-│   ├── app.py           (Flask router - immutable)
-│   ├── models.py        (placeholder - replaced by AI)
-│   ├── services.py      (placeholder - replaced by AI)
-│   └── routes/
-│       ├── __init__.py
-│       ├── user.py      (placeholder - replaced by AI)
-│       └── admin.py     (placeholder - replaced by AI)
+│   ├── app.py           (placeholder - fully replaced by AI)
+│   └── requirements.txt
 └── frontend/
+    ├── .dockerignore
     ├── Dockerfile
-    ├── vite.config.js
-    ├── tailwind.config.js
+    ├── nginx.conf        (reverse proxy config - immutable)
+    ├── vite.config.js    (build config - immutable)
+    ├── tailwind.config.js (CSS config - immutable)
+    ├── postcss.config.js
+    ├── package.json
+    ├── index.html
     └── src/
-        ├── App.jsx      (React router - immutable)
-        ├── pages/       (AI-generated content)
-        └── hooks/       (AI-generated content)
+        └── App.jsx      (placeholder - fully replaced by AI)
 ```
 
 ### Step 3: Prompt Construction
@@ -225,27 +224,16 @@ flowchart LR
     Endpoints --> User
 ```
 
-#### System Prompts
+#### Prompt Templates
 
-Located in `misc/prompts/system/`:
+Located in `misc/prompts/v2/`:
 
-| File | Purpose |
-|------|---------|
-| `backend_user.md` | Flask backend for user features |
-| `backend_admin.md` | Flask backend for admin features |
-| `frontend_user.md` | React frontend for user pages |
-| `frontend_admin.md` | React frontend for admin pages |
+| Directory | Purpose |
+|-----------|---------|
+| `backend/` | Flask backend prompts (system + user templates) |
+| `frontend/` | React frontend prompts (system + user templates) |
 
-#### User Prompt Templates
-
-Located in `misc/templates/four-query/`:
-
-| File | Query |
-|------|-------|
-| `backend_user.md.jinja2` | Query 1 |
-| `backend_admin.md.jinja2` | Query 2 |
-| `frontend_user.md.jinja2` | Query 3 |
-| `frontend_admin.md.jinja2` | Query 4 |
+Each directory contains system and user prompt templates used for the 2-query generation approach (backend + frontend).
 
 ### Step 4: OpenRouter API Integration
 

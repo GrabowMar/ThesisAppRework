@@ -1,7 +1,7 @@
 {% extends 'layouts/base_smart.html' %}
 {% from 'shared/macros/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_section, research_skeleton, research_empty_state, research_scroll_spy_script %}
 {% set page_title = 'Model Analysis: ' + model_slug %}
-{% set page_icon = 'fas fa-robot' %}
+{% set page_icon = 'fa-solid fa-robot' %}
 
 {% block head_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/detail-pages.css') }}">

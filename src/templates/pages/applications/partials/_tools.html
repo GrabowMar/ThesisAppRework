@@ -5,13 +5,13 @@
     <div class="card card-sm h-100">
       <div class="card-header py-2">
         <div class="d-flex align-items-center">
-          <i class="fas fa-key text-warning me-2"></i>
+          <i class="fa-solid fa-key text-warning me-2"></i>
           <span class="fw-bold">Environment Variables</span>
           <button type="button" class="btn btn-ghost-primary btn-sm ms-auto" 
                   hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/env/edit"
                   hx-target="#env-editor-container"
                   hx-swap="innerHTML">
-            <i class="fas fa-edit me-1"></i>Edit
+            <i class="fa-solid fa-edit me-1"></i>Edit
           </button>
         </div>
       </div>
@@ -31,7 +31,7 @@
                       <span class="text-muted">••••••••</span>
                       <button type="button" class="btn btn-ghost-secondary btn-sm py-0 px-1" 
                               onclick="this.previousElementSibling.textContent = '{{ value }}'">
-                        <i class="fas fa-eye"></i>
+                        <i class="fa-solid fa-eye"></i>
                       </button>
                     {% else %}
                       <code class="text-primary">{{ value }}</code>
@@ -44,13 +44,13 @@
           </div>
           {% else %}
           <div class="text-center text-muted py-3">
-            <i class="fas fa-file-alt fa-2x mb-2 opacity-50"></i>
+            <i class="fa-solid fa-file-alt fa-2x mb-2 opacity-50"></i>
             <p class="mb-0 small">No .env file found</p>
             <button type="button" class="btn btn-outline-primary btn-sm mt-2"
                     hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/env/create"
                     hx-target="#env-editor-container"
                     hx-swap="innerHTML">
-              <i class="fas fa-plus me-1"></i>Create .env
+              <i class="fa-solid fa-plus me-1"></i>Create .env
             </button>
           </div>
           {% endif %}
@@ -64,7 +64,7 @@
     <div class="card card-sm h-100">
       <div class="card-header py-2">
         <div class="d-flex align-items-center">
-          <i class="fas fa-database text-info me-2"></i>
+          <i class="fa-solid fa-database text-info me-2"></i>
           <span class="fw-bold">Database Browser</span>
           <span class="badge bg-{{ 'success' if db_info.exists else 'secondary' }}-lt ms-2">
             {{ 'Available' if db_info.exists else 'No Database' }}
@@ -75,7 +75,7 @@
         {% if db_info.exists %}
         <div class="mb-2">
           <small class="text-muted">
-            <i class="fas fa-file me-1"></i>{{ db_info.path }}
+            <i class="fa-solid fa-file me-1"></i>{{ db_info.path }}
             <span class="ms-2">Size: {{ db_info.size_display }}</span>
           </small>
         </div>
@@ -97,18 +97,18 @@
         </div>
         <div id="db-table-preview" class="mt-2" style="max-height: 180px; overflow: auto;">
           <div class="text-center text-muted small py-2">
-            <i class="fas fa-table me-1"></i>Select a table to preview data
+            <i class="fa-solid fa-table me-1"></i>Select a table to preview data
           </div>
         </div>
         {% else %}
         <div class="text-center text-muted py-2">
-          <i class="fas fa-database fa-2x mb-2 opacity-50"></i>
+          <i class="fa-solid fa-database fa-2x mb-2 opacity-50"></i>
           <p class="mb-0 small">Database exists but no tables found</p>
         </div>
         {% endif %}
         {% else %}
         <div class="text-center text-muted py-3">
-          <i class="fas fa-database fa-2x mb-2 opacity-50"></i>
+          <i class="fa-solid fa-database fa-2x mb-2 opacity-50"></i>
           <p class="mb-0 small">No SQLite database detected</p>
           <p class="mb-0 small text-muted">Expected: backend/app.db or backend/data.db</p>
         </div>
@@ -122,7 +122,7 @@
     <div class="card card-sm h-100">
       <div class="card-header py-2">
         <div class="d-flex align-items-center">
-          <i class="fas fa-plug text-success me-2"></i>
+          <i class="fa-solid fa-plug text-success me-2"></i>
           <span class="fw-bold">API Tester</span>
           {% if app_data.container_status == 'running' %}
           <span class="badge bg-success-lt ms-2">Ready</span>
@@ -153,7 +153,7 @@
             <div class="col-3">
               <button type="submit" class="btn btn-primary btn-sm w-100" 
                       {% if app_data.container_status != 'running' %}disabled{% endif %}>
-                <i class="fas fa-paper-plane me-1"></i>Send
+                <i class="fa-solid fa-paper-plane me-1"></i>Send
               </button>
             </div>
           </div>
@@ -165,7 +165,7 @@
         </form>
         <div id="api-test-result" class="mt-2">
           <div class="text-center text-muted small py-2">
-            <i class="fas fa-terminal me-1"></i>Response will appear here
+            <i class="fa-solid fa-terminal me-1"></i>Response will appear here
           </div>
         </div>
       </div>
@@ -177,7 +177,7 @@
     <div class="card card-sm h-100">
       <div class="card-header py-2">
         <div class="d-flex align-items-center">
-          <i class="fas fa-cubes text-purple me-2"></i>
+          <i class="fa-solid fa-cubes text-purple me-2"></i>
           <span class="fw-bold">Dependencies</span>
         </div>
         <div class="btn-group btn-group-sm ms-auto" role="group">
@@ -220,7 +220,7 @@
           </table>
           {% else %}
           <div class="text-center text-muted py-3">
-            <i class="fas fa-box-open fa-2x mb-2 opacity-50"></i>
+            <i class="fa-solid fa-box-open fa-2x mb-2 opacity-50"></i>
             <p class="mb-0 small">No requirements.txt found</p>
           </div>
           {% endif %}
@@ -234,7 +234,7 @@
     <div class="card card-sm">
       <div class="card-header py-2">
         <div class="d-flex align-items-center">
-          <i class="fas fa-terminal me-2"></i>
+          <i class="fa-solid fa-terminal me-2"></i>
           <span class="fw-bold">Quick Commands</span>
         </div>
       </div>
@@ -264,7 +264,7 @@
                     hx-target="#cmd-output"
                     hx-swap="innerHTML"
                     {% if app_data.container_status != 'running' %}disabled{% endif %}>
-              <i class="fas fa-heartbeat me-1"></i>Health Check
+              <i class="fa-solid fa-heartbeat me-1"></i>Health Check
             </button>
           </div>
           <div class="col-auto">
@@ -273,7 +273,7 @@
                     hx-target="#cmd-output"
                     hx-swap="innerHTML"
                     {% if app_data.container_status != 'running' %}disabled{% endif %}>
-              <i class="fas fa-route me-1"></i>Flask Routes
+              <i class="fa-solid fa-route me-1"></i>Flask Routes
             </button>
           </div>
           <div class="col-auto">
@@ -282,7 +282,7 @@
                     hx-target="#cmd-output"
                     hx-swap="innerHTML"
                     {% if app_data.container_status != 'running' %}disabled{% endif %}>
-              <i class="fas fa-microchip me-1"></i>Processes
+              <i class="fa-solid fa-microchip me-1"></i>Processes
             </button>
           </div>
           <div class="col-auto">
@@ -291,7 +291,7 @@
                     hx-target="#cmd-output"
                     hx-swap="innerHTML"
                     {% if app_data.container_status != 'running' %}disabled{% endif %}>
-              <i class="fas fa-cog me-1"></i>Environment
+              <i class="fa-solid fa-cog me-1"></i>Environment
             </button>
           </div>
           <div class="col-auto">
@@ -300,7 +300,7 @@
                     hx-target="#cmd-output"
                     hx-swap="innerHTML"
                     {% if app_data.container_status != 'running' %}disabled{% endif %}>
-              <i class="fas fa-hdd me-1"></i>Disk
+              <i class="fa-solid fa-hdd me-1"></i>Disk
             </button>
           </div>
           <div class="col-auto">
@@ -308,12 +308,12 @@
                     hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/structure"
                     hx-target="#cmd-output"
                     hx-swap="innerHTML">
-              <i class="fas fa-sitemap me-1"></i>Project Structure
+              <i class="fa-solid fa-sitemap me-1"></i>Project Structure
             </button>
           </div>
           <div class="col-auto ms-auto">
             <button type="button" class="btn btn-ghost-secondary btn-sm" onclick="document.getElementById('cmd-output').innerHTML = ''">
-              <i class="fas fa-eraser me-1"></i>Clear
+              <i class="fa-solid fa-eraser me-1"></i>Clear
             </button>
           </div>
         </div>

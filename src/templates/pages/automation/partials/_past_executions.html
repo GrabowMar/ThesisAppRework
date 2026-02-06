@@ -7,7 +7,7 @@
       <span class="badge bg-secondary text-uppercase rounded-pill px-3">History</span>
       <div>
         <h3 class="card-title mb-0 d-flex align-items-center gap-2">
-          <i class="fas fa-history text-primary"></i>
+          <i class="fa-solid fa-history text-primary"></i>
           <span>Pipeline Executions</span>
         </h3>
         <div class="text-muted small">Monitor running and view past pipelines</div>
@@ -62,7 +62,7 @@
               } %}
               <span class="badge {{ status_colors.get(pipeline.status, 'bg-secondary-lt') }}">
                 {% if pipeline.status == 'running' %}
-                <i class="fas fa-spinner fa-spin me-1"></i>
+                <i class="fa-solid fa-spinner fa-spin me-1"></i>
                 {% endif %}
                 {{ pipeline.status|replace('_', ' ')|title }}
               </span>
@@ -92,12 +92,12 @@
                 </span>
                 <button class="btn btn-sm btn-ghost-secondary expand-toggle" data-pipeline-id="{{ pipeline.id }}"
                   onclick="event.stopPropagation(); togglePipelineDetails('{{ pipeline.id }}')" title="Toggle Details">
-                  <i class="fas fa-chevron-down"></i>
+                  <i class="fa-solid fa-chevron-down"></i>
                 </button>
                 {% if pipeline.status == 'running' %}
                 <button class="btn btn-sm btn-ghost-danger"
                   onclick="event.stopPropagation(); cancelPipelineById('{{ pipeline.id }}')" title="Cancel Pipeline">
-                  <i class="fas fa-stop"></i>
+                  <i class="fa-solid fa-stop"></i>
                 </button>
                 {% endif %}
               </div>
@@ -113,21 +113,21 @@
               <li class="nav-item">
                 <button class="nav-link active py-2 small" data-bs-toggle="tab"
                   data-bs-target="#gen-tab-{{ pipeline.id }}" type="button">
-                  <i class="fas fa-code me-1 text-primary"></i>Generation
+                  <i class="fa-solid fa-code me-1 text-primary"></i>Generation
                   <span class="badge bg-secondary-lt ms-1 gen-count" data-pipeline="{{ pipeline.id }}">--</span>
                 </button>
               </li>
               <li class="nav-item">
                 <button class="nav-link py-2 small" data-bs-toggle="tab"
                   data-bs-target="#analysis-tab-{{ pipeline.id }}" type="button">
-                  <i class="fas fa-search-plus me-1 text-success"></i>Analysis
+                  <i class="fa-solid fa-search-plus me-1 text-success"></i>Analysis
                   <span class="badge bg-secondary-lt ms-1 analysis-count" data-pipeline="{{ pipeline.id }}">--</span>
                 </button>
               </li>
               <li class="nav-item">
                 <button class="nav-link py-2 small" data-bs-toggle="tab"
                   data-bs-target="#activity-tab-{{ pipeline.id }}" type="button">
-                  <i class="fas fa-stream me-1 text-info"></i>Activity
+                  <i class="fa-solid fa-stream me-1 text-info"></i>Activity
                   <span class="badge bg-secondary-lt ms-1 activity-count" data-pipeline="{{ pipeline.id }}">--</span>
                 </button>
               </li>
@@ -168,7 +168,7 @@
             <div class="border-top px-3 py-2 d-flex justify-content-between align-items-center bg-body">
               <div class="small text-muted">
                 {% if pipeline.status == 'running' %}
-                <span class="badge bg-primary-lt"><i class="fas fa-sync-alt fa-spin me-1"></i>Auto-updating</span>
+                <span class="badge bg-primary-lt"><i class="fa-solid fa-sync-alt fa-spin me-1"></i>Auto-updating</span>
                 {% elif pipeline.completed_at %}
                 Completed: {{ pipeline.completed_at }}
                 {% endif %}
@@ -176,12 +176,12 @@
               <div class="d-flex gap-2">
                 {% if pipeline.status in ['completed', 'partial_success'] %}
                 <a href="{{ url_for('analysis.analysis_index') }}" class="btn btn-sm btn-outline-success">
-                  <i class="fas fa-chart-bar me-1"></i>Results
+                  <i class="fa-solid fa-chart-bar me-1"></i>Results
                 </a>
                 {% endif %}
                 {% if pipeline.status == 'running' %}
                 <button class="btn btn-sm btn-outline-primary" onclick="openPipelineProgressModal('{{ pipeline.id }}')">
-                  <i class="fas fa-expand-alt me-1"></i>Full View
+                  <i class="fa-solid fa-expand-alt me-1"></i>Full View
                 </button>
                 {% endif %}
               </div>
@@ -193,7 +193,7 @@
     </div>
     {% else %}
     <div class="text-center py-4 text-muted">
-      <i class="fas fa-inbox fa-2x mb-2 opacity-50"></i>
+      <i class="fa-solid fa-inbox fa-2x mb-2 opacity-50"></i>
       <p class="mb-1">No pipeline executions</p>
       <p class="small mb-0">Configure and run your first pipeline below</p>
     </div>
@@ -369,7 +369,7 @@
     if (!container) return;
 
     if (!jobs || jobs.length === 0) {
-      container.innerHTML = `<div class="text-center py-3 text-muted"><i class="fas fa-inbox me-1"></i>No jobs</div>`;
+      container.innerHTML = `<div class="text-center py-3 text-muted"><i class="fa-solid fa-inbox me-1"></i>No jobs</div>`;
       return;
     }
 
@@ -380,7 +380,7 @@
         <div class="col-md-6 col-lg-4">
           <div class="task-card status-${status} p-2">
             <div class="d-flex align-items-start gap-2">
-              <i class="fas ${icon} mt-1"></i>
+              <i class="fa-solid ${icon} mt-1"></i>
               <div class="min-width-0 flex-fill">
                 <div class="fw-medium text-truncate">${job.model_slug || 'Unknown'}</div>
                 <div class="text-muted small text-truncate">${job.template_slug || '-'}${job.app_number ? ' • #' + job.app_number : ''}</div>
@@ -398,7 +398,7 @@
     if (!container) return;
 
     if (!tasks || tasks.length === 0) {
-      container.innerHTML = `<div class="text-center py-3 text-muted"><i class="fas fa-inbox me-1"></i>No tasks</div>`;
+      container.innerHTML = `<div class="text-center py-3 text-muted"><i class="fa-solid fa-inbox me-1"></i>No tasks</div>`;
       return;
     }
 
@@ -418,7 +418,7 @@
         <div class="col-md-6 col-lg-4">
           <div class="task-card status-${status} p-2">
             <div class="d-flex align-items-start gap-2">
-              <i class="fas ${icon} mt-1"></i>
+              <i class="fa-solid ${icon} mt-1"></i>
               <div class="min-width-0 flex-fill">
                 <div class="fw-medium text-truncate">${task.target_model || 'Unknown'}</div>
                 <div class="text-muted small">App #${task.target_app_number || '?'}</div>
@@ -440,7 +440,7 @@
     if (!container) return;
 
     if (!events || events.length === 0) {
-      container.innerHTML = `<div class="text-center py-3 text-muted"><i class="fas fa-stream me-1"></i>No activity</div>`;
+      container.innerHTML = `<div class="text-center py-3 text-muted"><i class="fa-solid fa-stream me-1"></i>No activity</div>`;
       return;
     }
 
@@ -453,7 +453,7 @@
       return `
         <div class="event-row level-${level} d-flex gap-2">
           <span class="text-muted" style="min-width: 55px;">${ts}</span>
-          <i class="fas ${icons[level] || 'fa-circle'} ${colors[level] || 'text-muted'}"></i>
+          <i class="fa-solid ${icons[level] || 'fa-circle'} ${colors[level] || 'text-muted'}"></i>
           <span class="flex-fill">${e.stage ? `<span class="badge bg-secondary-lt me-1">${e.stage}</span>` : ''}${e.message}</span>
         </div>`;
     }).join('');

@@ -5,19 +5,19 @@
         <div class="d-flex align-items-center">
             <strong>{{ m.name }}</strong>
             {% if m.input_price == 0 and m.output_price == 0 %}
-            <span class="badge bg-success ms-2" title="Free"><i class="fas fa-gift"></i></span>
+            <span class="badge bg-success ms-2" title="Free"><i class="fa-solid fa-gift"></i></span>
             {% endif %}
             {% if m.apps_count > 0 %}
-            <span class="badge bg-info ms-1" title="Has Apps"><i class="fas fa-box"></i></span>
+            <span class="badge bg-info ms-1" title="Has Apps"><i class="fa-solid fa-box"></i></span>
             {% endif %}
         </div>
     </td>
     <td><span class="badge bg-azure text-white">{{ m.provider }}</span></td>
     <td class="text-center">
-        {% if 'text' in m.capabilities %}<span class="badge bg-azure text-white me-1" title="Text"><i class="fas fa-font"></i></span>{% endif %}
-        {% if 'vision' in m.capabilities or 'image' in m.capabilities %}<span class="badge bg-info text-white me-1" title="Image/Vision"><i class="fas fa-eye"></i></span>{% endif %}
-        {% if 'audio' in m.capabilities %}<span class="badge bg-purple text-white me-1" title="Audio"><i class="fas fa-microphone"></i></span>{% endif %}
-        {% if 'video' in m.capabilities %}<span class="badge bg-pink text-white me-1" title="Video"><i class="fas fa-video"></i></span>{% endif %}
+        {% if 'text' in m.capabilities %}<span class="badge bg-azure text-white me-1" title="Text"><i class="fa-solid fa-font"></i></span>{% endif %}
+        {% if 'vision' in m.capabilities or 'image' in m.capabilities %}<span class="badge bg-info text-white me-1" title="Image/Vision"><i class="fa-solid fa-eye"></i></span>{% endif %}
+        {% if 'audio' in m.capabilities %}<span class="badge bg-purple text-white me-1" title="Audio"><i class="fa-solid fa-microphone"></i></span>{% endif %}
+        {% if 'video' in m.capabilities %}<span class="badge bg-pink text-white me-1" title="Video"><i class="fa-solid fa-video"></i></span>{% endif %}
     </td>
     <td class="text-center">
         {% if m.architecture_tokenizer %}
@@ -61,19 +61,19 @@
     </td>
     <td class="text-center">
         <div class="d-flex gap-2 justify-content-center">
-            {% if m.capabilities.function_calling %}<i class="fas fa-code text-primary fs-5" title="Function Calling"></i>{% endif %}
-            {% if m.capabilities.vision %}<i class="fas fa-eye text-info fs-5" title="Vision"></i>{% endif %}
-            {% if m.capabilities.json_mode %}<i class="fas fa-brackets-curly text-success fs-5" title="JSON Mode"></i>{% endif %}
-            {% if m.capabilities.streaming %}<i class="fas fa-stream text-warning fs-5" title="Streaming"></i>{% endif %}
+            {% if m.capabilities.function_calling %}<i class="fa-solid fa-code text-primary fs-5" title="Function Calling"></i>{% endif %}
+            {% if m.capabilities.vision %}<i class="fa-solid fa-eye text-info fs-5" title="Vision"></i>{% endif %}
+            {% if m.capabilities.json_mode %}<i class="fa-solid fa-brackets-curly text-success fs-5" title="JSON Mode"></i>{% endif %}
+            {% if m.capabilities.streaming %}<i class="fa-solid fa-stream text-warning fs-5" title="Streaming"></i>{% endif %}
         </div>
     </td>
     <td>
         <div class="btn-group btn-group-sm" role="group">
             <button class="btn btn-ghost-primary" onclick="viewModelDetails('{{ m.slug }}')" title="View details">
-                <i class="fas fa-eye"></i>
+                <i class="fa-solid fa-eye"></i>
             </button>
             <button class="btn btn-ghost-info" onclick="openOnOpenRouter('{{ m.slug }}')" title="View on OpenRouter">
-                <i class="fas fa-external-link-alt"></i>
+                <i class="fa-solid fa-external-link-alt"></i>
             </button>
         </div>
     </td>

@@ -365,7 +365,7 @@ window.showActionHistory = function(modelSlug, appNumber) {
     
     document.getElementById('containerHistoryContent').innerHTML = `
         <div class="text-center py-4">
-            <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+            <i class="fa-solid fa-spinner fa-spin fa-2x text-muted"></i>
             <p class="text-muted mt-2">Loading history...</p>
         </div>
     `;
@@ -378,7 +378,7 @@ window.showActionHistory = function(modelSlug, appNumber) {
                     const sc = { completed: 'bg-success', failed: 'bg-danger', running: 'bg-info', cancelled: 'bg-warning' }[a.status] || 'bg-secondary';
                     const icon = { build: 'fa-hammer', start: 'fa-play', stop: 'fa-stop', restart: 'fa-sync' }[a.action_type] || 'fa-cog';
                     return `<tr>
-                        <td><i class="fas ${icon} me-1"></i>${a.action_type}</td>
+                        <td><i class="fa-solid ${icon} me-1"></i>${a.action_type}</td>
                         <td><span class="badge ${sc}">${a.status}</span></td>
                         <td>${a.progress_percentage || 0}%</td>
                         <td class="small text-muted">${new Date(a.created_at).toLocaleString()}</td>
@@ -459,7 +459,7 @@ window.batchOperation = async function(action) {
         
         const entry = document.createElement('div');
         entry.className = 'text-muted';
-        entry.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>${label}`;
+        entry.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-1"></i>${label}`;
         log.appendChild(entry);
         
         try {
@@ -477,16 +477,16 @@ window.batchOperation = async function(action) {
             if (resp.ok) {
                 completed++;
                 entry.className = 'text-success';
-                entry.innerHTML = `<i class="fas fa-check me-1"></i>${label}`;
+                entry.innerHTML = `<i class="fa-solid fa-check me-1"></i>${label}`;
             } else {
                 failed++;
                 entry.className = 'text-danger';
-                entry.innerHTML = `<i class="fas fa-times me-1"></i>${label}`;
+                entry.innerHTML = `<i class="fa-solid fa-times me-1"></i>${label}`;
             }
         } catch (e) {
             failed++;
             entry.className = 'text-danger';
-            entry.innerHTML = `<i class="fas fa-times me-1"></i>${label}: ${e.message}`;
+            entry.innerHTML = `<i class="fa-solid fa-times me-1"></i>${label}: ${e.message}`;
         }
         
         await new Promise(r => setTimeout(r, 100));
@@ -497,7 +497,7 @@ window.batchOperation = async function(action) {
     document.getElementById('batchCloseBtn').disabled = false;
     document.getElementById('batchOperationResult').innerHTML = `
         <div class="alert alert-${failed ? 'warning' : 'success'} py-2 mt-2 mb-0">
-            <i class="fas fa-${failed ? 'exclamation-triangle' : 'check-circle'} me-1"></i>
+            <i class="fa-solid fa-${failed ? 'exclamation-triangle' : 'check-circle'} me-1"></i>
             ${completed} completed${failed ? `, ${failed} failed` : ''}
         </div>
     `;

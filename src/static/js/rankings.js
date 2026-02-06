@@ -147,7 +147,7 @@ if (window.__RANKINGS_JS_LOADED__) {
       tbody.innerHTML = `
         <tr>
           <td colspan="13" class="text-center text-danger py-4">
-            <i class="fas fa-exclamation-triangle me-2"></i>${message}
+            <i class="fa-solid fa-exclamation-triangle me-2"></i>${message}
           </td>
         </tr>
       `;
@@ -184,7 +184,7 @@ if (window.__RANKINGS_JS_LOADED__) {
       tbody.innerHTML = `
         <tr>
           <td colspan="14" class="text-center text-muted py-4">
-            <i class="fas fa-search me-2"></i>No models found matching your filters.
+            <i class="fa-solid fa-search me-2"></i>No models found matching your filters.
           </td>
         </tr>
       `;
@@ -256,7 +256,7 @@ if (window.__RANKINGS_JS_LOADED__) {
           <td>
             <div class="btn-group btn-group-sm">
               <a href="/models/detail/${modelSlug}" class="btn btn-outline-secondary btn-sm" title="View model details">
-                <i class="fas fa-info-circle"></i>
+                <i class="fa-solid fa-info-circle"></i>
               </a>
             </div>
           </td>
@@ -350,7 +350,7 @@ if (window.__RANKINGS_JS_LOADED__) {
     // Previous button
     html += `<li class="page-item ${page === 1 ? 'disabled' : ''}">
       <a class="page-link" href="#" onclick="goToRankingsPage(${page - 1}); return false;">
-        <i class="fas fa-chevron-left"></i>
+        <i class="fa-solid fa-chevron-left"></i>
       </a>
     </li>`;
     
@@ -386,7 +386,7 @@ if (window.__RANKINGS_JS_LOADED__) {
     // Next button
     html += `<li class="page-item ${page === pages ? 'disabled' : ''}">
       <a class="page-link" href="#" onclick="goToRankingsPage(${page + 1}); return false;">
-        <i class="fas fa-chevron-right"></i>
+        <i class="fa-solid fa-chevron-right"></i>
       </a>
     </li>`;
     

@@ -38,7 +38,7 @@
             <div class="card-header d-flex flex-wrap align-items-center gap-3">
               <div class="d-flex flex-wrap align-items-center gap-2">
                 <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-                  <i class="fas fa-server"></i>
+                  <i class="fa-solid fa-server"></i>
                   <span>System Status</span>
                 </h3>
               </div>
@@ -47,7 +47,7 @@
                   <button class="btn btn-sm btn-ghost-primary btn-icon"
                     _="on click send refresh to #system-status-region" aria-label="Refresh system status"
                     title="Refresh system status">
-                    <i class="fas fa-sync" aria-hidden="true"></i>
+                    <i class="fa-solid fa-sync" aria-hidden="true"></i>
                   </button>
                 </div>
               </div>
@@ -55,7 +55,8 @@
             <div class="table-responsive" id="system-status-region" hx-get="/api/dashboard/fragments/system-status"
               hx-trigger="load, every 45s, refresh" hx-target="this" hx-swap="outerHTML">
               <div class="text-center text-muted py-4">
-                <i class="fas fa-spinner fa-spin me-2"></i>Checking services…
+                <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+                Checking services…
               </div>
             </div>
           </div>
@@ -67,7 +68,7 @@
             <div class="card-header d-flex flex-wrap align-items-center gap-3">
               <div class="d-flex flex-wrap align-items-center gap-2">
                 <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-                  <i class="fas fa-flask"></i>
+                  <i class="fa-solid fa-flask"></i>
                   <span>Recent Analyses</span>
                 </h3>
               </div>
@@ -78,7 +79,7 @@
                   </a>
                   <button class="btn btn-sm btn-ghost-primary btn-icon" _="on click send refresh to #analyses-region"
                     aria-label="Refresh analyses" title="Refresh analyses">
-                    <i class="fas fa-sync" aria-hidden="true"></i>
+                    <i class="fa-solid fa-sync" aria-hidden="true"></i>
                   </button>
                 </div>
               </div>
@@ -86,7 +87,8 @@
             <div class="table-responsive" id="analyses-region" hx-get="/api/dashboard/fragments/recent-analyses"
               hx-trigger="load, every 30s, refresh" hx-target="this" hx-swap="outerHTML">
               <div class="text-center text-muted py-4">
-                <i class="fas fa-spinner fa-spin me-2"></i>Loading analyses…
+                <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+                Loading analyses…
               </div>
             </div>
           </div>
@@ -98,7 +100,7 @@
             <div class="card-header d-flex flex-wrap align-items-center gap-3">
               <div class="d-flex flex-wrap align-items-center gap-2">
                 <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-                  <i class="fas fa-cubes"></i>
+                  <i class="fa-solid fa-cubes"></i>
                   <span>Recent Applications</span>
                 </h3>
               </div>
@@ -109,7 +111,7 @@
                   </a>
                   <button class="btn btn-sm btn-ghost-primary btn-icon" _="on click send refresh to #apps-region"
                     aria-label="Refresh applications" title="Refresh applications">
-                    <i class="fas fa-sync" aria-hidden="true"></i>
+                    <i class="fa-solid fa-sync" aria-hidden="true"></i>
                   </button>
                 </div>
               </div>
@@ -117,7 +119,8 @@
             <div class="table-responsive" id="apps-region" hx-get="/api/dashboard/fragments/recent-applications"
               hx-trigger="load, every 45s, refresh" hx-target="this" hx-swap="outerHTML">
               <div class="text-center text-muted py-4">
-                <i class="fas fa-spinner fa-spin me-2"></i>Loading applications…
+                <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+                Loading applications…
               </div>
             </div>
           </div>
@@ -136,7 +139,7 @@
             <div class="card-header d-flex flex-wrap align-items-center gap-3">
               <div class="d-flex flex-wrap align-items-center gap-2">
                 <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-                  <i class="fas fa-cogs"></i>
+                  <i class="fa-solid fa-cogs"></i>
                   <span>System Administration</span>
                 </h3>
               </div>
@@ -144,7 +147,7 @@
                 <div class="btn-list">
                   <button class="btn btn-sm btn-ghost-primary btn-icon" onclick="refreshSystemInfo()"
                     aria-label="Refresh system information" title="Refresh system information">
-                    <i class="fas fa-sync" aria-hidden="true"></i>
+                    <i class="fa-solid fa-sync" aria-hidden="true"></i>
                   </button>
                 </div>
               </div>
@@ -154,31 +157,31 @@
                 <div class="col-6">
                   <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start"
                     onclick="refreshAllData()" title="Refresh All Data">
-                    <i class="fas fa-sync text-info me-2"></i> Refresh
+                    <i class="fa-solid fa-sync text-info me-2"></i> Refresh
                   </button>
                 </div>
                 <div class="col-6">
                   <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start"
                     onclick="syncModels()" title="Sync Models">
-                    <i class="fas fa-cloud-download-alt text-primary me-2"></i> Sync Models
+                    <i class="fa-solid fa-cloud-download-alt text-primary me-2"></i> Sync Models
                   </button>
                 </div>
                 <div class="col-6">
                   <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start"
                     onclick="clearLocalStorage()" title="Clear Cache">
-                    <i class="fas fa-eraser text-warning me-2"></i> Clear Cache
+                    <i class="fa-solid fa-eraser text-warning me-2"></i> Clear Cache
                   </button>
                 </div>
                 <div class="col-6">
                   <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start"
                     onclick="downloadSystemInfo()" title="System Info">
-                    <i class="fas fa-download text-success me-2"></i> System Info
+                    <i class="fa-solid fa-download text-success me-2"></i> System Info
                   </button>
                 </div>
                 <div class="col-12">
                   <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start"
                     onclick="showKeyboardShortcuts()" title="Keyboard Shortcuts">
-                    <i class="fas fa-keyboard text-secondary me-2"></i> Keyboard Shortcuts
+                    <i class="fa-solid fa-keyboard text-secondary me-2"></i> Keyboard Shortcuts
                   </button>
                 </div>
               </div>
@@ -189,14 +192,28 @@
         <!-- Activity Feed -->
         <div class="col-12">
           <div class="card card-table-compact shadow-sm">
-            <div class="card-header d-flex align-items-center gap-2">
-              <i class="fas fa-clock text-muted"></i>
-              <h3 class="card-title mb-0">Recent Activity</h3>
+            <div class="card-header d-flex flex-wrap align-items-center gap-3">
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                  <i class="fa-solid fa-clock"></i>
+                  <span>Recent Activity</span>
+                </h3>
+              </div>
+              <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+                <div class="btn-list">
+                  <button type="button" class="btn btn-sm btn-ghost-primary btn-icon"
+                    _="on click send refresh to #activity-feed-region" aria-label="Refresh activity feed"
+                    title="Refresh activity feed">
+                    <i class="fa-solid fa-sync" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>
             </div>
             <div class="card-body p-0" id="activity-feed-region" hx-get="/api/dashboard/fragments/activity-feed"
               hx-trigger="load, every 60s, refresh" hx-target="this" hx-swap="innerHTML">
               <div class="text-center text-muted py-4">
-                <i class="fas fa-spinner fa-spin me-2"></i>Loading activity…
+                <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+                Loading activity…
               </div>
             </div>
           </div>
@@ -253,7 +270,7 @@
 
     const originalHtml = button.innerHTML;
     button.disabled = true;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
     fetch(`/api/app/${modelSlug}/${appNumber}/start`, { method: 'POST' })
       .then(resp => {
@@ -299,7 +316,7 @@
     const originalHTML = btn.innerHTML;
 
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Syncing...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Syncing...';
 
     showDashboardNotification('Syncing models from OpenRouter...', 'info');
 
@@ -392,14 +409,13 @@
       { keys: 'G P', description: 'Go to Applications' },
       { keys: 'R', description: 'Refresh current view' },
       { keys: '?', description: 'Show this help' },
-      { keys: 'Ctrl + K', description: 'Quick search' },
       { keys: 'Esc', description: 'Close modals/dialogs' }
     ];
 
     let shortcutsHtml = '<div class="modal fade" id="keyboardShortcutsModal" tabindex="-1">';
     shortcutsHtml += '<div class="modal-dialog"><div class="modal-content">';
     shortcutsHtml += '<div class="modal-header">';
-    shortcutsHtml += '<h5 class="modal-title"><i class="fas fa-keyboard me-2"></i>Keyboard Shortcuts</h5>';
+    shortcutsHtml += '<h5 class="modal-title"><i class="fa-solid fa-keyboard me-2"></i>Keyboard Shortcuts</h5>';
     shortcutsHtml += '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>';
     shortcutsHtml += '</div><div class="modal-body p-0">';
     shortcutsHtml += '<div class="list-group list-group-flush">';
@@ -432,10 +448,10 @@
     const toastContainer = document.getElementById('toast-container') || createToastContainer();
 
     const iconMap = {
-      success: 'fas fa-check-circle',
-      danger: 'fas fa-exclamation-circle',
-      warning: 'fas fa-exclamation-triangle',
-      info: 'fas fa-info-circle'
+      success: 'fa-solid fa-check-circle',
+      danger: 'fa-solid fa-exclamation-circle',
+      warning: 'fa-solid fa-exclamation-triangle',
+      info: 'fa-solid fa-info-circle'
     };
 
     const toast = document.createElement('div');

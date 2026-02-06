@@ -8,10 +8,10 @@
         <div class="d-flex align-items-center flex-wrap gap-2">
           <div class="btn-group btn-group-sm" role="group">
             <button type="button" class="btn btn-primary active" id="btn-backend" onclick="switchContainer('backend')">
-              <i class="fas fa-server"></i>
+              <i class="fa-solid fa-server"></i>
             </button>
             <button type="button" class="btn btn-outline-primary" id="btn-frontend" onclick="switchContainer('frontend')">
-              <i class="fas fa-desktop"></i>
+              <i class="fa-solid fa-desktop"></i>
             </button>
           </div>
           <select class="form-select form-select-sm" style="width: auto;" id="log-level-filter" onchange="filterLogs()">
@@ -27,9 +27,9 @@
           </select>
           <input type="text" class="form-control form-control-sm" style="width: 150px;" id="log-search" placeholder="Search..." onkeyup="filterLogs()">
           <div class="btn-group btn-group-sm ms-auto">
-            <button class="btn btn-ghost-secondary" hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/logs" hx-target="#section-logs" hx-swap="innerHTML" title="Refresh"><i class="fas fa-sync"></i></button>
-            <button class="btn btn-ghost-secondary" onclick="toggleAutoRefresh()" id="auto-refresh-btn" title="Auto"><i class="fas fa-pause"></i></button>
-            <button class="btn btn-ghost-secondary" onclick="copyLogs()" title="Copy"><i class="fas fa-copy"></i></button>
+            <button class="btn btn-ghost-secondary" hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/logs" hx-target="#section-logs" hx-swap="innerHTML" title="Refresh"><i class="fa-solid fa-sync"></i></button>
+            <button class="btn btn-ghost-secondary" onclick="toggleAutoRefresh()" id="auto-refresh-btn" title="Auto"><i class="fa-solid fa-pause"></i></button>
+            <button class="btn btn-ghost-secondary" onclick="copyLogs()" title="Copy"><i class="fa-solid fa-copy"></i></button>
           </div>
         </div>
       </div>
@@ -42,8 +42,8 @@
       <div class="card-header py-1 d-flex justify-content-between align-items-center">
         <span class="fw-bold small" id="current-container-label">Backend Logs</span>
         <div class="btn-group btn-group-sm">
-          <button class="btn btn-ghost-secondary py-0" onclick="scrollToTop()"><i class="fas fa-arrow-up"></i></button>
-          <button class="btn btn-ghost-secondary py-0" onclick="scrollToBottom()"><i class="fas fa-arrow-down"></i></button>
+          <button class="btn btn-ghost-secondary py-0" onclick="scrollToTop()"><i class="fa-solid fa-arrow-up"></i></button>
+          <button class="btn btn-ghost-secondary py-0" onclick="scrollToBottom()"><i class="fa-solid fa-arrow-down"></i></button>
         </div>
       </div>
       <div class="card-body p-0">
@@ -59,14 +59,14 @@
     <div class="card card-sm">
       <div class="card-body py-2">
         <div class="d-flex align-items-center flex-wrap gap-3">
-          <span class="text-muted small"><i class="fas fa-chart-bar me-1"></i>Stats:</span>
-          <span class="badge bg-danger-lt" id="error-count"><i class="fas fa-times me-1"></i>{{ log_stats.error_count|default(0) }} Errors</span>
-          <span class="badge bg-warning-lt" id="warning-count"><i class="fas fa-exclamation me-1"></i>{{ log_stats.warning_count|default(0) }} Warnings</span>
-          <span class="badge bg-info-lt" id="info-count"><i class="fas fa-info me-1"></i>{{ log_stats.info_count|default(0) }} Info</span>
-          <span class="badge bg-secondary-lt" id="total-lines"><i class="fas fa-list me-1"></i>{{ log_stats.total_lines|default(0) }} Lines</span>
+          <span class="text-muted small"><i class="fa-solid fa-chart-bar me-1"></i>Stats:</span>
+          <span class="badge bg-danger-lt" id="error-count"><i class="fa-solid fa-times me-1"></i>{{ log_stats.error_count|default(0) }} Errors</span>
+          <span class="badge bg-warning-lt" id="warning-count"><i class="fa-solid fa-exclamation me-1"></i>{{ log_stats.warning_count|default(0) }} Warnings</span>
+          <span class="badge bg-info-lt" id="info-count"><i class="fa-solid fa-info me-1"></i>{{ log_stats.info_count|default(0) }} Info</span>
+          <span class="badge bg-secondary-lt" id="total-lines"><i class="fa-solid fa-list me-1"></i>{{ log_stats.total_lines|default(0) }} Lines</span>
           <div class="ms-auto btn-list gap-1">
-            <a href="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/download?format=txt" class="btn btn-sm btn-ghost-primary py-0"><i class="fas fa-download me-1"></i>TXT</a>
-            <a href="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/download?format=json" class="btn btn-sm btn-ghost-info py-0"><i class="fas fa-code me-1"></i>JSON</a>
+            <a href="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/download?format=txt" class="btn btn-sm btn-ghost-primary py-0"><i class="fa-solid fa-download me-1"></i>TXT</a>
+            <a href="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/download?format=json" class="btn btn-sm btn-ghost-info py-0"><i class="fa-solid fa-code me-1"></i>JSON</a>
           </div>
         </div>
       </div>
@@ -76,11 +76,11 @@
   <div class="col-12">
     <div class="card card-sm">
       <div class="card-body py-4 text-center">
-        <i class="fas fa-file-lines text-muted fa-2x mb-2"></i>
+        <i class="fa-solid fa-file-lines text-muted fa-2x mb-2"></i>
         <p class="mb-2 text-muted">No logs available</p>
         {% if app_data.container_status != 'running' %}
         <button class="btn btn-primary btn-sm" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/start" hx-swap="none" onclick="setTimeout(() => htmx.ajax('GET', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/logs', {target: '#section-logs', swap: 'innerHTML'}), 3000)">
-          <i class="fas fa-play me-1"></i>Start
+          <i class="fa-solid fa-play me-1"></i>Start
         </button>
         {% endif %}
       </div>
@@ -105,7 +105,7 @@ function startAutoRefresh() { if (autoRefreshInterval) clearInterval(autoRefresh
 function toggleAutoRefresh() {
   const btn = document.getElementById('auto-refresh-btn'), icon = btn.querySelector('i');
   isAutoRefreshing = !isAutoRefreshing;
-  icon.className = isAutoRefreshing ? 'fas fa-pause' : 'fas fa-play';
+  icon.className = isAutoRefreshing ? 'fa-solid fa-pause' : 'fa-solid fa-play';
 }
 function refreshLogs() {
   const linesEl = document.getElementById('log-lines'); if (!linesEl) return;
@@ -126,10 +126,10 @@ function scrollToBottom() { const c = document.getElementById('log-container'); 
 function copyLogs() { navigator.clipboard.writeText(document.getElementById('log-content').textContent).then(() => showToast('Copied', 'success')); }
 function updateLogStats(content) {
   const lines = content.split('\n').filter(l => l.trim());
-  document.getElementById('error-count').innerHTML = `<i class="fas fa-times me-1"></i>${lines.filter(l => l.includes('ERROR')).length} Errors`;
-  document.getElementById('warning-count').innerHTML = `<i class="fas fa-exclamation me-1"></i>${lines.filter(l => l.includes('WARN')).length} Warnings`;
-  document.getElementById('info-count').innerHTML = `<i class="fas fa-info me-1"></i>${lines.filter(l => l.includes('INFO')).length} Info`;
-  document.getElementById('total-lines').innerHTML = `<i class="fas fa-list me-1"></i>${lines.length} Lines`;
+  document.getElementById('error-count').innerHTML = `<i class="fa-solid fa-times me-1"></i>${lines.filter(l => l.includes('ERROR')).length} Errors`;
+  document.getElementById('warning-count').innerHTML = `<i class="fa-solid fa-exclamation me-1"></i>${lines.filter(l => l.includes('WARN')).length} Warnings`;
+  document.getElementById('info-count').innerHTML = `<i class="fa-solid fa-info me-1"></i>${lines.filter(l => l.includes('INFO')).length} Info`;
+  document.getElementById('total-lines').innerHTML = `<i class="fa-solid fa-list me-1"></i>${lines.length} Lines`;
 }
 window.addEventListener('beforeunload', () => { if (autoRefreshInterval) clearInterval(autoRefreshInterval); });
 

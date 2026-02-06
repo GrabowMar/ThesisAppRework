@@ -4,7 +4,7 @@
 {% if not caps %}
   <div class="empty py-4">
     <div class="empty-icon">
-      <i class="fas fa-info-circle fa-2x text-muted" aria-hidden="true"></i>
+      <i class="fa-solid fa-info-circle fa-2x text-muted" aria-hidden="true"></i>
     </div>
     <p class="empty-title h6">No Capability Data</p>
     <p class="empty-subtitle text-muted small">Capability information is not available for this model.</p>
@@ -16,14 +16,14 @@
       <div class="card card-sm">
         <div class="card-body py-2">
           <div class="d-flex align-items-center flex-wrap gap-2">
-            <span class="text-muted small"><i class="fas fa-star text-warning me-1"></i>Skills:</span>
-            {% if caps.get('text') or caps.get('chat') %}<span class="badge bg-success-lt text-success"><i class="fas fa-comment-dots me-1"></i>Text</span>{% endif %}
-            {% if caps.get('vision') or caps.get('images') %}<span class="badge bg-success-lt text-success"><i class="fas fa-eye me-1"></i>Vision</span>{% endif %}
-            {% if caps.get('multimodal') %}<span class="badge bg-success-lt text-success"><i class="fas fa-layer-group me-1"></i>Multimodal</span>{% endif %}
-            {% if caps.get('function_calling') or caps.get('tool_use') or 'tools' in nested_caps.get('supported_parameters', []) %}<span class="badge bg-success-lt text-success"><i class="fas fa-tools me-1"></i>Functions</span>{% endif %}
-            {% if caps.get('streaming') %}<span class="badge bg-success-lt text-success"><i class="fas fa-wave-square me-1"></i>Streaming</span>{% endif %}
-            {% if caps.get('json') or caps.get('json_mode') or 'response_format' in nested_caps.get('supported_parameters', []) %}<span class="badge bg-success-lt text-success"><i class="fas fa-code me-1"></i>JSON</span>{% endif %}
-            {% if caps.get('audio') %}<span class="badge bg-success-lt text-success"><i class="fas fa-microphone me-1"></i>Audio</span>{% endif %}
+            <span class="text-muted small"><i class="fa-solid fa-star text-warning me-1"></i>Skills:</span>
+            {% if caps.get('text') or caps.get('chat') %}<span class="badge bg-success-lt text-success"><i class="fa-solid fa-comment-dots me-1"></i>Text</span>{% endif %}
+            {% if caps.get('vision') or caps.get('images') %}<span class="badge bg-success-lt text-success"><i class="fa-solid fa-eye me-1"></i>Vision</span>{% endif %}
+            {% if caps.get('multimodal') %}<span class="badge bg-success-lt text-success"><i class="fa-solid fa-layer-group me-1"></i>Multimodal</span>{% endif %}
+            {% if caps.get('function_calling') or caps.get('tool_use') or 'tools' in nested_caps.get('supported_parameters', []) %}<span class="badge bg-success-lt text-success"><i class="fa-solid fa-tools me-1"></i>Functions</span>{% endif %}
+            {% if caps.get('streaming') %}<span class="badge bg-success-lt text-success"><i class="fa-solid fa-wave-square me-1"></i>Streaming</span>{% endif %}
+            {% if caps.get('json') or caps.get('json_mode') or 'response_format' in nested_caps.get('supported_parameters', []) %}<span class="badge bg-success-lt text-success"><i class="fa-solid fa-code me-1"></i>JSON</span>{% endif %}
+            {% if caps.get('audio') %}<span class="badge bg-success-lt text-success"><i class="fa-solid fa-microphone me-1"></i>Audio</span>{% endif %}
             {% if caps|length == 0 %}<span class="text-muted small">Not declared</span>{% endif %}
           </div>
         </div>
@@ -35,7 +35,7 @@
       <div class="card card-sm h-100">
         <div class="card-body py-2">
           <div class="d-flex align-items-center mb-2">
-            <i class="fas fa-sitemap text-primary me-2" aria-hidden="true"></i>
+            <i class="fa-solid fa-sitemap text-primary me-2" aria-hidden="true"></i>
             <span class="text-muted small text-uppercase fw-bold">Architecture</span>
           </div>
           <div class="row row-cols-2 g-2 small">
@@ -52,8 +52,8 @@
           {% set outputs = nested_caps.get('architecture', {}).get('output_modalities') or enriched_data.get('architecture_output_modalities') %}
           {% if inputs or outputs %}
           <div class="d-flex flex-wrap gap-1 mt-2">
-            {% if inputs %}{% if inputs is iterable and inputs is not string %}{% for m in inputs %}<span class="badge bg-secondary-lt small"><i class="fas fa-arrow-down me-1"></i>{{ m }}</span>{% endfor %}{% else %}<span class="badge bg-secondary-lt small"><i class="fas fa-arrow-down me-1"></i>{{ inputs }}</span>{% endif %}{% endif %}
-            {% if outputs %}{% if outputs is iterable and outputs is not string %}{% for m in outputs %}<span class="badge bg-secondary-lt small"><i class="fas fa-arrow-up me-1"></i>{{ m }}</span>{% endfor %}{% else %}<span class="badge bg-secondary-lt small"><i class="fas fa-arrow-up me-1"></i>{{ outputs }}</span>{% endif %}{% endif %}
+            {% if inputs %}{% if inputs is iterable and inputs is not string %}{% for m in inputs %}<span class="badge bg-secondary-lt small"><i class="fa-solid fa-arrow-down me-1"></i>{{ m }}</span>{% endfor %}{% else %}<span class="badge bg-secondary-lt small"><i class="fa-solid fa-arrow-down me-1"></i>{{ inputs }}</span>{% endif %}{% endif %}
+            {% if outputs %}{% if outputs is iterable and outputs is not string %}{% for m in outputs %}<span class="badge bg-secondary-lt small"><i class="fa-solid fa-arrow-up me-1"></i>{{ m }}</span>{% endfor %}{% else %}<span class="badge bg-secondary-lt small"><i class="fa-solid fa-arrow-up me-1"></i>{{ outputs }}</span>{% endif %}{% endif %}
           </div>
           {% endif %}
         </div>
@@ -65,7 +65,7 @@
       <div class="card card-sm h-100">
         <div class="card-body py-2">
           <div class="d-flex align-items-center mb-2">
-            <i class="fas fa-sliders-h text-info me-2" aria-hidden="true"></i>
+            <i class="fa-solid fa-sliders-h text-info me-2" aria-hidden="true"></i>
             <span class="text-muted small text-uppercase fw-bold">Parameters</span>
           </div>
           {% set all_params = nested_caps.get('supported_parameters') or enriched_data.get('openrouter_supported_parameters') %}
@@ -86,7 +86,7 @@
       <div class="card card-sm h-100">
         <div class="card-body py-2">
           <div class="d-flex align-items-center mb-2">
-            <i class="fas fa-tachometer-alt text-danger me-2" aria-hidden="true"></i>
+            <i class="fa-solid fa-tachometer-alt text-danger me-2" aria-hidden="true"></i>
             <span class="text-muted small text-uppercase fw-bold">Limits</span>
           </div>
           {% set limits = enriched_data.get('openrouter_per_request_limits') %}
@@ -108,13 +108,13 @@
       <div class="card card-sm h-100">
         <div class="card-body py-2">
           <div class="d-flex align-items-center mb-2">
-            <i class="fas fa-check-double text-success me-2" aria-hidden="true"></i>
+            <i class="fa-solid fa-check-double text-success me-2" aria-hidden="true"></i>
             <span class="text-muted small text-uppercase fw-bold">Capability Matrix</span>
           </div>
           <div class="d-flex flex-wrap gap-1">
             {% for key, value in caps.items()|sort %}
               <span class="badge {{ 'bg-success-lt text-success' if value else 'bg-secondary-lt text-secondary' }} small">
-                {% if value %}<i class="fas fa-check me-1"></i>{% else %}<i class="fas fa-times me-1"></i>{% endif %}{{ key }}
+                {% if value %}<i class="fa-solid fa-check me-1"></i>{% else %}<i class="fa-solid fa-times me-1"></i>{% endif %}{{ key }}
               </span>
             {% endfor %}
           </div>
@@ -130,7 +130,7 @@
       <div class="card card-sm h-100">
         <div class="card-body py-2">
           <div class="d-flex align-items-center mb-2">
-            <i class="fas fa-cog text-purple me-2" aria-hidden="true"></i>
+            <i class="fa-solid fa-cog text-purple me-2" aria-hidden="true"></i>
             <span class="text-muted small text-uppercase fw-bold">Default Parameters</span>
           </div>
           <div class="small">
@@ -153,7 +153,7 @@
       <div class="card card-sm h-100">
         <div class="card-body py-2">
           <div class="d-flex align-items-center mb-2">
-            <i class="fas fa-graduation-cap text-info me-2" aria-hidden="true"></i>
+            <i class="fa-solid fa-graduation-cap text-info me-2" aria-hidden="true"></i>
             <span class="text-muted small text-uppercase fw-bold">Instruct Type</span>
           </div>
           <span class="badge bg-info-lt text-info">{{ instruct_type }}</span>

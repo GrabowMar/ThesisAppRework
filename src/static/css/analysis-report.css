@@ -91,6 +91,20 @@
   border-color: var(--tblr-border-color, #dee2e6);
 }
 
+/* Dark mode alert border-left visibility */
+:root[data-bs-theme='dark'] .alert-info {
+  border-left-color: var(--tblr-info);
+}
+
+:root[data-bs-theme='dark'] .alert-warning {
+  border-left-color: var(--tblr-warning);
+}
+
+:root[data-bs-theme='dark'] .alert-light {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: var(--tblr-border-color);
+}
+
 /* Details/Summary Styling */
 details {
   cursor: pointer;
@@ -108,10 +122,7 @@ details[open] summary i.fa-chevron-right {
 
 /* Print Styles */
 @media print {
-  /* Hide interactive elements */
-  .btn, .navbar, .sidebar, footer, .d-print-none {
-    display: none !important;
-  }
+  /* Element hiding consolidated in detail-pages.css */
 
   /* Optimize layout */
   .report-container {
@@ -201,10 +212,7 @@ details[open] summary i.fa-chevron-right {
   }
 }
 
-/* Utility Classes */
-.cursor-pointer {
-  cursor: pointer;
-}
+/* .cursor-pointer defined in theme.css */
 
 .text-break {
   word-break: break-word;
@@ -222,27 +230,7 @@ pre code {
   border-bottom: 1px solid var(--tblr-border-color, #dee2e6) !important;
 }
 
-/* Severity Color Coding */
-.severity-critical {
-  color: var(--tblr-danger, #d63939);
-  font-weight: 600;
-}
-
-.severity-high {
-  color: var(--tblr-danger, #d63939);
-}
-
-.severity-medium {
-  color: var(--tblr-orange, #f76707);
-}
-
-.severity-low {
-  color: var(--tblr-success, #0ca678);
-}
-
-.severity-info {
-  color: var(--tblr-info, #4299e1);
-}
+/* Severity classes consolidated in detail-pages.css */
 
 /* Tool Detail Modal Styles */
 .modal-xl {

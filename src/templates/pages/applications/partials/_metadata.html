@@ -5,13 +5,13 @@
     <div class="card card-sm shadow-sm">
       <div class="card-header py-2 d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center">
-          <i class="fas fa-database text-primary me-2"></i>
+          <i class="fa-solid fa-database text-primary me-2"></i>
           <span class="fw-bold">Metadata</span>
         </div>
         <button class="btn btn-ghost-secondary btn-sm py-0" 
                 hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/metadata"
                 hx-target="#section-metadata" hx-swap="innerHTML" title="Refresh">
-          <i class="fas fa-sync"></i>
+          <i class="fa-solid fa-sync"></i>
         </button>
       </div>
       <div class="card-body py-2">
@@ -19,7 +19,7 @@
           {# App Info Column #}
           <div class="col-md-6">
             <div class="d-flex align-items-center mb-2">
-              <i class="fas fa-info-circle text-info me-2"></i>
+              <i class="fa-solid fa-info-circle text-info me-2"></i>
               <span class="text-muted small text-uppercase fw-bold">Application</span>
             </div>
             <div class="row row-cols-2 g-2 small">
@@ -34,7 +34,7 @@
           {# Generation Details Column #}
           <div class="col-md-6">
             <div class="d-flex align-items-center mb-2">
-              <i class="fas fa-cogs text-success me-2"></i>
+              <i class="fa-solid fa-cogs text-success me-2"></i>
               <span class="text-muted small text-uppercase fw-bold">Generation</span>
             </div>
             <div class="row row-cols-2 g-2 small">
@@ -57,7 +57,7 @@
     <div class="card card-sm shadow-sm">
       <div class="card-header py-2">
         <div class="d-flex align-items-center">
-          <i class="fas fa-key text-warning me-2"></i>
+          <i class="fa-solid fa-key text-warning me-2"></i>
           <span class="fw-bold">Environment</span>
           <span class="badge bg-secondary-lt ms-2">{{ environment_variables|length }}</span>
         </div>
@@ -94,7 +94,7 @@
     <div class="card card-sm shadow-sm">
       <div class="card-header py-2">
         <div class="d-flex align-items-center">
-          <i class="fas fa-box text-purple me-2"></i>
+          <i class="fa-solid fa-box text-purple me-2"></i>
           <span class="fw-bold">Dependencies</span>
         </div>
       </div>
@@ -126,7 +126,7 @@
     <div class="card card-sm shadow-sm">
       <div class="card-header py-2">
         <div class="d-flex align-items-center">
-          <i class="fas fa-file-code text-cyan me-2"></i>
+          <i class="fa-solid fa-file-code text-cyan me-2"></i>
           <span class="fw-bold">Config Files</span>
           <span class="badge bg-secondary-lt ms-2">{{ config_files|length }}</span>
         </div>
@@ -142,7 +142,7 @@
                 <td><span class="badge bg-info-lt small">{{ file.type|default('config') }}</span></td>
                 <td class="small">{{ file.size|default('—') }}</td>
                 <td class="text-end">
-                  <button class="btn btn-ghost-primary btn-sm py-0" onclick="viewConfigFile('{{ file.path }}')" title="View"><i class="fas fa-eye"></i></button>
+                  <button class="btn btn-ghost-primary btn-sm py-0" onclick="viewConfigFile('{{ file.path }}')" title="View"><i class="fa-solid fa-eye"></i></button>
                 </td>
               </tr>
               {% endfor %}

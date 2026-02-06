@@ -17,7 +17,7 @@
   <div id="persistent-batch-progress" class="alert alert-info mb-3 py-2" style="display: none;">
     <div class="d-flex align-items-center gap-3">
       <div class="d-flex align-items-center gap-2 flex-shrink-0">
-        <i class="fas fa-layer-group text-info" id="persistent-batch-icon"></i>
+        <i class="fa-solid fa-layer-group text-info" id="persistent-batch-icon"></i>
         <strong id="persistent-batch-label" class="text-nowrap">Batch Operation</strong>
       </div>
       <div class="flex-grow-1">
@@ -34,7 +34,7 @@
       </div>
     </div>
     <div id="persistent-batch-current" class="small text-muted mt-1" style="display: none;">
-      <i class="fas fa-spinner fa-spin me-1"></i><span id="persistent-batch-current-text">Starting...</span>
+      <i class="fa-solid fa-spinner fa-spin me-1"></i><span id="persistent-batch-current-text">Starting...</span>
     </div>
   </div>
 
@@ -42,30 +42,30 @@
     <div class="card-header d-flex flex-wrap align-items-center gap-3">
       <div class="d-flex flex-wrap align-items-center gap-2">
         <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-          <i class="fas fa-laptop-code text-primary"></i>
+          <i class="fa-solid fa-laptop-code text-primary"></i>
           <span>Applications</span>
         </h3>
         <div class="d-flex flex-wrap align-items-center gap-1 status-indicators ms-2">
           <span class="badge bg-primary-lt text-primary d-inline-flex align-items-center gap-1"
             title="Total applications">
-            <i class="fas fa-laptop-code fa-xs"></i>
+            <i class="fa-solid fa-laptop-code fa-xs"></i>
             <span id="total-applications">{{ applications_stats.total_applications if applications_stats is defined else
               applications|length }}</span>
           </span>
           <span class="badge bg-success-lt text-success d-inline-flex align-items-center gap-1"
             title="Running applications">
-            <i class="fas fa-play fa-xs"></i>
+            <i class="fa-solid fa-play fa-xs"></i>
             <span id="running-applications">{{ applications_stats.running_applications if applications_stats is defined
               else 0 }}</span>
           </span>
           <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1" title="Analyzed applications">
-            <i class="fas fa-chart-line fa-xs"></i>
+            <i class="fa-solid fa-chart-line fa-xs"></i>
             <span id="analyzed-applications">{{ applications_stats.analyzed_applications if applications_stats is
               defined else 0 }}</span>
           </span>
           <span class="badge bg-warning-lt text-orange d-inline-flex align-items-center gap-1"
             title="Unique models used">
-            <i class="fas fa-brain fa-xs"></i>
+            <i class="fa-solid fa-brain fa-xs"></i>
             <span id="unique-models">{{ applications_stats.unique_models if applications_stats is defined else 0
               }}</span>
           </span>
@@ -85,22 +85,22 @@
         <span class="text-muted small" id="applications-source-indicator"></span>
         <div class="btn-list">
           <button class="btn btn-sm btn-primary" onclick="refreshApplications()" title="Refresh applications"
-            type="button"><i class="fas fa-sync me-1" aria-hidden="true"></i>Refresh</button>
+            type="button"><i class="fa-solid fa-sync me-1" aria-hidden="true"></i>Refresh</button>
           <div class="btn-group btn-group-sm">
             <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
               aria-expanded="false">
-              <i class="fas fa-download me-1"></i>Export
+              <i class="fa-solid fa-download me-1"></i>Export
             </button>
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="#" onclick="exportApplications('json'); return false;"><i
-                    class="fas fa-file-code me-2"></i>JSON</a></li>
+                    class="fa-solid fa-file-code me-2"></i>JSON</a></li>
               <li><a class="dropdown-item" href="#" onclick="exportApplications('csv'); return false;"><i
-                    class="fas fa-file-csv me-2"></i>CSV</a></li>
+                    class="fa-solid fa-file-csv me-2"></i>CSV</a></li>
             </ul>
           </div>
           <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#batchApplicationsModal"
             title="Batch operations" onclick="updateBatchSelectionCount()" type="button"><i
-              class="fas fa-layer-group me-1" aria-hidden="true"></i>Batch Ops</button>
+              class="fa-solid fa-layer-group me-1" aria-hidden="true"></i>Batch Ops</button>
         </div>
         <span class="text-primary small fw-bold" id="applications-selection-indicator"></span>
       </div>
@@ -109,15 +109,15 @@
       <div class="row g-2 mb-3">
         <div class="col-12">
           <div class="input-group input-group-flat">
-            <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
+            <span class="input-group-text"><i class="fa-solid fa-search" aria-hidden="true"></i></span>
             <input type="text" id="application-search" class="form-control"
               placeholder="Search by model, app number, or template..." value="{{ search_term }}"
               onkeyup="debounceApplicationSearch()" aria-label="Search applications" />
             <button class="btn btn-outline-secondary" onclick="clearApplicationSearch()" type="button"
-              title="Clear search" aria-label="Clear search"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+              title="Clear search" aria-label="Clear search"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
             <button class="btn btn-outline-primary" onclick="toggleApplicationsAdvancedFilters()" type="button"
               title="Advanced filters" aria-label="Toggle advanced filters">
-              <i class="fas fa-filter me-1" aria-hidden="true"></i>
+              <i class="fa-solid fa-filter me-1" aria-hidden="true"></i>
               <span class="d-none d-md-inline">Advanced</span>
               <span class="badge bg-primary ms-1" id="applications-active-filters-count" style="display: none;">0</span>
             </button>
@@ -151,7 +151,7 @@
                   <label class="form-check">
                     <input type="checkbox" class="form-check-input" id="filter-status-build-failed" value="build_failed"
                       onchange="updateApplicationsAdvancedFilters()">
-                    <span class="form-check-label text-orange"><i class="fas fa-exclamation-triangle me-1"></i>Build
+                    <span class="form-check-label text-orange"><i class="fa-solid fa-exclamation-triangle me-1"></i>Build
                       Failed</span>
                   </label>
                   <label class="form-check">
@@ -167,7 +167,7 @@
                   <label class="form-check">
                     <input type="checkbox" class="form-check-input" id="filter-status-generation-failed"
                       value="generation_failed" onchange="updateApplicationsAdvancedFilters()">
-                    <span class="form-check-label text-danger"><i class="fas fa-skull-crossbones me-1"></i>Dead
+                    <span class="form-check-label text-danger"><i class="fa-solid fa-skull-crossbones me-1"></i>Dead
                       (Failed)</span>
                   </label>
                 </div>
@@ -188,10 +188,10 @@
               <div class="col-12">
                 <div class="d-flex gap-2">
                   <button class="btn btn-primary" onclick="applyApplicationsAdvancedFilters()">
-                    <i class="fas fa-check me-1"></i>Apply Filters
+                    <i class="fa-solid fa-check me-1"></i>Apply Filters
                   </button>
                   <button class="btn btn-outline-secondary" onclick="clearApplicationsAdvancedFilters()">
-                    <i class="fas fa-xmark me-1"></i>Clear All
+                    <i class="fa-solid fa-xmark me-1"></i>Clear All
                   </button>
                 </div>
               </div>
@@ -204,7 +204,7 @@
         <div class="col-auto">
           <label class="d-flex align-items-center gap-2 mb-0" for="model-filter">
             <span class="text-muted d-flex align-items-center gap-1">
-              <i class="fas fa-brain" aria-hidden="true"></i>
+              <i class="fa-solid fa-brain" aria-hidden="true"></i>
               <span>Model</span>
             </span>
             <select class="form-select form-select-sm" style="min-width: 140px;" id="model-filter"
@@ -222,7 +222,7 @@
         <div class="col-auto">
           <label class="d-flex align-items-center gap-2 mb-0" for="status-filter">
             <span class="text-muted d-flex align-items-center gap-1">
-              <i class="fas fa-toggle-on" aria-hidden="true"></i>
+              <i class="fa-solid fa-toggle-on" aria-hidden="true"></i>
               <span>Status</span>
             </span>
             <select class="form-select form-select-sm" style="min-width: 120px;" id="status-filter"
@@ -241,7 +241,7 @@
         <div class="col-auto">
           <label class="d-flex align-items-center gap-2 mb-0" for="template-filter">
             <span class="text-muted d-flex align-items-center gap-1">
-              <i class="fas fa-file-code" aria-hidden="true"></i>
+              <i class="fa-solid fa-file-code" aria-hidden="true"></i>
               <span>Template</span>
             </span>
             <select class="form-select form-select-sm" style="min-width: 160px;" id="template-filter"
@@ -259,7 +259,7 @@
         <div class="col-auto ms-auto">
           <button class="btn btn-sm btn-outline-secondary" onclick="clearAllApplicationFilters()" type="button"
             aria-label="Clear all filters">
-            <i class="fas fa-times-circle me-1" aria-hidden="true"></i>Clear Filters
+            <i class="fa-solid fa-times-circle me-1" aria-hidden="true"></i>Clear Filters
           </button>
         </div>
       </div>
@@ -324,11 +324,11 @@
               {% set mode = app.generation_mode|default('guarded') %}
               {% if mode == 'unguarded' %}
               <span class="badge badge-outline text-orange" title="Model-driven architecture (research mode)">
-                <i class="fas fa-unlock-alt fa-xs me-1"></i>Unguarded
+                <i class="fa-solid fa-unlock-alt fa-xs me-1"></i>Unguarded
               </span>
               {% else %}
               <span class="badge badge-outline text-green" title="Pre-defined architecture (2-prompt system)">
-                <i class="fas fa-shield-alt fa-xs me-1"></i>Guarded
+                <i class="fa-solid fa-shield-alt fa-xs me-1"></i>Guarded
               </span>
               {% endif %}
             </td>
@@ -337,28 +337,28 @@
               {% if app.is_generation_failed|default(false) %}
               <span class="badge bg-danger text-white" data-role="status-badge"
                 title="{{ app.error_message|default('Generation failed')|truncate(100) }}">
-                <i class="fas fa-skull-crossbones fa-xs me-1" aria-hidden="true"></i>Dead
+                <i class="fa-solid fa-skull-crossbones fa-xs me-1" aria-hidden="true"></i>Dead
               </span>
               {% elif is_container_failed %}
               <span class="badge bg-orange text-white" data-role="status-badge"
                 title="Container failed to build or start">
-                <i class="fas fa-exclamation-triangle fa-xs me-1" aria-hidden="true"></i>Build Failed
+                <i class="fa-solid fa-exclamation-triangle fa-xs me-1" aria-hidden="true"></i>Build Failed
               </span>
               {% elif status_lower == 'running' %}
-              <span class="badge bg-success-lt text-success" data-role="status-badge"><i class="fas fa-play fa-xs me-1"
+              <span class="badge bg-success-lt text-success" data-role="status-badge"><i class="fa-solid fa-play fa-xs me-1"
                   aria-hidden="true"></i>Running</span>
               {% elif status_lower == 'stopped' %}
               <span class="badge bg-secondary-lt text-secondary" data-role="status-badge"><i
-                  class="fas fa-stop fa-xs me-1" aria-hidden="true"></i>Stopped</span>
+                  class="fa-solid fa-stop fa-xs me-1" aria-hidden="true"></i>Stopped</span>
               {% elif status_lower == 'error' or status_lower == 'failed' %}
               <span class="badge bg-danger-lt text-danger" data-role="status-badge"><i
-                  class="fas fa-exclamation-circle fa-xs me-1" aria-hidden="true"></i>Error</span>
+                  class="fa-solid fa-exclamation-circle fa-xs me-1" aria-hidden="true"></i>Error</span>
               {% elif status_lower == 'building' %}
               <span class="badge bg-warning-lt text-warning" data-role="status-badge"><i
-                  class="fas fa-hammer fa-xs me-1" aria-hidden="true"></i>Building</span>
+                  class="fa-solid fa-hammer fa-xs me-1" aria-hidden="true"></i>Building</span>
               {% elif 'no compose' in status_lower or status_lower == 'not created' %}
               <span class="badge bg-secondary-lt text-secondary" data-role="status-badge"><i
-                  class="fas fa-plus fa-xs me-1" aria-hidden="true"></i>Not Created</span>
+                  class="fa-solid fa-plus fa-xs me-1" aria-hidden="true"></i>Not Created</span>
               {% else %}
               <span class="badge bg-secondary-lt text-secondary" data-role="status-badge">{{ status_lower|title
                 }}</span>
@@ -377,11 +377,11 @@
             </td>
             <td class="text-center">
               {% if app.analysis_status == 'completed' %}
-              <span class="badge bg-success-lt text-success"><i class="fas fa-check fa-xs"></i></span>
+              <span class="badge bg-success-lt text-success"><i class="fa-solid fa-check fa-xs"></i></span>
               {% elif app.analysis_status == 'running' %}
-              <span class="badge bg-warning-lt text-warning"><i class="fas fa-spinner fa-spin fa-xs"></i></span>
+              <span class="badge bg-warning-lt text-warning"><i class="fa-solid fa-spinner fa-spin fa-xs"></i></span>
               {% elif app.analysis_status == 'failed' %}
-              <span class="badge bg-danger-lt text-danger"><i class="fas fa-times fa-xs"></i></span>
+              <span class="badge bg-danger-lt text-danger"><i class="fa-solid fa-times fa-xs"></i></span>
               {% else %}
               <span class="text-muted">—</span>
               {% endif %}
@@ -394,13 +394,13 @@
                   onclick="window.location.href='/applications/{{ app.model_slug }}/{{ app.app_number }}/failure'"
                   aria-label="View failure details for {{ app.model_display_name }} App {{ app.app_number }}"
                   title="View failure details">
-                  <i class="fas fa-exclamation-triangle"></i>
+                  <i class="fa-solid fa-exclamation-triangle"></i>
                 </button>
                 <button class="btn btn-ghost-warning"
                   onclick="retryGeneration('{{ app.model_slug }}', {{ app.app_number }})"
                   aria-label="Retry generation for {{ app.model_display_name }} App {{ app.app_number }}"
                   title="Retry generation">
-                  <i class="fas fa-redo"></i>
+                  <i class="fa-solid fa-redo"></i>
                 </button>
                 {% else %}
                 {# Normal app - show regular actions #}
@@ -408,7 +408,7 @@
                 <button class="btn btn-ghost-primary"
                   onclick="window.location.href='/applications/{{ app.model_slug }}/{{ app.app_number }}'"
                   aria-label="View details for {{ app.model_display_name }} App {{ app.app_number }}">
-                  <i class="fas fa-eye"></i>
+                  <i class="fa-solid fa-eye"></i>
                 </button>
 
                 {# Container Control Buttons #}
@@ -422,14 +422,14 @@
                   {% if frontend_port %}
                   <a href="http://{{ request.host.split(':')[0] }}:{{ frontend_port }}" target="_blank" rel="noopener"
                     class="btn btn-ghost-success" title="Visit application (port {{ frontend_port }})">
-                    <i class="fas fa-external-link-alt"></i>
+                    <i class="fa-solid fa-external-link-alt"></i>
                   </a>
                   {% endif %}
 
                   <button class="btn btn-ghost-danger"
                     onclick="startContainerAction('{{ app.model_slug }}', {{ app.app_number }}, 'stop')"
                     title="Stop containers">
-                    <i class="fas fa-stop"></i>
+                    <i class="fa-solid fa-stop"></i>
                   </button>
                 </div>
 
@@ -439,7 +439,7 @@
                   <button class="btn btn-ghost-success"
                     onclick="startContainerAction('{{ app.model_slug }}', {{ app.app_number }}, 'start')"
                     title="Start containers (builds if needed)">
-                    <i class="fas fa-play"></i>
+                    <i class="fa-solid fa-play"></i>
                   </button>
                 </div>
 
@@ -447,13 +447,13 @@
                 <button class="btn btn-ghost-warning"
                   onclick="startContainerAction('{{ app.model_slug }}', {{ app.app_number }}, 'build', {no_cache: true})"
                   title="Rebuild containers (no cache)">
-                  <i class="fas fa-sync"></i>
+                  <i class="fa-solid fa-sync"></i>
                 </button>
 
                 {# History Button - view action history #}
                 <button class="btn btn-ghost-secondary"
                   onclick="showActionHistory('{{ app.model_slug }}', {{ app.app_number }})" title="View action history">
-                  <i class="fas fa-history"></i>
+                  <i class="fa-solid fa-history"></i>
                 </button>
                 {% endif %}{# end is_generation_failed check #}
               </div>
@@ -600,28 +600,28 @@
 
           // Update status badge based on Docker status
           let badgeClass = 'badge bg-muted-lt';
-          let badgeContent = '<i class="fas fa-question me-1"></i>Unknown';
+          let badgeContent = '<i class="fa-solid fa-question me-1"></i>Unknown';
 
           if (dockerStatus === 'running' && isRunning) {
             badgeClass = 'badge bg-success-lt';
-            badgeContent = '<i class="fas fa-play me-1"></i>Running';
+            badgeContent = '<i class="fa-solid fa-play me-1"></i>Running';
           } else if (dockerStatus === 'stopped' || (hasContainers && !isRunning)) {
             badgeClass = 'badge bg-secondary-lt';
-            badgeContent = '<i class="fas fa-stop me-1"></i>Stopped';
+            badgeContent = '<i class="fa-solid fa-stop me-1"></i>Stopped';
           } else if (dockerStatus === 'not_created' || (composeExists && !hasContainers)) {
             badgeClass = 'badge bg-warning-lt';
-            badgeContent = '<i class="fas fa-plus me-1"></i>Not Created';
+            badgeContent = '<i class="fa-solid fa-plus me-1"></i>Not Created';
           } else if (dockerStatus === 'no_compose') {
             badgeClass = 'badge bg-danger-lt';
-            badgeContent = '<i class="fas fa-exclamation me-1"></i>No Compose';
+            badgeContent = '<i class="fa-solid fa-exclamation me-1"></i>No Compose';
           } else if (dockerStatus === 'error') {
             badgeClass = 'badge bg-danger-lt';
-            badgeContent = '<i class="fas fa-exclamation-circle me-1"></i>Error';
+            badgeContent = '<i class="fa-solid fa-exclamation-circle me-1"></i>Error';
           }
 
           // Add stale indicator if data is stale
           if (isStale) {
-            badgeContent += ' <i class="fas fa-clock fa-xs text-muted" title="Status may be outdated"></i>';
+            badgeContent += ' <i class="fa-solid fa-clock fa-xs text-muted" title="Status may be outdated"></i>';
           }
 
           statusBadge.className = badgeClass;
@@ -695,7 +695,7 @@
     const button = event.target.closest('button');
     if (button) {
       button.disabled = true;
-      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
     }
 
     fetch(`/api/app/${modelSlug}/${appNumber}/retry-generation`, {
@@ -721,7 +721,7 @@
       .finally(() => {
         if (button) {
           button.disabled = false;
-          button.innerHTML = '<i class="fas fa-redo"></i>';
+          button.innerHTML = '<i class="fa-solid fa-redo"></i>';
         }
       });
   }
@@ -732,7 +732,7 @@
 
     const originalHtml = button.innerHTML;
     button.disabled = true;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
     const apiAction = action === 'rebuild' ? 'build' : action;
     const url = `/api/app/${modelSlug}/${appNumber}/${apiAction}`;
@@ -768,7 +768,7 @@
 
     const originalHtml = button.innerHTML;
     button.disabled = true;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Running...';
+    button.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Running...';
 
     const row = button.closest('tr');
     const appId = row ? row.getAttribute('data-app-id') : null;

@@ -17,7 +17,7 @@
           <div class="col-lg-6">
             <div class="card card-sm border">
               <div class="card-header py-2">
-                <h4 class="card-title mb-0"><i class="fas fa-search text-primary me-2"></i>Static Analysis</h4>
+                <h4 class="card-title mb-0"><i class="fa-solid fa-search text-primary me-2"></i>Static Analysis</h4>
               </div>
               <div class="card-body p-0" id="static-tools-list" hx-get="/automation/fragments/tools/static"
                 hx-trigger="loadTools once" hx-swap="innerHTML">
@@ -30,7 +30,7 @@
           <div class="col-lg-6">
             <div class="card card-sm border">
               <div class="card-header py-2">
-                <h4 class="card-title mb-0"><i class="fas fa-play text-success me-2"></i>Dynamic Analysis</h4>
+                <h4 class="card-title mb-0"><i class="fa-solid fa-play text-success me-2"></i>Dynamic Analysis</h4>
               </div>
               <div class="card-body p-0" id="dynamic-tools-list" hx-get="/automation/fragments/tools/dynamic"
                 hx-trigger="loadTools once" hx-swap="innerHTML">
@@ -43,7 +43,7 @@
           <div class="col-lg-6">
             <div class="card card-sm border">
               <div class="card-header py-2">
-                <h4 class="card-title mb-0"><i class="fas fa-tachometer-alt text-info me-2"></i>Performance Testing</h4>
+                <h4 class="card-title mb-0"><i class="fa-solid fa-tachometer-alt text-info me-2"></i>Performance Testing</h4>
               </div>
               <div class="card-body p-0" id="performance-tools-list" hx-get="/automation/fragments/tools/performance"
                 hx-trigger="loadTools once" hx-swap="innerHTML">
@@ -56,7 +56,7 @@
           <div class="col-lg-6">
             <div class="card card-sm border">
               <div class="card-header py-2">
-                <h4 class="card-title mb-0"><i class="fas fa-brain text-warning me-2"></i>AI Analysis</h4>
+                <h4 class="card-title mb-0"><i class="fa-solid fa-brain text-warning me-2"></i>AI Analysis</h4>
               </div>
               <div class="card-body p-0" id="ai-tools-list" hx-get="/automation/fragments/tools/ai"
                 hx-trigger="loadTools once" hx-swap="innerHTML">
@@ -97,7 +97,7 @@
               <input type="number" class="form-control" id="analysis-max-concurrent" value="2" min="1" max="100">
               <button class="btn btn-outline-secondary" type="button" id="btn-detect-capacity"
                 title="Detect optimal capacity from backend" onclick="detectCapacity()">
-                <i class="fas fa-magic me-1"></i>Auto
+                <i class="fa-solid fa-magic me-1"></i>Auto
               </button>
             </div>
             <small class="text-muted d-block mt-1 text-truncate" id="capacity-hint" title="Default: 2">Default:
@@ -131,7 +131,7 @@
 
 {# Help Alert #}
 <div class="alert alert-info mt-4">
-  <i class="fas fa-lightbulb me-2"></i>
+  <i class="fa-solid fa-lightbulb me-2"></i>
   <strong>Batch Analysis:</strong> Analysis runs automatically after generation. With parallel mode enabled (default),
   multiple apps are analyzed concurrently up to the limit you set. Containers are automatically managed
   for seamless operation.

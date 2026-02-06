@@ -31,7 +31,7 @@
         {% elif app.status == 'error' %}
           <span class="badge bg-danger-lt text-danger" style="font-size: 0.7rem;">Err</span>
         {% elif app.status == 'building' %}
-          <span class="badge bg-warning-lt text-warning" style="font-size: 0.7rem;"><i class="fas fa-spinner fa-spin"></i></span>
+          <span class="badge bg-warning-lt text-warning" style="font-size: 0.7rem;"><i class="fa-solid fa-spinner fa-spin"></i></span>
         {% else %}
           <span class="badge bg-secondary-lt" style="font-size: 0.7rem;">{{ (app.status|truncate(3, true, '')|title) if app.status else '?' }}</span>
         {% endif %}
@@ -39,12 +39,12 @@
       <td class="text-end">
         <div class="btn-list justify-content-end gap-0">
           <a href="/applications/{{ app.model_slug }}/{{ app.app_number }}" class="btn btn-sm btn-icon btn-ghost-primary py-0" title="View">
-            <i class="fas fa-eye" style="font-size: 0.75rem;"></i>
+            <i class="fa-solid fa-eye" style="font-size: 0.75rem;"></i>
           </a>
           {% if app.status == 'running' and app.ports %}
             {% set frontend_port = app.ports[1].host_port if app.ports|length > 1 else app.ports[0].host_port %}
             <a href="http://{{ request.host.split(':')[0] }}:{{ frontend_port }}" target="_blank" class="btn btn-sm btn-icon btn-ghost-success py-0" title="Open">
-              <i class="fas fa-external-link-alt" style="font-size: 0.75rem;"></i>
+              <i class="fa-solid fa-external-link-alt" style="font-size: 0.75rem;"></i>
             </a>
           {% endif %}
         </div>
@@ -55,7 +55,7 @@
 </table>
 {% else %}
 <div class="text-center py-3">
-  <i class="fas fa-cubes text-muted mb-2" style="font-size: 1.5rem;"></i>
+  <i class="fa-solid fa-cubes text-muted mb-2" style="font-size: 1.5rem;"></i>
   <p class="text-muted mb-2" style="font-size: 0.85rem;">No applications yet</p>
   <a href="{{ url_for('applications.applications_index') if 'applications.applications_index' in current_app.view_functions else '/applications' }}" class="btn btn-sm btn-primary">Generate App</a>
 </div>

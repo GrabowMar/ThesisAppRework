@@ -393,13 +393,13 @@ class AnalysisResultsManager {
             container.innerHTML = `
                 <div class="alert alert-danger" role="alert">
                     <div class="d-flex align-items-center">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <i class="fa-solid fa-exclamation-triangle me-2"></i>
                         <div>
                             <strong>Error loading ${tab} data</strong>
                             <div class="small mt-1">${message}</div>
                         </div>
                         <button class="btn btn-sm btn-outline-danger ms-auto" onclick="analysisResults.retry('${tab}')">
-                            <i class="fas fa-redo me-1"></i>Retry
+                            <i class="fa-solid fa-redo me-1"></i>Retry
                         </button>
                     </div>
                 </div>
@@ -433,7 +433,7 @@ class AnalysisResultsManager {
         errorContainer.className = 'alert alert-danger alert-dismissible fade show';
         errorContainer.innerHTML = `
             <div class="d-flex align-items-center">
-                <i class="fas fa-exclamation-triangle me-2"></i>
+                <i class="fa-solid fa-exclamation-triangle me-2"></i>
                 <div class="flex-grow-1">
                     <strong>Analysis Results Error</strong>
                     <div class="small mt-1">${message}</div>
@@ -595,7 +595,7 @@ class AnalysisResultsManager {
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header">
-                            <h6 class="card-title mb-0"><i class="fas fa-shield-halved text-danger me-2"></i>Security Summary</h6>
+                            <h6 class="card-title mb-0"><i class="fa-solid fa-shield-halved text-danger me-2"></i>Security Summary</h6>
                         </div>
                         <div class="card-body">
                             <div class="row g-2">
@@ -618,7 +618,7 @@ class AnalysisResultsManager {
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header">
-                            <h6 class="card-title mb-0"><i class="fas fa-code text-info me-2"></i>Code Quality Summary</h6>
+                            <h6 class="card-title mb-0"><i class="fa-solid fa-code text-info me-2"></i>Code Quality Summary</h6>
                         </div>
                         <div class="card-body">
                             <div class="row g-2">
@@ -697,7 +697,7 @@ class AnalysisResultsManager {
                                     <div class="h6 mb-0">${securityData.tools_run?.join(', ') || 'None'}</div>
                                 </div>
                                 <div class="ms-auto">
-                                    <i class="fas fa-tools text-muted"></i>
+                                    <i class="fa-solid fa-tools text-muted"></i>
                                 </div>
                             </div>
                         </div>
@@ -949,10 +949,10 @@ class AnalysisResultsManager {
                         </div>
                         <div class="card-body">
                             <div class="small">
-                                <div><i class="fas fa-shield-alt text-danger me-1"></i> Security: ${tool_categories.security?.length || 0}</div>
-                                <div><i class="fas fa-code text-info me-1"></i> Quality: ${tool_categories.quality?.length || 0}</div>
-                                <div><i class="fas fa-tachometer-alt text-warning me-1"></i> Performance: ${tool_categories.performance?.length || 0}</div>
-                                <div><i class="fas fa-network-wired text-success me-1"></i> Dynamic: ${tool_categories.dynamic?.length || 0}</div>
+                                <div><i class="fa-solid fa-shield-alt text-danger me-1"></i> Security: ${tool_categories.security?.length || 0}</div>
+                                <div><i class="fa-solid fa-code text-info me-1"></i> Quality: ${tool_categories.quality?.length || 0}</div>
+                                <div><i class="fa-solid fa-tachometer-alt text-warning me-1"></i> Performance: ${tool_categories.performance?.length || 0}</div>
+                                <div><i class="fa-solid fa-network-wired text-success me-1"></i> Dynamic: ${tool_categories.dynamic?.length || 0}</div>
                             </div>
                         </div>
                     </div>
@@ -1024,7 +1024,7 @@ class AnalysisResultsManager {
                                 <div class="d-flex align-items-center mb-2">
                                     <div class="me-3">
                                         <div class="avatar bg-${card.status_class}-lt">
-                                            <i class="fas fa-${card.icon}"></i>
+                                            <i class="fa-solid fa-${card.icon}"></i>
                                         </div>
                                     </div>
                                     <div class="flex-fill">
@@ -1033,7 +1033,7 @@ class AnalysisResultsManager {
                                     </div>
                                     <div class="ms-2">
                                         <span class="badge ${card.badge_class} badge-sm">
-                                            <i class="fas fa-${card.status_icon} me-1"></i>${card.status}
+                                            <i class="fa-solid fa-${card.status_icon} me-1"></i>${card.status}
                                         </span>
                                     </div>
                                 </div>
@@ -1056,7 +1056,7 @@ class AnalysisResultsManager {
                                     <div class="col-6">
                                         <div class="text-muted">Executed:</div>
                                         <div class="fw-medium">
-                                            <i class="fas fa-${card.executed ? 'check text-success' : 'times text-danger'} me-1"></i>
+                                            <i class="fa-solid fa-${card.executed ? 'check text-success' : 'times text-danger'} me-1"></i>
                                             ${card.executed ? 'Yes' : 'No'}
                                         </div>
                                     </div>
@@ -1065,7 +1065,7 @@ class AnalysisResultsManager {
                                 ${card.error_message ? `
                                     <div class="mt-2">
                                         <div class="alert alert-danger alert-sm mb-0">
-                                            <i class="fas fa-exclamation-triangle me-1"></i>
+                                            <i class="fa-solid fa-exclamation-triangle me-1"></i>
                                             <strong>Error:</strong> ${card.error_message}
                                         </div>
                                     </div>
@@ -1074,7 +1074,7 @@ class AnalysisResultsManager {
                                 ${card.has_output ? `
                                     <div class="mt-2">
                                         <button class="btn btn-outline-secondary btn-sm btn-sm" onclick="showToolOutput('${card.tool_name}')">
-                                            <i class="fas fa-file-alt me-1"></i>View Output
+                                            <i class="fa-solid fa-file-alt me-1"></i>View Output
                                         </button>
                                     </div>
                                 ` : ''}
@@ -1088,7 +1088,7 @@ class AnalysisResultsManager {
 
     createSecurityFindingsHTML(findings) {
         if (!findings.length) {
-            return '<div class="text-center p-4 text-success"><i class="fas fa-check-circle me-2"></i>No security issues found!</div>';
+            return '<div class="text-center p-4 text-success"><i class="fa-solid fa-check-circle me-2"></i>No security issues found!</div>';
         }
         
         let html = '<div class="table-responsive"><table class="table table-sm table-striped mb-0">';
@@ -1192,8 +1192,8 @@ class AnalysisResultsManager {
         
         let html = '<div class="row g-3">';
         Object.entries(tools).forEach(([toolName, toolData]) => {
-            const statusIcon = toolData.status === 'success' ? 'fas fa-check' : 
-                              toolData.status === 'error' ? 'fas fa-times' : 'fas fa-question';
+            const statusIcon = toolData.status === 'success' ? 'fa-solid fa-check' : 
+                              toolData.status === 'error' ? 'fa-solid fa-times' : 'fa-solid fa-question';
             const statusClass = toolData.status === 'success' ? 'text-success' : 
                                toolData.status === 'error' ? 'text-danger' : 'text-muted';
             
@@ -1215,7 +1215,7 @@ class AnalysisResultsManager {
 
     createQualityIssuesHTML(issues) {
         if (!issues.length) {
-            return '<div class="text-center p-4 text-success"><i class="fas fa-check-circle me-2"></i>No quality issues found!</div>';
+            return '<div class="text-center p-4 text-success"><i class="fa-solid fa-check-circle me-2"></i>No quality issues found!</div>';
         }
         
         let html = '<div class="table-responsive"><table class="table table-sm table-striped mb-0">';
@@ -1259,7 +1259,7 @@ class AnalysisResultsManager {
                     <h2 class="accordion-header">
                         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#req${index}">
                             <span class="${statusClass} me-2">
-                                <i class="fas ${req.status === 'met' ? 'fa-check' : req.status === 'not_met' ? 'fa-times' : 'fa-minus'}"></i>
+                                <i class="fa-solid ${req.status === 'met' ? 'fa-check' : req.status === 'not_met' ? 'fa-times' : 'fa-minus'}"></i>
                             </span>
                             ${req.requirement.substring(0, 100)}${req.requirement.length > 100 ? '...' : ''}
                         </button>
@@ -1309,11 +1309,11 @@ class AnalysisResultsManager {
 
     getStatusIcon(status) {
         const st = status?.toLowerCase();
-        if (st === 'completed' || st === 'success') return '<i class="fas fa-check"></i>';
-        if (st === 'failed' || st === 'error') return '<i class="fas fa-times"></i>';
-        if (st === 'running') return '<i class="fas fa-spinner fa-spin"></i>';
-        if (st === 'pending') return '<i class="fas fa-clock"></i>';
-        return '<i class="fas fa-question"></i>';
+        if (st === 'completed' || st === 'success') return '<i class="fa-solid fa-check"></i>';
+        if (st === 'failed' || st === 'error') return '<i class="fa-solid fa-times"></i>';
+        if (st === 'running') return '<i class="fa-solid fa-spinner fa-spin"></i>';
+        if (st === 'pending') return '<i class="fa-solid fa-clock"></i>';
+        return '<i class="fa-solid fa-question"></i>';
     }
 
     getFileName(filePath) {

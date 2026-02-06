@@ -57,13 +57,14 @@ docker compose up -d
 ```
 
 **Services started:**
-- Flask web application (port 5000)
+- Nginx proxy (ports 80, 443)
+- Flask web application (port 5000 internal)
 - Redis (Celery task queue)
 - Celery worker (background processing)
-- All analyzer services (static, dynamic, performance, AI)
+- All analyzer services with replicas (4x static, 3x dynamic, 2x perf, 2x AI)
 - WebSocket gateway
 
-Access at **http://localhost:5000**
+Access at **http://localhost** (or **https://localhost** for HTTPS)
 
 ### Management Commands
 

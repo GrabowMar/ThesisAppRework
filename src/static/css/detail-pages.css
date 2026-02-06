@@ -593,28 +593,7 @@
 }
 
 /* ========================================
-   11. PRINT STYLES
-   ======================================== */
-
-@media print {
-
-  .research-section-nav-wrapper,
-  .research-header-actions,
-  .research-section-actions {
-    display: none !important;
-  }
-
-  .research-section {
-    page-break-inside: avoid;
-  }
-
-  .research-metric-card {
-    border: 1px solid #ddd;
-  }
-}
-
-/* ========================================
-   12. REPORT SPECIFIC STYLES (Extracted)
+   11. PRINT STYLES (consolidated)
    ======================================== */
 
 @media print {
@@ -623,7 +602,11 @@
   .navbar,
   .sidebar,
   footer,
-  .no-print {
+  .no-print,
+  .d-print-none,
+  .research-section-nav-wrapper,
+  .research-header-actions,
+  .research-section-actions {
     display: none !important;
   }
 
@@ -637,14 +620,19 @@
     page-break-inside: avoid;
   }
 
-  .research-header-actions {
-    display: none !important;
+  .research-section {
+    page-break-inside: avoid;
+  }
+
+  .research-metric-card {
+    border: 1px solid #ddd;
   }
 }
 
 /* Report content styles */
 .severity-critical {
   color: var(--tblr-danger, #d63939);
+  font-weight: 600;
 }
 
 .severity-high {

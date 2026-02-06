@@ -478,7 +478,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
         } finally {
             // Restore button state
             if (btn) {
-                btn.innerHTML = '<i class="fas fa-magic me-1"></i>Auto';
+                btn.innerHTML = '<i class="fa-solid fa-magic me-1"></i>Auto';
                 btn.disabled = false;
             }
         }
@@ -641,7 +641,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
             html = `
             <tr>
                 <td colspan="5" class="text-center text-muted py-3">
-                    <i class="fas fa-info-circle me-2"></i>
+                    <i class="fa-solid fa-info-circle me-2"></i>
                     Select templates and models to preview job queue
                 </td>
             </tr>
@@ -694,7 +694,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
             const launchBtn = document.getElementById('launch-pipeline-btn');
             if (launchBtn) {
                 launchBtn.disabled = true;
-                launchBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Starting...';
+                launchBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Starting...';
             }
 
             // Call API to start pipeline
@@ -736,7 +736,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
             const launchBtn = document.getElementById('launch-pipeline-btn');
             if (launchBtn) {
                 launchBtn.disabled = false;
-                launchBtn.innerHTML = '<i class="fas fa-rocket me-2"></i>Launch Pipeline';
+                launchBtn.innerHTML = '<i class="fa-solid fa-rocket me-2"></i>Launch Pipeline';
             }
         }
     }
@@ -1183,7 +1183,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
         if (!job) {
             container.innerHTML = `
             <div class="text-center text-muted py-4">
-                <i class="fas fa-hourglass-start fa-2x mb-2"></i>
+                <i class="fa-solid fa-hourglass-start fa-2x mb-2"></i>
                 <div>Waiting for next job...</div>
             </div>
         `;
@@ -1194,7 +1194,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
         <div class="d-flex align-items-start">
             <div class="me-3">
                 <span class="avatar bg-primary">
-                    <i class="fas ${getStageIcon(job.stage)}"></i>
+                    <i class="fa-solid ${getStageIcon(job.stage)}"></i>
                 </span>
             </div>
             <div class="flex-fill">
@@ -1229,7 +1229,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
             tbody.innerHTML = `
             <tr>
                 <td colspan="6" class="text-center text-muted py-3">
-                    <i class="fas fa-inbox me-2"></i>No completed jobs yet
+                    <i class="fa-solid fa-inbox me-2"></i>No completed jobs yet
                 </td>
             </tr>
         `;
@@ -1277,8 +1277,8 @@ if (typeof window.AutomationWizard !== 'undefined') {
         if (pauseBtn) {
             pauseBtn.disabled = !isRunning;
             pauseBtn.innerHTML = status === 'paused' ?
-                '<i class="fas fa-play me-1"></i>Resume' :
-                '<i class="fas fa-pause me-1"></i>Pause';
+                '<i class="fa-solid fa-play me-1"></i>Resume' :
+                '<i class="fa-solid fa-pause me-1"></i>Pause';
         }
 
         if (cancelBtn) cancelBtn.disabled = isComplete;
@@ -1317,8 +1317,8 @@ if (typeof window.AutomationWizard !== 'undefined') {
             };
             const config = statusConfig[wizard.state.status] || statusConfig['ready'];
             statusBadge.className = `badge ${config.badge}`;
-            statusIcon.className = `fas ${config.icon} fa-xs me-1`;
-            statusBadge.innerHTML = `<i class="fas ${config.icon} fa-xs me-1" id="metrics-status-icon"></i>${config.label}`;
+            statusIcon.className = `fa-solid ${config.icon} fa-xs me-1`;
+            statusBadge.innerHTML = `<i class="fa-solid ${config.icon} fa-xs me-1" id="metrics-status-icon"></i>${config.label}`;
             if (statusDot) statusDot.className = `status-dot status-dot-animated ${config.dot}`;
             if (statusHeader) {
                 statusHeader.className = `pipeline-status-header px-3 py-2 border-bottom status-${wizard.state.status}`;
@@ -1524,7 +1524,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
         categories.forEach(elementId => {
             const container = document.getElementById(elementId);
             if (container) {
-                container.innerHTML = `<div class="p-2 text-danger small"><i class="fas fa-exclamation-triangle me-1"></i>${message}</div>`;
+                container.innerHTML = `<div class="p-2 text-danger small"><i class="fa-solid fa-exclamation-triangle me-1"></i>${message}</div>`;
             }
         });
     }
@@ -2146,7 +2146,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
         if (!settings || settings.length === 0) {
             list.innerHTML = `
             <div class="text-center py-5 text-muted">
-                <i class="fas fa-bookmark fa-2x mb-3 opacity-50"></i>
+                <i class="fa-solid fa-bookmark fa-2x mb-3 opacity-50"></i>
                 <p class="mb-1">No saved settings</p>
                 <p class="small">Save your current pipeline configuration to reuse it later.</p>
             </div>
@@ -2179,7 +2179,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
                     <div class="col-6 col-md-3">
                         <div class="text-muted">Mode</div>
                         <div class="fw-medium">
-                            <i class="fas ${mode === 'existing' ? 'fa-folder-open' : 'fa-magic'} me-1 text-primary"></i>
+                            <i class="fa-solid ${mode === 'existing' ? 'fa-folder-open' : 'fa-magic'} me-1 text-primary"></i>
                             ${mode === 'existing' ? 'Existing' : 'Generate'}
                         </div>
                     </div>
@@ -2281,8 +2281,8 @@ if (typeof window.AutomationWizard !== 'undefined') {
                 ${s.description ? `<div class="text-muted small">${escapeHtml(s.description)}</div>` : ''}
             </div>
             <div class="btn-group btn-group-sm">
-                ${!s.is_default ? `<button class="btn btn-ghost-primary" onclick="setDefaultSettings(${s.id})"><i class="fas fa-star"></i></button>` : '<span class="badge bg-primary-lt me-2">Default</span>'}
-                <button class="btn btn-ghost-danger" onclick="deleteSettings(${s.id})"><i class="fas fa-trash"></i></button>
+                ${!s.is_default ? `<button class="btn btn-ghost-primary" onclick="setDefaultSettings(${s.id})"><i class="fa-solid fa-star"></i></button>` : '<span class="badge bg-primary-lt me-2">Default</span>'}
+                <button class="btn btn-ghost-danger" onclick="deleteSettings(${s.id})"><i class="fa-solid fa-trash"></i></button>
             </div>
         </div>
     `).join('');
@@ -2676,7 +2676,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
                 if (data.success) {
                     resultDiv.innerHTML = `
                 <div class="alert alert-success">
-                    <i class="fas fa-check-circle me-2"></i>
+                    <i class="fa-solid fa-check-circle me-2"></i>
                     <strong>Import successful!</strong>
                     <ul class="mb-0 mt-2">
                         <li>Total files imported: ${data.data.imported}</li>
@@ -2695,7 +2695,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
                 } else {
                     resultDiv.innerHTML = `
                 <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <i class="fa-solid fa-exclamation-circle me-2"></i>
                     <strong>Import failed:</strong> ${data.message}
                 </div>
             `;
@@ -2709,7 +2709,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
 
                 resultDiv.innerHTML = `
             <div class="alert alert-danger">
-                <i class="fas fa-exclamation-circle me-2"></i>
+                <i class="fa-solid fa-exclamation-circle me-2"></i>
                 <strong>Import failed:</strong> ${error.message}
             </div>
         `;

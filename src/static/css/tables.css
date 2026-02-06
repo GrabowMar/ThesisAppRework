@@ -264,15 +264,7 @@ th.sortable.sorted .sort-icon {
   pointer-events: none;
 }
 
-@keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-
-  100% {
-    transform: translateX(100%);
-  }
-}
+/* shimmer @keyframes defined in theme.css (GPU-accelerated translate3d version) */
 
 /* ========================================
    Status Indicators - Unified Header Badges
@@ -300,7 +292,6 @@ th.sortable.sorted .sort-icon {
 
 .status-indicators .badge i,
 .status-indicators .badge .fa,
-.status-indicators .badge .fas,
 .status-indicators .badge .fa-solid {
   font-size: 0.8125rem;
 }
@@ -318,7 +309,6 @@ th.sortable.sorted .sort-icon {
 
 .card-table-compact .badge i,
 .card-table-compact .badge .fa,
-.card-table-compact .badge .fas,
 .card-table-compact .badge .fa-solid {
   font-size: 0.75rem;
   margin-right: 0.25rem;
@@ -713,7 +703,6 @@ th.sortable.sorted .sort-icon {
 .table-empty-state i,
 .card-table-compact .empty .empty-icon i,
 .card-table-compact .empty-icon .fa,
-.card-table-compact .empty-icon .fas,
 .card-table-compact .empty-icon .fa-solid {
   font-size: 3rem;
   margin-bottom: 1rem;
@@ -1038,7 +1027,6 @@ td.text-truncate {
 /* Icon-only badges in the models table: remove default icon right-margin */
 #models-table .badge i,
 #models-table .badge .fa,
-#models-table .badge .fas,
 #models-table .badge .fa-solid {
   margin-right: 0 !important;
 }
@@ -1046,7 +1034,6 @@ td.text-truncate {
 /* Icon-only buttons in the models table: ensure no extra icon spacing */
 #models-table .btn-icon i,
 #models-table .btn-icon .fa,
-#models-table .btn-icon .fas,
 #models-table .btn-icon .fa-solid {
   margin-right: 0 !important;
 }
@@ -1056,14 +1043,7 @@ td.text-truncate {
   background-color: rgba(var(--tblr-primary-rgb), 0.03);
 }
 
-/* Cursor pointer for clickable badges */
-.cursor-pointer {
-  cursor: pointer;
-}
-
-.cursor-pointer:hover {
-  opacity: 0.85;
-}
+/* .cursor-pointer defined in theme.css */
 
 /* Additional Tabler color utilities */
 .text-orange {

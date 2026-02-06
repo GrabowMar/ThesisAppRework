@@ -5,13 +5,13 @@
     <div class="card card-sm">
       <div class="card-header py-2 d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center">
-          <i class="fas fa-network-wired text-primary me-2"></i>
+          <i class="fa-solid fa-network-wired text-primary me-2"></i>
           <span class="fw-bold">Ports</span>
           <span class="badge bg-secondary-lt ms-2">{{ ports|length }}</span>
         </div>
         <div class="btn-list gap-1">
-          <button type="button" class="btn btn-sm btn-ghost-primary py-0" data-port-action="test-all"><i class="fas fa-vial me-1"></i>Test</button>
-          <button type="button" class="btn btn-sm btn-ghost-secondary py-0" data-port-action="refresh"><i class="fas fa-sync"></i></button>
+          <button type="button" class="btn btn-sm btn-ghost-primary py-0" data-port-action="test-all"><i class="fa-solid fa-vial me-1"></i>Test</button>
+          <button type="button" class="btn btn-sm btn-ghost-secondary py-0" data-port-action="refresh"><i class="fa-solid fa-sync"></i></button>
         </div>
       </div>
       <div class="card-body p-0">
@@ -25,13 +25,13 @@
                 <td><code class="small">{{ port.host_port }}</code></td>
                 <td><span class="badge bg-secondary-lt small">{{ port.protocol|upper }}</span></td>
                 <td>
-                  {% if port.accessible %}<span class="badge bg-success-lt text-success"><i class="fas fa-check"></i></span>
-                  {% else %}<span class="badge bg-warning-lt text-warning"><i class="fas fa-times"></i></span>{% endif %}
+                  {% if port.accessible %}<span class="badge bg-success-lt text-success"><i class="fa-solid fa-check"></i></span>
+                  {% else %}<span class="badge bg-warning-lt text-warning"><i class="fa-solid fa-times"></i></span>{% endif %}
                 </td>
                 <td class="text-end">
                   <div class="btn-list justify-content-end gap-1">
-                    <button class="btn btn-sm btn-icon btn-ghost-primary py-0" data-port-action="copy" data-port="{{ port.host_port }}" title="Copy"><i class="fas fa-copy"></i></button>
-                    <a href="http://{{ request.host.split(':')[0] }}:{{ port.host_port }}" target="_blank" class="btn btn-sm btn-icon btn-ghost-info py-0" title="Open"><i class="fas fa-external-link-alt"></i></a>
+                    <button class="btn btn-sm btn-icon btn-ghost-primary py-0" data-port-action="copy" data-port="{{ port.host_port }}" title="Copy"><i class="fa-solid fa-copy"></i></button>
+                    <a href="http://{{ request.host.split(':')[0] }}:{{ port.host_port }}" target="_blank" class="btn btn-sm btn-icon btn-ghost-info py-0" title="Open"><i class="fa-solid fa-external-link-alt"></i></a>
                   </div>
                 </td>
               </tr>
@@ -66,10 +66,10 @@
 {% else %}
 <div class="card card-sm">
   <div class="card-body py-4 text-center">
-    <i class="fas fa-network-wired text-muted fa-2x mb-2"></i>
+    <i class="fa-solid fa-network-wired text-muted fa-2x mb-2"></i>
     <p class="mb-2 text-muted">No published ports</p>
     {% if app_data.container_status != 'running' %}
-    <button class="btn btn-primary btn-sm" onclick="startApplication()"><i class="fas fa-play me-1"></i>Start</button>
+    <button class="btn btn-primary btn-sm" onclick="startApplication()"><i class="fa-solid fa-play me-1"></i>Start</button>
     {% endif %}
   </div>
 </div>

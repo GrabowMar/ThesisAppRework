@@ -105,7 +105,7 @@
     const btn = event.target.closest('button');
     const originalHtml = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Stopping...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Stopping...';
     
     // Make API call
     fetch('/analysis/api/tasks/stop-all', {

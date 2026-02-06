@@ -346,7 +346,7 @@
 
       // Update next button text based on validation state
       if (stepValid) {
-        nextBtn.innerHTML = 'Next <i class="fas fa-chevron-right ms-1"></i>';
+        nextBtn.innerHTML = 'Next <i class="fa-solid fa-chevron-right ms-1"></i>';
         nextBtn.classList.remove('btn-outline-primary');
         nextBtn.classList.add('btn-primary');
         console.log('[Wizard] Next button enabled');
@@ -517,7 +517,7 @@
       renderTemplatesTable(listContainer, templates);
     } catch (error) {
       console.error('[Wizard] Error loading templates:', error);
-      listContainer.innerHTML = `<div class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><p class="fw-bold">Error loading templates</p><p class="small">${error.message}</p><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadTemplates()">Retry</button></div>`;
+      listContainer.innerHTML = `<div class="text-center text-danger p-4"><i class="fa-solid fa-exclamation-triangle fa-2x mb-2"></i><p class="fw-bold">Error loading templates</p><p class="small">${error.message}</p><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadTemplates()">Retry</button></div>`;
     }
   }
 
@@ -527,7 +527,7 @@
     listContainer.innerHTML = '';
 
     if (templates.length === 0) {
-      listContainer.innerHTML = '<div class="empty py-5"><div class="empty-icon"><i class="fas fa-inbox fa-3x text-muted"></i></div><p class="empty-title h5">No templates available</p><p class="empty-subtitle text-muted">Templates should be in <code>misc/requirements/</code></p></div>';
+      listContainer.innerHTML = '<div class="empty py-5"><div class="empty-icon"><i class="fa-solid fa-inbox fa-3x text-muted"></i></div><p class="empty-title h5">No templates available</p><p class="empty-subtitle text-muted">Templates should be in <code>misc/requirements/</code></p></div>';
       return;
     }
 
@@ -655,11 +655,11 @@
     }
 
     // Determine template type badge
-    let typeBadge = '<span class="badge bg-purple-lt"><i class="fas fa-code me-1"></i>Both</span>';
+    let typeBadge = '<span class="badge bg-purple-lt"><i class="fa-solid fa-code me-1"></i>Both</span>';
     if (templateType === 'backend' || templateType.toLowerCase().includes('backend')) {
-      typeBadge = '<span class="badge bg-blue-lt"><i class="fas fa-server me-1"></i>Backend</span>';
+      typeBadge = '<span class="badge bg-blue-lt"><i class="fa-solid fa-server me-1"></i>Backend</span>';
     } else if (templateType === 'frontend' || templateType.toLowerCase().includes('frontend')) {
-      typeBadge = '<span class="badge bg-green-lt"><i class="fas fa-window-maximize me-1"></i>Frontend</span>';
+      typeBadge = '<span class="badge bg-green-lt"><i class="fa-solid fa-window-maximize me-1"></i>Frontend</span>';
     }
 
     // Category badge
@@ -778,7 +778,7 @@
           headerRow.setAttribute('data-provider', provider);
           headerRow.innerHTML = `
           <td colspan="4" class="py-1 px-3 small fw-bold text-muted text-uppercase">
-            <i class="fas fa-layer-group me-1"></i>${escapeHtml(provider)}
+            <i class="fa-solid fa-layer-group me-1"></i>${escapeHtml(provider)}
           </td>
         `;
           tbody.appendChild(headerRow);
@@ -834,7 +834,7 @@
       listContainer.innerHTML = '';
 
       if (models.length === 0) {
-        listContainer.innerHTML = '<div class="empty py-5"><div class="empty-icon"><i class="fas fa-robot fa-3x text-muted"></i></div><p class="empty-title h5">No models available</p><p class="empty-subtitle text-muted">Check database for model capabilities</p></div>';
+        listContainer.innerHTML = '<div class="empty py-5"><div class="empty-icon"><i class="fa-solid fa-robot fa-3x text-muted"></i></div><p class="empty-title h5">No models available</p><p class="empty-subtitle text-muted">Check database for model capabilities</p></div>';
         return;
       }
 
@@ -875,7 +875,7 @@
         headerRow.setAttribute('data-provider', provider);
         headerRow.innerHTML = `
         <td colspan="4" class="py-1 px-3 small fw-bold text-muted text-uppercase">
-          <i class="fas fa-layer-group me-1"></i>${escapeHtml(provider)}
+          <i class="fa-solid fa-layer-group me-1"></i>${escapeHtml(provider)}
         </td>
       `;
         tbody.appendChild(headerRow);
@@ -893,7 +893,7 @@
     } catch (error) {
       console.error('[Wizard] Error loading models:', error);
       const message = escapeHtml(error.message || 'Unknown error');
-      listContainer.innerHTML = `<div class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><p class="fw-bold">Error loading models</p><p class="small">${message}</p><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadModels()">Retry</button></div>`;
+      listContainer.innerHTML = `<div class="text-center text-danger p-4"><i class="fa-solid fa-exclamation-triangle fa-2x mb-2"></i><p class="fw-bold">Error loading models</p><p class="small">${message}</p><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadModels()">Retry</button></div>`;
     }
   }
 
@@ -1106,7 +1106,7 @@
       item.classList.add('active');
     }
 
-    const providerBadge = `<span class="badge bg-azure-lt"><i class="fas fa-building me-1"></i>${escapeHtml(provider)}</span>`;
+    const providerBadge = `<span class="badge bg-azure-lt"><i class="fa-solid fa-building me-1"></i>${escapeHtml(provider)}</span>`;
 
     const pricingBadges = [];
     if (inputCost !== null) {
@@ -1544,8 +1544,8 @@
         });
 
         const statusBadge = success
-          ? '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Success</span>'
-          : '<span class="badge bg-danger"><i class="fas fa-times me-1"></i>Failed</span>';
+          ? '<span class="badge bg-success"><i class="fa-solid fa-check me-1"></i>Success</span>'
+          : '<span class="badge bg-danger"><i class="fa-solid fa-times me-1"></i>Failed</span>';
 
         const templateSlug = genResult.template_slug || genResult.result_id?.split('_')[0];
         const modelSlug = genResult.model || 'Unknown';
@@ -1976,7 +1976,7 @@
           <td colspan="7" class="text-center py-5">
             <div class="empty py-4">
               <div class="empty-icon">
-                <i class="fas fa-history fa-3x text-muted"></i>
+                <i class="fa-solid fa-history fa-3x text-muted"></i>
               </div>
               <p class="empty-title h5">No past generations</p>
               <p class="empty-subtitle text-muted">Generated applications will appear here</p>
@@ -2001,16 +2001,16 @@
         const status = r.status || (r.success ? 'completed' : 'pending');
         switch (status) {
           case 'completed':
-            statusBadge = '<span class="badge bg-success-lt text-success"><i class="fas fa-check me-1"></i>Success</span>';
+            statusBadge = '<span class="badge bg-success-lt text-success"><i class="fa-solid fa-check me-1"></i>Success</span>';
             break;
           case 'failed':
-            statusBadge = '<span class="badge bg-danger-lt text-danger"><i class="fas fa-times me-1"></i>Failed</span>';
+            statusBadge = '<span class="badge bg-danger-lt text-danger"><i class="fa-solid fa-times me-1"></i>Failed</span>';
             break;
           case 'running':
-            statusBadge = '<span class="badge bg-info-lt text-info"><i class="fas fa-spinner fa-spin me-1"></i>Running</span>';
+            statusBadge = '<span class="badge bg-info-lt text-info"><i class="fa-solid fa-spinner fa-spin me-1"></i>Running</span>';
             break;
           default:
-            statusBadge = '<span class="badge bg-warning-lt text-warning"><i class="fas fa-clock me-1"></i>Pending</span>';
+            statusBadge = '<span class="badge bg-warning-lt text-warning"><i class="fa-solid fa-clock me-1"></i>Pending</span>';
         }
 
         // Render error message cell
@@ -2031,7 +2031,7 @@
               <button type="button" class="btn btn-ghost-primary btn-icon"
                       onclick="viewGenerationResult('${escapeHtml(resultId)}')"
                       title="View details">
-                <i class="fas fa-eye"></i>
+                <i class="fa-solid fa-eye"></i>
               </button>
             </div>
           </td>
@@ -2044,11 +2044,11 @@
       tbody.innerHTML = `
       <tr>
         <td colspan="7" class="text-center py-4 text-danger">
-          <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+          <i class="fa-solid fa-exclamation-triangle fa-2x mb-2"></i>
           <p class="fw-bold mb-1">Error loading past generations</p>
           <p class="small mb-2">${escapeHtml(error.message)}</p>
           <button class="btn btn-sm btn-outline-primary" onclick="loadPastGenerations()">
-            <i class="fas fa-sync me-1"></i>Retry
+            <i class="fa-solid fa-sync me-1"></i>Retry
           </button>
         </td>
       </tr>

@@ -11,15 +11,15 @@
         {% else %}bg-secondary-lt text-secondary{% endif %}"
         style="flex-shrink: 0;">
         {% if item.type == 'analysis' %}
-          <i class="fas fa-flask" style="font-size: 0.65rem;"></i>
+          <i class="fa-solid fa-flask" style="font-size: 0.65rem;"></i>
         {% elif item.type == 'app' %}
-          <i class="fas fa-cube" style="font-size: 0.65rem;"></i>
+          <i class="fa-solid fa-cube" style="font-size: 0.65rem;"></i>
         {% elif item.type == 'model' %}
-          <i class="fas fa-brain" style="font-size: 0.65rem;"></i>
+          <i class="fa-solid fa-brain" style="font-size: 0.65rem;"></i>
         {% elif item.type == 'error' %}
-          <i class="fas fa-exclamation" style="font-size: 0.65rem;"></i>
+          <i class="fa-solid fa-exclamation" style="font-size: 0.65rem;"></i>
         {% else %}
-          <i class="fas fa-clock" style="font-size: 0.65rem;"></i>
+          <i class="fa-solid fa-clock" style="font-size: 0.65rem;"></i>
         {% endif %}
       </div>
       <div class="flex-grow-1 min-width-0">
@@ -42,7 +42,7 @@
 </div>
 {% else %}
 <div class="text-center text-muted py-4">
-  <i class="fas fa-clock fa-2x mb-2 opacity-50"></i>
+  <i class="fa-solid fa-clock fa-2x mb-2 opacity-50"></i>
   <p class="mb-0 small">No recent activity</p>
 </div>
 {% endif %}

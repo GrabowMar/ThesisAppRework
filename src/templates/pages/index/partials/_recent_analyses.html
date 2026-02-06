@@ -25,7 +25,7 @@
         {% if analysis.status == 'completed' %}
           <span class="badge bg-success-lt text-success" style="font-size: 0.7rem;">Done</span>
         {% elif analysis.status == 'running' %}
-          <span class="badge bg-info-lt text-info" style="font-size: 0.7rem;"><i class="fas fa-spinner fa-spin"></i></span>
+          <span class="badge bg-info-lt text-info" style="font-size: 0.7rem;"><i class="fa-solid fa-spinner fa-spin"></i></span>
         {% elif analysis.status == 'pending' %}
           <span class="badge bg-warning-lt text-warning" style="font-size: 0.7rem;">Wait</span>
         {% elif analysis.status == 'failed' %}
@@ -36,7 +36,7 @@
       </td>
       <td class="text-end">
         <a href="/analysis/{{ analysis.id }}" class="btn btn-sm btn-icon btn-ghost-primary py-0" title="View">
-          <i class="fas fa-eye" style="font-size: 0.75rem;"></i>
+          <i class="fa-solid fa-eye" style="font-size: 0.75rem;"></i>
         </a>
       </td>
     </tr>
@@ -45,7 +45,7 @@
 </table>
 {% else %}
 <div class="text-center py-3">
-  <i class="fas fa-flask text-muted mb-2" style="font-size: 1.5rem;"></i>
+  <i class="fa-solid fa-flask text-muted mb-2" style="font-size: 1.5rem;"></i>
   <p class="text-muted mb-2" style="font-size: 0.85rem;">No analyses yet</p>
   <a href="{{ url_for('analysis.analysis_index') }}" class="btn btn-sm btn-primary">New Analysis</a>
 </div>

@@ -11,8 +11,8 @@
           <div class="d-flex align-items-center"><span class="text-muted me-1">Provider:</span> <span class="badge bg-primary-lt text-primary">{{ model.provider }}</span></div>
           {% if model.canonical_slug %}<div class="d-flex align-items-center"><span class="text-muted me-1">Canonical:</span> <code>{{ model.canonical_slug }}</code></div>{% endif %}
           <div class="ms-auto d-flex gap-1">
-            <a href="/models/{{ model_slug }}/export.json" class="btn btn-sm btn-ghost-primary py-0 px-2"><i class="fas fa-code me-1"></i>JSON</a>
-            <button class="btn btn-sm btn-ghost-secondary py-0 px-2" onclick="copyModelData(event)"><i class="fas fa-copy me-1"></i>Copy</button>
+            <a href="/models/{{ model_slug }}/export.json" class="btn btn-sm btn-ghost-primary py-0 px-2"><i class="fa-solid fa-code me-1"></i>JSON</a>
+            <button class="btn btn-sm btn-ghost-secondary py-0 px-2" onclick="copyModelData(event)"><i class="fa-solid fa-copy me-1"></i>Copy</button>
           </div>
         </div>
       </div>
@@ -25,7 +25,7 @@
     <div class="card card-sm h-100">
       <div class="card-header py-2">
         <div class="d-flex align-items-center">
-          <i class="fas fa-cloud text-purple me-2" aria-hidden="true"></i>
+          <i class="fa-solid fa-cloud text-purple me-2" aria-hidden="true"></i>
           <span class="fw-bold small">OpenRouter Metadata</span>
           <span class="badge bg-secondary-lt ms-2">{{ nested_caps|length }} keys</span>
         </div>
@@ -61,7 +61,7 @@
     <div class="card card-sm h-100">
       <div class="card-header py-2">
         <div class="d-flex align-items-center">
-          <i class="fas fa-database text-success me-2" aria-hidden="true"></i>
+          <i class="fa-solid fa-database text-success me-2" aria-hidden="true"></i>
           <span class="fw-bold small">Enriched Dataset</span>
           <span class="badge bg-secondary-lt ms-2">{{ enriched_data|length }} keys</span>
         </div>
@@ -97,10 +97,10 @@
       <div class="card-body py-2">
         <details>
           <summary class="d-flex align-items-center" style="cursor: pointer;">
-            <i class="fas fa-code text-secondary me-2" aria-hidden="true"></i>
+            <i class="fa-solid fa-code text-secondary me-2" aria-hidden="true"></i>
             <span class="fw-bold small">Raw JSON Payload</span>
             <button class="btn btn-sm btn-ghost-secondary ms-auto py-0" onclick="event.stopPropagation(); copyAdjacentPre(this.parentElement.nextElementSibling.querySelector('pre'))">
-              <i class="fas fa-copy me-1"></i>Copy
+              <i class="fa-solid fa-copy me-1"></i>Copy
             </button>
           </summary>
           <pre class="bg-dark text-white rounded p-3 small mt-2 mb-0" id="raw-json-data" style="max-height: 300px; overflow: auto;">{{ enriched_data | tojson(indent=2) }}</pre>
@@ -117,7 +117,7 @@ function copyModelData(evt) {
     const btn = evt.target.closest('button');
     if (!btn) return;
     const original = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+    btn.innerHTML = '<i class="fa-solid fa-check me-1"></i>Copied!';
     setTimeout(() => { btn.innerHTML = original; }, 2000);
   }).catch(err => console.error('Failed to copy', err));
 }
