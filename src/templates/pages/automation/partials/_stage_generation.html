@@ -123,7 +123,7 @@
                 {% for model in models %}
                   {% if model.provider != current_provider.value %}
                     {% set current_provider.value = model.provider %}
-                    <tr class="provider-header bg-light" data-provider="{{ model.provider }}">
+                    <tr class="provider-header bg-body-secondary" data-provider="{{ model.provider }}">
                       <td colspan="4" class="py-1 px-3 small fw-bold text-muted text-uppercase">
                         <i class="fas fa-layer-group me-1"></i>{{ model.provider }}
                       </td>

@@ -107,7 +107,7 @@
 
         {# Expandable Details Panel #}
         <div class="collapse" id="pipeline-details-{{ pipeline.id }}">
-          <div class="border-top bg-light">
+          <div class="border-top bg-body-secondary">
             {# Compact Tabs #}
             <ul class="nav nav-tabs nav-fill border-bottom" role="tablist">
               <li class="nav-item">
@@ -165,7 +165,7 @@
             </div>
 
             {# Footer Actions #}
-            <div class="border-top px-3 py-2 d-flex justify-content-between align-items-center bg-white">
+            <div class="border-top px-3 py-2 d-flex justify-content-between align-items-center bg-body">
               <div class="small text-muted">
                 {% if pipeline.status == 'running' %}
                 <span class="badge bg-primary-lt"><i class="fas fa-sync-alt fa-spin me-1"></i>Auto-updating</span>

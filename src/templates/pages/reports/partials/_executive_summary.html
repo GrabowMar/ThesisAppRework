@@ -87,7 +87,7 @@
                          title="Low: {{ severity_data.get('low', 0) }}">
                         {% if severity_data.get('low', 0) > 0 %}L: {{ severity_data.get('low', 0) }}{% endif %}
                     </div>
-                    <div class="progress-bar bg-light" style="width: {{ (severity_data.get('info', 0) / total_findings * 100) }}%"
+                    <div class="progress-bar bg-secondary" style="width: {{ (severity_data.get('info', 0) / total_findings * 100) }}%"
                          title="Info: {{ severity_data.get('info', 0) }}">
                     </div>
                 </div>
@@ -119,7 +119,7 @@
                         </div>
                     </div>
                     <div class="col-6 col-lg">
-                        <div class="text-center p-3 rounded-2 border bg-light">
+                        <div class="text-center p-3 rounded-2 border bg-body-secondary">
                             <div class="text-uppercase small fw-bold text-muted">Info</div>
                             <div class="h2 mb-0 text-muted">{{ severity_data.get('info', 0) }}</div>
                         </div>

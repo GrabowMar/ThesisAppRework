@@ -198,12 +198,12 @@
                                 <div class="mt-4 pt-3 border-top text-start">
                                     <div class="d-flex justify-content-between mb-2">
                                         <span class="text-muted">Member since</span>
-                                        <strong class="text-dark">{{ current_user.created_at.strftime('%b %d, %Y') if
+                                        <strong>{{ current_user.created_at.strftime('%b %d, %Y') if
                                             current_user.created_at else 'N/A' }}</strong>
                                     </div>
                                     <div class="d-flex justify-content-between">
                                         <span class="text-muted">Last login</span>
-                                        <strong class="text-dark">{{ current_user.last_login.strftime('%b %d, %Y') if
+                                        <strong>{{ current_user.last_login.strftime('%b %d, %Y') if
                                             current_user.last_login else 'N/A' }}</strong>
                                     </div>
                                 </div>

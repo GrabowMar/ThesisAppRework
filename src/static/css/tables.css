@@ -889,7 +889,7 @@ th.sortable:focus-visible {
 .card-table-compact .progress {
   height: 0.375rem;
   border-radius: 0.125rem;
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: var(--tblr-bg-surface-secondary, rgba(0, 0, 0, 0.05));
 }
 
 .card-table-compact .progress-sm {

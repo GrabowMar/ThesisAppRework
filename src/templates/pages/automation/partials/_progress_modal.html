@@ -19,7 +19,7 @@
 
       <div class="modal-body p-0">
         {# Compact Header #}
-        <div class="bg-light px-3 py-2 border-bottom">
+        <div class="bg-body-secondary px-3 py-2 border-bottom">
           <div class="d-flex align-items-center justify-content-between">
             <div class="d-flex align-items-center gap-3 flex-fill">
               <div class="fw-semibold">Overall Progress</div>
@@ -38,7 +38,7 @@
         </div>
 
         {# Stage Tabs - Sticky #}
-        <div class="bg-white sticky-top border-bottom">
+        <div class="bg-body sticky-top border-bottom">
           <ul class="nav nav-tabs nav-fill px-3 pt-2 mb-0 border-bottom-0" role="tablist">
             <li class="nav-item">
               <button class="nav-link active fw-bold py-2" data-bs-toggle="tab" data-bs-target="#tab-generation"
@@ -77,8 +77,8 @@
           <div class="tab-pane fade show active" id="tab-generation">
             <div class="p-0">
               {# Removed redundant card, focused on list #}
-              <div class="px-3 py-2 bg-white border-bottom d-flex justify-content-between align-items-center">
-                <div class="small text-muted">Strategy: <span class="fw-semibold text-dark">Parallel Execution</span>
+              <div class="px-3 py-2 bg-body border-bottom d-flex justify-content-between align-items-center">
+                <div class="small text-muted">Strategy: <span class="fw-semibold text-body">Parallel Execution</span>
                 </div>
                 <div class="small" id="gen-stage-status-text">Pending</div>
               </div>
@@ -95,8 +95,8 @@
           {# Analysis Tab #}
           <div class="tab-pane fade" id="tab-analysis">
             <div class="p-0">
-              <div class="px-3 py-2 bg-white border-bottom d-flex justify-content-between align-items-center">
-                <div class="small text-muted">Strategy: <span class="fw-semibold text-dark">Sequential/Batch</span>
+              <div class="px-3 py-2 bg-body border-bottom d-flex justify-content-between align-items-center">
+                <div class="small text-muted">Strategy: <span class="fw-semibold text-body">Sequential/Batch</span>
                 </div>
                 <div class="small" id="analysis-stage-status-text">Pending</div>
               </div>
@@ -132,9 +132,9 @@
               </div>
 
               {# Tasks Table #}
-              <div class="table-responsive bg-white border rounded" style="max-height: 500px; overflow-y: auto;">
+              <div class="table-responsive bg-body border rounded" style="max-height: 500px; overflow-y: auto;">
                 <table class="table table-sm table-hover align-middle mb-0">
-                  <thead class="sticky-top bg-light text-muted small text-uppercase">
+                  <thead class="sticky-top bg-body-secondary text-muted small text-uppercase">
                     <tr>
                       <th style="width: 40px;"></th>
                       <th>Task</th>
@@ -160,7 +160,7 @@
           {# Activity/Live Log Tab #}
           <div class="tab-pane fade" id="tab-activity">
             <div class="p-0">
-              <div class="px-3 py-2 bg-white border-bottom d-flex justify-content-between align-items-center">
+              <div class="px-3 py-2 bg-body border-bottom d-flex justify-content-between align-items-center">
                 <div class="small text-muted">
                   <i class="fas fa-stream me-1"></i>Live activity feed - newest events first
                 </div>
@@ -184,7 +184,7 @@
         </div>
       </div>
 
-      <div class="modal-footer justify-content-between bg-light">
+      <div class="modal-footer justify-content-between bg-body-secondary">
         <div>
           <button type="button" class="btn btn-warning btn-sm" id="modal-pause-btn" onclick="pausePipelineFromModal()">
             <i class="fas fa-pause me-1"></i>Pause

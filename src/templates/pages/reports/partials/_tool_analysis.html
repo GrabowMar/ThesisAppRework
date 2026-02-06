@@ -297,7 +297,7 @@
                     <span><span class="badge bg-info me-1">{{ tool.findings_by_severity.medium }}</span> Medium</span>
                     <span><span class="badge bg-secondary me-1">{{ tool.findings_by_severity.low }}</span> Low</span>
                     {% if tool.findings_by_severity.get('info', 0) > 0 %}
-                    <span><span class="badge bg-light text-dark me-1">{{ tool.findings_by_severity.info }}</span> Info</span>
+                    <span><span class="badge bg-secondary-lt me-1">{{ tool.findings_by_severity.info }}</span> Info</span>
                     {% endif %}
                 </div>
                 {% else %}

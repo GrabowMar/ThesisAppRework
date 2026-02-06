@@ -67,7 +67,7 @@
               {% if r.status == 'completed' %}
               <span class="badge bg-success">Completed</span>
               {% elif r.status == 'generating' %}
-              <span class="badge bg-warning text-dark">
+              <span class="badge bg-warning">
                 <span class="spinner-border spinner-border-sm me-1"></span>
                 Generating...
               </span>
@@ -202,7 +202,7 @@
       case 'completed':
         return '<span class="badge bg-success">Completed</span>';
       case 'generating':
-        return '<span class="badge bg-warning text-dark"><span class="spinner-border spinner-border-sm me-1"></span>Generating...</span>';
+        return '<span class="badge bg-warning"><span class="spinner-border spinner-border-sm me-1"></span>Generating...</span>';
       case 'failed':
         return `<span class="badge bg-danger" title="${escapeHtml(errorMsg || '')}">Failed</span>`;
       default:

@@ -24,7 +24,7 @@
 
 /* Executive Summary */
 .card-header.bg-primary-lt {
-  background-color: #e7f1ff !important;
+  background-color: rgba(var(--tblr-primary-rgb), 0.08) !important;
   border-bottom: 2px solid var(--tblr-primary);
 }
 
@@ -34,12 +34,12 @@
   text-transform: uppercase;
   font-size: 0.75rem;
   letter-spacing: 0.5px;
-  background-color: #f8f9fa;
-  border-bottom: 2px solid #dee2e6;
+  background-color: var(--tblr-bg-surface-secondary, #f8f9fa);
+  border-bottom: 2px solid var(--tblr-border-color, #dee2e6);
 }
 
 .table-sm tbody tr:hover {
-  background-color: #f8f9fa;
+  background-color: var(--tblr-bg-surface-secondary, #f8f9fa);
 }
 
 .table-sm td {
@@ -58,13 +58,13 @@
 }
 
 .accordion-button:not(.collapsed) {
-  background-color: #e7f1ff;
+  background-color: rgba(var(--tblr-primary-rgb), 0.08);
   color: var(--tblr-primary);
 }
 
 .accordion-body {
   padding: 1rem;
-  background-color: #fafbfc;
+  background-color: var(--tblr-bg-surface, #fafbfc);
 }
 
 /* Badge Enhancements */
@@ -87,8 +87,8 @@
 }
 
 .alert-light {
-  background-color: #f8f9fa;
-  border-color: #dee2e6;
+  background-color: var(--tblr-bg-surface-secondary, #f8f9fa);
+  border-color: var(--tblr-border-color, #dee2e6);
 }
 
 /* Details/Summary Styling */
@@ -219,29 +219,29 @@ pre code {
 
 /* Border Utilities */
 .border-bottom {
-  border-bottom: 1px solid #dee2e6 !important;
+  border-bottom: 1px solid var(--tblr-border-color, #dee2e6) !important;
 }
 
 /* Severity Color Coding */
 .severity-critical {
-  color: #d63939;
+  color: var(--tblr-danger, #d63939);
   font-weight: 600;
 }
 
 .severity-high {
-  color: #d63939;
+  color: var(--tblr-danger, #d63939);
 }
 
 .severity-medium {
-  color: #f76707;
+  color: var(--tblr-orange, #f76707);
 }
 
 .severity-low {
-  color: #0ca678;
+  color: var(--tblr-success, #0ca678);
 }
 
 .severity-info {
-  color: #4299e1;
+  color: var(--tblr-info, #4299e1);
 }
 
 /* Tool Detail Modal Styles */
@@ -265,7 +265,7 @@ pre code {
 
 #toolDetailModal .card-header {
   font-weight: 600;
-  border-bottom: 2px solid #e9ecef;
+  border-bottom: 2px solid var(--tblr-border-color, #e9ecef);
 }
 
 /* Tool Detail Button */
@@ -290,12 +290,12 @@ pre code {
 }
 
 #issues-table tbody tr:hover {
-  background-color: #f8f9fa;
+  background-color: var(--tblr-bg-surface-secondary, #f8f9fa);
 }
 
 #issues-table code {
   font-size: 0.8rem;
-  background-color: #f1f3f5;
+  background-color: var(--tblr-bg-surface-secondary, #f1f3f5);
   padding: 0.2em 0.4em;
   border-radius: 3px;
 }
@@ -327,12 +327,12 @@ pre code {
   font-family: 'Courier New', monospace;
   font-size: 0.8rem;
   line-height: 1.5;
-  color: #495057;
+  color: var(--tblr-body-color, #495057);
 }
 
 /* Metadata Grid */
 #meta-additional .col-md-3 {
-  border-left: 3px solid #e9ecef;
+  border-left: 3px solid var(--tblr-border-color, #e9ecef);
   padding-left: 1rem;
 }
 
@@ -345,7 +345,7 @@ pre code {
 /* Performance Metrics Grid */
 #performance-metrics .col-md-3 {
   text-align: center;
-  border-right: 1px solid #e9ecef;
+  border-right: 1px solid var(--tblr-border-color, #e9ecef);
 }
 
 #performance-metrics .col-md-3:last-child {
@@ -361,18 +361,18 @@ pre code {
 /* Empty States */
 .empty-icon {
   font-size: 2rem;
-  color: #adb5bd;
+  color: var(--tblr-secondary-color, #adb5bd);
   margin-bottom: 1rem;
 }
 
 .empty-title {
   font-weight: 600;
-  color: #495057;
+  color: var(--tblr-body-color, #495057);
   margin-bottom: 0.5rem;
 }
 
 .empty-subtitle {
-  color: #868e96;
+  color: var(--tblr-secondary-color, #868e96);
 }
 
 /* Responsive Modal */
@@ -404,7 +404,7 @@ pre code {
     margin-bottom: 1rem;
     border-left: none;
     border-right: none;
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: 1px solid var(--tblr-border-color, #e9ecef);
     padding-bottom: 1rem;
   }
 }

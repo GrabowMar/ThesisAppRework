@@ -701,7 +701,7 @@
 }
 
 .comparison-cell.winner {
-  background-color: rgba(47, 179, 68, 0.1);
+  background-color: rgba(var(--tblr-success-rgb, 47, 179, 68), 0.1);
 }
 
 /* Status badge colors */
@@ -711,7 +711,7 @@
 
 .status-partial {
   background-color: var(--tblr-warning, #f59f00) !important;
-  color: #000 !important;
+  color: var(--tblr-dark, #000) !important;
 }
 
 .status-failed {
@@ -769,5 +769,5 @@
 }
 
 .section-collapse:hover {
-  background-color: rgba(0, 0, 0, 0.02);
+  background-color: var(--tblr-bg-surface-secondary);
 }

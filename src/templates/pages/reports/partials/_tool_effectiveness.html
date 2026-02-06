@@ -192,7 +192,7 @@
                             <td><span class="badge bg-warning">{{ severity.get('high', 0) }}</span></td>
                             <td><span class="badge bg-info">{{ severity.get('medium', 0) }}</span></td>
                             <td><span class="badge bg-secondary">{{ severity.get('low', 0) }}</span></td>
-                            <td><span class="badge bg-light text-dark">{{ severity.get('info', 0) }}</span></td>
+                            <td><span class="badge bg-secondary-lt">{{ severity.get('info', 0) }}</span></td>
                             <td>
                                 {% if tool_total > 0 %}
                                 <div class="progress" style="height: 16px;">
@@ -200,7 +200,7 @@
                                     <div class="progress-bar bg-warning" style="width: {{ (severity.get('high', 0) / tool_total * 100) }}%"></div>
                                     <div class="progress-bar bg-info" style="width: {{ (severity.get('medium', 0) / tool_total * 100) }}%"></div>
                                     <div class="progress-bar bg-secondary" style="width: {{ (severity.get('low', 0) / tool_total * 100) }}%"></div>
-                                    <div class="progress-bar bg-light" style="width: {{ (severity.get('info', 0) / tool_total * 100) }}%"></div>
+                                    <div class="progress-bar bg-secondary" style="width: {{ (severity.get('info', 0) / tool_total * 100) }}%"></div>
                                 </div>
                                 {% else %}
                                 <span class="text-muted small">No findings</span>

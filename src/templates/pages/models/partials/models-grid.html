@@ -21,14 +21,14 @@
     </td>
     <td class="text-center">
         {% if m.architecture_tokenizer %}
-        <span class="badge bg-secondary-lt text-dark" title="{{ m.architecture_tokenizer }}">{{ m.architecture_tokenizer[:6] }}</span>
+        <span class="badge bg-secondary-lt" title="{{ m.architecture_tokenizer }}">{{ m.architecture_tokenizer[:6] }}</span>
         {% else %}
         <span class="text-muted small">—</span>
         {% endif %}
     </td>
     <td class="text-center">
         {% if m.architecture_instruct_type %}
-        <span class="badge bg-secondary-lt text-dark">{{ m.architecture_instruct_type[:4] }}</span>
+        <span class="badge bg-secondary-lt">{{ m.architecture_instruct_type[:4] }}</span>
         {% else %}
         <span class="text-muted small">—</span>
         {% endif %}
@@ -38,15 +38,15 @@
         <span class="badge bg-success text-white fw-bold">Free</span>
         {% else %}
         <div class="text-nowrap">
-            <span class="text-dark fw-semibold">${{ "%.2f"|format(m.input_price * 1000) }}</span>
+            <span class="fw-semibold">${{ "%.2f"|format(m.input_price * 1000) }}</span>
             <span class="text-muted mx-1">/</span>
-            <span class="text-dark fw-semibold">${{ "%.2f"|format(m.output_price * 1000) }}</span>
+            <span class="fw-semibold">${{ "%.2f"|format(m.output_price * 1000) }}</span>
         </div>
         {% endif %}
     </td>
     <td class="text-center">
         {% if m.context_length %}
-        <span class="badge bg-light text-dark fw-bold">{{ (m.context_length / 1000)|round|int }}K</span>
+        <span class="badge bg-secondary-lt fw-bold">{{ (m.context_length / 1000)|round|int }}K</span>
         {% else %}
         <span class="text-muted">—</span>
         {% endif %}
@@ -54,7 +54,7 @@
     <td class="text-center"><span class="text-muted">—</span></td>
     <td class="text-center">
         {% if m.performance_score %}
-        <span class="badge bg-secondary-lt text-dark">{{ (m.performance_score * 100)|round|int }}%</span>
+        <span class="badge bg-secondary-lt">{{ (m.performance_score * 100)|round|int }}%</span>
         {% else %}
         <span class="text-muted">—</span>
         {% endif %}

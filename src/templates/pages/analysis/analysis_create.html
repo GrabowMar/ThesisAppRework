@@ -130,7 +130,7 @@
               <div class="row g-2 mb-3" id="batch-selected-models-grid"></div>
               
               <!-- All Apps List -->
-              <div class="border rounded p-2 bg-light" style="max-height: 400px; overflow-y: auto;">
+              <div class="border rounded p-2 bg-body-secondary" style="max-height: 400px; overflow-y: auto;">
                 <div class="row g-2" id="batch-all-apps-list"></div>
                 <div id="batch-apps-empty" class="text-center text-muted py-4" style="display: none;">
                   <i class="fas fa-folder-open fa-2x mb-2"></i>
@@ -496,7 +496,7 @@
               </div>
 
               <div id="advanced-options" class="collapse">
-                <div class="card card-sm bg-light">
+                <div class="card card-sm bg-body-secondary">
                   <div class="card-header py-2">
                     <h6 class="card-title mb-0">Advanced Configuration</h6>
                   </div>
@@ -1539,7 +1539,7 @@ function refreshBatchApplicationsAggregate() {
   if (grid && modelCountEl) {
     modelCountEl.textContent = selectedModels.length;
     grid.innerHTML = selectedModels.map(m => `<div class='col-6 col-md-4'>
-      <div class='p-2 border rounded bg-white h-100 d-flex flex-column justify-content-between' data-batch-model-slug='${m.slug}'>
+      <div class='p-2 border rounded bg-body h-100 d-flex flex-column justify-content-between' data-batch-model-slug='${m.slug}'>
         <div class='fw-semibold small text-truncate' title='${escapeHtml(m.name)}'>${escapeHtml(m.name)}</div>
         <div class='text-muted tiny lh-1'>
           <span class='batch-model-loading'>

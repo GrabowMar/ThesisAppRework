@@ -57,7 +57,10 @@
 	--color-border: rgba(148, 163, 184, 0.22);
 	--color-text: #f1f5f9;
 	--color-text-muted: #94a3b8;
-	--color-accent-hover: #3b82f6;
+	--color-accent: #3b82f6;
+	--color-accent-hover: #60a5fa;
+	--color-danger: #f87171;
+	--color-success: #34d399;
 	--header-bg: rgba(17, 23, 33, 0.82);
 	--header-border: rgba(59, 130, 246, 0.25);
 	--header-shadow: 0 10px 34px rgba(2, 6, 23, 0.55);
@@ -833,6 +836,30 @@ a:hover {
 	border: 1px solid var(--color-border);
 	box-shadow: var(--shadow-sm);
 	animation: alertSlideIn 0.3s ease-out;
+}
+
+:root[data-bs-theme='dark'] .alert-info {
+	background-color: rgba(var(--tblr-info-rgb), 0.12);
+	border-color: rgba(var(--tblr-info-rgb), 0.3);
+	color: var(--tblr-info);
+}
+
+:root[data-bs-theme='dark'] .alert-warning {
+	background-color: rgba(var(--tblr-warning-rgb), 0.12);
+	border-color: rgba(var(--tblr-warning-rgb), 0.3);
+	color: var(--tblr-warning);
+}
+
+:root[data-bs-theme='dark'] .alert-danger {
+	background-color: rgba(var(--tblr-danger-rgb), 0.12);
+	border-color: rgba(var(--tblr-danger-rgb), 0.3);
+	color: var(--tblr-danger);
+}
+
+:root[data-bs-theme='dark'] .alert-success {
+	background-color: rgba(var(--tblr-success-rgb), 0.12);
+	border-color: rgba(var(--tblr-success-rgb), 0.3);
+	color: var(--tblr-success);
 }
 
 @keyframes alertSlideIn {
