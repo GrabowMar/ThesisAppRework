@@ -370,7 +370,12 @@ class UnifiedResultService:
             total_findings = len(findings)
         
         task.issues_found = total_findings
-        task.set_severity_breakdown(summary.get('severity_breakdown', {}))
+        severity_breakdown = summary.get('severity_breakdown', {})
+        # Safety net: if breakdown is empty but we have findings, compute from findings
+        if not severity_breakdown and findings:
+            from app.utils.tool_normalization import get_severity_breakdown
+            severity_breakdown = get_severity_breakdown(findings)
+        task.set_severity_breakdown(severity_breakdown)
         
         for idx, finding in enumerate(findings[:100]):  # Limit to 100 findings
             if not isinstance(finding, dict):
@@ -1313,7 +1318,8 @@ class UnifiedResultService:
                                     if not isinstance(overall, dict):
                                         overall = {}
                                     for issue in extracted_issues:
-                                        sev = str(issue.get('severity', 'INFO')).lower()
+                                        from app.utils.tool_normalization import normalize_severity
+                                        sev = normalize_severity(issue.get('severity'))
                                         overall[sev] = overall.get(sev, 0) + 1
                                     summary['severity_breakdown'] = overall
 

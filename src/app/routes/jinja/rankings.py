@@ -50,23 +50,6 @@ def rankings_index():
     # Get fetch status
     fetch_status = service.get_fetch_status()
     
-    # Default weights for composite score
-    default_weights = {
-        'humaneval_plus': 25,
-        'swe_bench_verified': 25,
-        'bigcodebench_hard': 20,
-        'livebench_coding': 15,
-        'mbpp_plus': 15
-    }
-    
-    # Chapter 4 MSS weights
-    mss_weights = {
-        'adoption': 35,
-        'benchmarks': 30,
-        'cost_efficiency': 20,
-        'accessibility': 15
-    }
-    
     # Get selected models from session
     selected_models = session.get('selected_ranking_models', [])
     
@@ -75,8 +58,6 @@ def rankings_index():
         rankings=rankings,
         providers=providers,
         fetch_status=fetch_status,
-        default_weights=default_weights,
-        mss_weights=mss_weights,
         selected_models=selected_models,
         page_title='AI Model Rankings - Coding Benchmarks'
     )
@@ -135,9 +116,9 @@ def api_get_rankings():
     min_context = request.args.get('min_context', type=int)
     provider = request.args.get('provider')  # Single provider from dropdown
     providers = request.args.getlist('providers') or ([provider] if provider else [])
-    include_free = request.args.get('exclude_free', 'false').lower() != 'true'
+    include_free = request.args.get('exclude_free', '') not in ('1', 'true')
     min_composite = request.args.get('min_composite', type=float)
-    has_benchmarks = request.args.get('has_benchmarks', 'false').lower() == 'true'
+    has_benchmarks = request.args.get('has_benchmarks', '') in ('1', 'true')
     
     # Search term
     search = request.args.get('search', '').strip().lower()
@@ -174,15 +155,20 @@ def api_get_rankings():
     # Apply sorting - MSS columns (Chapter 4 methodology)
     sort_key_map = {
         'mss': 'mss_score',
-        'composite': 'composite_score',  # Legacy alias
+        'composite': 'mss_score',  # Legacy alias
         'adoption': 'adoption_score',
         'benchmark': 'benchmark_score',
         'cost': 'cost_efficiency_score',
         'access': 'accessibility_score',
         'bfcl': 'bfcl_score',
-        'webdev': 'webdev_arena_elo',
+        'webdev': 'webdev_elo',
         'livebench': 'livebench_coding',
         'livecodebench': 'livecodebench',
+        'arc_agi': 'arc_agi_score',
+        'simplebench': 'simplebench_score',
+        'gpqa': 'gpqa_score',
+        'seal': 'seal_coding_score',
+        'canaicode': 'canaicode_score',
         'context': 'context_length',
         'price': 'price_per_million_input',
         'name': 'model_name'
@@ -210,7 +196,7 @@ def api_get_rankings():
     
     # Statistics
     unique_providers = set(r.get('provider') for r in filtered if r.get('provider'))
-    with_benchmarks = sum(1 for r in filtered if r.get('mss_score') is not None or r.get('composite_score') is not None)
+    with_benchmarks = sum(1 for r in filtered if r.get('benchmark_score', 0) > 0)
     
     return jsonify({
         'success': True,
@@ -337,7 +323,7 @@ def export_rankings():
     min_context = request.args.get('min_context', type=int)
     providers = request.args.getlist('providers')
     include_free = request.args.get('include_free', 'true').lower() == 'true'
-    has_benchmarks = request.args.get('has_benchmarks', 'false').lower() == 'true'
+    has_benchmarks = request.args.get('has_benchmarks', '') in ('1', 'true')
     
     # Apply filters
     filtered = service.filter_rankings(

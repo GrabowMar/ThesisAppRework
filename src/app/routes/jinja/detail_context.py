@@ -1388,33 +1388,13 @@ def build_model_detail_context(
     
     # Calculate usage analytics
     running_apps = sum(1 for app in applications if getattr(app, 'container_status', None) == 'running')
-    avg_analysis_quality = None
-    if security_count > 0 or performance_count > 0:
-        # Calculate analysis quality based on severity (lower is better)
+    total_issues = None
+    if security_count > 0:
         security_analyses = db.session.query(SecurityAnalysis).join(GeneratedApplication).filter(
             GeneratedApplication.model_slug == model.canonical_slug,
             SecurityAnalysis.status == 'COMPLETED'
         ).all()
-        performance_tests = db.session.query(PerformanceTest).join(GeneratedApplication).filter(
-            GeneratedApplication.model_slug == model.canonical_slug,
-            PerformanceTest.status == 'COMPLETED'
-        ).all()
-        
-        # Calculate quality score: fewer critical/high issues = better quality
-        quality_scores = []
-        for s in security_analyses:
-            if s.total_issues is not None and s.total_issues > 0:
-                # Penalize critical and high severity issues more
-                penalty = (s.critical_severity_count or 0) * 10 + (s.high_severity_count or 0) * 5 + (s.medium_severity_count or 0) * 2
-                quality_scores.append(max(0, 100 - penalty))
-        
-        for p in performance_tests:
-            if p.error_rate is not None:
-                # Convert error rate to quality score (0% error = 100, 100% error = 0)
-                quality_scores.append(max(0, 100 - (p.error_rate * 100)))
-        
-        if quality_scores:
-            avg_analysis_quality = sum(quality_scores) / len(quality_scores)
+        total_issues = sum(s.total_issues or 0 for s in security_analyses)
     
     model_dict = _model_to_dict(model)
     model_dict['apps_count'] = app_count
@@ -1430,7 +1410,7 @@ def build_model_detail_context(
         'running_apps': running_apps,
         'security_tests': security_count,
         'performance_tests': performance_count,
-        'avg_analysis_quality': avg_analysis_quality,
+        'total_issues': total_issues,
         'avg_prompt_price': avg_stats.get('avg_prompt_price', 0),
         'avg_completion_price': avg_stats.get('avg_completion_price', 0),
         'avg_context_length': avg_stats.get('avg_context_length', 0),

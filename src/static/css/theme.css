@@ -266,7 +266,7 @@ html {
 
 /* Page transitions - using GPU-accelerated properties */
 .page-body-container {
-	animation: fadeInUp 0.35s ease-out both;
+	animation: fadeInUp 0.35s ease-out backwards;
 }
 
 @keyframes fadeInUp {

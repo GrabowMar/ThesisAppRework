@@ -1,24 +1,22 @@
 {# Stage 1: Generation Configuration #}
 
 {# Mode Toggle: Generate New vs Use Existing Apps #}
-<div class="card mb-4">
-  <div class="card-body py-3">
-    <div class="btn-group w-100" role="group" aria-label="Generation mode">
-      <input type="radio" class="btn-check" name="generation_mode" id="mode-generate" value="generate" checked autocomplete="off" onchange="toggleGenerationMode(this.value)">
-      <label class="btn btn-outline-primary" for="mode-generate">
-        <i class="fa-solid fa-magic me-2"></i>Generate New Apps
-      </label>
-      <input type="radio" class="btn-check" name="generation_mode" id="mode-existing" value="existing" autocomplete="off" onchange="toggleGenerationMode(this.value)">
-      <label class="btn btn-outline-primary" for="mode-existing">
-        <i class="fa-solid fa-folder-open me-2"></i>Use Existing Apps
-      </label>
-    </div>
+<div class="mb-3">
+  <div class="btn-group w-100" role="group" aria-label="Generation mode">
+    <input type="radio" class="btn-check" name="generation_mode" id="mode-generate" value="generate" checked autocomplete="off" onchange="toggleGenerationMode(this.value)">
+    <label class="btn btn-outline-primary btn-sm" for="mode-generate">
+      <i class="fa-solid fa-magic me-1"></i>Generate New
+    </label>
+    <input type="radio" class="btn-check" name="generation_mode" id="mode-existing" value="existing" autocomplete="off" onchange="toggleGenerationMode(this.value)">
+    <label class="btn btn-outline-primary btn-sm" for="mode-existing">
+      <i class="fa-solid fa-folder-open me-1"></i>Use Existing
+    </label>
   </div>
 </div>
 
 {# Generate New Apps Mode #}
 <div id="generate-new-section">
-  <div class="row g-4">
+  <div class="row g-3">
     {# Templates Selection #}
     <div class="col-12 col-xl-6">
       <div class="card card-table-compact h-100">
@@ -37,7 +35,7 @@
                      oninput="filterTemplates(this.value)">
             </div>
           </div>
-          <div id="template-selection-list" class="table-responsive" style="max-height: 360px; overflow-y: auto;">
+          <div id="template-selection-list" class="table-responsive" style="max-height: calc(100vh - 380px); min-height: 300px; overflow-y: auto;">
             {% if templates %}
             <table class="table table-sm table-vcenter table-hover card-table mb-0" id="templates-selection-table">
               <thead>
@@ -107,14 +105,13 @@
                      oninput="filterModels(this.value)">
             </div>
           </div>
-          <div id="model-selection-list" class="table-responsive" style="max-height: 360px; overflow-y: auto;">
+          <div id="model-selection-list" class="table-responsive" style="max-height: calc(100vh - 380px); min-height: 300px; overflow-y: auto;">
             {% if models %}
             <table class="table table-sm table-vcenter table-hover card-table mb-0" id="models-selection-table">
               <thead>
                 <tr>
                   <th class="w-1"></th>
                   <th class="text-nowrap">Model</th>
-                  <th class="text-nowrap">Provider</th>
                   <th>Price</th>
                 </tr>
               </thead>
@@ -124,7 +121,7 @@
                   {% if model.provider != current_provider.value %}
                     {% set current_provider.value = model.provider %}
                     <tr class="provider-header bg-body-secondary" data-provider="{{ model.provider }}">
-                      <td colspan="4" class="py-1 px-3 small fw-bold text-muted text-uppercase">
+                      <td colspan="3" class="py-1 px-3 small fw-bold text-muted text-uppercase">
                         <i class="fa-solid fa-layer-group me-1"></i>{{ model.provider }}
                       </td>
                     </tr>
@@ -136,7 +133,6 @@
                              onclick="event.stopPropagation()">
                     </td>
                     <td class="fw-semibold text-nowrap">{{ model.name }}</td>
-                    <td><span class="badge bg-azure-lt text-azure">{{ model.provider|upper }}</span></td>
                     <td class="small text-muted">${{ "%.4f"|format(model.input_price * 1000000) }}/${{ "%.4f"|format(model.output_price * 1000000) }}/M</td>
                   </tr>
                 {% endfor %}
@@ -157,77 +153,36 @@
     </div>
   </div>
 
-  {# Generation Summary #}
-  <div class="card mt-4" id="generation-summary-card">
-    <div class="card-body">
+  {# Generation Summary + Options (inline) #}
+  <div class="card mt-3" id="generation-summary-card">
+    <div class="card-body py-2">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <div>
-          <h3 class="h6 mb-1">Generation Summary</h3>
-          <p class="text-muted small mb-0">Totals update as you pick templates and models.</p>
+        <div class="d-flex align-items-center gap-3">
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary-lt py-1 px-2"><strong id="selection-template-count">0</strong> templates</span>
+            <span class="text-muted">×</span>
+            <span class="badge bg-warning-lt py-1 px-2"><strong id="selection-model-count">0</strong> models</span>
+            <span class="text-muted">=</span>
+            <span class="badge bg-success-lt py-1 px-2"><strong id="selection-total-pairs">0</strong> jobs</span>
+          </div>
+          <span class="text-muted small">Est: <strong id="selection-est-time">--</strong></span>
         </div>
-        <div class="text-end ms-auto">
-          <div class="fw-bold h4 mb-0"><span id="selection-total-pairs">0</span></div>
-          <div class="small text-muted">generation jobs</div>
-        </div>
+        <button type="button" class="btn btn-ghost-secondary btn-sm py-0 px-2"
+                data-bs-toggle="collapse" data-bs-target="#generation-options-collapse" title="Generation Options">
+          <i class="fa-solid fa-cogs me-1"></i>Options
+        </button>
       </div>
-      <div class="row mt-3 g-2 g-sm-3">
-        <div class="col-sm-4">
-          <div class="card card-sm border-0 shadow-none bg-primary-lt">
-            <div class="card-body py-2 text-center">
-              <div class="h5 mb-0" id="selection-template-count">0</div>
-              <div class="small text-muted">Templates</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-sm-4">
-          <div class="card card-sm border-0 shadow-none bg-warning-lt">
-            <div class="card-body py-2 text-center">
-              <div class="h5 mb-0" id="selection-model-count">0</div>
-              <div class="small text-muted">Models</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-sm-4">
-          <div class="card card-sm border-0 shadow-none bg-success-lt">
-            <div class="card-body py-2 text-center">
-              <div class="h5 mb-0" id="selection-est-time">--</div>
-              <div class="small text-muted">Est. Time</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  {# Generation Options #}
-  <div class="card mt-4">
-    <div class="card-header d-flex align-items-center py-2">
-      <h3 class="h6 mb-0"><i class="fa-solid fa-cogs text-primary me-2"></i>Generation Options</h3>
-      <button type="button" class="btn btn-ghost-secondary btn-sm ms-auto" 
-              data-bs-toggle="collapse" data-bs-target="#generation-options-collapse">
-        <i class="fa-solid fa-chevron-down"></i>
-      </button>
-    </div>
-    <div class="collapse show" id="generation-options-collapse">
-      <div class="card-body">
-        <div class="row g-3">
-          <div class="col-md-6">
-            <div class="form-check form-switch">
+      <div class="collapse mt-2" id="generation-options-collapse">
+        <div class="border-top pt-2">
+          <div class="d-flex align-items-center gap-3 flex-wrap">
+            <div class="form-check form-switch mb-0">
               <input class="form-check-input" type="checkbox" id="generation-parallel" checked>
-              <label class="form-check-label" for="generation-parallel">
-                Run generations in parallel
-              </label>
+              <label class="form-check-label small" for="generation-parallel">Parallel</label>
             </div>
-            <div class="text-muted small mt-1">
-              Execute multiple generation jobs concurrently for faster completion.
-            </div>
-          </div>
-          <div class="col-md-6" id="generation-parallelism-limit-group">
-            <label for="generation-max-concurrent" class="form-label small mb-1">Max concurrent generations</label>
-            <input type="number" class="form-control form-control-sm" id="generation-max-concurrent"
-                   min="1" max="10" value="5" style="width: 80px;">
-            <div class="text-muted small mt-1">
-              Limit concurrent API calls (5 default, actual concurrency capped by job count).
+            <div class="d-flex align-items-center gap-2" id="generation-parallelism-limit-group">
+              <label for="generation-max-concurrent" class="small text-muted mb-0 text-nowrap">Max concurrent:</label>
+              <input type="number" class="form-control form-control-sm py-0" id="generation-max-concurrent"
+                     min="1" max="10" value="5" style="width: 60px; height: 26px;">
             </div>
           </div>
         </div>
@@ -235,12 +190,6 @@
     </div>
   </div>
 
-  {# Help Alert for Generate New #}
-  <div class="alert alert-info mt-4">
-    <i class="fa-solid fa-lightbulb me-2"></i>
-    Select templates and models to generate. Each template × model combination creates one generation job.
-    The pipeline will generate applications using AI and prepare them for analysis.
-  </div>
 </div>
 
 {# Use Existing Apps Mode #}
@@ -370,27 +319,15 @@
   </div>
 
   {# Existing Apps Summary #}
-  <div class="card mt-4" id="existing-apps-summary-card">
-    <div class="card-body">
-      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <div>
-          <h3 class="h6 mb-1">Selection Summary</h3>
-          <p class="text-muted small mb-0">Selected existing applications for analysis.</p>
-        </div>
-        <div class="text-end ms-auto">
-          <div class="fw-bold h4 mb-0"><span id="existing-apps-count">0</span></div>
-          <div class="small text-muted">apps selected</div>
-        </div>
+  <div class="card mt-3" id="existing-apps-summary-card">
+    <div class="card-body py-2">
+      <div class="d-flex align-items-center justify-content-between">
+        <span class="small text-muted">Selected for analysis</span>
+        <span class="badge bg-primary-lt py-1 px-2"><strong id="existing-apps-count">0</strong> apps</span>
       </div>
     </div>
   </div>
 
-  {# Help Alert for Existing Apps #}
-  <div class="alert alert-info mt-4">
-    <i class="fa-solid fa-info-circle me-2"></i>
-    Select existing generated applications to run analysis and generate reports.
-    This skips the generation step and proceeds directly to analysis.
-  </div>
 </div>
 
 {# Note: Save Settings and Manage Settings modals have been moved to automation_main.html #}

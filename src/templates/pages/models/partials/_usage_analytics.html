@@ -3,7 +3,7 @@
 {% set total_apps = stats.get('applications', 0) %}
 {% set security_tests = stats.get('security_tests', 0) %}
 {% set performance_tests = stats.get('performance_tests', 0) %}
-{% set quality_score = stats.get('avg_analysis_quality') %}
+{% set total_issues = stats.get('total_issues') %}
 
 <div class="row g-2">
   {# Compact Stat Row #}
@@ -53,10 +53,10 @@
     <div class="card card-sm h-100">
       <div class="card-body py-2">
         <div class="d-flex align-items-center">
-          <span class="bg-{{ 'success' if quality_score and quality_score >= 80 else 'warning' if quality_score and quality_score >= 60 else 'danger' if quality_score else 'secondary' }}-lt text-{{ 'success' if quality_score and quality_score >= 80 else 'warning' if quality_score and quality_score >= 60 else 'danger' if quality_score else 'secondary' }} avatar avatar-sm me-2"><i class="fa-solid fa-star"></i></span>
+          <span class="bg-{{ 'danger' if total_issues and total_issues > 20 else 'warning' if total_issues and total_issues > 0 else 'success' if total_issues is not none else 'secondary' }}-lt text-{{ 'danger' if total_issues and total_issues > 20 else 'warning' if total_issues and total_issues > 0 else 'success' if total_issues is not none else 'secondary' }} avatar avatar-sm me-2"><i class="fa-solid fa-bug"></i></span>
           <div>
-            <div class="text-muted small">Quality</div>
-            <div class="fw-bold">{% if quality_score is not none %}{{ quality_score|round(1) }}{% else %}—{% endif %}</div>
+            <div class="text-muted small">Issues Found</div>
+            <div class="fw-bold">{% if total_issues is not none %}{{ total_issues }}{% else %}—{% endif %}</div>
           </div>
         </div>
       </div>

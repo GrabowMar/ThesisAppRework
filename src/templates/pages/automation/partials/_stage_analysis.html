@@ -1,69 +1,60 @@
 {# Stage 2: Analysis Configuration #}
-<div class="row g-4">
-  {# Tool Selection #}
+<div class="row g-2">
+  {# Tool Selection - Compact grid #}
   <div class="col-12">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="h6 mb-0">Select Analysis Tools</h3>
-        <div class="btn-group btn-group-sm" role="group">
-          <button type="button" class="btn btn-ghost-primary" onclick="selectAllTools()">Select all</button>
-          <button type="button" class="btn btn-ghost-secondary" onclick="clearAllTools()">Clear</button>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="small fw-semibold text-muted text-uppercase">Analysis Tools</span>
+      <div class="btn-group btn-group-sm" role="group">
+        <button type="button" class="btn btn-ghost-primary btn-sm py-0" onclick="selectAllTools()">All</button>
+        <button type="button" class="btn btn-ghost-secondary btn-sm py-0" onclick="clearAllTools()">None</button>
+      </div>
+    </div>
+    <div class="row g-2" id="tools-grid">
+      <div class="col-lg-6">
+        <div class="card card-sm border mb-0">
+          <div class="card-header py-1 px-3">
+            <h4 class="card-title mb-0 small"><i class="fa-solid fa-search text-primary me-1"></i>Static Analysis</h4>
+          </div>
+          <div class="card-body p-0" id="static-tools-list" hx-get="/automation/fragments/tools/static"
+            hx-trigger="loadTools once" hx-swap="innerHTML"
+            style="max-height: calc(100vh - 420px); min-height: 180px; overflow-y: auto;">
+            <div class="text-center py-2">
+              <div class="spinner-border spinner-border-sm text-primary"></div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="card-body">
-        <div class="row g-3" id="tools-grid">
-          {# Tool categories loaded via HTMX when Step 2 becomes visible #}
-          {# Using custom 'loadTools' event triggered by JS when navigating to Step 2 #}
-          <div class="col-lg-6">
-            <div class="card card-sm border">
-              <div class="card-header py-2">
-                <h4 class="card-title mb-0"><i class="fa-solid fa-search text-primary me-2"></i>Static Analysis</h4>
-              </div>
-              <div class="card-body p-0" id="static-tools-list" hx-get="/automation/fragments/tools/static"
-                hx-trigger="loadTools once" hx-swap="innerHTML">
-                <div class="text-center py-3">
-                  <div class="spinner-border spinner-border-sm text-primary"></div>
-                </div>
-              </div>
+      <div class="col-lg-6">
+        <div class="card card-sm border mb-0">
+          <div class="card-header py-1 px-3">
+            <h4 class="card-title mb-0 small"><i class="fa-solid fa-play text-success me-1"></i>Dynamic Analysis</h4>
+          </div>
+          <div class="card-body p-0" id="dynamic-tools-list" hx-get="/automation/fragments/tools/dynamic"
+            hx-trigger="loadTools once" hx-swap="innerHTML">
+            <div class="text-center py-2">
+              <div class="spinner-border spinner-border-sm text-success"></div>
             </div>
           </div>
-          <div class="col-lg-6">
-            <div class="card card-sm border">
-              <div class="card-header py-2">
-                <h4 class="card-title mb-0"><i class="fa-solid fa-play text-success me-2"></i>Dynamic Analysis</h4>
-              </div>
-              <div class="card-body p-0" id="dynamic-tools-list" hx-get="/automation/fragments/tools/dynamic"
-                hx-trigger="loadTools once" hx-swap="innerHTML">
-                <div class="text-center py-3">
-                  <div class="spinner-border spinner-border-sm text-success"></div>
-                </div>
-              </div>
+        </div>
+        <div class="card card-sm border mt-2 mb-0">
+          <div class="card-header py-1 px-3">
+            <h4 class="card-title mb-0 small"><i class="fa-solid fa-tachometer-alt text-info me-1"></i>Performance</h4>
+          </div>
+          <div class="card-body p-0" id="performance-tools-list" hx-get="/automation/fragments/tools/performance"
+            hx-trigger="loadTools once" hx-swap="innerHTML">
+            <div class="text-center py-2">
+              <div class="spinner-border spinner-border-sm text-info"></div>
             </div>
           </div>
-          <div class="col-lg-6">
-            <div class="card card-sm border">
-              <div class="card-header py-2">
-                <h4 class="card-title mb-0"><i class="fa-solid fa-tachometer-alt text-info me-2"></i>Performance Testing</h4>
-              </div>
-              <div class="card-body p-0" id="performance-tools-list" hx-get="/automation/fragments/tools/performance"
-                hx-trigger="loadTools once" hx-swap="innerHTML">
-                <div class="text-center py-3">
-                  <div class="spinner-border spinner-border-sm text-info"></div>
-                </div>
-              </div>
-            </div>
+        </div>
+        <div class="card card-sm border mt-2 mb-0">
+          <div class="card-header py-1 px-3">
+            <h4 class="card-title mb-0 small"><i class="fa-solid fa-brain text-warning me-1"></i>AI Analysis</h4>
           </div>
-          <div class="col-lg-6">
-            <div class="card card-sm border">
-              <div class="card-header py-2">
-                <h4 class="card-title mb-0"><i class="fa-solid fa-brain text-warning me-2"></i>AI Analysis</h4>
-              </div>
-              <div class="card-body p-0" id="ai-tools-list" hx-get="/automation/fragments/tools/ai"
-                hx-trigger="loadTools once" hx-swap="innerHTML">
-                <div class="text-center py-3">
-                  <div class="spinner-border spinner-border-sm text-warning"></div>
-                </div>
-              </div>
+          <div class="card-body p-0" id="ai-tools-list" hx-get="/automation/fragments/tools/ai"
+            hx-trigger="loadTools once" hx-swap="innerHTML">
+            <div class="text-center py-2">
+              <div class="spinner-border spinner-border-sm text-warning"></div>
             </div>
           </div>
         </div>
@@ -71,74 +62,39 @@
     </div>
   </div>
 
-  {# Analysis Options #}
+  {# Analysis Options - Inline compact #}
   <div class="col-12">
-    <div class="card bg-light border-0">
-      <div class="card-header py-2">
-        <h3 class="h6 mb-0">Analysis Options</h3>
-      </div>
-      <div class="card-body py-2">
-        <div class="row g-3 align-items-center">
-          <div class="col-md-4">
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" id="analysis-parallel" checked>
-              <label class="form-check-label" for="analysis-parallel">
-                Run analyses in parallel
-              </label>
-            </div>
+    <div class="card card-sm bg-body-secondary border-0">
+      <div class="card-body py-2 px-3">
+        <div class="d-flex flex-wrap align-items-center gap-3 small">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="analysis-parallel" checked>
+            <label class="form-check-label" for="analysis-parallel">Parallel</label>
           </div>
-          <div class="col-md-4" id="parallelism-limit-group">
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <label for="analysis-max-concurrent" class="form-label small mb-0">Max Tasks</label>
-              <span class="badge bg-green-lt" id="auto-capacity-badge"
-                style="display:none; font-size: 0.7em; padding: 2px 6px;">Auto-Optimized</span>
-            </div>
-            <div class="input-group input-group-sm">
-              <input type="number" class="form-control" id="analysis-max-concurrent" value="2" min="1" max="100">
-              <button class="btn btn-outline-secondary" type="button" id="btn-detect-capacity"
-                title="Detect optimal capacity from backend" onclick="detectCapacity()">
-                <i class="fa-solid fa-magic me-1"></i>Auto
-              </button>
-            </div>
-            <small class="text-muted d-block mt-1 text-truncate" id="capacity-hint" title="Default: 2">Default:
-              2</small>
+          <div class="d-flex align-items-center gap-1" id="parallelism-limit-group">
+            <label for="analysis-max-concurrent" class="form-label small mb-0 text-nowrap">Max:</label>
+            <input type="number" class="form-control form-control-sm" id="analysis-max-concurrent" value="2" min="1" max="100" style="width: 60px;">
+            <button class="btn btn-outline-secondary btn-sm py-0 px-1" type="button" id="btn-detect-capacity"
+              title="Auto-detect" onclick="detectCapacity()"><i class="fa-solid fa-magic"></i></button>
+            <span class="badge bg-green-lt d-none" id="auto-capacity-badge" style="font-size: 0.65em;">Auto</span>
+            <small class="text-muted d-none" id="capacity-hint"></small>
           </div>
-          <div class="col-md-4">
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" id="analysis-container-auto" checked>
-              <label class="form-check-label" for="analysis-container-auto">
-                Auto-start containers
-              </label>
-              <small class="text-muted d-block">Automatically start analyzer containers</small>
-            </div>
+          <div class="vr d-none d-md-block"></div>
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="analysis-container-auto" checked>
+            <label class="form-check-label" for="analysis-container-auto">Auto-start</label>
           </div>
-        </div>
-        <div class="row mt-2">
-          <div class="col-md-4">
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" id="analysis-container-stop" checked>
-              <label class="form-check-label" for="analysis-container-stop">
-                Stop containers after analysis
-              </label>
-              <small class="text-muted d-block">Clean up containers when pipeline completes</small>
-            </div>
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="analysis-container-stop" checked>
+            <label class="form-check-label" for="analysis-container-stop">Stop after</label>
           </div>
         </div>
       </div>
     </div>
   </div>
-</div>
-
-{# Help Alert #}
-<div class="alert alert-info mt-4">
-  <i class="fa-solid fa-lightbulb me-2"></i>
-  <strong>Batch Analysis:</strong> Analysis runs automatically after generation. With parallel mode enabled (default),
-  multiple apps are analyzed concurrently up to the limit you set. Containers are automatically managed
-  for seamless operation.
 </div>
 
 <script>
-  // Toggle parallelism limit visibility based on parallel checkbox
   document.getElementById('analysis-parallel')?.addEventListener('change', function () {
     const limitGroup = document.getElementById('parallelism-limit-group');
     if (limitGroup) {

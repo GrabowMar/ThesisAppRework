@@ -16,6 +16,7 @@ to ensure fast page loads. Live fetching available on-demand via refresh button.
 
 import json
 import logging
+import os
 import re
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -768,6 +769,509 @@ class OpenRouterAdoptionFetcher(BenchmarkFetcher):
             return {}
 
 
+class FirecrawlBenchmarkFetcher(BenchmarkFetcher):
+    """
+    Fetcher that uses Firecrawl to scrape JS-rendered leaderboard pages.
+
+    Firecrawl handles JavaScript rendering and returns clean markdown,
+    which is far more reliable than BeautifulSoup regex parsing for
+    modern React/Next.js leaderboard sites.
+    """
+
+    def __init__(self, api_key: Optional[str] = None, **kwargs):
+        super().__init__(**kwargs)
+        self.api_key = api_key or os.getenv('FIRECRAWL_API_KEY')
+        self._client = None
+
+    def _get_client(self):
+        """Lazy-init Firecrawl client."""
+        if self._client is None:
+            if not self.api_key:
+                raise RuntimeError("FIRECRAWL_API_KEY not configured")
+            from firecrawl import FirecrawlApp
+            self._client = FirecrawlApp(api_key=self.api_key)
+        return self._client
+
+    def _scrape_markdown(self, url: str) -> str:
+        """Scrape a URL and return its markdown content."""
+        client = self._get_client()
+        result = client.scrape(
+            url,
+            formats=['markdown'],
+            only_main_content=True,
+            timeout=self.timeout * 1000,  # Firecrawl uses milliseconds
+        )
+        return result.markdown or ''
+
+    @staticmethod
+    def _parse_markdown_table(markdown: str) -> List[Dict[str, str]]:
+        """Parse ALL markdown tables and return combined rows."""
+        lines = markdown.strip().split('\n')
+        all_rows: List[Dict[str, str]] = []
+        headers: List[str] = []
+        in_table = False
+
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('|') and '|' in stripped[1:]:
+                cells = [c.strip() for c in stripped.split('|')[1:-1]]
+                if not cells:
+                    continue
+                # Separator row
+                if all(set(c) <= {'-', ':', ' '} for c in cells):
+                    continue
+                # Skip empty header rows (e.g. |  |  |  |)
+                if all(c.strip() == '' for c in cells):
+                    continue
+                # Strip bold markers from header candidates
+                clean_cells = [c.strip('*').strip() for c in cells]
+                if not in_table:
+                    headers = clean_cells
+                    in_table = True
+                    continue
+                if len(cells) == len(headers):
+                    all_rows.append(dict(zip(headers, cells)))
+            else:
+                if in_table:
+                    in_table = False
+                    headers = []
+        return all_rows
+
+    @staticmethod
+    def _extract_model_name_from_md(cell: str) -> str:
+        """Extract clean model name from markdown cell (may contain links)."""
+        # Skip image links ![alt](url), find regular [text](url)
+        # Pattern: find [text] that is NOT preceded by !
+        matches = re.findall(r'(?<!!)\[([^\]]+)\]\([^\)]+\)', cell)
+        if matches:
+            # Return first non-image link text, strip "New" suffix
+            name = matches[0].strip()
+            name = re.sub(r'\s*New$', '', name)
+            return name
+        # Fallback: any [text]
+        match = re.search(r'\[([^\]]+)\]', cell)
+        if match:
+            return match.group(1).strip()
+        # Remove <br> tags and return cleaned text
+        return re.sub(r'<br\s*/?>', ' ', cell).strip()
+
+    @staticmethod
+    def _extract_number(text: str) -> Optional[float]:
+        """Extract a numeric value from text like '92.4%' or '1234'."""
+        text = text.strip().rstrip('%')
+        match = re.search(r'[-+]?\d+\.?\d*', text)
+        if match:
+            return float(match.group())
+        return None
+
+    def fetch_openrouter_programming_rankings(self) -> Dict[str, int]:
+        """
+        Fetch model rankings from OpenRouter programming category via Firecrawl.
+
+        Returns: {model_id: rank_position}
+        """
+        try:
+            self.logger.info("Fetching OpenRouter programming rankings via Firecrawl...")
+            md = self._scrape_markdown("https://openrouter.ai/rankings/programming")
+
+            results = {}
+            # Pattern: numbered list items with model links
+            # e.g. "1.\n...\n[Gemini 3 Flash Preview](https://openrouter.ai/google/gemini-3-flash-preview)"
+            pattern = r'(\d+)\.\s*(?:!\[.*?\]\(.*?\)\s*)*\[([^\]]+)\]\(https://openrouter\.ai/([^)]+)\)'
+            for match in re.finditer(pattern, md):
+                rank = int(match.group(1))
+                model_id = match.group(3).strip()
+                if model_id and '/' in model_id:
+                    results[model_id.lower()] = rank
+
+            self._last_fetch_time = datetime.utcnow()
+            self._last_error = None if results else "No data extracted"
+            self.logger.info(f"Fetched OpenRouter rankings for {len(results)} models via Firecrawl")
+            return results
+
+        except Exception as e:
+            self.logger.error(f"Firecrawl: Error fetching OpenRouter rankings: {e}")
+            self._last_error = str(e)
+            return {}
+
+    def fetch_livecodebench_leaderboard(self) -> Dict[str, Dict[str, float]]:
+        """
+        Fetch LiveCodeBench leaderboard via Firecrawl.
+
+        Returns: {model_name: {'livecodebench': pass_at_1_score}}
+        """
+        try:
+            self.logger.info("Fetching LiveCodeBench leaderboard via Firecrawl...")
+            md = self._scrape_markdown("https://livecodebench.github.io/leaderboard.html")
+
+            results = {}
+            rows = self._parse_markdown_table(md)
+            for row in rows:
+                model_raw = row.get('Model', '')
+                pass1_raw = row.get('Pass@1', '')
+                model_name = self._extract_model_name_from_md(model_raw)
+                score = self._extract_number(pass1_raw)
+                if model_name and score is not None:
+                    results[model_name.lower()] = {'livecodebench': score}
+
+            self._last_fetch_time = datetime.utcnow()
+            self._last_error = None if results else "No data extracted"
+            self.logger.info(f"Fetched LiveCodeBench data for {len(results)} models via Firecrawl")
+            return results
+
+        except Exception as e:
+            self.logger.error(f"Firecrawl: Error fetching LiveCodeBench: {e}")
+            self._last_error = str(e)
+            return {}
+
+    def fetch_livebench_leaderboard(self) -> Dict[str, Dict[str, float]]:
+        """
+        Fetch LiveBench leaderboard via Firecrawl.
+
+        Returns: {model_name: {'livebench_coding': score, 'livebench_global': score}}
+        """
+        try:
+            self.logger.info("Fetching LiveBench leaderboard via Firecrawl...")
+            md = self._scrape_markdown("https://livebench.ai/#/")
+
+            results = {}
+            rows = self._parse_markdown_table(md)
+            for row in rows:
+                model_raw = row.get('Model', '')
+                coding_raw = row.get('Coding Average', '')
+                global_raw = row.get('Global Average', '')
+                model_name = self._extract_model_name_from_md(model_raw)
+                coding = self._extract_number(coding_raw)
+                global_avg = self._extract_number(global_raw)
+                if model_name and (coding is not None or global_avg is not None):
+                    entry = {}
+                    if coding is not None:
+                        entry['livebench_coding'] = coding
+                    if global_avg is not None:
+                        entry['livebench_global'] = global_avg
+                    results[model_name.lower()] = entry
+
+            self._last_fetch_time = datetime.utcnow()
+            self._last_error = None if results else "No data extracted"
+            self.logger.info(f"Fetched LiveBench data for {len(results)} models via Firecrawl")
+            return results
+
+        except Exception as e:
+            self.logger.error(f"Firecrawl: Error fetching LiveBench: {e}")
+            self._last_error = str(e)
+            return {}
+
+    def fetch_simplebench_leaderboard(self) -> Dict[str, float]:
+        """
+        Fetch SimpleBench leaderboard via Firecrawl.
+
+        Returns: {model_name: accuracy_percentage}
+        """
+        try:
+            self.logger.info("Fetching SimpleBench leaderboard via Firecrawl...")
+            md = self._scrape_markdown("https://simple-bench.com/")
+
+            results = {}
+            rows = self._parse_markdown_table(md)
+            for row in rows:
+                model_raw = row.get('Model', '')
+                # Score column name varies: 'Score (AVG@5)', 'Score', 'Accuracy'
+                score_raw = ''
+                for key in row:
+                    if 'score' in key.lower() or 'accuracy' in key.lower():
+                        score_raw = row[key]
+                        break
+                model_name = self._extract_model_name_from_md(model_raw)
+                score = self._extract_number(score_raw)
+                # Skip non-model rows like "Human Baseline"
+                if model_name and score is not None and 'human' not in model_name.lower():
+                    results[model_name.lower()] = score
+
+            self._last_fetch_time = datetime.utcnow()
+            self._last_error = None if results else "No data extracted"
+            self.logger.info(f"Fetched SimpleBench data for {len(results)} models via Firecrawl")
+            return results
+
+        except Exception as e:
+            self.logger.error(f"Firecrawl: Error fetching SimpleBench: {e}")
+            self._last_error = str(e)
+            return {}
+
+    def fetch_seal_showdown_leaderboard(self) -> Dict[str, float]:
+        """
+        Fetch SEAL leaderboard coding scores via Firecrawl.
+
+        Uses the MCP Atlas sub-leaderboard (most relevant for coding).
+        Falls back to parsing the main SEAL page card preview data.
+
+        Returns: {model_name: pass_rate}
+        """
+        try:
+            self.logger.info("Fetching SEAL leaderboard via Firecrawl...")
+            md = self._scrape_markdown("https://scale.com/leaderboard/mcp_atlas")
+
+            results = {}
+            rows = self._parse_markdown_table(md)
+            for row in rows:
+                model_raw = row.get('Model', '') or row.get('Name', '')
+                score_raw = (row.get('Pass Rate', '')
+                             or row.get('Score', '')
+                             or row.get('Overall', ''))
+                if not score_raw:
+                    for key in row:
+                        kl = key.lower()
+                        if any(t in kl for t in ['pass', 'score', 'rate',
+                                                  'elo', 'bt']):
+                            score_raw = row[key]
+                            break
+                model_name = self._extract_model_name_from_md(model_raw)
+                score = self._extract_number(score_raw)
+                if model_name and score is not None:
+                    results[model_name.lower()] = score
+
+            # Fallback: parse card-style data from main page
+            if not results:
+                self.logger.info("Trying main SEAL page fallback...")
+                md = self._scrape_markdown("https://scale.com/leaderboard")
+                # Pattern: rank\n\nmodel_name\n\nscore±error
+                import re
+                blocks = re.findall(
+                    r'(\d+)\s*\\\\?\n\\\\?\n\s*([\w\-\.\s]+?)\s*\\\\?\n\\\\?\n\s*([\d.]+)±',
+                    md
+                )
+                for rank, model, score in blocks:
+                    model = model.strip().rstrip('*').strip()
+                    if model and model.upper() != 'NEW':
+                        results[model.lower()] = float(score)
+
+            self._last_fetch_time = datetime.utcnow()
+            self._last_error = None if results else "No data extracted"
+            self.logger.info(f"Fetched SEAL data for {len(results)} models via Firecrawl")
+            return results
+
+        except Exception as e:
+            self.logger.error(f"Firecrawl: Error fetching SEAL Showdown: {e}")
+            self._last_error = str(e)
+            return {}
+
+    def fetch_bfcl_leaderboard(self) -> Dict[str, float]:
+        """
+        Fetch BFCL (Berkeley Function Calling Leaderboard) via Firecrawl.
+
+        Returns: {model_name: overall_accuracy_percentage}
+        """
+        try:
+            self.logger.info("Fetching BFCL leaderboard via Firecrawl...")
+            md = self._scrape_markdown("https://gorilla.cs.berkeley.edu/leaderboard.html")
+
+            results = {}
+            # BFCL table has duplicate column names, so parse by position
+            for line in md.split('\n'):
+                line = line.strip()
+                if not line.startswith('|'):
+                    continue
+                cells = [c.strip() for c in line.split('|')[1:-1]]
+                if len(cells) < 3:
+                    continue
+                # Skip header/separator rows
+                if cells[0].startswith('Rank') or cells[0].startswith('---'):
+                    continue
+                if all(set(c) <= {'-', ':', ' '} for c in cells):
+                    continue
+                # cells[0]=Rank, cells[1]=Overall Acc, cells[2]=Model
+                model_name = self._extract_model_name_from_md(cells[2])
+                score = self._extract_number(cells[1])
+                if model_name and score is not None:
+                    results[model_name.lower()] = score
+
+            self._last_fetch_time = datetime.utcnow()
+            self._last_error = None if results else "No data extracted"
+            self.logger.info(f"Fetched BFCL data for {len(results)} models via Firecrawl")
+            return results
+
+        except Exception as e:
+            self.logger.error(f"Firecrawl: Error fetching BFCL: {e}")
+            self._last_error = str(e)
+            return {}
+
+    def fetch_webdev_arena_leaderboard(self) -> Dict[str, float]:
+        """
+        Fetch Arena (formerly LM Arena) Code leaderboard Elo scores via Firecrawl.
+
+        Returns: {model_name: elo_score}
+        """
+        try:
+            self.logger.info("Fetching Arena Code leaderboard via Firecrawl...")
+            md = self._scrape_markdown("https://arena.ai/leaderboard")
+
+            results = {}
+            # Arena page uses escaped pipes \\| in embedded tables
+            # Find Code section and parse its table
+            in_code_section = False
+            for line in md.split('\n'):
+                if '**Code**' in line:
+                    in_code_section = True
+                    continue
+                if in_code_section and ('**' in line and 'Code' not in line
+                                        and 'View' not in line):
+                    break  # Next section
+                if not in_code_section:
+                    continue
+                # Parse rows: | rank | model_link | score | votes |
+                # May use \\| instead of |
+                cleaned = line.replace('\\|', '|').strip()
+                if not cleaned.startswith('|'):
+                    continue
+                cells = [c.strip() for c in cleaned.split('|')[1:-1]]
+                if len(cells) < 3:
+                    continue
+                if cells[0].startswith('Rank') or cells[0].startswith('---'):
+                    continue
+                if all(set(c) <= {'-', ':', ' '} for c in cells):
+                    continue
+                model_name = self._extract_model_name_from_md(cells[1])
+                score = self._extract_number(cells[2])
+                if model_name and score is not None:
+                    results[model_name.lower()] = score
+
+            self._last_fetch_time = datetime.utcnow()
+            self._last_error = None if results else "No data extracted"
+            self.logger.info(f"Fetched Arena Code data for {len(results)} models via Firecrawl")
+            return results
+
+        except Exception as e:
+            self.logger.error(f"Firecrawl: Error fetching Arena Code leaderboard: {e}")
+            self._last_error = str(e)
+            return {}
+
+    def fetch_arc_agi_leaderboard(self) -> Dict[str, float]:
+        """
+        Fetch ARC-AGI scores via Firecrawl.
+
+        Returns: {model_name: pass_rate_percentage}
+        """
+        try:
+            self.logger.info("Fetching ARC-AGI leaderboard via Firecrawl...")
+            md = self._scrape_markdown("https://arcprize.org/leaderboard")
+
+            results = {}
+            rows = self._parse_markdown_table(md)
+            for row in rows:
+                # Column headers: "AI System", "Author", "System Type",
+                # "ARC-AGI-1", "ARC-AGI-2", "Cost/Task", "Code / Paper"
+                model_raw = (row.get('AI System', '') or row.get('Model', '')
+                             or row.get('Name', ''))
+                # Prefer ARC-AGI-1 score
+                score_raw = row.get('ARC-AGI-1', '')
+                if not score_raw:
+                    for key in row:
+                        kl = key.lower()
+                        if 'arc' in kl or 'score' in kl or 'accuracy' in kl:
+                            score_raw = row[key]
+                            break
+                # Skip non-AI entries
+                if 'human' in model_raw.lower():
+                    continue
+                model_name = self._extract_model_name_from_md(model_raw)
+                score = self._extract_number(score_raw)
+                if model_name and score is not None:
+                    results[model_name.lower()] = score
+
+            self._last_fetch_time = datetime.utcnow()
+            self._last_error = None if results else "No data extracted"
+            self.logger.info(f"Fetched ARC-AGI data for {len(results)} models via Firecrawl")
+            return results
+
+        except Exception as e:
+            self.logger.error(f"Firecrawl: Error fetching ARC-AGI: {e}")
+            self._last_error = str(e)
+            return {}
+
+    def fetch_gpqa_leaderboard(self) -> Dict[str, float]:
+        """
+        Fetch GPQA scores via Firecrawl.
+
+        Returns: {model_name: accuracy_percentage}
+        """
+        try:
+            self.logger.info("Fetching GPQA leaderboard via Firecrawl...")
+            md = self._scrape_markdown("https://llm-stats.com/benchmarks/gpqa")
+
+            results = {}
+            rows = self._parse_markdown_table(md)
+            for row in rows:
+                model_raw = row.get('Model', '') or row.get('Name', '')
+                score_raw = ''
+                for key in row:
+                    kl = key.lower()
+                    if any(t in kl for t in ['score', 'accuracy', 'gpqa', '%']):
+                        score_raw = row[key]
+                        break
+                model_name = self._extract_model_name_from_md(model_raw)
+                score = self._extract_number(score_raw)
+                if model_name and score is not None:
+                    results[model_name.lower()] = score
+
+            self._last_fetch_time = datetime.utcnow()
+            self._last_error = None if results else "No data extracted"
+            self.logger.info(f"Fetched GPQA data for {len(results)} models via Firecrawl")
+            return results
+
+        except Exception as e:
+            self.logger.error(f"Firecrawl: Error fetching GPQA: {e}")
+            self._last_error = str(e)
+            return {}
+
+    def fetch_canaicode_leaderboard(self) -> Dict[str, float]:
+        """
+        Fetch CanAiCode scores via Firecrawl.
+
+        Note: The HuggingFace Space uses Gradio which doesn't render
+        data into static HTML. This fetcher tries the direct space URL
+        but may return empty results — fallback data in
+        model_rankings_service.py will be used instead.
+
+        Returns: {model_name: pass_rate_percentage}
+        """
+        try:
+            self.logger.info("Fetching CanAiCode leaderboard via Firecrawl...")
+            # Try direct Gradio space URL (renders better than HF wrapper)
+            md = self._scrape_markdown(
+                "https://mike-ravkine-can-ai-code-results.hf.space/"
+            )
+
+            results = {}
+            rows = self._parse_markdown_table(md)
+            for row in rows:
+                model_raw = row.get('Model', '') or row.get('Name', '')
+                score_raw = ''
+                for key in row:
+                    kl = key.lower()
+                    if any(t in kl for t in ['pass', 'score', 'rate',
+                                              'accuracy', '%']):
+                        score_raw = row[key]
+                        break
+                model_name = self._extract_model_name_from_md(model_raw)
+                score = self._extract_number(score_raw)
+                if model_name and score is not None:
+                    results[model_name.lower()] = score
+
+            self._last_fetch_time = datetime.utcnow()
+            if not results:
+                self._last_error = ("CanAiCode Gradio space doesn't expose "
+                                    "static data — using fallback")
+                self.logger.warning(self._last_error)
+            else:
+                self._last_error = None
+            self.logger.info(f"Fetched CanAiCode data for {len(results)} models via Firecrawl")
+            return results
+
+        except Exception as e:
+            self.logger.error(f"Firecrawl: Error fetching CanAiCode: {e}")
+            self._last_error = str(e)
+            return {}
+
+
 class CombinedBenchmarkAggregator:
     """
     Aggregates benchmark data from all fetchers.
@@ -785,6 +1289,16 @@ class CombinedBenchmarkAggregator:
         self.adoption_fetcher = OpenRouterAdoptionFetcher()
         self.logger = logger
         self._last_live_fetch_time = None
+
+        # Firecrawl-powered fetcher for JS-rendered leaderboard pages
+        firecrawl_key = os.getenv('FIRECRAWL_API_KEY')
+        self._firecrawl_available = bool(firecrawl_key)
+        if self._firecrawl_available:
+            self.firecrawl_fetcher = FirecrawlBenchmarkFetcher(api_key=firecrawl_key)
+            self.logger.info("Firecrawl fetcher initialized for live benchmark scraping")
+        else:
+            self.firecrawl_fetcher = None
+            self.logger.warning("FIRECRAWL_API_KEY not set — falling back to BS4 scrapers")
 
     def get_static_benchmarks(self) -> Dict[str, Any]:
         """
@@ -851,37 +1365,56 @@ class CombinedBenchmarkAggregator:
         results['data_source'] = 'live'
         results['data_date'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
         
-        # Define fetcher tasks
+        # Define fetcher tasks — use Firecrawl for JS-rendered pages when available
+        fc = self.firecrawl_fetcher
+        use_fc = self._firecrawl_available and fc is not None
+
         fetch_tasks = {
             'evalplus': lambda: self.hf_fetcher.fetch_evalplus_leaderboard(),
             'bigcodebench': lambda: self.hf_fetcher.fetch_bigcodebench_leaderboard(),
             'swebench': lambda: self.github_fetcher.fetch_swebench_leaderboard(),
-            'livebench_live': lambda: self.github_fetcher.fetch_livebench_leaderboard(),
-            'livecodebench_live': lambda: self.github_fetcher.fetch_livecodebench_leaderboard(),
             'performance_live': lambda: self.performance_fetcher.fetch_performance_metrics(),
-            'bfcl_live': lambda: self.chapter4_fetcher.fetch_bfcl_leaderboard(),
-            'webdev_arena_live': lambda: self.chapter4_fetcher.fetch_webdev_arena_leaderboard(),
-            'arc_agi_live': lambda: self.chapter4_fetcher.fetch_arc_agi_leaderboard(),
-            'simplebench_live': lambda: self.chapter4_fetcher.fetch_simplebench_leaderboard(),
-            'canaicode_live': lambda: self.chapter4_fetcher.fetch_canaicode_leaderboard(),
-            'seal_showdown_live': lambda: self.chapter4_fetcher.fetch_seal_showdown_leaderboard(),
-            'gpqa_live': lambda: self.chapter4_fetcher.fetch_gpqa_leaderboard(),
-            'adoption_live': lambda: self.adoption_fetcher.fetch_programming_rankings(),
+            # Firecrawl-powered fetchers for JS-rendered leaderboards (with BS4 fallback)
+            'livebench_live': (lambda: fc.fetch_livebench_leaderboard()) if use_fc
+                else (lambda: self.github_fetcher.fetch_livebench_leaderboard()),
+            'livecodebench_live': (lambda: fc.fetch_livecodebench_leaderboard()) if use_fc
+                else (lambda: self.github_fetcher.fetch_livecodebench_leaderboard()),
+            'bfcl_live': (lambda: fc.fetch_bfcl_leaderboard()) if use_fc
+                else (lambda: self.chapter4_fetcher.fetch_bfcl_leaderboard()),
+            'webdev_arena_live': (lambda: fc.fetch_webdev_arena_leaderboard()) if use_fc
+                else (lambda: self.chapter4_fetcher.fetch_webdev_arena_leaderboard()),
+            'arc_agi_live': (lambda: fc.fetch_arc_agi_leaderboard()) if use_fc
+                else (lambda: self.chapter4_fetcher.fetch_arc_agi_leaderboard()),
+            'simplebench_live': (lambda: fc.fetch_simplebench_leaderboard()) if use_fc
+                else (lambda: self.chapter4_fetcher.fetch_simplebench_leaderboard()),
+            'canaicode_live': (lambda: fc.fetch_canaicode_leaderboard()) if use_fc
+                else (lambda: self.chapter4_fetcher.fetch_canaicode_leaderboard()),
+            'seal_showdown_live': (lambda: fc.fetch_seal_showdown_leaderboard()) if use_fc
+                else (lambda: self.chapter4_fetcher.fetch_seal_showdown_leaderboard()),
+            'gpqa_live': (lambda: fc.fetch_gpqa_leaderboard()) if use_fc
+                else (lambda: self.chapter4_fetcher.fetch_gpqa_leaderboard()),
+            'adoption_live': (lambda: fc.fetch_openrouter_programming_rankings()) if use_fc
+                else (lambda: self.adoption_fetcher.fetch_programming_rankings()),
         }
         
         live_results = {}
         
         # Execute fetches in parallel with timeout
-        with ThreadPoolExecutor(max_workers=8) as executor:
+        # Firecrawl scrapes take longer (~10-20s each), so increase timeouts
+        pool_timeout = 90 if use_fc else 30
+        result_timeout = 45 if use_fc else 10
+        max_workers = 4 if use_fc else 8  # Firecrawl rate limits
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_key = {
                 executor.submit(self._safe_fetch, func): key
                 for key, func in fetch_tasks.items()
             }
             
-            for future in as_completed(future_to_key, timeout=30):
+            for future in as_completed(future_to_key, timeout=pool_timeout):
                 key = future_to_key[future]
                 try:
-                    data = future.result(timeout=10)
+                    data = future.result(timeout=result_timeout)
                     if data:
                         live_results[key] = data
                         self.logger.info(f"Live fetch succeeded: {key} ({len(data)} items)")

@@ -3,8 +3,7 @@
 // Responsibilities:
 //  - Fetch filtered rankings from API
 //  - Maintain client-side selection state (max 10 models)
-//  - Render rankings table with benchmark data
-//  - Handle weight adjustments for composite score
+//  - Render rankings table with all 9 Ch.4 benchmark columns
 //  - Export functionality
 // ------------------------------------------------------------
 
@@ -16,22 +15,12 @@ if (window.__RANKINGS_JS_LOADED__) {
   // State
   let rankingsData = [];
   let selectedRankings = new Set();
-  let currentSort = { column: 'composite', direction: 'desc' };
+  let currentSort = { column: 'mss', direction: 'desc' };
   let searchTimeout;
   let currentPage = 1;
   let perPage = 25;
   let totalPages = 1;
   let rankingsPageBootstrapped = false;
-
-  // Default weights (can be overridden by server)
-  let weights = {
-    humaneval_plus: 20,
-    swe_bench_verified: 25,
-    bigcodebench_hard: 20,
-    livebench_coding: 15,
-    mbpp_plus: 10,
-    livecodebench: 10
-  };
 
   // Initialize from server data if available
   function initFromServerData() {
@@ -40,9 +29,6 @@ if (window.__RANKINGS_JS_LOADED__) {
     }
     if (window.RANKINGS_SELECTED) {
       selectedRankings = new Set(window.RANKINGS_SELECTED);
-    }
-    if (window.RANKINGS_DEFAULT_WEIGHTS) {
-      weights = { ...weights, ...window.RANKINGS_DEFAULT_WEIGHTS };
     }
   }
 
@@ -53,40 +39,26 @@ if (window.__RANKINGS_JS_LOADED__) {
   function buildRankingFilterParams() {
     const p = new URLSearchParams();
     
-    // Search term
     const searchEl = document.getElementById('ranking-search');
     const search = searchEl?.value?.trim();
-    if (search) {
-      p.append('search', search);
-    }
+    if (search) p.append('search', search);
     
-    // Provider filter
     const providerEl = document.getElementById('provider-filter');
     const provider = providerEl?.value?.trim();
-    if (provider) {
-      p.append('provider', provider);
-    }
+    if (provider) p.append('provider', provider);
     
-    // Price filter
     const priceEl = document.getElementById('price-filter');
     const price = priceEl?.value?.trim();
-    if (price) {
-      p.append('max_price', price);
-    }
+    if (price) p.append('max_price', price);
     
-    // Context filter
     const contextEl = document.getElementById('context-filter');
     const context = contextEl?.value?.trim();
-    if (context) {
-      p.append('min_context', context);
-    }
+    if (context) p.append('min_context', context);
     
-    // Has benchmarks filter
     if (document.getElementById('filter-has-benchmarks')?.checked) {
       p.append('has_benchmarks', '1');
     }
     
-    // Include free filter
     if (!document.getElementById('filter-include-free')?.checked) {
       p.append('exclude_free', '1');
     }
@@ -108,13 +80,10 @@ if (window.__RANKINGS_JS_LOADED__) {
     const params = buildRankingFilterParams();
     params.append('page', String(currentPage));
     params.append('per_page', String(perPage));
-    
-    // Add sort parameters
     params.append('sort_by', currentSort.column);
     params.append('sort_dir', currentSort.direction);
     
     const url = '/rankings/api/rankings?' + params.toString();
-    console.log('[Rankings] Loading:', url);
     
     fetch(url)
       .then(r => {
@@ -122,7 +91,6 @@ if (window.__RANKINGS_JS_LOADED__) {
         return r.json();
       })
       .then(data => {
-        console.log('[Rankings] API Response:', data);
         rankingsData = data.rankings || data.data || [];
         const pagination = data.pagination || {};
         totalPages = pagination.total_pages || 1;
@@ -146,7 +114,7 @@ if (window.__RANKINGS_JS_LOADED__) {
     if (tbody) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="13" class="text-center text-danger py-4">
+          <td colspan="19" class="text-center text-danger py-4">
             <i class="fa-solid fa-exclamation-triangle me-2"></i>${message}
           </td>
         </tr>
@@ -163,17 +131,14 @@ if (window.__RANKINGS_JS_LOADED__) {
     if (totalEl) totalEl.textContent = stats.total || rankingsData.length || 0;
     
     const benchmarkedEl = document.getElementById('models-with-benchmarks');
-    if (benchmarkedEl) benchmarkedEl.textContent = stats.with_benchmarks || rankingsData.length || 0;
+    if (benchmarkedEl) benchmarkedEl.textContent = stats.with_benchmarks || 0;
     
     const providersEl = document.getElementById('unique-providers');
-    if (providersEl) {
-      const uniqueProviders = new Set(rankingsData.map(m => m.provider).filter(Boolean));
-      providersEl.textContent = stats.unique_providers || uniqueProviders.size || 0;
-    }
+    if (providersEl) providersEl.textContent = stats.unique_providers || 0;
   }
 
   // =========================================================================
-  // Table Rendering
+  // Table Rendering — All 9 Ch.4 Benchmarks
   // =========================================================================
 
   function renderRankingsTable(models) {
@@ -183,7 +148,7 @@ if (window.__RANKINGS_JS_LOADED__) {
     if (!models || models.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="14" class="text-center text-muted py-4">
+          <td colspan="19" class="text-center text-muted py-4">
             <i class="fa-solid fa-search me-2"></i>No models found matching your filters.
           </td>
         </tr>
@@ -196,27 +161,32 @@ if (window.__RANKINGS_JS_LOADED__) {
       const isSelected = selectedRankings.has(model.model_id);
       const modelSlug = model.model_id?.replace('/', '_') || '';
       
-      // MSS components (Chapter 4 methodology)
-      const mss = model.mss_score ?? model.composite_score;
-      const adoption = model.adoption_score ?? model.adoption;
-      const benchmark = model.benchmark_score ?? model.benchmarks;
-      const cost = model.cost_efficiency_score ?? model.cost_efficiency;
-      const access = model.accessibility_score ?? model.accessibility;
+      // MSS & components (0-1 scale)
+      const mss = model.mss_score;
+      const adoption = model.adoption_score;
+      const benchmark = model.benchmark_score;
+      const cost = model.cost_efficiency_score;
+      const access = model.accessibility_score;
       
-      // Chapter 4 benchmark scores
-      const bfcl = model.bfcl_score ?? model.bfcl;
-      const webdev = model.webdev_arena_elo ?? model.webdev_elo;
-      const livebench = model.livebench_coding ?? model.livebench;
+      // Coding benchmarks
+      const bfcl = model.bfcl_score;
+      const webdev = model.webdev_elo;
+      const lcb = model.livecodebench;
+      const seal = model.seal_coding_score;
+      const cac = model.canaicode_score;
+      
+      // Reasoning benchmarks
+      const livebench = model.livebench_coding;
+      const arc = model.arc_agi_score;
+      const simp = model.simplebench_score;
+      const gpqa = model.gpqa_score;
       
       return `
-        <tr data-model-id="${escapeHtml(model.model_id)}" 
-            data-provider="${escapeHtml(model.provider || '')}"
-            data-mss="${mss || 0}"
-            class="${isSelected ? 'table-primary' : ''}">
+        <tr data-model-id="${esc(model.model_id)}" class="${isSelected ? 'table-primary' : ''}">
           <td>
             <label class="form-check mb-0">
               <input type="checkbox" class="form-check-input ranking-checkbox" 
-                     value="${escapeHtml(model.model_id)}"
+                     value="${esc(model.model_id)}"
                      ${isSelected ? 'checked' : ''}
                      ${!isSelected && selectedRankings.size >= 10 ? 'disabled' : ''}
                      onchange="toggleRankingSelection(this)">
@@ -224,87 +194,82 @@ if (window.__RANKINGS_JS_LOADED__) {
           </td>
           <td class="text-muted">${rank}</td>
           <td>
-            <span class="fw-medium">${escapeHtml(model.model_name || model.name || '')}</span>
-            <small class="text-muted d-block">${escapeHtml(model.provider || '')}</small>
+            <span class="fw-medium">${esc(model.model_name || model.name || '')}</span>
+            <small class="text-muted d-block">${esc(model.provider || '')}</small>
           </td>
-          <td class="fw-bold ${getMSSClass(mss)}">
-            ${formatScore(mss)}
-          </td>
-          <td class="${getComponentClass(adoption)}">
-            ${formatScore(adoption)}
-          </td>
-          <td class="${getComponentClass(benchmark)}">
-            ${formatScore(benchmark)}
-          </td>
-          <td class="${getComponentClass(cost)}">
-            ${formatScore(cost)}
-          </td>
-          <td class="${getComponentClass(access)}">
-            ${formatScore(access)}
-          </td>
-          <td class="${getScoreClass(bfcl, 80, 60)}">
-            ${formatScore(bfcl, '%')}
-          </td>
-          <td class="text-info">
-            ${webdev ? webdev.toFixed(0) : '<span class="text-muted">—</span>'}
-          </td>
-          <td class="${getScoreClass(livebench, 60, 40)}">
-            ${formatScore(livebench)}
-          </td>
-          <td>${formatContext(model.context_length)}</td>
+          <td class="fw-bold ${mssClass(mss)}">${fmtPct(mss)}</td>
+          <td class="border-start ${compClass(adoption)}">${fmtPct(adoption)}</td>
+          <td class="${compClass(benchmark)}">${fmtPct(benchmark)}</td>
+          <td class="${compClass(cost)}">${fmtPct(cost)}</td>
+          <td class="${compClass(access)}">${fmtPct(access)}</td>
+          <td class="border-start ${benchClass(bfcl, 80, 60)}">${fmtNum(bfcl, '%')}</td>
+          <td class="${benchClass(webdev, 1300, 1100, true)}">${fmtElo(webdev)}</td>
+          <td class="${benchClass(lcb, 50, 30)}">${fmtNum(lcb)}</td>
+          <td class="${benchClass(seal, 80, 50)}">${fmtNum(seal)}</td>
+          <td class="${benchClass(cac, 80, 50)}">${fmtNum(cac, '%')}</td>
+          <td class="border-start ${benchClass(livebench, 60, 40)}">${fmtNum(livebench)}</td>
+          <td class="${benchClass(arc, 50, 20)}">${fmtNum(arc, '%')}</td>
+          <td class="${benchClass(simp, 50, 30)}">${fmtNum(simp, '%')}</td>
+          <td class="${benchClass(gpqa, 60, 40)}">${fmtNum(gpqa, '%')}</td>
+          <td class="border-start">${formatContext(model.context_length)}</td>
           <td>${formatPrice(model.price_per_million_input)}</td>
-          <td>
-            <div class="btn-group btn-group-sm">
-              <a href="/models/detail/${modelSlug}" class="btn btn-outline-secondary btn-sm" title="View model details">
-                <i class="fa-solid fa-info-circle"></i>
-              </a>
-            </div>
-          </td>
         </tr>
       `;
     }).join('');
     
     tbody.innerHTML = html;
-    
-    // Update sort indicators
     updateSortIndicators();
   }
 
-  function escapeHtml(text) {
+  function esc(text) {
     if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
   }
 
-  // MSS-specific color coding (0-100 scale)
-  function getMSSClass(value) {
-    if (value === null || value === undefined) return 'text-muted';
-    if (value >= 70) return 'text-success';
-    if (value >= 50) return 'text-primary';
-    if (value >= 30) return 'text-warning';
+  // MSS is 0-1 scale
+  function mssClass(v) {
+    if (v == null) return 'text-muted';
+    if (v >= 0.7) return 'text-success';
+    if (v >= 0.5) return 'text-primary';
+    if (v >= 0.3) return 'text-warning';
     return 'text-danger';
   }
 
-  // Component score color coding (0-100 scale)
-  function getComponentClass(value) {
-    if (value === null || value === undefined) return 'text-muted';
-    if (value >= 80) return 'text-success';
-    if (value >= 60) return 'text-info';
-    if (value >= 40) return 'text-warning';
+  // MSS component scores are 0-1 scale
+  function compClass(v) {
+    if (v == null) return 'text-muted';
+    if (v >= 0.8) return 'text-success';
+    if (v >= 0.5) return 'text-info';
+    if (v >= 0.3) return 'text-warning';
     return 'text-muted';
   }
 
-  function getScoreClass(value, highThreshold, medThreshold) {
-    if (value === null || value === undefined) return 'text-muted';
-    if (value >= highThreshold) return 'text-success';
-    if (value >= medThreshold) return 'text-warning';
-    return 'text-danger';
+  // Individual benchmark scores have varied scales
+  function benchClass(v, high, med, isElo) {
+    if (v == null) return 'text-muted';
+    if (v >= high) return 'text-success';
+    if (v >= med) return 'text-warning';
+    return 'text-muted';
   }
 
-  function formatScore(value, suffix = '') {
-    if (value === null || value === undefined) return '<span class="text-muted">—</span>';
-    return value.toFixed(1) + suffix;
+  // Format 0-1 as percentage string "73.2%"
+  function fmtPct(v) {
+    if (v == null) return '<span class="text-muted">—</span>';
+    return (v * 100).toFixed(1) + '%';
+  }
+
+  // Format a raw number with optional suffix
+  function fmtNum(v, suffix) {
+    if (v == null) return '<span class="text-muted">—</span>';
+    return v.toFixed(1) + (suffix || '');
+  }
+
+  // Format Elo rating (integer)
+  function fmtElo(v) {
+    if (v == null) return '<span class="text-muted">—</span>';
+    return v.toFixed(0);
   }
 
   function formatContext(value) {
@@ -315,7 +280,7 @@ if (window.__RANKINGS_JS_LOADED__) {
   }
 
   function formatPrice(value) {
-    if (value === null || value === undefined) return '—';
+    if (value == null) return '—';
     if (value === 0) return '<span class="badge bg-success">FREE</span>';
     return '$' + value.toFixed(2);
   }
@@ -347,14 +312,12 @@ if (window.__RANKINGS_JS_LOADED__) {
     
     let html = '';
     
-    // Previous button
     html += `<li class="page-item ${page === 1 ? 'disabled' : ''}">
       <a class="page-link" href="#" onclick="goToRankingsPage(${page - 1}); return false;">
         <i class="fa-solid fa-chevron-left"></i>
       </a>
     </li>`;
     
-    // Page numbers
     const maxVisible = 5;
     let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
     let endPage = Math.min(pages, startPage + maxVisible - 1);
@@ -383,7 +346,6 @@ if (window.__RANKINGS_JS_LOADED__) {
       html += `<li class="page-item"><a class="page-link" href="#" onclick="goToRankingsPage(${pages}); return false;">${pages}</a></li>`;
     }
     
-    // Next button
     html += `<li class="page-item ${page === pages ? 'disabled' : ''}">
       <a class="page-link" href="#" onclick="goToRankingsPage(${page + 1}); return false;">
         <i class="fa-solid fa-chevron-right"></i>
@@ -418,19 +380,13 @@ if (window.__RANKINGS_JS_LOADED__) {
 
   function updateRowHighlight(modelId, selected) {
     const row = document.querySelector(`tr[data-model-id="${modelId}"]`);
-    if (row) {
-      row.classList.toggle('table-primary', selected);
-    }
+    if (row) row.classList.toggle('table-primary', selected);
   }
 
   function updateCheckboxStates() {
     const checkboxes = document.querySelectorAll('.ranking-checkbox');
     checkboxes.forEach(cb => {
-      if (!cb.checked && selectedRankings.size >= 10) {
-        cb.disabled = true;
-      } else {
-        cb.disabled = false;
-      }
+      cb.disabled = !cb.checked && selectedRankings.size >= 10;
     });
   }
 
@@ -443,18 +399,9 @@ if (window.__RANKINGS_JS_LOADED__) {
     const clearBtn = document.getElementById('clear-selection-btn');
     
     if (countEl) countEl.textContent = count;
-    
-    if (summaryEl) {
-      summaryEl.style.display = count > 0 ? 'block' : 'none';
-    }
-    
-    if (clearBtn) {
-      clearBtn.style.display = count > 0 ? 'inline-block' : 'none';
-    }
-    
-    if (indicatorEl) {
-      indicatorEl.textContent = count > 0 ? `${count} selected` : '';
-    }
+    if (summaryEl) summaryEl.style.display = count > 0 ? 'block' : 'none';
+    if (clearBtn) clearBtn.style.display = count > 0 ? 'inline-block' : 'none';
+    if (indicatorEl) indicatorEl.textContent = count > 0 ? `${count} selected` : '';
     
     if (listEl) {
       const names = Array.from(selectedRankings).slice(0, 3);
@@ -462,7 +409,6 @@ if (window.__RANKINGS_JS_LOADED__) {
       listEl.textContent = names.join(', ') + suffix;
     }
     
-    // Update select-all checkbox
     const selectAllEl = document.getElementById('select-all-rankings');
     if (selectAllEl) {
       const visibleCheckboxes = document.querySelectorAll('.ranking-checkbox');
@@ -477,7 +423,6 @@ if (window.__RANKINGS_JS_LOADED__) {
     const checkboxes = document.querySelectorAll('.ranking-checkbox');
     
     if (selectAllEl.checked) {
-      // Select visible (up to 10 total)
       checkboxes.forEach(cb => {
         if (selectedRankings.size < 10 && !cb.checked) {
           cb.checked = true;
@@ -486,7 +431,6 @@ if (window.__RANKINGS_JS_LOADED__) {
         }
       });
     } else {
-      // Deselect all visible
       checkboxes.forEach(cb => {
         if (cb.checked) {
           cb.checked = false;
@@ -549,7 +493,6 @@ if (window.__RANKINGS_JS_LOADED__) {
     });
   }
 
-  // Setup click handlers for sortable columns
   function setupSortHandlers() {
     document.querySelectorAll('#rankings-table thead th.sortable').forEach(th => {
       th.style.cursor = 'pointer';
@@ -580,17 +523,14 @@ if (window.__RANKINGS_JS_LOADED__) {
   }
 
   function clearAllRankingFilters() {
-    // Clear search
     const searchEl = document.getElementById('ranking-search');
     if (searchEl) searchEl.value = '';
     
-    // Reset selects
     ['provider-filter', 'price-filter', 'context-filter'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
     
-    // Reset checkboxes to defaults
     const hasBenchmarksEl = document.getElementById('filter-has-benchmarks');
     if (hasBenchmarksEl) hasBenchmarksEl.checked = true;
     
@@ -600,138 +540,35 @@ if (window.__RANKINGS_JS_LOADED__) {
     applyRankingFilters();
   }
 
-  function toggleAdvancedFilters() {
-    const panel = document.getElementById('advanced-filters-panel');
-    if (!panel) return;
-    const isVisible = panel.style.display !== 'none';
-    panel.style.display = isVisible ? 'none' : 'block';
-  }
-
-  // =========================================================================
-  // Weight Management
-  // =========================================================================
-
-  function updateWeightDisplay(slider) {
-    const val = document.getElementById(slider.id + '_val');
-    if (val) {
-      val.textContent = slider.value + '%';
-    }
-    updateWeightTotal();
-  }
-
-  function updateWeightTotal() {
-    const sliders = document.querySelectorAll('.weight-input');
-    let total = 0;
-    sliders.forEach(s => {
-      total += parseInt(s.value) || 0;
-    });
-    
-    const totalEl = document.getElementById('weightTotal');
-    if (totalEl) {
-      totalEl.textContent = total + '%';
-      totalEl.className = 'badge fs-5 ' + (total === 100 ? 'bg-success' : 'bg-danger');
-    }
-  }
-
-  function resetWeights() {
-    const defaults = window.RANKINGS_DEFAULT_WEIGHTS || {
-      humaneval_plus: 20,
-      swe_bench_verified: 25,
-      bigcodebench_hard: 20,
-      livebench_coding: 15,
-      mbpp_plus: 10
-    };
-    
-    const mapping = {
-      'weight_humaneval': defaults.humaneval_plus,
-      'weight_swebench': defaults.swe_bench_verified,
-      'weight_bigcode': defaults.bigcodebench_hard,
-      'weight_livebench': defaults.livebench_coding,
-      'weight_mbpp': defaults.mbpp_plus
-    };
-    
-    Object.entries(mapping).forEach(([id, value]) => {
-      const slider = document.getElementById(id);
-      if (slider) {
-        slider.value = value;
-        updateWeightDisplay(slider);
-      }
-    });
-    
-    updateWeightTotal();
-  }
-
-  function recalculateComposite() {
-    const newWeights = {
-      humaneval_plus: parseInt(document.getElementById('weight_humaneval')?.value) || 0,
-      swe_bench_verified: parseInt(document.getElementById('weight_swebench')?.value) || 0,
-      bigcodebench_hard: parseInt(document.getElementById('weight_bigcode')?.value) || 0,
-      livebench_coding: parseInt(document.getElementById('weight_livebench')?.value) || 0,
-      mbpp_plus: parseInt(document.getElementById('weight_mbpp')?.value) || 0
-    };
-    
-    const total = Object.values(newWeights).reduce((a, b) => a + b, 0);
-    if (total === 0) {
-      alert('Please set at least one weight greater than 0.');
-      return;
-    }
-    
-    // Normalize weights
-    Object.keys(newWeights).forEach(key => {
-      newWeights[key] = newWeights[key] / total;
-    });
-    
-    // Recalculate composite scores
-    rankingsData.forEach(model => {
-      let score = 0;
-      let usedWeight = 0;
-      
-      const benchmarks = {
-        humaneval_plus: model.humaneval_plus,
-        swe_bench_verified: model.swe_bench_verified,
-        bigcodebench_hard: model.bigcodebench_hard,
-        livebench_coding: model.livebench_coding,
-        mbpp_plus: model.mbpp_plus
-      };
-      
-      Object.entries(benchmarks).forEach(([key, value]) => {
-        if (value !== null && value !== undefined) {
-          score += value * newWeights[key];
-          usedWeight += newWeights[key];
-        }
-      });
-      
-      model.composite_score = usedWeight > 0 ? score / usedWeight : null;
-    });
-    
-    // Re-sort by composite
-    rankingsData.sort((a, b) => {
-      if (a.composite_score === null) return 1;
-      if (b.composite_score === null) return -1;
-      return b.composite_score - a.composite_score;
-    });
-    
-    currentSort = { column: 'composite', direction: 'desc' };
-    renderRankingsTable(rankingsData);
-  }
-
   // =========================================================================
   // Export Functions
   // =========================================================================
 
   function exportRankingsCSV() {
-    const headers = ['Rank', 'Model', 'Provider', 'Composite', 'HumanEval+', 'SWE-bench', 'BigCodeBench', 'LiveBench', 'MBPP+', 'LiveCodeBench', 'Context', 'Price (In)', 'Price (Out)'];
+    const headers = [
+      'Rank', 'Model', 'Provider', 'MSS', 'Adoption', 'Benchmark', 'Cost', 'Access',
+      'BFCL', 'WebDev Elo', 'LiveCodeBench', 'SEAL', 'CanAiCode',
+      'LiveBench', 'ARC-AGI', 'SimpleBench', 'GPQA',
+      'Context', 'Price (In)', 'Price (Out)'
+    ];
     const rows = rankingsData.map((m, i) => [
       i + 1,
       m.model_name || m.name || '',
       m.provider || '',
-      m.composite_score?.toFixed(1) || '',
-      m.humaneval_plus?.toFixed(1) || '',
-      m.swe_bench_verified?.toFixed(1) || '',
-      m.bigcodebench_hard?.toFixed(1) || '',
-      m.livebench_coding?.toFixed(1) || '',
-      m.mbpp_plus?.toFixed(1) || '',
+      m.mss_score != null ? (m.mss_score * 100).toFixed(1) : '',
+      m.adoption_score != null ? (m.adoption_score * 100).toFixed(1) : '',
+      m.benchmark_score != null ? (m.benchmark_score * 100).toFixed(1) : '',
+      m.cost_efficiency_score != null ? (m.cost_efficiency_score * 100).toFixed(1) : '',
+      m.accessibility_score != null ? (m.accessibility_score * 100).toFixed(1) : '',
+      m.bfcl_score?.toFixed(1) || '',
+      m.webdev_elo?.toFixed(0) || '',
       m.livecodebench?.toFixed(1) || '',
+      m.seal_coding_score?.toFixed(1) || '',
+      m.canaicode_score?.toFixed(1) || '',
+      m.livebench_coding?.toFixed(1) || '',
+      m.arc_agi_score?.toFixed(1) || '',
+      m.simplebench_score?.toFixed(1) || '',
+      m.gpqa_score?.toFixed(1) || '',
       m.context_length || '',
       m.price_per_million_input || '',
       m.price_per_million_output || ''
@@ -824,7 +661,6 @@ if (window.__RANKINGS_JS_LOADED__) {
     return true;
   }
 
-  // Initialize when DOM ready
   function whenReady(fn) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', fn);
@@ -854,10 +690,6 @@ if (window.__RANKINGS_JS_LOADED__) {
   window.debounceRankingSearch = debounceRankingSearch;
   window.clearRankingSearch = clearRankingSearch;
   window.clearAllRankingFilters = clearAllRankingFilters;
-  window.toggleAdvancedFilters = toggleAdvancedFilters;
-  window.updateWeightDisplay = updateWeightDisplay;
-  window.resetWeights = resetWeights;
-  window.recalculateComposite = recalculateComposite;
   window.exportRankingsCSV = exportRankingsCSV;
   window.saveSelectionForPipeline = saveSelectionForPipeline;
   window.goToComparison = goToComparison;

@@ -122,6 +122,7 @@ class ConcurrentAnalysisRunner:
         self._completed = 0
         self._total = 0
         self._lock = asyncio.Lock()
+        self._started_containers: List[tuple[str, int]] = []  # (model_slug, app_number) pairs
         
         logger.info(
             f"ConcurrentAnalysisRunner initialized "
@@ -153,6 +154,7 @@ class ConcurrentAnalysisRunner:
         
         self._completed = 0
         self._total = len(jobs)
+        self._started_containers = []
         
         # Assign pipeline_id and tools to jobs if not set
         for job in jobs:
@@ -163,61 +165,65 @@ class ConcurrentAnalysisRunner:
         
         logger.info(f"Starting batch analysis: {len(jobs)} jobs, max_concurrent={self.max_concurrent_analysis}")
         
-        # STEP 1: Ensure analyzer containers are healthy
-        logger.info("[STEP 1] Checking analyzer container health...")
-        analyzers_ready = await self._ensure_analyzers_ready()
-        if not analyzers_ready:
-            logger.warning("Analyzer containers not fully healthy, proceeding anyway (static analysis may work)")
-        
-        # STEP 2: Pre-build app containers in parallel (if enabled)
-        # Note: Even for "existing" apps, we should check/build containers unless explicitly skipped
-        if auto_start_app_containers and not skip_container_build:
-            logger.info("[STEP 2] Pre-building app containers...")
-            await self._prebuild_app_containers(jobs)
-        else:
-            logger.info("[STEP 2] Skipping container builds (disabled or static-only)")
-        
-        # STEP 3: Pre-create all analysis tasks atomically
-        logger.info("[STEP 3] Pre-creating analysis tasks...")
-        await self._precreate_tasks(jobs)
-        
-        # STEP 4: Run analysis with semaphore limiting
-        logger.info("[STEP 4] Running analysis jobs...")
-        semaphore = asyncio.Semaphore(self.max_concurrent_analysis)
-        
-        async def run_with_sem(idx: int, job: AnalysisJobSpec) -> AnalysisJobResult:
-            async with semaphore:
-                return await self._run_single_analysis(idx, job)
-        
-        tasks = [run_with_sem(i, job) for i, job in enumerate(jobs)]
-        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Convert exceptions to error results
-        results: List[AnalysisJobResult] = []
-        for i, r in enumerate(raw_results):
-            if isinstance(r, Exception):
-                results.append(AnalysisJobResult(
-                    job_index=i,
-                    model_slug=jobs[i].model_slug,
-                    app_number=jobs[i].app_number,
-                    task_id=jobs[i].task_id,
-                    success=False,
-                    error=str(r),
-                    status='failed',
-                ))
+        try:
+            # STEP 1: Ensure analyzer containers are healthy
+            logger.info("[STEP 1] Checking analyzer container health...")
+            analyzers_ready = await self._ensure_analyzers_ready()
+            if not analyzers_ready:
+                logger.warning("Analyzer containers not fully healthy, proceeding anyway (static analysis may work)")
+            
+            # STEP 2: Pre-build app containers in parallel (if enabled)
+            # Note: Even for "existing" apps, we should check/build containers unless explicitly skipped
+            if auto_start_app_containers and not skip_container_build:
+                logger.info("[STEP 2] Pre-building app containers...")
+                await self._prebuild_app_containers(jobs)
             else:
-                results.append(r)
-        
-        # Log summary
-        succeeded = sum(1 for r in results if r.success)
-        failed = len(results) - succeeded
-        total_findings = sum(r.findings_count for r in results)
-        logger.info(
-            f"Batch analysis complete: {succeeded}/{len(results)} succeeded, "
-            f"{failed} failed, {total_findings} total findings"
-        )
-        
-        return results
+                logger.info("[STEP 2] Skipping container builds (disabled or static-only)")
+            
+            # STEP 3: Pre-create all analysis tasks atomically
+            logger.info("[STEP 3] Pre-creating analysis tasks...")
+            await self._precreate_tasks(jobs)
+            
+            # STEP 4: Run analysis with semaphore limiting
+            logger.info("[STEP 4] Running analysis jobs...")
+            semaphore = asyncio.Semaphore(self.max_concurrent_analysis)
+            
+            async def run_with_sem(idx: int, job: AnalysisJobSpec) -> AnalysisJobResult:
+                async with semaphore:
+                    return await self._run_single_analysis(idx, job)
+            
+            tasks = [run_with_sem(i, job) for i, job in enumerate(jobs)]
+            raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Convert exceptions to error results
+            results: List[AnalysisJobResult] = []
+            for i, r in enumerate(raw_results):
+                if isinstance(r, Exception):
+                    results.append(AnalysisJobResult(
+                        job_index=i,
+                        model_slug=jobs[i].model_slug,
+                        app_number=jobs[i].app_number,
+                        task_id=jobs[i].task_id,
+                        success=False,
+                        error=str(r),
+                        status='failed',
+                    ))
+                else:
+                    results.append(r)
+            
+            # Log summary
+            succeeded = sum(1 for r in results if r.success)
+            failed = len(results) - succeeded
+            total_findings = sum(r.findings_count for r in results)
+            logger.info(
+                f"Batch analysis complete: {succeeded}/{len(results)} succeeded, "
+                f"{failed} failed, {total_findings} total findings"
+            )
+            
+            return results
+        finally:
+            # STEP 5: Stop all app containers that were started during this batch
+            await self._stop_started_containers()
     
     async def _ensure_analyzers_ready(self) -> bool:
         """Ensure analyzer service containers are healthy.
@@ -270,6 +276,7 @@ class ConcurrentAnalysisRunner:
         """Pre-build app containers for all jobs in parallel batches.
         
         Uses semaphore to limit concurrent builds.
+        Updates GeneratedApplication.container_status in DB on success/failure.
         """
         from app.services.service_locator import ServiceLocator
         
@@ -299,9 +306,12 @@ class ConcurrentAnalysisRunner:
                     
                     if result.get('success'):
                         job.containers_ready = True
+                        self._started_containers.append((job.model_slug, job.app_number))
+                        self._update_app_container_status(job.model_slug, job.app_number, 'running')
                         logger.info(f"Containers ready for {job.model_slug}/app{job.app_number}")
                         return True
                     else:
+                        self._update_app_container_status(job.model_slug, job.app_number, 'build_failed')
                         logger.warning(
                             f"Container build failed for {job.model_slug}/app{job.app_number}: "
                             f"{result.get('error', 'Unknown error')}"
@@ -309,6 +319,7 @@ class ConcurrentAnalysisRunner:
                         return False
                         
                 except Exception as e:
+                    self._update_app_container_status(job.model_slug, job.app_number, 'build_failed')
                     logger.error(f"Container build error for {job.model_slug}/app{job.app_number}: {e}")
                     return False
         
@@ -318,6 +329,62 @@ class ConcurrentAnalysisRunner:
         # Count successes
         ready_count = sum(1 for job in jobs if job.containers_ready)
         logger.info(f"Container builds complete: {ready_count}/{len(jobs)} ready")
+    
+    async def _stop_started_containers(self) -> None:
+        """Stop all app containers that were started during this batch.
+        
+        Called in the finally block of analyze_batch() to ensure cleanup.
+        """
+        if not self._started_containers:
+            logger.debug("No containers to stop after batch analysis")
+            return
+        
+        logger.info(f"Stopping {len(self._started_containers)} app container sets after batch analysis...")
+        
+        from app.services.service_locator import ServiceLocator
+        docker_mgr = ServiceLocator.get_docker_manager()
+        if not docker_mgr:
+            logger.error("Docker manager not available - cannot stop containers!")
+            return
+        
+        loop = asyncio.get_event_loop()
+        for model_slug, app_number in self._started_containers:
+            try:
+                result = await loop.run_in_executor(
+                    None,
+                    lambda m=model_slug, a=app_number: docker_mgr.stop_containers(m, a)
+                )
+                if result.get('success'):
+                    self._update_app_container_status(model_slug, app_number, 'stopped')
+                    logger.info(f"Stopped containers for {model_slug}/app{app_number}")
+                else:
+                    logger.warning(f"Failed to stop containers for {model_slug}/app{app_number}: {result.get('error')}")
+            except Exception as e:
+                logger.error(f"Error stopping containers for {model_slug}/app{app_number}: {e}")
+        
+        self._started_containers.clear()
+    
+    @staticmethod
+    def _update_app_container_status(model_slug: str, app_number: int, status: str) -> None:
+        """Update GeneratedApplication.container_status in the database."""
+        try:
+            from app.models import GeneratedApplication
+            from app.extensions import db
+            
+            app_record = GeneratedApplication.query.filter_by(
+                model_slug=model_slug, app_number=app_number
+            ).first()
+            if app_record:
+                app_record.container_status = status
+                db.session.commit()
+                logger.debug(f"Updated container_status to '{status}' for {model_slug}/app{app_number}")
+        except Exception as e:
+            logger.warning(f"Failed to update container_status for {model_slug}/app{app_number}: {e}")
+            try:
+                from app.extensions import db
+                db.session.rollback()
+            except Exception:
+                pass
     
     async def _precreate_tasks(self, jobs: List[AnalysisJobSpec]) -> None:
         """Pre-create all analysis tasks atomically.
@@ -437,6 +504,7 @@ class ConcurrentAnalysisRunner:
             # Import required modules
             from app.models import AnalysisTask
             from app.constants import AnalysisStatus
+            from app.extensions import db
             
             # Poll for task completion (execution handled by TaskExecutionService daemon)
             poll_interval = 5.0  # seconds
@@ -445,6 +513,7 @@ class ConcurrentAnalysisRunner:
             for poll_count in range(max_polls):
                 # Fetch fresh task state from DB with retry on connection issues
                 try:
+                    db.session.expire_all()
                     task = AnalysisTask.query.filter_by(task_id=job.task_id).first()
                 except Exception as db_error:
                     logger.warning(f"[Job {job_index}] Database query error (will retry): {db_error}")

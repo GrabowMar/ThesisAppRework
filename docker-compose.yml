@@ -19,6 +19,7 @@ services:
       - DATABASE_URL=${DATABASE_URL:-sqlite:////app/instance/app.db}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
       - OPENROUTER_ALLOW_ALL_PROVIDERS=${OPENROUTER_ALLOW_ALL_PROVIDERS:-true}
       - PYTHONUNBUFFERED=1
       # Docker environment flag for inter-container communication
@@ -128,8 +129,8 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-      - PYTHONUNBUFFERED=1
-      # Docker environment flag for inter-container communication
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
+      - PYTHONUNBUFFERED=1      # Docker environment flag for inter-container communication
       - IN_DOCKER=true
       # Load balancing configuration - multiple analyzers for concurrency
       - STATIC_ANALYZER_URLS=ws://static-analyzer:2001,ws://static-analyzer-2:2001,ws://static-analyzer-3:2001,ws://static-analyzer-4:2001

@@ -1,4 +1,4 @@
-{# Status Metrics Panel - Sidebar metrics shown during execution #}
+{# Status Metrics Panel - Compact Sidebar #}
 <div class="card card-sm shadow-sm">
   <div class="card-header py-2">
     <h6 class="card-title mb-0">
@@ -6,77 +6,51 @@
     </h6>
   </div>
   <div class="card-body p-0">
-    {# Status Header with Badge #}
-    <div class="pipeline-status-header px-3 py-2 border-bottom" id="pipeline-status-header">
-      <div class="d-flex align-items-center justify-content-between">
-        <div class="d-flex align-items-center gap-2">
-          <span class="status-dot status-dot-animated bg-primary" id="status-dot"></span>
-          <span class="fw-semibold" id="metrics-status-text">Ready</span>
-        </div>
+    {# Status + Progress #}
+    <div class="px-3 py-2 border-bottom">
+      <div class="d-flex align-items-center justify-content-between mb-1">
         <span class="badge bg-primary-lt text-primary" id="metrics-status-badge">
-          <i class="fa-solid fa-play fa-xs me-1" id="metrics-status-icon"></i>Idle
+          <i class="fa-solid fa-play fa-xs me-1" id="metrics-status-icon"></i><span id="metrics-status-text">Idle</span>
+        </span>
+        <span class="small fw-medium">
+          <span id="metrics-completed" class="text-success">0</span><span class="text-muted">/</span><span id="metrics-total">0</span>
         </span>
       </div>
-      {# Current Stage - shown when running #}
+      <div class="progress progress-sm">
+        <div class="progress-bar bg-success" role="progressbar" id="metrics-progress-bar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+      </div>
       <div class="text-muted small mt-1" id="current-stage-row" style="display: none;">
-        <i class="fa-solid fa-layer-group fa-xs me-1"></i>
-        <span id="metrics-current-stage">-</span>
+        <i class="fa-solid fa-layer-group fa-xs me-1"></i><span id="metrics-current-stage">-</span>
       </div>
     </div>
 
-    {# Metrics Grid #}
-    <div class="pipeline-metrics-grid">
-      {# Progress Row #}
-      <div class="metric-row px-3 py-2 border-bottom">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <span class="text-muted small">Progress</span>
-          <span class="small fw-medium">
-            <span id="metrics-completed" class="text-success">0</span>
-            <span class="text-muted">/</span>
-            <span id="metrics-total">0</span>
-          </span>
-        </div>
-        <div class="progress progress-sm">
-          <div class="progress-bar bg-success" role="progressbar" id="metrics-progress-bar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-        </div>
+    {# Inline Stats #}
+    <div class="px-3 py-2 border-bottom small">
+      <div class="d-flex justify-content-between mb-1">
+        <span class="text-muted">Success Rate</span>
+        <span class="fw-medium" id="metrics-success-rate-value">-</span>
       </div>
-
-      {# Stats Grid - 2x2 #}
-      <div class="row g-0 text-center">
-        <div class="col-6 border-end border-bottom">
-          <div class="px-2 py-2">
-            <div class="h4 mb-0" id="metrics-success-rate-value">-</div>
-            <div class="text-muted small">Success Rate</div>
-          </div>
-        </div>
-        <div class="col-6 border-bottom">
-          <div class="px-2 py-2">
-            <div class="h4 mb-0 text-danger" id="metrics-failures">0</div>
-            <div class="text-muted small">Failures</div>
-          </div>
-        </div>
-        <div class="col-6 border-end">
-          <div class="px-2 py-2">
-            <div class="h5 mb-0 font-monospace" id="metrics-elapsed">00:00:00</div>
-            <div class="text-muted small">Elapsed</div>
-          </div>
-        </div>
-        <div class="col-6">
-          <div class="px-2 py-2">
-            <div class="h5 mb-0 font-monospace" id="metrics-eta">--:--:--</div>
-            <div class="text-muted small">Remaining</div>
-          </div>
-        </div>
+      <div class="d-flex justify-content-between mb-1">
+        <span class="text-muted">Failures</span>
+        <span class="fw-medium text-danger" id="metrics-failures">0</span>
+      </div>
+      <div class="d-flex justify-content-between mb-1">
+        <span class="text-muted">Elapsed</span>
+        <span class="fw-medium font-monospace" id="metrics-elapsed">00:00:00</span>
+      </div>
+      <div class="d-flex justify-content-between">
+        <span class="text-muted">Remaining</span>
+        <span class="fw-medium font-monospace" id="metrics-eta">--:--:--</span>
       </div>
     </div>
 
     {# Quick Actions #}
-    <div class="px-3 py-2 border-top" id="quick-actions-panel">
+    <div class="px-3 py-2" id="quick-actions-panel">
       <div class="d-flex gap-2">
-        <button class="btn btn-sm btn-outline-warning flex-fill" onclick="pausePipeline()" id="quick-pause-btn">
+        <button class="btn btn-sm btn-ghost-warning flex-fill py-1" onclick="pausePipeline()" id="quick-pause-btn">
           <i class="fa-solid fa-pause me-1"></i>Pause
         </button>
-        <button class="btn btn-sm btn-outline-danger flex-fill" onclick="cancelPipeline()" id="quick-cancel-btn">
+        <button class="btn btn-sm btn-ghost-danger flex-fill py-1" onclick="cancelPipeline()" id="quick-cancel-btn">
           <i class="fa-solid fa-stop me-1"></i>Cancel
         </button>
       </div>
@@ -84,22 +58,23 @@
   </div>
 </div>
 
+{# Hidden elements for JS compatibility #}
+<span id="status-dot" style="display:none;"></span>
+
 {# Final Results (shown when complete) #}
 <div class="card card-sm shadow-sm mt-3" id="final-results-panel" style="display: none;">
   <div class="card-status-top bg-success"></div>
   <div class="card-body text-center py-3">
     <div class="mb-2">
-      <span class="avatar avatar-lg bg-success-lt text-success">
-        <i class="fa-solid fa-check fa-lg"></i>
-      </span>
+      <i class="fa-solid fa-check-circle fa-2x text-success"></i>
     </div>
-    <h4 class="mb-1">Pipeline Complete!</h4>
-    <p class="text-muted small mb-3" id="final-summary">All tasks completed successfully</p>
+    <h5 class="mb-1">Pipeline Complete</h5>
+    <p class="text-muted small mb-2" id="final-summary">All tasks completed successfully</p>
     <div class="d-grid gap-2">
-      <a href="{{ url_for('reports.reports_index') }}" class="btn btn-primary">
+      <a href="{{ url_for('reports.reports_index') }}" class="btn btn-sm btn-primary">
         <i class="fa-solid fa-chart-bar me-1"></i>View Reports
       </a>
-      <button class="btn btn-outline-secondary" onclick="resetWizard()">
+      <button class="btn btn-sm btn-ghost-secondary" onclick="resetWizard()">
         <i class="fa-solid fa-redo me-1"></i>New Pipeline
       </button>
     </div>

@@ -494,6 +494,9 @@
                 case 'tool_analysis':
                     renderToolAnalysis();
                     break;
+                case 'generation_analytics':
+                    renderGenerationAnalytics();
+                    break;
                 default:
                     renderGenericReport();
             }
@@ -1921,6 +1924,558 @@
                             },
                             scales: {
                                 y: { beginAtZero: true }
+                            }
+                        }
+                    });
+                }
+            }, 100);
+        }
+
+        // === Generation Analytics Report ===
+        function renderGenerationAnalytics() {
+            const d = reportData;
+            const summary = d.summary || {};
+            const byModel = d.by_model || [];
+            const byTemplate = d.by_template || [];
+            const failureAnalysis = d.failure_analysis || {};
+            const fixEffectiveness = d.fix_effectiveness || {};
+            const attemptsDist = d.attempts_distribution || [];
+            const filters = d.filters_applied || {};
+
+            const totalFixes = (fixEffectiveness.total_automatic_fixes || 0) +
+                (fixEffectiveness.total_llm_fixes || 0) +
+                (fixEffectiveness.total_manual_fixes || 0) +
+                (fixEffectiveness.total_retry_fixes || 0);
+
+            const hasFailures = (summary.failed || 0) > 0;
+            const failureStages = failureAnalysis.by_stage || [];
+            const errorPatterns = failureAnalysis.error_patterns || [];
+            const recentFailures = failureAnalysis.recent_failures || [];
+
+            // Format model name for display
+            function formatModelName(slug) {
+                if (!slug) return 'Unknown';
+                const parts = slug.split('_');
+                const provider = parts[0] || '';
+                const model = parts.slice(1).join('_') || slug;
+                return model;
+            }
+
+            function providerBadge(slug) {
+                if (!slug) return '';
+                const provider = slug.split('_')[0] || '';
+                const colors = {
+                    'openai': 'bg-dark',
+                    'anthropic': 'bg-orange-lt',
+                    'google': 'bg-blue-lt',
+                    'deepseek': 'bg-cyan-lt',
+                    'meta-llama': 'bg-purple-lt',
+                    'mistralai': 'bg-yellow-lt',
+                    'qwen': 'bg-teal-lt',
+                    'z-ai': 'bg-pink-lt'
+                };
+                return `<span class="badge ${colors[provider] || 'bg-secondary-lt'} me-1">${h(provider)}</span>`;
+            }
+
+            function successRateColor(rate) {
+                if (rate >= 95) return 'success';
+                if (rate >= 80) return 'info';
+                if (rate >= 60) return 'warning';
+                return 'danger';
+            }
+
+            let html = `
+        <!-- Summary Metrics -->
+        <div class="research-metrics">
+            <div class="research-metric-card">
+            <div class="research-metric-label"><i class="fa-solid fa-cubes"></i> Total Apps</div>
+            <div class="research-metric-value tone-primary">${formatNumber(summary.total_apps)}</div>
+            <div class="research-metric-hint">Generated applications</div>
+            </div>
+            <div class="research-metric-card">
+            <div class="research-metric-label"><i class="fa-solid fa-circle-check"></i> Successful</div>
+            <div class="research-metric-value tone-success">${formatNumber(summary.successful)}</div>
+            <div class="research-metric-hint">${(summary.success_rate || 0).toFixed(1)}% success rate</div>
+            </div>
+            <div class="research-metric-card">
+            <div class="research-metric-label"><i class="fa-solid fa-circle-xmark"></i> Failed</div>
+            <div class="research-metric-value ${(summary.failed || 0) > 0 ? 'tone-danger' : 'tone-success'}">${formatNumber(summary.failed)}</div>
+            <div class="research-metric-hint">${(100 - (summary.success_rate || 0)).toFixed(1)}% failure rate</div>
+            </div>
+            <div class="research-metric-card">
+            <div class="research-metric-label"><i class="fa-solid fa-robot"></i> Models</div>
+            <div class="research-metric-value">${formatNumber(summary.models_analyzed)}</div>
+            <div class="research-metric-hint">Distinct LLMs</div>
+            </div>
+            <div class="research-metric-card">
+            <div class="research-metric-label"><i class="fa-solid fa-file-code"></i> Templates</div>
+            <div class="research-metric-value">${formatNumber(summary.templates_analyzed)}</div>
+            <div class="research-metric-hint">App templates used</div>
+            </div>
+            <div class="research-metric-card">
+            <div class="research-metric-label"><i class="fa-solid fa-wrench"></i> Total Fixes</div>
+            <div class="research-metric-value ${totalFixes > 0 ? 'tone-warning' : ''}">${formatNumber(totalFixes)}</div>
+            <div class="research-metric-hint">Post-gen corrections</div>
+            </div>
+        </div>
+
+        <!-- Success Rate Overview & Fix Effectiveness -->
+        <div class="research-section">
+            <div class="research-data-grid cols-2">
+            <!-- Overall Success Rate -->
+            <div class="card">
+                <div class="card-header">
+                <h3 class="card-title"><i class="fa-solid fa-gauge-high me-2"></i>Overall Success Rate</h3>
+                </div>
+                <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="avatar avatar-xl bg-${successRateColor(summary.success_rate || 0)}-lt me-3" style="width:64px;height:64px;">
+                    <span class="h1 mb-0 text-${successRateColor(summary.success_rate || 0)}">${(summary.success_rate || 0).toFixed(0)}%</span>
+                    </div>
+                    <div>
+                    <div class="h3 mb-0">Generation Success</div>
+                    <div class="text-muted">${formatNumber(summary.successful)} of ${formatNumber(summary.total_apps)} apps generated successfully</div>
+                    </div>
+                </div>
+                <div class="progress progress-separated mb-3" style="height: 10px;">
+                    <div class="progress-bar bg-success" style="width: ${summary.success_rate || 0}%"></div>
+                    <div class="progress-bar bg-danger" style="width: ${100 - (summary.success_rate || 0)}%"></div>
+                </div>
+                <div class="row text-center">
+                    <div class="col">
+                    <div class="text-success fw-bold">${formatNumber(summary.successful)}</div>
+                    <small class="text-muted">Successful</small>
+                    </div>
+                    <div class="col">
+                    <div class="text-danger fw-bold">${formatNumber(summary.failed)}</div>
+                    <small class="text-muted">Failed</small>
+                    </div>
+                    <div class="col">
+                    <div class="fw-bold">${formatNumber(summary.models_analyzed)}</div>
+                    <small class="text-muted">Models</small>
+                    </div>
+                    <div class="col">
+                    <div class="fw-bold">${formatNumber(summary.templates_analyzed)}</div>
+                    <small class="text-muted">Templates</small>
+                    </div>
+                </div>
+                ${filters.days_back ? `
+                <div class="mt-3 text-center">
+                    <span class="badge bg-azure-lt"><i class="fa-solid fa-calendar me-1"></i>Last ${filters.days_back} days</span>
+                    ${filters.model_slug ? `<span class="badge bg-purple-lt ms-1"><i class="fa-solid fa-robot me-1"></i>${h(filters.model_slug)}</span>` : ''}
+                    ${filters.template_slug ? `<span class="badge bg-teal-lt ms-1"><i class="fa-solid fa-file-code me-1"></i>${h(filters.template_slug)}</span>` : ''}
+                </div>` : ''}
+                </div>
+            </div>
+
+            <!-- Fix Effectiveness -->
+            <div class="card">
+                <div class="card-header">
+                <h3 class="card-title"><i class="fa-solid fa-screwdriver-wrench me-2"></i>Fix Effectiveness</h3>
+                </div>
+                <div class="card-body">
+                ${totalFixes > 0 ? `
+                <div class="chart-container" style="height:200px;">
+                    <canvas id="fixEffectivenessChart"></canvas>
+                </div>
+                <hr class="my-3">
+                ` : ''}
+                <div class="row g-3">
+                    <div class="col-6">
+                    <div class="d-flex align-items-center">
+                        <span class="avatar avatar-sm bg-success-lt me-2"><i class="fa-solid fa-wand-magic-sparkles text-success"></i></span>
+                        <div>
+                        <div class="fw-bold">${formatNumber(fixEffectiveness.total_automatic_fixes)}</div>
+                        <small class="text-muted">Automatic Fixes</small>
+                        </div>
+                    </div>
+                    </div>
+                    <div class="col-6">
+                    <div class="d-flex align-items-center">
+                        <span class="avatar avatar-sm bg-info-lt me-2"><i class="fa-solid fa-brain text-info"></i></span>
+                        <div>
+                        <div class="fw-bold">${formatNumber(fixEffectiveness.total_llm_fixes)}</div>
+                        <small class="text-muted">LLM Fixes</small>
+                        </div>
+                    </div>
+                    </div>
+                    <div class="col-6">
+                    <div class="d-flex align-items-center">
+                        <span class="avatar avatar-sm bg-warning-lt me-2"><i class="fa-solid fa-user-pen text-warning"></i></span>
+                        <div>
+                        <div class="fw-bold">${formatNumber(fixEffectiveness.total_manual_fixes)}</div>
+                        <small class="text-muted">Manual Fixes</small>
+                        </div>
+                    </div>
+                    </div>
+                    <div class="col-6">
+                    <div class="d-flex align-items-center">
+                        <span class="avatar avatar-sm bg-secondary-lt me-2"><i class="fa-solid fa-rotate text-secondary"></i></span>
+                        <div>
+                        <div class="fw-bold">${formatNumber(fixEffectiveness.total_retry_fixes)}</div>
+                        <small class="text-muted">Retry Fixes</small>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                <div class="mt-3 text-muted small text-center">
+                    <i class="fa-solid fa-circle-info me-1"></i>
+                    ${formatNumber(fixEffectiveness.automatic_fixes)} apps had automatic fixes,
+                    ${formatNumber(fixEffectiveness.llm_fixes)} had LLM fixes
+                </div>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <!-- Success Rate by Model -->
+        <div class="research-section">
+            <div class="research-section-header">
+            <h3 class="research-section-title"><i class="fa-solid fa-robot"></i> Success Rate by Model</h3>
+            </div>
+            <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                <table class="table table-vcenter card-table table-hover">
+                    <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th class="text-center" style="width:80px;">Total</th>
+                        <th class="text-center" style="width:80px;">Success</th>
+                        <th class="text-center" style="width:80px;">Failed</th>
+                        <th style="width:200px;">Success Rate</th>
+                        <th class="text-center" style="width:100px;">Avg Attempts</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    ${byModel.map(m => `
+                    <tr>
+                        <td>
+                        ${providerBadge(m.model)}
+                        <strong>${h(formatModelName(m.model))}</strong>
+                        </td>
+                        <td class="text-center">${formatNumber(m.total)}</td>
+                        <td class="text-center text-success fw-bold">${formatNumber(m.success)}</td>
+                        <td class="text-center ${m.failed > 0 ? 'text-danger fw-bold' : 'text-muted'}">${formatNumber(m.failed)}</td>
+                        <td>
+                        <div class="d-flex align-items-center">
+                            <div class="flex-fill me-2">
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-${successRateColor(m.success_rate)}" style="width: ${m.success_rate}%"></div>
+                            </div>
+                            </div>
+                            <span class="badge bg-${successRateColor(m.success_rate)}-lt">${m.success_rate.toFixed(1)}%</span>
+                        </div>
+                        </td>
+                        <td class="text-center">
+                        ${m.avg_attempts > 1 ? `<span class="badge bg-warning-lt">${m.avg_attempts}</span>` : `<span class="text-muted">${m.avg_attempts}</span>`}
+                        </td>
+                    </tr>
+                    `).join('')}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <!-- Success Rate by Template -->
+        <div class="research-section">
+            <div class="research-section-header">
+            <h3 class="research-section-title"><i class="fa-solid fa-file-code"></i> Success Rate by Template</h3>
+            </div>
+            <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                <table class="table table-vcenter card-table table-hover">
+                    <thead>
+                    <tr>
+                        <th>Template</th>
+                        <th class="text-center" style="width:80px;">Total</th>
+                        <th class="text-center" style="width:80px;">Success</th>
+                        <th class="text-center" style="width:80px;">Failed</th>
+                        <th style="width:250px;">Success Rate</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    ${byTemplate.map(t => {
+                        const tmplName = (t.template || 'unknown').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        const tmplIcon = t.template === 'unknown' ? 'fa-question' :
+                            t.template.startsWith('crud') ? 'fa-database' :
+                            t.template.startsWith('auth') ? 'fa-lock' :
+                            t.template.startsWith('api') ? 'fa-plug' :
+                            t.template.startsWith('booking') ? 'fa-calendar-check' :
+                            t.template.startsWith('collaboration') ? 'fa-users' :
+                            t.template.startsWith('content') ? 'fa-newspaper' :
+                            t.template.startsWith('crm') ? 'fa-address-book' :
+                            t.template.startsWith('dataviz') ? 'fa-chart-line' :
+                            'fa-file-code';
+                        return `
+                    <tr>
+                        <td>
+                        <span class="avatar avatar-xs bg-azure-lt me-2"><i class="fa-solid ${tmplIcon} text-azure"></i></span>
+                        <strong>${h(tmplName)}</strong>
+                        </td>
+                        <td class="text-center">${formatNumber(t.total)}</td>
+                        <td class="text-center text-success fw-bold">${formatNumber(t.success)}</td>
+                        <td class="text-center ${t.failed > 0 ? 'text-danger fw-bold' : 'text-muted'}">${formatNumber(t.failed)}</td>
+                        <td>
+                        <div class="d-flex align-items-center">
+                            <div class="flex-fill me-2">
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-${successRateColor(t.success_rate)}" style="width: ${t.success_rate}%"></div>
+                            </div>
+                            </div>
+                            <span class="badge bg-${successRateColor(t.success_rate)}-lt">${t.success_rate.toFixed(1)}%</span>
+                        </div>
+                        </td>
+                    </tr>`;
+                    }).join('')}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <!-- Generation Attempts Distribution -->
+        ${attemptsDist.length > 0 ? `
+        <div class="research-section">
+            <div class="research-section-header">
+            <h3 class="research-section-title"><i class="fa-solid fa-rotate"></i> Generation Attempts Distribution</h3>
+            </div>
+            <div class="card">
+            <div class="card-body">
+                <div class="row g-3">
+                ${attemptsDist.map(a => {
+                    const pct = summary.total_apps > 0 ? ((a.count / summary.total_apps) * 100).toFixed(1) : 0;
+                    return `
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card card-sm">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                        <span class="avatar bg-${a.attempts === 1 ? 'success' : a.attempts <= 2 ? 'warning' : 'danger'}-lt me-3">
+                            <strong>${a.attempts}</strong>
+                        </span>
+                        <div>
+                            <div class="fw-bold">${formatNumber(a.count)} apps</div>
+                            <small class="text-muted">${a.attempts === 1 ? 'First try' : a.attempts + ' attempts'} · ${pct}%</small>
+                        </div>
+                        </div>
+                    </div>
+                    </div>
+                </div>`;
+                }).join('')}
+                </div>
+            </div>
+            </div>
+        </div>
+        ` : ''}
+
+        <!-- Failure Analysis (only shown if there are failures) -->
+        ${hasFailures ? `
+        <div class="research-section">
+            <div class="research-section-header">
+            <h3 class="research-section-title"><i class="fa-solid fa-triangle-exclamation"></i> Failure Analysis</h3>
+            </div>
+            <div class="research-data-grid cols-2">
+            
+            <!-- Failure by Stage -->
+            ${failureStages.length > 0 ? `
+            <div class="card">
+                <div class="card-header">
+                <h3 class="card-title"><i class="fa-solid fa-layer-group me-2"></i>Failures by Stage</h3>
+                </div>
+                <div class="card-body">
+                ${failureStages.map(s => `
+                <div class="d-flex align-items-center mb-3">
+                    <span class="badge bg-danger me-2" style="min-width: 32px;">${formatNumber(s.count)}</span>
+                    <div class="flex-fill">
+                    <div class="fw-bold text-capitalize">${h((s.stage || 'unknown').replace(/_/g, ' '))}</div>
+                    <div class="progress mt-1" style="height: 4px;">
+                        <div class="progress-bar bg-danger" style="width: ${summary.failed > 0 ? (s.count / summary.failed * 100) : 0}%"></div>
+                    </div>
+                    </div>
+                </div>
+                `).join('')}
+                </div>
+            </div>
+            ` : ''}
+            
+            <!-- Error Patterns -->
+            ${errorPatterns.length > 0 ? `
+            <div class="card">
+                <div class="card-header">
+                <h3 class="card-title"><i class="fa-solid fa-bug me-2"></i>Common Error Patterns</h3>
+                </div>
+                <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    ${errorPatterns.slice(0, 10).map(e => `
+                    <div class="list-group-item">
+                    <div class="d-flex justify-content-between">
+                        <code class="small">${h(e.pattern)}</code>
+                        <span class="badge bg-danger-lt">${formatNumber(e.count)}×</span>
+                    </div>
+                    </div>
+                    `).join('')}
+                </div>
+                </div>
+            </div>
+            ` : ''}
+            </div>
+        </div>
+        
+        <!-- Recent Failures -->
+        ${recentFailures.length > 0 ? `
+        <div class="research-section">
+            <div class="research-section-header">
+            <h3 class="research-section-title"><i class="fa-solid fa-clock-rotate-left"></i> Recent Failures</h3>
+            </div>
+            <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                <table class="table table-vcenter card-table table-hover">
+                    <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>App</th>
+                        <th>Template</th>
+                        <th>Stage</th>
+                        <th>Error</th>
+                        <th>Attempts</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    ${recentFailures.map(f => `
+                    <tr>
+                        <td>${providerBadge(f.model_slug)} <strong>${h(formatModelName(f.model_slug))}</strong></td>
+                        <td><span class="badge bg-secondary-lt">#${f.app_number}</span></td>
+                        <td><span class="text-muted">${h((f.template || 'unknown').replace(/_/g, ' '))}</span></td>
+                        <td><span class="badge bg-orange-lt text-capitalize">${h((f.failure_stage || 'unknown').replace(/_/g, ' '))}</span></td>
+                        <td><code class="small text-truncate d-inline-block" style="max-width: 300px;" title="${h(f.error_message)}">${h(f.error_message || 'No error message')}</code></td>
+                        <td class="text-center">${f.attempts || 1}</td>
+                    </tr>
+                    `).join('')}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+            </div>
+        </div>
+        ` : ''}
+        ` : `
+        <!-- No Failures Banner -->
+        <div class="research-section">
+            <div class="card border-success">
+            <div class="card-status-top bg-success"></div>
+            <div class="card-body text-center py-4">
+                <div class="avatar avatar-xl bg-success-lt mb-3" style="width:64px;height:64px;margin:0 auto;">
+                <i class="fa-solid fa-check-double fa-2x text-success"></i>
+                </div>
+                <h3 class="mb-1">Perfect Generation Record</h3>
+                <p class="text-muted mb-0">All ${formatNumber(summary.total_apps)} applications were generated successfully with no failures.</p>
+            </div>
+            </div>
+        </div>
+        `}
+
+        <!-- Model Success Chart -->
+        <div class="research-section">
+            <div class="research-section-header">
+            <h3 class="research-section-title"><i class="fa-solid fa-chart-bar"></i> Model Performance Comparison</h3>
+            </div>
+            <div class="card">
+            <div class="card-body">
+                <div class="chart-container" style="height: ${Math.max(250, byModel.length * 35)}px;">
+                <canvas id="modelSuccessChart"></canvas>
+                </div>
+            </div>
+            </div>
+        </div>
+        `;
+
+            reportContent.innerHTML = html;
+
+            // Render charts
+            setTimeout(() => {
+                // Fix Effectiveness Doughnut
+                const fixCtx = document.getElementById('fixEffectivenessChart');
+                if (fixCtx && totalFixes > 0) {
+                    new Chart(fixCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Automatic', 'LLM', 'Manual', 'Retry'],
+                            datasets: [{
+                                data: [
+                                    fixEffectiveness.total_automatic_fixes || 0,
+                                    fixEffectiveness.total_llm_fixes || 0,
+                                    fixEffectiveness.total_manual_fixes || 0,
+                                    fixEffectiveness.total_retry_fixes || 0
+                                ],
+                                backgroundColor: [
+                                    'rgba(47, 179, 68, 0.8)',
+                                    'rgba(32, 107, 196, 0.8)',
+                                    'rgba(247, 168, 21, 0.8)',
+                                    'rgba(152, 157, 163, 0.8)'
+                                ],
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: { usePointStyle: true, padding: 15 }
+                                }
+                            },
+                            cutout: '60%'
+                        }
+                    });
+                }
+
+                // Model Success Rate Bar Chart
+                const modelCtx = document.getElementById('modelSuccessChart');
+                if (modelCtx && byModel.length > 0) {
+                    new Chart(modelCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: byModel.map(m => formatModelName(m.model)),
+                            datasets: [
+                                {
+                                    label: 'Successful',
+                                    data: byModel.map(m => m.success),
+                                    backgroundColor: 'rgba(47, 179, 68, 0.8)',
+                                    borderRadius: 4
+                                },
+                                {
+                                    label: 'Failed',
+                                    data: byModel.map(m => m.failed),
+                                    backgroundColor: 'rgba(214, 57, 57, 0.8)',
+                                    borderRadius: 4
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            indexAxis: 'y',
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                    labels: { usePointStyle: true, padding: 15 }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    stacked: true,
+                                    beginAtZero: true,
+                                    title: { display: true, text: 'Number of Applications' }
+                                },
+                                y: {
+                                    stacked: true
+                                }
                             }
                         }
                     });

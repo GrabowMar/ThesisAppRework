@@ -238,7 +238,7 @@ def index():
     templates = _load_available_templates()
     existing_apps = _load_existing_apps()
     saved_settings = _load_user_settings(current_user.id) if current_user.is_authenticated else []
-    recent_pipelines = _load_recent_pipelines(current_user.id, limit=10) if current_user.is_authenticated else []
+    recent_pipelines = _load_recent_pipelines(current_user.id, limit=50) if current_user.is_authenticated else []
     active_pipeline = _get_active_pipeline(current_user.id) if current_user.is_authenticated else None
     
     return render_template(

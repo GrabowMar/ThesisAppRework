@@ -1536,8 +1536,9 @@ function closeProviderModal() {
       bsModal.hide();
     } else {
       modal.remove();
-      document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
       document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('overflow');
+      document.body.style.removeProperty('padding-right');
     }
   }
 }
@@ -1682,8 +1683,9 @@ function closeVariantModal() {
       bsModal.hide();
     } else {
       modal.remove();
-      document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
       document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('overflow');
+      document.body.style.removeProperty('padding-right');
     }
   }
 }

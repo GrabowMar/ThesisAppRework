@@ -947,12 +947,12 @@ class ModelRankingsService:
             entry['accessibility_score'] = self._compute_accessibility_score(entry)
 
             # Compute final MSS
-            entry['mss'] = self._compute_mss(entry)
+            entry['mss_score'] = self._compute_mss(entry)
 
             aggregated.append(entry)
         
-        # Sort by composite score (highest first), handling None values
-        aggregated.sort(key=lambda x: x.get('composite_score') or 0, reverse=True)
+        # Sort by MSS score (highest first), handling None values
+        aggregated.sort(key=lambda x: x.get('mss_score') or 0, reverse=True)
         
         # Cache results
         self._cache_rankings(aggregated)
@@ -1237,8 +1237,8 @@ class ModelRankingsService:
                 total_score += normalized * weight
                 total_weight += weight
 
-        # If we have at least 50% of benchmarks, compute weighted average
-        if total_weight >= 0.50:  # At least 50% of total weight (1.0)
+        # Compute weighted average if we have at least 1 benchmark
+        if total_weight > 0:
             return total_score / total_weight
         else:
             return 0.0  # Not enough data
@@ -1699,11 +1699,16 @@ class ModelRankingsService:
             
             # Has benchmarks filter
             if has_benchmarks:
-                has_any = any([
-                    entry.get('humaneval_plus'),
-                    entry.get('swe_bench_verified'),
-                    entry.get('bigcodebench_hard'),
-                    entry.get('livebench_coding')
+                has_any = entry.get('benchmark_score', 0) > 0 or any([
+                    entry.get('bfcl_score'),
+                    entry.get('webdev_elo'),
+                    entry.get('livebench_coding'),
+                    entry.get('livecodebench'),
+                    entry.get('arc_agi_score'),
+                    entry.get('simplebench_score'),
+                    entry.get('gpqa_score'),
+                    entry.get('seal_coding_score'),
+                    entry.get('canaicode_score'),
                 ])
                 if not has_any:
                     continue

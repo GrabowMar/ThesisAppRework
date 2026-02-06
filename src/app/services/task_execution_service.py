@@ -54,6 +54,7 @@ from app.utils.sarif_utils import (
 )
 from app.utils.tool_normalization import (
     normalize_severity,
+    get_severity_breakdown,
     collect_normalized_tools,
     aggregate_findings_from_services,
     categorize_services,
@@ -2558,10 +2559,12 @@ class TaskExecutionService:
                     overall_status = 'failed'
                 
                 # Build unified payload matching analyzer_manager's structure
+                severity_breakdown = get_severity_breakdown(all_findings)
                 unified_payload = {
                     'task': {'task_id': main_task_id},
                     'summary': {
                         'total_findings': len(all_findings),
+                        'severity_breakdown': severity_breakdown,
                         'services_executed': len(all_services),
                         'tools_executed': len(combined_tool_results),
                         'status': overall_status,

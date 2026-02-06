@@ -162,11 +162,12 @@ ThesisApp.initHtmxModal = function(modalOrId, options) {
   modal.addEventListener('hidden.bs.modal', function cleanupModal() {
     bsModal.dispose();
     modal.remove();
-    // Also clean up any orphan backdrops (defensive, shouldn't be needed)
-    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-    document.body.classList.remove('modal-open');
-    document.body.style.removeProperty('overflow');
-    document.body.style.removeProperty('padding-right');
+    // Clean up body state if no other modals are open
+    if (!document.querySelector('.modal.show')) {
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('overflow');
+      document.body.style.removeProperty('padding-right');
+    }
   }, { once: true });
   
   return bsModal;

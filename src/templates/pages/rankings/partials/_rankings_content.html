@@ -17,25 +17,39 @@
 				<p class="text-muted small mb-2">
 					<strong>MSS = 0.35×Adoption + 0.30×Benchmarks + 0.20×CostEfficiency + 0.15×Accessibility</strong>
 				</p>
-				<div class="d-flex flex-wrap gap-2">
+				<div class="d-flex flex-wrap gap-2 mb-2">
 					<span class="badge bg-azure-lt" title="35% - OpenRouter rank, community usage"><i class="fa-solid fa-users me-1"></i>Adoption (35%)</span>
-					<span class="badge bg-green-lt" title="30% - BFCL, WebDev Arena, ARC-AGI, SimpleBench, LiveBench, LiveCodeBench"><i class="fa-solid fa-chart-bar me-1"></i>Benchmarks (30%)</span>
+					<span class="badge bg-green-lt" title="30% - 9 benchmarks: BFCL, WebDev, LiveBench, LiveCodeBench, ARC-AGI, SimpleBench, GPQA, SEAL, CanAiCode"><i class="fa-solid fa-chart-bar me-1"></i>Benchmarks (30%)</span>
 					<span class="badge bg-yellow-lt" title="20% - Price per million tokens"><i class="fa-solid fa-dollar-sign me-1"></i>Cost Efficiency (20%)</span>
 					<span class="badge bg-purple-lt" title="15% - API availability, free tier"><i class="fa-solid fa-key me-1"></i>Accessibility (15%)</span>
 				</div>
+				<p class="text-muted small mb-0">
+					Benchmark component uses 9 weighted sources: BFCL (15%), WebDev Arena (15%), LiveBench (10%), LiveCodeBench (10%), ARC-AGI (10%), SimpleBench (10%), CanAiCode (10%), SEAL (10%), GPQA (10%).
+				</p>
 			</div>
 			<div class="col-lg-4 text-lg-end">
-				<div class="d-flex flex-wrap gap-2 justify-content-lg-end">
-					<form action="{{ url_for('rankings.refresh_rankings') }}" method="POST" class="d-inline">
-						<button type="submit" class="btn btn-sm btn-outline-primary" title="Quick refresh using static curated data (instant)">
-							<i class="fa-solid fa-sync-alt me-1"></i>Refresh (Static)
-						</button>
-					</form>
-					<form action="{{ url_for('rankings.refresh_rankings_live') }}" method="POST" class="d-inline">
-						<button type="submit" class="btn btn-sm btn-warning" title="Fetch from live API sources (10-30 seconds)">
-							<i class="fa-solid fa-cloud-download-alt me-1"></i>Fetch Live
-						</button>
-					</form>
+				<div class="d-flex flex-column gap-2 align-items-lg-end">
+					<div class="d-flex flex-wrap gap-2">
+						<form action="{{ url_for('rankings.refresh_rankings') }}" method="POST" class="d-inline">
+							<button type="submit" class="btn btn-sm btn-outline-primary" title="Quick refresh using cached data (instant)">
+								<i class="fa-solid fa-sync-alt me-1"></i>Refresh
+							</button>
+						</form>
+						<form action="{{ url_for('rankings.refresh_rankings_live') }}" method="POST" class="d-inline">
+							<button type="submit" class="btn btn-sm btn-warning" title="Scrape live data from all 9 benchmark leaderboards (~10-30s)">
+								<i class="fa-solid fa-cloud-download-alt me-1"></i>Fetch Live
+							</button>
+						</form>
+					</div>
+					{% if fetch_status and fetch_status.get('sources') %}
+					<div id="fetch-status-summary" class="d-flex flex-wrap gap-1">
+						{% set ok = fetch_status.sources.values()|selectattr('status', 'equalto', 'success')|list|length %}
+						{% set total_sources = fetch_status.sources|length %}
+						<span class="badge bg-{{ 'success' if ok == total_sources else ('warning' if ok > 0 else 'danger') }}-lt small">
+							<i class="fa-solid fa-{{ 'check-circle' if ok == total_sources else 'exclamation-circle' }} me-1"></i>{{ ok }}/{{ total_sources }} sources
+						</span>
+					</div>
+					{% endif %}
 				</div>
 			</div>
 		</div>
@@ -48,55 +62,38 @@
 		<div class="d-flex flex-column gap-2">
 			<div class="d-flex flex-wrap align-items-center gap-2">
 				<span class="text-muted small fw-bold">
-					<i class="fa-solid fa-star text-warning me-1"></i>Featured:
+					<i class="fa-solid fa-code me-1"></i>Coding Benchmarks:
 				</span>
-				<a href="https://huggingface.co/collections/open-llm-leaderboard/the-big-benchmarks-collection" target="_blank" rel="noopener" class="btn btn-sm btn-warning" title="HuggingFace Big Benchmarks Collection">
-					<i class="fa-solid fa-trophy me-1"></i>HF Big Benchmarks
-				</a>
-				<a href="https://openrouter.ai/rankings" target="_blank" rel="noopener" class="btn btn-sm btn-primary" title="OpenRouter Model Rankings">
-					<i class="fa-solid fa-route me-1"></i>OpenRouter
-				</a>
-				<a href="https://huggingface.co/spaces/lmarena-ai/lmarena-leaderboard" target="_blank" rel="noopener" class="btn btn-sm btn-success" title="LM Arena - Chatbot Arena Leaderboard">
-					<i class="fa-solid fa-comments me-1"></i>LM Arena
-				</a>
-				<a href="https://scale.com/leaderboard" target="_blank" rel="noopener" class="btn btn-sm btn-info" title="Scale AI Leaderboard">
-					<i class="fa-solid fa-balance-scale me-1"></i>Scale AI
-				</a>
-			</div>
-			<div class="d-flex flex-wrap align-items-center gap-2">
-				<span class="text-muted small fw-bold">
-					<i class="fa-solid fa-code me-1"></i>Coding (Ch. 4):
-				</span>
-				<a href="https://gorilla.cs.berkeley.edu/leaderboard.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="BFCL - Berkeley Function Calling Leaderboard">
+				<a href="https://gorilla.cs.berkeley.edu/leaderboard.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="BFCL - Berkeley Function Calling Leaderboard (15%)">
 					<i class="fa-solid fa-phone me-1"></i>BFCL
 				</a>
-				<a href="https://web.lmarena.ai/leaderboard" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="WebDev Arena - Web Development">
+				<a href="https://arena.ai/leaderboard" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="WebDev Arena - Web Development (15%)">
 					<i class="fa-solid fa-globe me-1"></i>WebDev Arena
 				</a>
-				<a href="https://livecodebench.github.io/leaderboard.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-danger" title="LiveCodeBench">
+				<a href="https://livecodebench.github.io/leaderboard.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-danger" title="LiveCodeBench (10%)">
 					<i class="fa-solid fa-laptop-code me-1"></i>LiveCodeBench
 				</a>
-				<a href="https://huggingface.co/spaces/canaicode/canaicode-leaderboard" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info" title="CanAiCode - Coding Assessment">
+				<a href="https://huggingface.co/spaces/canaicode/canaicode-leaderboard" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info" title="CanAiCode - Coding Assessment (10%)">
 					<i class="fa-solid fa-file-code me-1"></i>CanAiCode
 				</a>
-				<a href="https://scale.com/leaderboard/seal_coding" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="SEAL Showdown - Coding">
+				<a href="https://scale.com/leaderboard" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="SEAL Showdown - Coding (10%)">
 					<i class="fa-solid fa-shield-alt me-1"></i>SEAL
 				</a>
 			</div>
 			<div class="d-flex flex-wrap align-items-center gap-2">
 				<span class="text-muted small fw-bold">
-					<i class="fa-solid fa-brain me-1"></i>Reasoning (Ch. 4):
+					<i class="fa-solid fa-brain me-1"></i>Reasoning Benchmarks:
 				</span>
-				<a href="https://livebench.ai/#/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-warning" title="LiveBench - Contamination-Free Benchmark">
+				<a href="https://livebench.ai/#/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-warning" title="LiveBench - Contamination-Free (10%)">
 					<i class="fa-solid fa-chart-line me-1"></i>LiveBench
 				</a>
-				<a href="https://arcprize.org/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-purple" title="ARC-AGI - Abstract Reasoning">
+				<a href="https://arcprize.org/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-purple" title="ARC-AGI - Abstract Reasoning (10%)">
 					<i class="fa-solid fa-lightbulb me-1"></i>ARC-AGI
 				</a>
-				<a href="https://simple-bench.com" target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark" title="SimpleBench - Common Sense Reasoning">
+				<a href="https://simple-bench.com" target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark" title="SimpleBench - Common Sense (10%)">
 					<i class="fa-solid fa-cube me-1"></i>SimpleBench
 				</a>
-				<a href="https://huggingface.co/datasets/Idavidrein/gpqa" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="GPQA - Graduate-Level Q&A">
+				<a href="https://huggingface.co/datasets/Idavidrein/gpqa" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="GPQA - Graduate-Level Q&A (10%)">
 					<i class="fa-solid fa-graduation-cap me-1"></i>GPQA
 				</a>
 			</div>
@@ -159,11 +156,6 @@
 					<span class="input-group-text"><i class="fa-solid fa-search"></i></span>
 					<input type="text" id="ranking-search" class="form-control" placeholder="Search by model name, provider, or ID..." value="{{ search_term }}" onkeyup="debounceRankingSearch()" />
 					<button class="btn btn-outline-secondary" onclick="clearRankingSearch()" type="button" title="Clear search"><i class="fa-solid fa-xmark"></i></button>
-					<button class="btn btn-outline-primary" onclick="toggleAdvancedFilters()" type="button" title="Advanced filters">
-						<i class="fa-solid fa-sliders-h me-1"></i>
-						<span class="d-none d-md-inline">Weights & Filters</span>
-						<span class="badge bg-primary ms-1" id="active-filters-count" style="display: none;">0</span>
-					</button>
 				</div>
 			</div>
 		</div>
@@ -233,100 +225,41 @@
 				</button>
 			</div>
 		</div>
-
-		{# Advanced Filters / Weights Panel (Collapsible) #}
-		<div id="advanced-filters-panel" class="mt-3" style="display: none;">
-			<div class="card">
-				<div class="card-header">
-					<h4 class="card-title mb-0"><i class="fa-solid fa-balance-scale me-2"></i>Composite Score Weights</h4>
-				</div>
-				<div class="card-body">
-					<p class="text-muted small mb-3">Adjust benchmark weights to customize the composite ranking. Total should equal 100%.</p>
-					<div class="row g-4">
-						{# Weight Sliders #}
-						<div class="col-md-6">
-							<div class="mb-3">
-								<label class="form-label d-flex justify-content-between">
-									<span><i class="fa-solid fa-code text-primary me-1"></i>HumanEval+</span>
-									<span class="badge bg-primary" id="weight_humaneval_val">{{ default_weights.humaneval_plus }}%</span>
-								</label>
-								<input type="range" class="form-range weight-input" id="weight_humaneval" min="0" max="100" value="{{ default_weights.humaneval_plus }}" oninput="updateWeightDisplay(this)">
-							</div>
-							<div class="mb-3">
-								<label class="form-label d-flex justify-content-between">
-									<span><i class="fa-solid fa-bug text-success me-1"></i>SWE-bench Verified</span>
-									<span class="badge bg-success" id="weight_swebench_val">{{ default_weights.swe_bench_verified }}%</span>
-								</label>
-								<input type="range" class="form-range weight-input" id="weight_swebench" min="0" max="100" value="{{ default_weights.swe_bench_verified }}" oninput="updateWeightDisplay(this)">
-							</div>
-							<div class="mb-3">
-								<label class="form-label d-flex justify-content-between">
-									<span><i class="fa-solid fa-database text-info me-1"></i>BigCodeBench Hard</span>
-									<span class="badge bg-info" id="weight_bigcode_val">{{ default_weights.bigcodebench_hard }}%</span>
-								</label>
-								<input type="range" class="form-range weight-input" id="weight_bigcode" min="0" max="100" value="{{ default_weights.bigcodebench_hard }}" oninput="updateWeightDisplay(this)">
-							</div>
-						</div>
-						<div class="col-md-6">
-							<div class="mb-3">
-								<label class="form-label d-flex justify-content-between">
-									<span><i class="fa-solid fa-chart-line text-warning me-1"></i>LiveBench Coding</span>
-									<span class="badge bg-warning" id="weight_livebench_val">{{ default_weights.livebench_coding }}%</span>
-								</label>
-								<input type="range" class="form-range weight-input" id="weight_livebench" min="0" max="100" value="{{ default_weights.livebench_coding }}" oninput="updateWeightDisplay(this)">
-							</div>
-							<div class="mb-3">
-								<label class="form-label d-flex justify-content-between">
-									<span><i class="fa-solid fa-tasks text-secondary me-1"></i>MBPP+</span>
-									<span class="badge bg-secondary" id="weight_mbpp_val">{{ default_weights.mbpp_plus }}%</span>
-								</label>
-								<input type="range" class="form-range weight-input" id="weight_mbpp" min="0" max="100" value="{{ default_weights.mbpp_plus }}" oninput="updateWeightDisplay(this)">
-							</div>
-							<div class="d-flex justify-content-between align-items-center border-top pt-3 mt-2">
-								<span class="fw-bold">Total:</span>
-								<span id="weightTotal" class="badge bg-primary fs-5">100%</span>
-							</div>
-						</div>
-					</div>
-					{# Filter Actions #}
-					<div class="row mt-4">
-						<div class="col-12">
-							<div class="d-flex justify-content-between align-items-center">
-								<button class="btn btn-outline-secondary btn-sm" onclick="resetWeights()" type="button">
-									<i class="fa-solid fa-undo me-1"></i>Reset Defaults
-								</button>
-								<button class="btn btn-primary btn-sm" onclick="recalculateComposite()" type="button">
-									<i class="fa-solid fa-calculator me-1"></i>Recalculate & Sort
-								</button>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
 	</div>
 	<div class="table-responsive">
-		<table class="table table-striped table-vcenter table-hover table-sm card-table mb-0" id="rankings-table">
+		<table class="table table-striped table-vcenter table-hover table-sm card-table mb-0" id="rankings-table" style="font-size: 0.8125rem;">
 			<thead>
 				<tr>
-					<th class="w-1">
+					<th class="w-1" rowspan="2">
 						<label class="form-check">
 							<input type="checkbox" id="select-all-rankings" class="form-check-input" onchange="toggleSelectAllRankings()" />
 						</label>
 					</th>
-					<th class="text-nowrap">#</th>
-					<th class="text-nowrap sortable" data-column="name" data-type="string">Model</th>
-					<th class="text-nowrap sortable active sort-desc" data-column="mss" data-type="number" title="Model Selection Score (Chapter 4)">MSS</th>
-					<th class="text-nowrap sortable" data-column="adoption" data-type="number" title="Adoption Score (35%)">Adopt</th>
-					<th class="text-nowrap sortable" data-column="benchmark" data-type="number" title="Benchmark Score (30%)">Bench</th>
-					<th class="text-nowrap sortable" data-column="cost" data-type="number" title="Cost Efficiency (20%)">Cost</th>
-					<th class="text-nowrap sortable" data-column="access" data-type="number" title="Accessibility (15%)">Access</th>
-					<th class="text-nowrap sortable" data-column="bfcl" data-type="number" title="Berkeley Function Calling Leaderboard">BFCL</th>
-					<th class="text-nowrap sortable" data-column="webdev" data-type="number" title="WebDev Arena Elo">WebDev</th>
-					<th class="text-nowrap sortable" data-column="livebench" data-type="number" title="LiveBench Coding">Live</th>
-					<th class="text-nowrap sortable" data-column="context" data-type="number" title="Context Window">Context</th>
-					<th class="text-nowrap sortable" data-column="price" data-type="number" title="Price per 1M input tokens">$/1M In</th>
-					<th class="w-1 text-nowrap">Actions</th>
+					<th class="text-nowrap" rowspan="2">#</th>
+					<th class="text-nowrap sortable" data-column="name" data-type="string" rowspan="2">Model</th>
+					<th class="text-nowrap sortable active sort-desc" data-column="mss" data-type="number" title="Model Selection Score" rowspan="2">MSS</th>
+					<th class="text-center border-start" colspan="4" title="MSS Components (Adoption 35% + Benchmarks 30% + Cost 20% + Access 15%)"><small class="text-muted">MSS Components</small></th>
+					<th class="text-center border-start" colspan="5" title="Coding Benchmarks"><small class="text-muted">Coding Benchmarks</small></th>
+					<th class="text-center border-start" colspan="4" title="Reasoning Benchmarks"><small class="text-muted">Reasoning Benchmarks</small></th>
+					<th class="text-center border-start" colspan="2" rowspan="2"><small class="text-muted">Info</small></th>
+				</tr>
+				<tr>
+					{# MSS Components #}
+					<th class="text-nowrap sortable border-start" data-column="adoption" data-type="number" title="Adoption Score (35%)"><small>Adopt</small></th>
+					<th class="text-nowrap sortable" data-column="benchmark" data-type="number" title="Benchmark Score (30%)"><small>Bench</small></th>
+					<th class="text-nowrap sortable" data-column="cost" data-type="number" title="Cost Efficiency (20%)"><small>Cost</small></th>
+					<th class="text-nowrap sortable" data-column="access" data-type="number" title="Accessibility (15%)"><small>Access</small></th>
+					{# Coding Benchmarks #}
+					<th class="text-nowrap sortable border-start" data-column="bfcl" data-type="number" title="BFCL - Function Calling (15%)"><small>BFCL</small></th>
+					<th class="text-nowrap sortable" data-column="webdev" data-type="number" title="WebDev Arena Elo (15%)"><small>WebDev</small></th>
+					<th class="text-nowrap sortable" data-column="livecodebench" data-type="number" title="LiveCodeBench (10%)"><small>LCB</small></th>
+					<th class="text-nowrap sortable" data-column="seal" data-type="number" title="SEAL Coding (10%)"><small>SEAL</small></th>
+					<th class="text-nowrap sortable" data-column="canaicode" data-type="number" title="CanAiCode (10%)"><small>CaC</small></th>
+					{# Reasoning Benchmarks #}
+					<th class="text-nowrap sortable border-start" data-column="livebench" data-type="number" title="LiveBench Global Average (10%)"><small>LiveB</small></th>
+					<th class="text-nowrap sortable" data-column="arc_agi" data-type="number" title="ARC-AGI (10%)"><small>ARC</small></th>
+					<th class="text-nowrap sortable" data-column="simplebench" data-type="number" title="SimpleBench (10%)"><small>Simp</small></th>
+					<th class="text-nowrap sortable" data-column="gpqa" data-type="number" title="GPQA Diamond (10%)"><small>GPQA</small></th>
 				</tr>
 			</thead>
 			<tbody id="rankings-table-body">
@@ -376,5 +309,4 @@
 <script>
 window.RANKINGS_INITIAL_DATA = {{ rankings | tojson | safe }};
 window.RANKINGS_SELECTED = {{ selected_models | tojson | safe }};
-window.RANKINGS_DEFAULT_WEIGHTS = {{ default_weights | tojson | safe }};
 </script>

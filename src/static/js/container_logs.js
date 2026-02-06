@@ -50,7 +50,7 @@ class ContainerLogsModal {
             return;
         }
 
-        this.bootstrapModal = new bootstrap.Modal(this.modal, {
+        this.bootstrapModal = bootstrap.Modal.getInstance(this.modal) || new bootstrap.Modal(this.modal, {
             backdrop: 'static',
             keyboard: false
         });

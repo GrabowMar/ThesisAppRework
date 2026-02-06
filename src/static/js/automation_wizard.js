@@ -183,6 +183,12 @@ if (typeof window.AutomationWizard !== 'undefined') {
             }
         });
 
+        // Update step-nav-btn sidebar buttons
+        document.querySelectorAll('.step-nav-btn').forEach(btn => {
+            const stepNum = parseInt(btn.dataset.step, 10);
+            btn.classList.toggle('active', stepNum === activeStep);
+        });
+
         // Update current step display
         const currentStepEl = document.getElementById('current-step');
         if (currentStepEl) {
@@ -589,6 +595,13 @@ if (typeof window.AutomationWizard !== 'undefined') {
 
         // Estimated time - adjust for parallelism (both generation and analysis)
         const totalJobs = config.templates.length * config.models.length;
+        if (totalJobs === 0) {
+            setText('est-duration', '--');
+            setText('total-operations', '0');
+            setText('total-jobs-badge', '0 jobs');
+            setText('parallelism-mode', 'Sequential');
+            return;
+        }
         const genConcurrency = genParallelMode ? Math.min(genMaxConcurrent, totalJobs) : 1;
         const analysisConcurrency = parallelMode ? Math.min(maxConcurrent, totalJobs) : 1;
         const genMinutes = Math.ceil(totalJobs / genConcurrency) * 2;  // ~2 min per batch for generation
@@ -2095,7 +2108,8 @@ if (typeof window.AutomationWizard !== 'undefined') {
      * Show the save settings modal
      */
     function showSaveSettingsModal() {
-        const modal = new bootstrap.Modal(document.getElementById('saveSettingsModal'));
+        const el = document.getElementById('saveSettingsModal');
+        const modal = bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el);
         modal.show();
     }
 
@@ -2113,7 +2127,8 @@ if (typeof window.AutomationWizard !== 'undefined') {
         `;
         }
 
-        const modal = new bootstrap.Modal(document.getElementById('loadSettingsModal'));
+        const loadEl = document.getElementById('loadSettingsModal');
+        const modal = bootstrap.Modal.getInstance(loadEl) || new bootstrap.Modal(loadEl);
         modal.show();
 
         // Load settings list
@@ -2255,7 +2270,8 @@ if (typeof window.AutomationWizard !== 'undefined') {
             .then(data => {
                 if (data.success) {
                     renderManageSettingsList(data.data);
-                    const modal = new bootstrap.Modal(document.getElementById('manageSettingsModal'));
+                    const manageEl = document.getElementById('manageSettingsModal');
+                    const modal = bootstrap.Modal.getInstance(manageEl) || new bootstrap.Modal(manageEl);
                     modal.show();
                 }
             })
@@ -2531,7 +2547,8 @@ if (typeof window.AutomationWizard !== 'undefined') {
      * Show export results modal
      */
     function showExportResultsModal() {
-        const modal = new bootstrap.Modal(document.getElementById('exportResultsModal'));
+        const exportEl = document.getElementById('exportResultsModal');
+        const modal = bootstrap.Modal.getInstance(exportEl) || new bootstrap.Modal(exportEl);
 
         // Reset form
         document.getElementById('export-results').checked = true;
@@ -2558,7 +2575,8 @@ if (typeof window.AutomationWizard !== 'undefined') {
      * Show import results modal
      */
     function showImportResultsModal() {
-        const modal = new bootstrap.Modal(document.getElementById('importResultsModal'));
+        const importEl = document.getElementById('importResultsModal');
+        const modal = bootstrap.Modal.getInstance(importEl) || new bootstrap.Modal(importEl);
 
         // Reset form
         document.getElementById('import-file').value = '';

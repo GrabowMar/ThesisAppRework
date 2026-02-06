@@ -148,7 +148,7 @@
         }
 
         // Show modal using Bootstrap
-        const bsModal = new bootstrap.Modal(modal);
+        const bsModal = bootstrap.Modal.getInstance(modal) || new bootstrap.Modal(modal);
         bsModal.show();
       }
     }

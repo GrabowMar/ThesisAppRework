@@ -1554,10 +1554,19 @@ class PipelineExecutionService:
             self._transition_to_done(pipeline)
             return
         
-        # If in-progress, we're waiting for async batch to complete
+        # If in-progress, check if batch actually started (has submitted apps or main tasks)
         if status == 'in_progress':
-            self._log("ANAL", "Analysis in progress, waiting for completion", level='debug')
-            return
+            submitted = analysis_progress.get('submitted_apps', [])
+            main_tasks = analysis_progress.get('main_task_ids', [])
+            if submitted or main_tasks:
+                self._log("ANAL", "Analysis in progress, waiting for completion", level='debug')
+                return
+            else:
+                # Stale in-progress state (e.g. after worker restart) - reset to re-run
+                self._log("ANAL", "Stale in-progress state detected (no submitted apps), resetting to pending")
+                progress['analysis']['status'] = 'pending'
+                pipeline.progress = progress
+                db.session.commit()
         
         # Get analysis config
         analysis_config = config.get('analysis', {})
@@ -2396,11 +2405,13 @@ class PipelineExecutionService:
                             self._app_containers_started[pipeline_id] = set()
                         self._app_containers_started[pipeline_id].add((model_slug, app_number))
                     
+                    self._update_app_container_status_db(model_slug, app_number, 'running')
                     self._log(
                         "CONTAINER", f"Successfully built and started containers for {model_slug} app {app_number}"
                     )
                     return build_result
                 else:
+                    self._update_app_container_status_db(model_slug, app_number, 'build_failed')
                     self._log(
                         "CONTAINER", f"Failed to build containers for {model_slug} app {app_number}: {build_result.get('error', 'Unknown error')}",
                         level='warning'
@@ -2420,10 +2431,12 @@ class PipelineExecutionService:
                         self._app_containers_started[pipeline_id] = set()
                     self._app_containers_started[pipeline_id].add((model_slug, app_number))
 
+                self._update_app_container_status_db(model_slug, app_number, 'running')
                 self._log(
                     "CONTAINER", f"Successfully started containers for {model_slug} app {app_number}"
                 )
             else:
+                self._update_app_container_status_db(model_slug, app_number, 'build_failed')
                 self._log(
                     "CONTAINER", f"Failed to start containers for {model_slug} app {app_number}: {result.get('error', 'Unknown error')}",
                     level='warning'
@@ -2626,6 +2639,9 @@ class PipelineExecutionService:
                     if pipeline_id in self._app_containers_started:
                         self._app_containers_started[pipeline_id].discard((model_slug, app_number))
                 
+                # Update DB container_status
+                self._update_app_container_status_db(model_slug, app_number, 'stopped')
+                
                 self._log(
                     "CONTAINER", f"Successfully stopped containers for {model_slug} app {app_number}"
                 )
@@ -2643,6 +2659,29 @@ class PipelineExecutionService:
                 level='error'
             )
             return {'success': False, 'error': str(e)}
+    
+    def _update_app_container_status_db(self, model_slug: str, app_number: int, status: str) -> None:
+        """Update GeneratedApplication.container_status in the database.
+        
+        Args:
+            model_slug: The model slug
+            app_number: The app number
+            status: New container status (e.g. 'running', 'stopped', 'build_failed')
+        """
+        try:
+            from app.models import GeneratedApplication
+            app_record = GeneratedApplication.query.filter_by(
+                model_slug=model_slug, app_number=app_number
+            ).first()
+            if app_record:
+                app_record.container_status = status
+                db.session.commit()
+        except Exception as e:
+            self._log("CONTAINER", f"Failed to update container_status for {model_slug} app {app_number}: {e}", level='warning')
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
     
     def _stop_all_app_containers_for_pipeline(self, pipeline: PipelineExecution):
         """Stop all app containers that were started for a pipeline.
@@ -2666,6 +2705,25 @@ class PipelineExecutionService:
                     a = res.get('app_number')
                     if m and a is not None:
                         started_apps.add((m, a))
+        
+        # Additional fallback: query DB for apps with container_status='running' 
+        # that match the pipeline's generated apps
+        if not started_apps:
+            self._log("CONTAINER", "Still no apps found - querying DB for running containers")
+            try:
+                from app.models import GeneratedApplication
+                gen_results = getattr(pipeline, 'progress', {}).get('generation', {}).get('results', [])
+                for res in gen_results:
+                    m = res.get('model_slug')
+                    a = res.get('app_number')
+                    if m and a is not None:
+                        app_record = GeneratedApplication.query.filter_by(
+                            model_slug=m, app_number=a
+                        ).first()
+                        if app_record and app_record.container_status == 'running':
+                            started_apps.add((m, a))
+            except Exception as e:
+                self._log("CONTAINER", f"DB fallback query failed: {e}", level='warning')
         
         if not started_apps:
             self._log("CONTAINER", "No apps found to stop containers for")

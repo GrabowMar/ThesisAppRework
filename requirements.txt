@@ -82,6 +82,7 @@ orjson==3.9.10
 # HTML/XML parsing
 lxml==5.0.0
 beautifulsoup4==4.12.2
+firecrawl-py>=1.0.0
 markdown==3.5.1
 
 # Validation

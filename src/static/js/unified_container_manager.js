@@ -424,7 +424,7 @@
             this.startModalTimer();
 
             // Show modal
-            const bsModal = new bootstrap.Modal(this.modal);
+            const bsModal = bootstrap.Modal.getInstance(this.modal) || new bootstrap.Modal(this.modal);
             bsModal.show();
         }
 

@@ -17,7 +17,7 @@ class ToolDetailController {
         this.currentSearch = '';
         
         if (this.modalElement) {
-            this.bsModal = new bootstrap.Modal(this.modalElement);
+            this.bsModal = bootstrap.Modal.getInstance(this.modalElement) || new bootstrap.Modal(this.modalElement);
             this.initEventListeners();
         } else {
             console.warn('Tool Detail Modal element not found.');

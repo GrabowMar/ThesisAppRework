@@ -93,18 +93,18 @@
         <div class="card">
           <div class="card-body">
             <div class="d-flex align-items-center">
-              <div class="subheader">Applications</div>
+              <div class="subheader">Apps Generated</div>
               <div class="ms-auto lh-1">
                 <span class="text-blue d-inline-flex align-items-center lh-1">
                   <span id="kpiUniqueModels">0</span> models
                 </span>
               </div>
             </div>
-            <div class="h1 mb-3" id="kpiUniqueApps">0</div>
+            <div class="h1 mb-3" id="kpiTotalApps">0</div>
             <div class="d-flex mb-2">
-              <div>With Results</div>
+              <div>Analyzed</div>
               <div class="ms-auto">
-                <span class="text-blue" id="kpiAppsWithResults">0</span>
+                <span class="text-blue" id="kpiAppsAnalyzed">0</span>
               </div>
             </div>
             <div class="progress progress-sm">
@@ -213,7 +213,7 @@
                   <th class="text-center">Apps</th>
                   <th class="text-center">Analyses</th>
                   <th class="text-center">Findings</th>
-                  <th class="text-center">Avg Score</th>
+                  <th class="text-center">Avg/Run</th>
                 </tr>
               </thead>
               <tbody id="modelComparisonTable">
@@ -259,16 +259,73 @@
       </div>
     </div>
 
-    {# Recent Activity & Quick Stats #}
+    {# Code Generation Stats & Top Findings #}
+    <div class="row row-deck row-cards mb-4">
+      {# Code Generation Stats #}
+      <div class="col-lg-6">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fa-solid fa-code me-2"></i>Code Generation by Model</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th class="text-end">Total Lines</th>
+                  <th class="text-end">Files</th>
+                  <th class="text-end">Avg/App</th>
+                </tr>
+              </thead>
+              <tbody id="codeStatsTable">
+                <tr>
+                  <td colspan="4" class="text-center text-muted">Loading...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {# Top Findings #}
+      <div class="col-lg-6">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fa-solid fa-bug me-2"></i>Most Common Findings</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+              <thead>
+                <tr>
+                  <th>Rule</th>
+                  <th>Tool</th>
+                  <th class="text-center">Level</th>
+                  <th class="text-end">Count</th>
+                </tr>
+              </thead>
+              <tbody id="topFindingsTable">
+                <tr>
+                  <td colspan="4" class="text-center text-muted">Loading...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Model Leaderboard & Quick Stats #}
     <div class="row row-deck row-cards">
-      {# Recent Activity #}
+      {# Model Leaderboard #}
       <div class="col-lg-8">
         <div class="card">
           <div class="card-header">
-            <h3 class="card-title">Recent Activity</h3>
+            <h3 class="card-title"><i class="fa-solid fa-trophy me-2"></i>Model Leaderboard</h3>
           </div>
-          <div class="list-group list-group-flush" id="activityFeed">
-            <div class="list-group-item text-center text-muted">Loading...</div>
+          <div class="card-body">
+            <div class="row g-3" id="leaderboardGrid">
+              <div class="col-12 text-center text-muted">Loading...</div>
+            </div>
           </div>
         </div>
       </div>

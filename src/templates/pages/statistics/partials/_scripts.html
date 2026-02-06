@@ -115,7 +115,9 @@
         renderCharts(data.trends, data.severity);
         renderModelComparison(data.models);
         renderToolEffectiveness(data.tools);
-        renderActivityFeed(data.activity);
+        renderCodeStats(data.code_stats);
+        renderTopFindings(data.top_findings);
+        renderLeaderboard(data.leaderboard);
         renderQuickStats(data.quick, data.filesystem);
     }
     
@@ -162,11 +164,11 @@
         setWidth('kpiSuccessBar', overview.success_rate || 0);
         
         // Applications card
-        setText('kpiUniqueApps', overview.unique_apps || 0);
+        setText('kpiTotalApps', overview.total_apps || 0);
         setText('kpiUniqueModels', overview.unique_models || 0);
-        setText('kpiAppsWithResults', filesystem.apps_with_results || 0);
-        const appsPercent = overview.unique_apps > 0 ? 
-            (filesystem.apps_with_results / overview.unique_apps * 100) : 0;
+        setText('kpiAppsAnalyzed', overview.unique_apps || 0);
+        const appsPercent = overview.total_apps > 0 ? 
+            (overview.unique_apps / overview.total_apps * 100) : 0;
         setWidth('kpiAppsBar', appsPercent);
         
         // Findings card
@@ -356,8 +358,8 @@
                     </span>
                 </td>
                 <td class="text-center">
-                    ${model.avg_score != null ? 
-                        `<span class="badge bg-${getScoreBadgeColor(model.avg_score)}-lt">${Math.round(model.avg_score)}</span>` : 
+                    ${model.avg_findings != null ? 
+                        `<span>${model.avg_findings}</span>` : 
                         '<span class="text-muted">-</span>'}
                 </td>
             </tr>
@@ -392,38 +394,112 @@
     }
     
     /**
-     * Render activity feed
+     * Render code generation stats table
      */
-    function renderActivityFeed(activity) {
-        const feed = document.getElementById('activityFeed');
-        if (!feed) return;
+    function renderCodeStats(codeStats) {
+        const tbody = document.getElementById('codeStatsTable');
+        if (!tbody) return;
         
-        if (!activity || activity.length === 0) {
-            feed.innerHTML = '<div class="list-group-item text-center text-muted">No recent activity</div>';
+        if (!codeStats || codeStats.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No code data available</td></tr>';
             return;
         }
         
-        feed.innerHTML = activity.map(item => `
-            <div class="list-group-item">
-                <div class="row align-items-center">
-                    <div class="col-auto">
-                        <span class="status-dot status-dot-animated bg-${getStatusColor(item.status)}"></span>
-                    </div>
-                    <div class="col text-truncate">
-                        <a href="/applications/${encodeURIComponent(item.model)}/${item.app}" class="text-reset d-block">
-                            ${escapeHtml(item.model)}/app${item.app}
-                        </a>
-                        <div class="d-block text-muted text-truncate mt-n1">
-                            ${escapeHtml(item.analysis_type || 'comprehensive')} analysis
+        tbody.innerHTML = codeStats.map((item, i) => `
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <span class="badge bg-${i === 0 ? 'green' : (i === codeStats.length - 1 ? 'red' : 'azure')}-lt me-2">${i + 1}</span>
+                        <div class="text-truncate" style="max-width: 140px;" title="${escapeHtml(item.model)}">
+                            ${escapeHtml(item.model)}
                         </div>
                     </div>
-                    <div class="col-auto">
-                        <span class="badge bg-${getStatusColor(item.status)}-lt">${item.status}</span>
-                    </div>
-                    <div class="col-auto text-muted">${item.time_ago}</div>
-                </div>
-            </div>
+                </td>
+                <td class="text-end fw-bold">${item.total_lines.toLocaleString()}</td>
+                <td class="text-end text-muted">${item.total_files}</td>
+                <td class="text-end text-muted">${item.avg_lines_per_app.toLocaleString()}</td>
+            </tr>
         `).join('');
+    }
+    
+    /**
+     * Render top findings table
+     */
+    function renderTopFindings(findings) {
+        const tbody = document.getElementById('topFindingsTable');
+        if (!tbody) return;
+        
+        if (!findings || findings.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No findings data available</td></tr>';
+            return;
+        }
+        
+        const levelColors = {
+            'error': 'red', 'warning': 'orange', 'note': 'blue'
+        };
+        
+        tbody.innerHTML = findings.map(f => `
+            <tr>
+                <td>
+                    <span class="text-truncate d-inline-block" style="max-width: 140px;" title="${escapeHtml(f.rule_id)}">
+                        ${escapeHtml(f.rule_id)}
+                    </span>
+                </td>
+                <td><span class="badge bg-azure-lt">${escapeHtml(f.tool)}</span></td>
+                <td class="text-center">
+                    <span class="badge bg-${levelColors[f.level] || 'secondary'}-lt">${f.level}</span>
+                </td>
+                <td class="text-end fw-bold">${f.count.toLocaleString()}</td>
+            </tr>
+        `).join('');
+    }
+    
+    /**
+     * Render model leaderboard grid
+     */
+    function renderLeaderboard(leaderboard) {
+        const grid = document.getElementById('leaderboardGrid');
+        if (!grid) return;
+        
+        if (!leaderboard || Object.keys(leaderboard).length === 0) {
+            grid.innerHTML = '<div class="col-12 text-center text-muted">No leaderboard data available</div>';
+            return;
+        }
+        
+        const entries = {
+            'most_lines':         { icon: 'fa-code',           label: 'Most Code Generated',    color: 'green' },
+            'fewest_lines':       { icon: 'fa-compress',       label: 'Most Concise Code',      color: 'cyan' },
+            'fewest_issues':      { icon: 'fa-shield-halved',  label: 'Fewest Issues',          color: 'green' },
+            'most_issues':        { icon: 'fa-triangle-exclamation', label: 'Most Issues',      color: 'red' },
+            'fastest_analysis':   { icon: 'fa-bolt',           label: 'Fastest Analysis',       color: 'azure' },
+            'slowest_analysis':   { icon: 'fa-hourglass-half', label: 'Slowest Analysis',       color: 'orange' },
+            'best_success_rate':  { icon: 'fa-check-circle',   label: 'Best Success Rate',      color: 'green' },
+        };
+        
+        grid.innerHTML = Object.entries(entries).map(([key, meta]) => {
+            const data = leaderboard[key];
+            if (!data) return '';
+            return `
+                <div class="col-sm-6 col-lg-4">
+                    <div class="card card-sm">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <span class="bg-${meta.color}-lt text-${meta.color} avatar avatar-sm me-3">
+                                    <i class="fa-solid ${meta.icon}"></i>
+                                </span>
+                                <div class="min-w-0">
+                                    <div class="text-muted small">${meta.label}</div>
+                                    <div class="fw-bold text-truncate" style="max-width: 160px;" title="${escapeHtml(data.model)}">
+                                        ${escapeHtml(data.model)}
+                                    </div>
+                                    <div class="text-muted small">${escapeHtml(data.value)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
     
     /**
@@ -519,27 +595,10 @@
         return div.innerHTML;
     }
     
-    function getStatusColor(status) {
-        const colors = {
-            'COMPLETED': 'success',
-            'FAILED': 'danger',
-            'RUNNING': 'azure',
-            'PENDING': 'secondary',
-            'PARTIAL_SUCCESS': 'warning'
-        };
-        return colors[status] || 'secondary';
-    }
-    
     function getFindingsBadgeColor(count) {
         if (count > 50) return 'red';
         if (count > 20) return 'orange';
         return 'green';
-    }
-    
-    function getScoreBadgeColor(score) {
-        if (score >= 80) return 'green';
-        if (score >= 60) return 'yellow';
-        return 'red';
     }
     
     function getSuccessRateColor(rate) {

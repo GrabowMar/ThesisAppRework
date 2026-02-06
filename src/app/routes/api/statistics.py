@@ -14,11 +14,13 @@ from app.services.statistics_service import (
     get_severity_distribution,
     get_analysis_trends,
     get_model_comparison,
-    get_recent_activity,
     get_analyzer_health,
     get_tool_effectiveness,
     get_quick_stats,
     get_filesystem_metrics,
+    get_code_generation_stats,
+    get_top_findings,
+    get_model_leaderboard,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,7 +35,6 @@ def get_dashboard_data():
     
     Query params:
         days: int - Number of days for trends (default: 14, max: 90)
-        activity_limit: int - Number of recent activities (default: 15, max: 50)
     
     Returns:
         JSON with all dashboard sections
@@ -41,7 +42,6 @@ def get_dashboard_data():
     try:
         # Parse query params
         days = min(int(request.args.get("days", 14)), 90)
-        activity_limit = min(int(request.args.get("activity_limit", 15)), 50)
         
         # Gather all data
         data = {
@@ -52,10 +52,12 @@ def get_dashboard_data():
                 "health": get_analyzer_health(),
                 "trends": get_analysis_trends(days=days),
                 "models": get_model_comparison(),
-                "activity": get_recent_activity(limit=activity_limit),
                 "tools": get_tool_effectiveness(),
                 "quick": get_quick_stats(),
                 "filesystem": get_filesystem_metrics(),
+                "code_stats": get_code_generation_stats(),
+                "top_findings": get_top_findings(limit=10),
+                "leaderboard": get_model_leaderboard(),
             }
         }
         
@@ -137,24 +139,6 @@ def get_models():
         })
     except Exception as e:
         logger.exception(f"Error fetching models: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@statistics_bp.route("/activity", methods=["GET"])
-def get_activity():
-    """Get recent activity.
-    
-    Query params:
-        limit: int - Number of items (default: 15, max: 50)
-    """
-    try:
-        limit = min(int(request.args.get("limit", 15)), 50)
-        return jsonify({
-            "success": True,
-            "data": get_recent_activity(limit=limit)
-        })
-    except Exception as e:
-        logger.exception(f"Error fetching activity: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
