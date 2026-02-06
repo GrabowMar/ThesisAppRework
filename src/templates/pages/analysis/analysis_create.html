@@ -184,11 +184,6 @@
 
               <div id="step3-inline-error" class="alert alert-danger py-2 d-none mt-3" role="alert"></div>
 
-              <div class="alert alert-info mt-3 mb-0" role="alert">
-                <i class="fa-solid fa-hand-pointer me-2"></i>
-                Select the analysis tools you want to run from the categories below.
-              </div>
-
               <!-- Tool Containers -->
               <div class="row g-3 mt-0 pt-3">
                 <!-- Static Analyzer -->
@@ -210,49 +205,10 @@
                       </div>
                     </div>
                     <div class="card-body p-0">
-                      <!-- Static Analyzer Info Banner -->
-                      <div class="px-3 py-2 bg-primary-lt border-bottom">
-                        <div class="d-flex align-items-start gap-2">
-                          <i class="fa-solid fa-shield-alt text-primary mt-1"></i>
-                          <div class="small">
-                            <strong>Security & Quality Scanning</strong>
-                            <p class="mb-0 text-muted">Analyzes source code without execution to find vulnerabilities, bugs, and code smells.</p>
-                          </div>
-                        </div>
-                      </div>
                       <div class="table-responsive" id="static-tools">
                         <div class="text-center py-4">
                           <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
                           <p class="mb-0 small text-muted mt-2">Loading tools…</p>
-                        </div>
-                      </div>
-                      <!-- Static Analyzer Capabilities Summary -->
-                      <div class="px-3 py-2 bg-light-subtle border-top">
-                        <div class="row g-2 small">
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-bug text-danger"></i>
-                              <span class="text-muted">Vulnerability Detection</span>
-                            </div>
-                          </div>
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-broom text-info"></i>
-                              <span class="text-muted">Code Quality Linting</span>
-                            </div>
-                          </div>
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-check-double text-success"></i>
-                              <span class="text-muted">Type Checking</span>
-                            </div>
-                          </div>
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-skull-crossbones text-secondary"></i>
-                              <span class="text-muted">Dead Code Detection</span>
-                            </div>
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -278,49 +234,10 @@
                       </div>
                     </div>
                     <div class="card-body p-0">
-                      <!-- Dynamic Analyzer Info Banner -->
-                      <div class="px-3 py-2 bg-success-lt border-bottom">
-                        <div class="d-flex align-items-start gap-2">
-                          <i class="fa-solid fa-bolt text-success mt-1"></i>
-                          <div class="small">
-                            <strong>Runtime Security Testing</strong>
-                            <p class="mb-0 text-muted">Tests running applications to find vulnerabilities through active probing and scanning.</p>
-                          </div>
-                        </div>
-                      </div>
                       <div class="table-responsive" id="dynamic-tools">
                         <div class="text-center py-4">
                           <div class="spinner-border spinner-border-sm text-success" role="status"></div>
                           <p class="mb-0 small text-muted mt-2">Loading tools…</p>
-                        </div>
-                      </div>
-                      <!-- Dynamic Analyzer Capabilities Summary -->
-                      <div class="px-3 py-2 bg-light-subtle border-top">
-                        <div class="row g-2 small">
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-spider text-danger"></i>
-                              <span class="text-muted">Web App Scanning</span>
-                            </div>
-                          </div>
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-network-wired text-info"></i>
-                              <span class="text-muted">Network Discovery</span>
-                            </div>
-                          </div>
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-exchange-alt text-primary"></i>
-                              <span class="text-muted">HTTP/API Testing</span>
-                            </div>
-                          </div>
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-key text-warning"></i>
-                              <span class="text-muted">Auth & Session Tests</span>
-                            </div>
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -346,49 +263,10 @@
                       </div>
                     </div>
                     <div class="card-body p-0">
-                      <!-- Performance Tester Info Banner -->
-                      <div class="px-3 py-2 bg-info-lt border-bottom">
-                        <div class="d-flex align-items-start gap-2">
-                          <i class="fa-solid fa-chart-line text-info mt-1"></i>
-                          <div class="small">
-                            <strong>Load & Stress Testing</strong>
-                            <p class="mb-0 text-muted">Measures application performance under various load conditions and user scenarios.</p>
-                          </div>
-                        </div>
-                      </div>
                       <div class="table-responsive" id="performance-tools">
                         <div class="text-center py-4">
                           <div class="spinner-border spinner-border-sm text-info" role="status"></div>
                           <p class="mb-0 small text-muted mt-2">Loading tools…</p>
-                        </div>
-                      </div>
-                      <!-- Performance Tester Capabilities Summary -->
-                      <div class="px-3 py-2 bg-light-subtle border-top">
-                        <div class="row g-2 small">
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-users text-primary"></i>
-                              <span class="text-muted">Load Testing</span>
-                            </div>
-                          </div>
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-bolt text-warning"></i>
-                              <span class="text-muted">Stress Testing</span>
-                            </div>
-                          </div>
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-stopwatch text-success"></i>
-                              <span class="text-muted">Response Time</span>
-                            </div>
-                          </div>
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-server text-danger"></i>
-                              <span class="text-muted">Throughput Analysis</span>
-                            </div>
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -414,49 +292,10 @@
                       </div>
                     </div>
                     <div class="card-body p-0">
-                      <!-- AI Analyzer Info Banner -->
-                      <div class="px-3 py-2 bg-warning-lt border-bottom">
-                        <div class="d-flex align-items-start gap-2">
-                          <i class="fa-solid fa-robot text-warning mt-1"></i>
-                          <div class="small">
-                            <strong>LLM-Powered Analysis</strong>
-                            <p class="mb-0 text-muted">Uses Claude 3.5 Haiku via OpenRouter to analyze code against requirements and quality metrics.</p>
-                          </div>
-                        </div>
-                      </div>
                       <div class="table-responsive" id="ai-tools">
                         <div class="text-center py-4">
                           <div class="spinner-border spinner-border-sm text-warning" role="status"></div>
                           <p class="mb-0 small text-muted mt-2">Loading tools…</p>
-                        </div>
-                      </div>
-                      <!-- AI Analyzer Capabilities Summary -->
-                      <div class="px-3 py-2 bg-light-subtle border-top">
-                        <div class="row g-2 small">
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-clipboard-check text-success"></i>
-                              <span class="text-muted">Requirements Compliance</span>
-                            </div>
-                          </div>
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-code text-primary"></i>
-                              <span class="text-muted">Code Quality Metrics</span>
-                            </div>
-                          </div>
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-layer-group text-info"></i>
-                              <span class="text-muted">Backend/Frontend/Admin</span>
-                            </div>
-                          </div>
-                          <div class="col-6">
-                            <div class="d-flex align-items-center gap-1">
-                              <i class="fa-solid fa-bug text-danger"></i>
-                              <span class="text-muted">Anti-Pattern Detection</span>
-                            </div>
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -466,32 +305,27 @@
             </div>
 
             <!-- Analysis Configuration Options -->
-            <div id="analysis-config-options" class="p-3">
-              <div class="row g-3 mb-0">
-                <div class="col-md-6">
-                  <label class="form-label fw-medium" for="priority-level">Priority Level</label>
-                  <select class="form-select" name="priority" id="priority-level">
+            <div id="analysis-config-options" class="p-3 border-top">
+              <div class="d-flex flex-wrap align-items-end gap-3 mb-2">
+                <div>
+                  <label class="form-label small text-muted mb-1" for="priority-level">Priority</label>
+                  <select class="form-select form-select-sm" name="priority" id="priority-level" style="width: auto;">
                     <option value="normal">Normal</option>
-                    <option value="high">High (faster execution)</option>
-                    <option value="low">Low (cost optimized)</option>
+                    <option value="high">High</option>
+                    <option value="low">Low</option>
                   </select>
                 </div>
-                <div class="col-md-6">
-                  <label class="form-label fw-medium" for="notification-preference">Email Notification</label>
-                  <select class="form-select" name="notification" id="notification-preference">
+                <div>
+                  <label class="form-label small text-muted mb-1" for="notification-preference">Notification</label>
+                  <select class="form-select form-select-sm" name="notification" id="notification-preference" style="width: auto;">
                     <option value="completion">On completion</option>
                     <option value="failure">On failure only</option>
-                    <option value="none">No notifications</option>
+                    <option value="none">None</option>
                   </select>
                 </div>
-              </div>
-
-              <div class="mb-3">
-                <div class="form-check">
+                <div class="form-check ms-auto">
                   <input class="form-check-input" type="checkbox" id="advanced-options-toggle">
-                  <label class="form-check-label" for="advanced-options-toggle">
-                    Show advanced configuration options
-                  </label>
+                  <label class="form-check-label small" for="advanced-options-toggle">Advanced</label>
                 </div>
               </div>
 
@@ -562,11 +396,6 @@
                         </div>
                       </div>
                     </div>
-                    <div class="alert alert-info py-2 mt-3 mb-0 small">
-                      <i class="fa-solid fa-info-circle me-2"></i>
-                      <strong>Note:</strong> Container management adds ~30-120 seconds for startup (longer for builds). 
-                      Static analysis can proceed without running containers.
-                    </div>
                   </div>
                 </div>
               </div>
@@ -621,63 +450,43 @@
           </div>
           <div class="card-body border-top p-0">
             <div id="analysis-summary" class="p-3">
-              <div class="row g-3">
-                <div class="col-md-8">
-                  <div class="card card-sm">
-                    <div class="card-header py-2">
-                      <h6 class="card-title mb-0">Analysis Summary</h6>
-                    </div>
-                    <div class="card-body p-0">
-                      <div class="table-responsive">
-                        <table class="table table-vcenter table-striped table-sm mb-0">
-                          <tbody>
-                            <tr>
-                              <th scope="row" class="w-25 text-muted fw-medium">Model</th>
-                              <td id="summary-model">-</td>
-                            </tr>
-                            <tr>
-                              <th scope="row" class="text-muted fw-medium">Application</th>
-                              <td id="summary-app">-</td>
-                            </tr>
-                            <tr>
-                              <th scope="row" class="text-muted fw-medium">Analysis Type</th>
-                              <td id="summary-type">-</td>
-                            </tr>
-                            <tr>
-                              <th scope="row" class="text-muted fw-medium">Priority</th>
-                              <td id="summary-priority">-</td>
-                            </tr>
-                            <tr>
-                              <th scope="row" class="text-muted fw-medium">Estimated Time</th>
-                              <td id="summary-time">-</td>
-                            </tr>
-                            <tr>
-                              <th scope="row" class="text-muted fw-medium">Estimated Cost</th>
-                              <td id="summary-cost">-</td>
-                            </tr>
-                            <tr id="summary-container-row" class="d-none">
-                              <th scope="row" class="text-muted fw-medium">
-                                <i class="fab fa-docker text-primary me-1"></i>Container Management
-                              </th>
-                              <td id="summary-containers">-</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-md-4">
-                  <div class="card card-sm bg-success-lt text-center">
-                    <div class="card-body py-3">
-                      <div class="analysis-status-icon mb-3">
-                        <i class="fa-solid fa-rocket fa-3x text-success"></i>
-                      </div>
-                      <h6 class="card-title text-success mb-2">Ready to Launch</h6>
-                      <p class="card-text small text-muted mb-0">
-                        Your analysis will be queued and executed automatically. You'll receive notifications based on your preferences.
-                      </p>
-                    </div>
+              <div class="card card-sm">
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-vcenter table-sm mb-0">
+                      <tbody>
+                        <tr>
+                          <th scope="row" class="w-25 text-muted fw-medium ps-3">Model</th>
+                          <td id="summary-model">-</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="text-muted fw-medium ps-3">Application</th>
+                          <td id="summary-app">-</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="text-muted fw-medium ps-3">Analysis Type</th>
+                          <td id="summary-type">-</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="text-muted fw-medium ps-3">Priority</th>
+                          <td id="summary-priority">-</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="text-muted fw-medium ps-3">Est. Time</th>
+                          <td id="summary-time">-</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="text-muted fw-medium ps-3">Est. Cost</th>
+                          <td id="summary-cost">-</td>
+                        </tr>
+                        <tr id="summary-container-row" class="d-none">
+                          <th scope="row" class="text-muted fw-medium ps-3">
+                            <i class="fab fa-docker text-primary me-1"></i>Containers
+                          </th>
+                          <td id="summary-containers">-</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
@@ -690,96 +499,66 @@
 
   <div class="col-xxl-4 col-xl-5 col-lg-5">
       <div class="analysis-sidebar right-sticky-sidebar sticky-top">
-        <div class="card card-sm mb-3">
-          <div class="card-header py-2">
-            <h6 class="card-title mb-0">
-              <i class="fa-solid fa-route me-2 text-primary"></i>Progress
-            </h6>
-          </div>
-          <div class="progress progress-sm card-progress">
-            <div class="progress-bar bg-primary" role="progressbar" id="wizard-progress-bar" aria-label="Analysis progress" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
-          </div>
-          <div class="card-body py-2">
-            <div class="wizard-progress">
-              <div class="steps steps-counter steps-xs">
-                <div class="step-item active" data-step="1" _="on click call goToStep(1)" role="button" tabindex="0">
-                  <div class="step-icon">
-                    <i class="fa-solid fa-brain"></i>
-                  </div>
-                  <div class="step-title">Model</div>
-                </div>
-                <div class="step-item" data-step="2" _="on click call goToStep(2)" role="button" tabindex="0">
-                  <div class="step-icon">
-                    <i class="fa-solid fa-rocket"></i>
-                  </div>
-                  <div class="step-title">App</div>
-                </div>
-                <div class="step-item" data-step="3" _="on click call goToStep(3)" role="button" tabindex="0">
-                  <div class="step-icon">
-                    <i class="fa-solid fa-cogs"></i>
-                  </div>
-                  <div class="step-title">Config</div>
-                </div>
-                <div class="step-item" data-step="4" _="on click call goToStep(4)" role="button" tabindex="0">
-                  <div class="step-icon">
-                    <i class="fa-solid fa-check"></i>
-                  </div>
-                  <div class="step-title">Review</div>
-                </div>
+        {# Unified wizard navigation card #}
+        <div class="card card-sm mb-2" id="wizard-nav-card">
+          <div class="card-body p-0">
+            {# Step indicators as clickable bar #}
+            <div class="d-flex border-bottom" style="font-size: 0.8rem;">
+              <button class="btn btn-ghost-primary flex-fill py-2 rounded-0 border-end step-nav-btn active"
+                      data-step="1" _="on click call goToStep(1)" style="border-top-left-radius: var(--tblr-card-border-radius) !important;">
+                <i class="fa-solid fa-brain me-1"></i>Model
+              </button>
+              <button class="btn btn-ghost-primary flex-fill py-2 rounded-0 border-end step-nav-btn"
+                      data-step="2" _="on click call goToStep(2)">
+                <i class="fa-solid fa-rocket me-1"></i>App
+              </button>
+              <button class="btn btn-ghost-primary flex-fill py-2 rounded-0 border-end step-nav-btn"
+                      data-step="3" _="on click call goToStep(3)">
+                <i class="fa-solid fa-cogs me-1"></i>Config
+              </button>
+              <button class="btn btn-ghost-primary flex-fill py-2 rounded-0 step-nav-btn"
+                      data-step="4" _="on click call goToStep(4)" style="border-top-right-radius: var(--tblr-card-border-radius) !important;">
+                <i class="fa-solid fa-check me-1"></i>Review
+              </button>
+            </div>
+            {# Progress bar #}
+            <div class="progress rounded-0" style="height: 3px;">
+              <div class="progress-bar bg-primary" role="progressbar" id="wizard-progress-bar"
+                aria-label="Analysis progress" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+            {# Actions row #}
+            <div class="d-flex align-items-center gap-2 px-3 py-2">
+              <button type="button" class="btn btn-ghost-secondary btn-sm py-1 px-2" id="prev-btn" _="on click call previousStep()" disabled>
+                <i class="fa-solid fa-chevron-left"></i> Back
+              </button>
+              <div class="d-flex align-items-center gap-2 small text-muted flex-fill justify-content-center">
+                <span>Step <span id="current-step" class="fw-bold text-primary">1</span>/4</span>
               </div>
+              <button type="button" class="btn btn-primary btn-sm py-1 px-2" id="next-btn" _="on click call nextStep()" disabled>
+                Next <i class="fa-solid fa-chevron-right ms-1"></i>
+              </button>
+              <button type="submit" class="btn btn-success btn-sm py-1 px-2 d-none" id="launch-btn">
+                <i class="fa-solid fa-rocket me-1"></i>Launch
+              </button>
+              <button type="button" class="btn btn-success btn-sm py-1 px-2 d-none" id="launch-btn-loading" disabled>
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>Launching...
+              </button>
             </div>
           </div>
         </div>
 
-        <!-- Wizard Navigation -->
-        <div class="card card-sm mb-3" id="wizard-nav-card">
-          <div class="card-header py-2">
-            <h6 class="card-title mb-0">
-              <i class="fa-solid fa-gamepad me-2 text-primary"></i>Navigation
-            </h6>
-          </div>
-          <div class="card-body py-2">
-            <div class="d-flex flex-column gap-2">
-              <div class="d-flex justify-content-between align-items-center small text-muted">
-                <span>Step <span id="current-step" class="fw-bold text-primary">1</span> of <span class="fw-bold">4</span></span>
-              </div>
-              <div class="d-flex justify-content-between align-items-center gap-2">
-                <button type="button" class="btn btn-ghost-secondary btn-sm" id="prev-btn" _="on click call previousStep()" disabled>
-                  <i class="fa-solid fa-chevron-left me-1"></i>Previous
-                </button>
-                <div class="d-flex gap-2 flex-grow-1">
-                  <button type="button" class="btn btn-primary btn-sm flex-grow-1" id="next-btn" _="on click call nextStep()" disabled>
-                    Complete this step to continue
-                  </button>
-                  <button type="submit" class="btn btn-success btn-sm flex-grow-1 d-none" id="launch-btn">
-                    <i class="fa-solid fa-rocket me-1"></i>Launch Analysis
-                  </button>
-                  <button type="button" class="btn btn-success btn-sm flex-grow-1 d-none" id="launch-btn-loading" disabled>
-                    <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>Launching...
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card card-sm mb-3">
-          <div class="card-header py-2">
-            <h6 class="card-title mb-0">
-              <i class="fa-solid fa-list-check me-2 text-primary"></i>Selections
-            </h6>
-          </div>
+        {# Selections card - kept as-is #}
+        <div class="card card-sm mb-2">
           <div class="card-body p-2">
             <!-- Models Section -->
-            <div class="mb-3">
-              <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="mb-2">
+              <div class="d-flex align-items-center justify-content-between mb-1">
                 <span class="small text-muted fw-medium">Models</span>
                 <div class="d-flex align-items-center gap-2">
-                  <button type="button" class="btn btn-link p-0 small text-danger d-none" id="clear-models-btn" aria-label="Clear all models">clear</button>
+                  <button type="button" class="btn btn-link p-0 small text-danger d-none" id="clear-models-btn" aria-label="Clear all models" style="font-size: 0.75em;">clear</button>
                   <span class="badge bg-secondary-lt" id="sidebar-model-count">0</span>
                 </div>
               </div>
-              <!-- Model Selection Mode Toggle - Inline -->
               <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="Model selection mode">
                 <input type="radio" class="btn-check" name="model-mode" id="model-mode-single" checked onchange="if(this.checked && window.setModelSelectionMode) window.setModelSelectionMode('single')">
                 <label class="btn btn-outline-secondary" for="model-mode-single">
@@ -793,15 +572,14 @@
               <ul class="list-unstyled mb-0 small" id="sidebar-model-list"></ul>
             </div>
             <!-- Apps Section -->
-            <div class="border-top pt-3">
-              <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="border-top pt-2">
+              <div class="d-flex align-items-center justify-content-between mb-1">
                 <span class="small text-muted fw-medium">Applications</span>
                 <div class="d-flex align-items-center gap-2">
-                  <button type="button" class="btn btn-link p-0 small text-danger d-none" id="clear-apps-btn" aria-label="Clear all apps">clear</button>
+                  <button type="button" class="btn btn-link p-0 small text-danger d-none" id="clear-apps-btn" aria-label="Clear all apps" style="font-size: 0.75em;">clear</button>
                   <span class="badge bg-secondary-lt" id="sidebar-app-count">0</span>
                 </div>
               </div>
-              <!-- App Selection Mode Toggle - Inline -->
               <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="App selection mode">
                 <input type="radio" class="btn-check" name="app-mode" id="app-mode-single" checked onchange="if(this.checked && window.setAppSelectionMode) window.setAppSelectionMode('single')">
                 <label class="btn btn-outline-secondary" for="app-mode-single">
@@ -816,91 +594,17 @@
             </div>
           </div>
         </div>
-
-        <!-- Tool Configuration Sidebar -->
-        <div class="card card-sm" id="guide-card">
-          <div class="card-header py-2" data-bs-toggle="collapse" data-bs-target="#guide-collapse" role="button" aria-expanded="false" aria-controls="guide-collapse">
-            <div class="d-flex align-items-center justify-content-between">
-              <h6 class="card-title mb-0">
-                <i class="fa-solid fa-info-circle me-2 text-primary"></i>Analysis Guide
-              </h6>
-              <span class="collapse-indicator text-muted small" id="guide-collapse-indicator">Show</span>
-            </div>
-          </div>
-          <div id="guide-collapse" class="collapse">
-            <div class="card-body py-2">
-              <div id="step-help" class="step-help">
-                <div class="help-content active" data-help="1">
-                  <h6 class="mb-2">Choosing the Right Model</h6>
-                  <ul class="small mb-3">
-                    <li><strong>Coding Focus:</strong> Choose models optimized for code generation</li>
-                    <li><strong>Provider Reliability:</strong> Consider uptime and support</li>
-                    <li><strong>Cost vs Quality:</strong> Balance analysis depth with budget</li>
-                    <li><strong>Capabilities:</strong> Match model strengths to your needs</li>
-                  </ul>
-                  <div class="alert alert-info alert-sm">
-                    <i class="fa-solid fa-lightbulb me-1"></i>
-                    <strong>Tip:</strong> Models with better coding capabilities typically generate more analyzable applications.
-                  </div>
-                </div>
-
-                <div class="help-content" data-help="2">
-                  <h6 class="mb-2">Application Selection</h6>
-                  <ul class="small mb-3">
-                    <li><strong>Status:</strong> Only active applications can be analyzed</li>
-                    <li><strong>Complexity:</strong> More complex apps provide richer analysis</li>
-                    <li><strong>Age:</strong> Newer applications may have more recent patterns</li>
-                    <li><strong>Size:</strong> Larger applications take longer to analyze</li>
-                  </ul>
-                  <div class="alert alert-warning alert-sm">
-                    <i class="fa-solid fa-exclamation-triangle me-1"></i>
-                    <strong>Note:</strong> Applications must be running for dynamic analysis.
-                  </div>
-                </div>
-
-                <div class="help-content" data-help="3">
-                  <h6 class="mb-2">Analysis Configuration</h6>
-                  <ul class="small mb-3">
-                    <li><strong>Static Analysis:</strong> Bandit, Semgrep, ESLint, Pylint - code linting and security</li>
-                    <li><strong>Dynamic Analysis:</strong> OWASP ZAP, nmap - runtime security scanning</li>
-                    <li><strong>Performance:</strong> Locust, aiohttp - load testing and benchmarks</li>
-                    <li><strong>AI Analysis:</strong> LLM-powered requirements and quality checks</li>
-                  </ul>
-                  <div class="alert alert-warning alert-sm mb-2">
-                    <i class="fa-solid fa-brain me-1"></i>
-                    <strong>AI Analysis Tools:</strong>
-                    <ul class="mb-0 mt-1 ps-3 small">
-                      <li><strong>Requirements Scanner:</strong> Checks backend, frontend, and admin requirements compliance</li>
-                      <li><strong>Code Quality Analyzer:</strong> Evaluates error handling, types, and anti-patterns</li>
-                    </ul>
-                  </div>
-                  <div class="alert alert-success alert-sm">
-                    <i class="fa-solid fa-check me-1"></i>
-                    <strong>Tip:</strong> Use "Select All" for comprehensive analysis or pick specific tools.
-                  </div>
-                </div>
-
-                <div class="help-content" data-help="4">
-                  <h6 class="mb-2">Before You Launch</h6>
-                  <ul class="small mb-3">
-                    <li><strong>Double-check:</strong> Verify model and app selection</li>
-                    <li><strong>Resources:</strong> Ensure sufficient system resources</li>
-                    <li><strong>Timing:</strong> Consider system load and peak hours</li>
-                    <li><strong>Notifications:</strong> Set up appropriate alerts</li>
-                  </ul>
-                  <div class="alert alert-primary alert-sm">
-                    <i class="fa-solid fa-clock me-1"></i>
-                    <strong>Scheduling:</strong> Analysis will start immediately upon launch.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
 </form>
+
+<style>
+  .step-nav-btn.active { font-weight: 600; color: var(--tblr-primary) !important; border-bottom: 2px solid var(--tblr-primary) !important; background: transparent !important; }
+  .step-nav-btn { font-weight: 400; color: var(--tblr-muted) !important; transition: all 0.15s; background: transparent !important; }
+  .step-nav-btn:hover { color: var(--tblr-primary) !important; background: rgba(var(--tblr-primary-rgb), 0.04) !important; }
+</style>
+
 {# Tool Selection Confirmation Modal - Tabler Standard #}
 <div class="modal modal-blur fade" id="confirmation-modal" tabindex="-1" aria-labelledby="confirmationModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -1020,6 +724,11 @@ function goToStep(stepNumber) {
                     step.classList.add('active');
                 }
             });
+            // Sync step-nav-btn bar
+            document.querySelectorAll('.step-nav-btn').forEach(function(btn) {
+                var s = parseInt(btn.dataset.step);
+                if (s === stepNumber) { btn.classList.add('active'); } else { btn.classList.remove('active'); }
+            });
             
             currentStep = stepNumber;
             updateWizardStep();
@@ -1033,6 +742,12 @@ function updateWizardStep() {
     var progressPercent = (currentStep / 4) * 100;
     var progressBar = document.getElementById('wizard-progress-bar');
     if(progressBar) progressBar.style.width = progressPercent + '%';
+    
+    // Sync step-nav-btn bar
+    document.querySelectorAll('.step-nav-btn').forEach(function(btn) {
+        var s = parseInt(btn.dataset.step);
+        if (s === currentStep) { btn.classList.add('active'); } else { btn.classList.remove('active'); }
+    });
     
     // Hide all panels first
     document.querySelectorAll('.wizard-panel').forEach(function(panel) {
@@ -1101,7 +816,7 @@ function updateNavigationButtons() {
       nextBtn.classList.remove('btn-outline-primary');
       nextBtn.classList.add('btn-primary');
     } else {
-      nextBtn.innerHTML = 'Complete this step to continue';
+      nextBtn.innerHTML = 'Next <i class="fa-solid fa-chevron-right ms-1"></i>';
       nextBtn.classList.remove('btn-primary');
       nextBtn.classList.add('btn-outline-primary');
     }
@@ -1870,6 +1585,7 @@ function showToolConfig(toolName) {
             
             // Remove modal when hidden
             configModal.addEventListener('hidden.bs.modal', () => {
+                modal.dispose();
                 document.body.removeChild(configModal);
             });
         } else {

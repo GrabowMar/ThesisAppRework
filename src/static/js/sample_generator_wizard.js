@@ -257,6 +257,12 @@
       }
     });
 
+    // Sync step-nav-btn bar (horizontal step buttons)
+    document.querySelectorAll('.step-nav-btn').forEach(btn => {
+      const s = parseInt(btn.dataset.step);
+      btn.classList.toggle('active', s === currentStep);
+    });
+
     // Update help content visibility (use active class like create.html)
     document.querySelectorAll('.help-content').forEach(help => {
       help.classList.remove('active');
@@ -351,7 +357,7 @@
         nextBtn.classList.add('btn-primary');
         console.log('[Wizard] Next button enabled');
       } else {
-        nextBtn.innerHTML = 'Complete this step to continue';
+        nextBtn.innerHTML = 'Next <i class="fa-solid fa-chevron-right ms-1"></i>';
         nextBtn.classList.remove('btn-primary');
         nextBtn.classList.add('btn-outline-primary');
         console.log('[Wizard] Next button disabled - step not valid');
@@ -1717,7 +1723,8 @@
 
   function createTemplate() {
     // Open modal for creating new template
-    const modal = new bootstrap.Modal(document.getElementById('template-modal'));
+    const el = document.getElementById('template-modal');
+    const modal = bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el);
     modal.show();
   }
 
