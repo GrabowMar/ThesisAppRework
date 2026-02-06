@@ -181,15 +181,9 @@ class ContainerLogsModal {
         // Close modal
         this.closeButton?.addEventListener('click', () => this.close());
         
-        // Prevent closing while operation is in progress
-        this.modalCloseButton?.addEventListener('click', (e) => {
-            if (this.operationInProgress) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (confirm('Operation is still in progress. Do you want to cancel it?')) {
-                    this.cancelOperation();
-                }
-            }
+        // X button just hides the modal without cancelling the operation
+        this.modalCloseButton?.addEventListener('click', () => {
+            // Let data-bs-dismiss handle the modal hide naturally
         });
     }
 
@@ -782,12 +776,6 @@ class ContainerLogsModal {
      * Close modal
      */
     close() {
-        if (this.operationInProgress) {
-            if (!confirm('Operation is still in progress. Are you sure you want to close?')) {
-                return;
-            }
-            this.cancelOperation();
-        }
         this.bootstrapModal.hide();
     }
 
