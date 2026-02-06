@@ -289,39 +289,64 @@ class ConcurrentAnalysisRunner:
         
         async def build_one(job: AnalysisJobSpec) -> bool:
             async with semaphore:
-                try:
-                    logger.info(f"Building containers for {job.model_slug}/app{job.app_number}...")
-                    
-                    # Run build in executor to not block event loop
-                    loop = asyncio.get_event_loop()
-                    result = await loop.run_in_executor(
-                        None,
-                        lambda: docker_mgr.build_containers(
-                            job.model_slug,
-                            job.app_number,
-                            no_cache=False,
-                            start_after=True
-                        )
-                    )
-                    
-                    if result.get('success'):
-                        job.containers_ready = True
-                        self._started_containers.append((job.model_slug, job.app_number))
-                        self._update_app_container_status(job.model_slug, job.app_number, 'running')
-                        logger.info(f"Containers ready for {job.model_slug}/app{job.app_number}")
-                        return True
-                    else:
-                        self._update_app_container_status(job.model_slug, job.app_number, 'build_failed')
-                        logger.warning(
-                            f"Container build failed for {job.model_slug}/app{job.app_number}: "
-                            f"{result.get('error', 'Unknown error')}"
-                        )
-                        return False
+                max_build_retries = 2
+                last_error = 'Unknown error'
+                
+                for attempt in range(max_build_retries + 1):
+                    try:
+                        if attempt > 0:
+                            logger.info(
+                                f"Retrying container build for {job.model_slug}/app{job.app_number} "
+                                f"(attempt {attempt + 1}/{max_build_retries + 1})"
+                            )
+                        else:
+                            logger.info(f"Building containers for {job.model_slug}/app{job.app_number}...")
                         
-                except Exception as e:
-                    self._update_app_container_status(job.model_slug, job.app_number, 'build_failed')
-                    logger.error(f"Container build error for {job.model_slug}/app{job.app_number}: {e}")
-                    return False
+                        # Run build in executor to not block event loop
+                        loop = asyncio.get_event_loop()
+                        result = await loop.run_in_executor(
+                            None,
+                            lambda: docker_mgr.build_containers(
+                                job.model_slug,
+                                job.app_number,
+                                no_cache=False,
+                                start_after=True
+                            )
+                        )
+                        
+                        if result.get('success'):
+                            job.containers_ready = True
+                            self._started_containers.append((job.model_slug, job.app_number))
+                            self._update_app_container_status(job.model_slug, job.app_number, 'running')
+                            logger.info(f"Containers ready for {job.model_slug}/app{job.app_number}")
+                            return True
+                        else:
+                            last_error = result.get('error', 'Unknown error')
+                            if attempt < max_build_retries:
+                                backoff = 5 * (attempt + 1)
+                                logger.warning(
+                                    f"Container build failed for {job.model_slug}/app{job.app_number}: "
+                                    f"{last_error}. Retrying in {backoff}s..."
+                                )
+                                await asyncio.sleep(backoff)
+                            
+                    except Exception as e:
+                        last_error = str(e)
+                        if attempt < max_build_retries:
+                            backoff = 5 * (attempt + 1)
+                            logger.warning(
+                                f"Container build error for {job.model_slug}/app{job.app_number}: "
+                                f"{e}. Retrying in {backoff}s..."
+                            )
+                            await asyncio.sleep(backoff)
+                
+                # All retries exhausted
+                self._update_app_container_status(job.model_slug, job.app_number, 'build_failed')
+                logger.error(
+                    f"Container build failed for {job.model_slug}/app{job.app_number} "
+                    f"after {max_build_retries + 1} attempts: {last_error}"
+                )
+                return False
         
         # Build all containers in parallel (with semaphore limiting)
         await asyncio.gather(*[build_one(job) for job in jobs], return_exceptions=True)

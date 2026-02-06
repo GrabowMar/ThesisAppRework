@@ -478,7 +478,51 @@ class TaskExecutionService:
             db.session.commit()
             self._log("[RECOVERY] Fixed %d main task(s) with completed subtasks", recovered_count)
         
-        # SECOND: Standard stuck task recovery (for tasks >15 min without progress)
+        # SECOND: Recover tasks stuck in RUNNING with no assigned worker (dispatch race condition)
+        # These tasks got marked RUNNING but no worker ever picked them up
+        orphan_threshold = timedelta(minutes=2)
+        orphan_cutoff = datetime.now(timezone.utc) - orphan_threshold
+        
+        orphan_tasks = AnalysisTask.query.filter(
+            AnalysisTask.status == AnalysisStatus.RUNNING,  # type: ignore[arg-type]
+            AnalysisTask.started_at != None,  # noqa: E711  # type: ignore[arg-type]
+            AnalysisTask.started_at < orphan_cutoff,  # type: ignore[operator,arg-type]
+            AnalysisTask.assigned_worker == None  # noqa: E711  # type: ignore[arg-type]
+        ).all()
+        
+        for task in orphan_tasks:
+            # Skip if it's in our active thread pool (worker hasn't set assigned_worker yet)
+            with self._futures_lock:
+                if task.task_id in self._active_futures:
+                    continue
+            
+            meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
+            retry_count = meta.get('retry_count', 0)
+            if retry_count >= 3:
+                task.status = AnalysisStatus.FAILED
+                task.error_message = f"Task orphaned with no assigned worker after {retry_count} retries"
+                task.completed_at = datetime.now(timezone.utc)
+            else:
+                task.status = AnalysisStatus.PENDING
+                task.started_at = None
+                task.progress_percentage = 0.0
+                if hasattr(task, 'set_metadata'):
+                    updated_meta = dict(meta)
+                    updated_meta['retry_count'] = retry_count + 1
+                    updated_meta['last_recovery'] = datetime.now(timezone.utc).isoformat()
+                    updated_meta['recovery_reason'] = 'orphan_no_worker'
+                    task.set_metadata(updated_meta)
+                self._log(
+                    "[RECOVERY] Task %s orphaned (no assigned_worker for >2min), reset to PENDING (retry %d/3)",
+                    task.task_id, retry_count + 1, level='warning'
+                )
+            recovered_count += 1
+        
+        if recovered_count > 0:
+            db.session.commit()
+            self._log("[RECOVERY] Fixed %d orphaned task(s) with no assigned worker", recovered_count)
+        
+        # THIRD: Standard stuck task recovery (for tasks >15 min without progress)
         stuck_threshold = timedelta(minutes=15)
         cutoff_time = datetime.now(timezone.utc) - stuck_threshold
         
@@ -489,10 +533,7 @@ class TaskExecutionService:
             AnalysisTask.started_at < cutoff_time  # type: ignore[operator,arg-type]
         ).all()
         
-        if not stuck_tasks:
-            return 0
-        
-        recovered_count = 0
+        stuck_recovered = 0
         for task in stuck_tasks:
             # Check if this is a Celery task that's actually still running
             # by checking if it's in our active futures (ThreadPool) or has a Celery task ID
@@ -561,24 +602,27 @@ class TaskExecutionService:
                     task.task_id, retry_count + 1
                 )
             
-            recovered_count += 1
+            stuck_recovered += 1
         
-        if recovered_count > 0:
+        if stuck_recovered > 0:
             db.session.commit()
-            self._log("[RECOVERY] Recovered %d stuck task(s)", recovered_count)
+            self._log("[RECOVERY] Recovered %d stuck task(s)", stuck_recovered)
         
-        # THIRD: Recover FAILED tasks due to transient service unavailability
-        # These tasks failed quickly (<5 min) with pre-flight errors and may be retryable
+        # FOURTH: Recover FAILED tasks due to transient service unavailability
+        # These tasks failed quickly with pre-flight errors and may be retryable
         failed_retry_count = self._recover_failed_transient_tasks()
         
-        return recovered_count + failed_retry_count
+        # FIFTH: Recover PARTIAL_SUCCESS tasks with retryable failed subtasks
+        partial_retry_count = self._recover_partial_success_tasks()
+        
+        return recovered_count + stuck_recovered + failed_retry_count + partial_retry_count
     
     def _recover_failed_transient_tasks(self) -> int:
         """Recover FAILED tasks that failed due to transient service unavailability.
         
         Only retries tasks that:
-        1. Failed recently (within last 30 minutes)
-        2. Have error message indicating service unavailability
+        1. Failed recently (within last 60 minutes)
+        2. Have error message indicating transient failure
         3. Have retry count < 3
         4. Have all required services now available
         
@@ -595,8 +639,8 @@ class TaskExecutionService:
             'ai-analyzer': 2004
         }
         
-        # Find recently failed main tasks with service unavailability errors
-        recent_threshold = timedelta(minutes=30)
+        # Find recently failed main tasks
+        recent_threshold = timedelta(minutes=60)
         cutoff_time = datetime.now(timezone.utc) - recent_threshold
         
         failed_tasks = AnalysisTask.query.filter(
@@ -629,11 +673,24 @@ class TaskExecutionService:
         
         recovered_count = 0
         transient_error_patterns = [
+            # Service unavailability
             'Pre-flight check failed',
             'not accessible',
             'Connection refused',
             'service unavailable',
-            'analyzer services are not accessible'
+            'analyzer services are not accessible',
+            # Timeout errors (service was overloaded, not a permanent failure)
+            'timed out after',
+            # Event loop errors (thread scheduling issue, transient)
+            'event loop error',
+            'cannot schedule new futures',
+            'event loop is closed',
+            # DNS resolution (transient network blip)
+            'Temporary failure in name resolution',
+            'Name or service not known',
+            # Connection reset (service restart)
+            'Connection reset',
+            'Connection closed unexpectedly',
         ]
         
         for task in failed_tasks:
@@ -697,6 +754,133 @@ class TaskExecutionService:
         if recovered_count > 0:
             db.session.commit()
             self._log("[RECOVERY] Recovered %d failed task(s) due to transient errors", recovered_count)
+        
+        return recovered_count
+
+    def _recover_partial_success_tasks(self) -> int:
+        """Recover PARTIAL_SUCCESS tasks by retrying their failed subtasks.
+        
+        Finds main tasks in PARTIAL_SUCCESS state where some subtasks failed
+        with transient errors. Resets those subtasks to PENDING so the task
+        execution loop re-dispatches them.
+        
+        Returns:
+            Number of subtasks recovered
+        """
+        from datetime import timedelta
+        import socket
+        
+        SERVICE_PORTS = {
+            'static-analyzer': 2001,
+            'dynamic-analyzer': 2002,
+            'performance-tester': 2003,
+            'ai-analyzer': 2004
+        }
+        
+        # Only recover recent partial tasks (within last 2 hours)
+        recent_threshold = timedelta(hours=2)
+        cutoff_time = datetime.now(timezone.utc) - recent_threshold
+        
+        partial_tasks = AnalysisTask.query.filter(
+            AnalysisTask.status == AnalysisStatus.PARTIAL_SUCCESS,  # type: ignore[arg-type]
+            AnalysisTask.is_main_task == True,  # noqa: E712  # type: ignore[arg-type]
+            AnalysisTask.completed_at != None,  # noqa: E711  # type: ignore[arg-type]
+            AnalysisTask.completed_at > cutoff_time  # type: ignore[operator,arg-type]
+        ).all()
+        
+        if not partial_tasks:
+            return 0
+        
+        # Check which services are available
+        services_available = {}
+        for service_name, port in SERVICE_PORTS.items():
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(2.0)
+                host = self._get_analyzer_host(service_name)
+                result = sock.connect_ex((host, port))
+                sock.close()
+                services_available[service_name] = (result == 0)
+            except Exception:
+                services_available[service_name] = False
+        
+        if not any(services_available.values()):
+            return 0
+        
+        transient_patterns = [
+            'timed out after', 'event loop error', 'cannot schedule new futures',
+            'event loop is closed', 'Temporary failure in name resolution',
+            'Name or service not known', 'Connection reset', 'Connection closed unexpectedly',
+            'Connection refused', 'Pre-flight check failed', 'not accessible',
+            'service unavailable', 'circuit breaker',
+        ]
+        
+        recovered_count = 0
+        for main_task in partial_tasks:
+            subtasks = list(main_task.subtasks) if hasattr(main_task, 'subtasks') else []
+            if not subtasks:
+                continue
+            
+            # Check retry count on main task
+            meta = main_task.get_metadata() if hasattr(main_task, 'get_metadata') else {}
+            partial_retry_count = meta.get('partial_retry_count', 0)
+            max_retries = int(os.environ.get('PARTIAL_RECOVERY_MAX_RETRIES', '2'))
+            
+            if partial_retry_count >= max_retries:
+                continue
+            
+            # Find failed subtasks with transient errors whose service is now available
+            subtasks_to_retry = []
+            for st in subtasks:
+                if st.status != AnalysisStatus.FAILED:
+                    continue
+                error_msg = st.error_message or ''
+                is_transient = any(p.lower() in error_msg.lower() for p in transient_patterns)
+                if not is_transient:
+                    continue
+                svc = st.service_name or ''
+                if svc and not services_available.get(svc, False):
+                    continue
+                subtasks_to_retry.append(st)
+            
+            if not subtasks_to_retry:
+                continue
+            
+            # Reset the main task back to PENDING so it gets picked up by the task queue
+            main_task.status = AnalysisStatus.PENDING
+            main_task.started_at = None
+            main_task.completed_at = None
+            main_task.error_message = None
+            
+            # Reset failed subtasks to PENDING
+            for st in subtasks_to_retry:
+                st.status = AnalysisStatus.PENDING
+                st.started_at = None
+                st.completed_at = None
+                st.progress_percentage = 0.0
+                st.error_message = None
+                recovered_count += 1
+                self._log(
+                    "[RECOVERY] Reset failed subtask %s (%s) to PENDING for partial recovery",
+                    st.task_id, st.service_name, level='info'
+                )
+            
+            # Update retry count
+            if hasattr(main_task, 'set_metadata'):
+                updated_meta = dict(meta)
+                updated_meta['partial_retry_count'] = partial_retry_count + 1
+                updated_meta['last_partial_recovery'] = datetime.now(timezone.utc).isoformat()
+                main_task.set_metadata(updated_meta)
+            
+            self._log(
+                "[RECOVERY] Recovering partial task %s: retrying %d failed subtask(s) (attempt %d/%d)",
+                main_task.task_id, len(subtasks_to_retry),
+                partial_retry_count + 1, max_retries, level='info'
+            )
+        
+        if recovered_count > 0:
+            db.session.commit()
+            self._log("[RECOVERY] Recovered %d failed subtask(s) from partial tasks", recovered_count)
         
         return recovered_count
 
@@ -1558,6 +1742,10 @@ class TaskExecutionService:
                 subtask_info = []
                 
                 for subtask in subtasks:
+                    # Skip subtasks that are already in a terminal success state (partial recovery case)
+                    if subtask.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS):
+                        continue
+                    
                     service_name = subtask.service_name
                     metadata = subtask.get_metadata() if hasattr(subtask, 'get_metadata') else {}
                     custom_options = metadata.get('custom_options', {})
@@ -1657,6 +1845,14 @@ class TaskExecutionService:
         
         try:
             for subtask in subtasks:
+                # Skip subtasks that are already in a terminal success state (partial recovery case)
+                if subtask.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS):
+                    self._log(
+                        f"Skipping already-completed subtask {subtask.task_id} ({subtask.service_name}), status={subtask.status.value}",
+                        level='debug'
+                    )
+                    continue
+                
                 service_name = subtask.service_name
                 
                 # Get tool names and tool_config from subtask metadata
@@ -2206,26 +2402,59 @@ class TaskExecutionService:
                 # Timeout per service based on typical execution times:
                 # - AI analyzer: 600s (external API calls can be slow)
                 # - Dynamic analyzer: 600s (ZAP spider + passive scan for 2 targets ~5-8 min)
-                # - Static analyzer: 480s (14 tools, some like mypy/semgrep are slow)
+                # - Static analyzer: 720s (14 tools, semgrep can be slow on large codebases)
                 # - Performance tester: 300s (load tests with warmup)
                 if service_name == 'ai-analyzer':
                     service_timeout = 600
                 elif service_name == 'dynamic-analyzer':
                     service_timeout = 600  # ZAP scans take 5-8 min for 2 targets
                 elif service_name == 'static-analyzer':
-                    service_timeout = 480  # 14 tools, some are slow
+                    service_timeout = 720  # 14 tools, semgrep can be slow on large codebases
                 else:
                     service_timeout = 300
-                result = self._execute_via_websocket(
-                    service_name=service_name,
-                    model_slug=model_slug,
-                    app_number=app_number,
-                    tools=tools,
-                    timeout=service_timeout,
-                    tool_config=tool_config,
-                    backend_port=backend_port,
-                    frontend_port=frontend_port
-                )
+                
+                # Subtask-level retry for transient failures (timeout, event loop, DNS)
+                subtask_transient_patterns = [
+                    'timed out after', 'event loop error', 'cannot schedule new futures',
+                    'event loop is closed', 'Temporary failure in name resolution',
+                    'Name or service not known', 'Connection reset', 'Connection closed unexpectedly',
+                    'Connection refused',
+                ]
+                max_subtask_retries = int(os.environ.get('SUBTASK_MAX_RETRIES', '2'))
+                
+                for attempt in range(max_subtask_retries + 1):
+                    result = self._execute_via_websocket(
+                        service_name=service_name,
+                        model_slug=model_slug,
+                        app_number=app_number,
+                        tools=tools,
+                        timeout=service_timeout,
+                        tool_config=tool_config,
+                        backend_port=backend_port,
+                        frontend_port=frontend_port
+                    )
+                    
+                    ws_status = str(result.get('status', '')).lower()
+                    ws_error = str(result.get('error', ''))
+                    
+                    # Check if this is a transient failure worth retrying
+                    is_transient = (
+                        ws_status in ('timeout', 'error')
+                        and any(p.lower() in ws_error.lower() for p in subtask_transient_patterns)
+                    )
+                    
+                    if not is_transient or attempt >= max_subtask_retries:
+                        break
+                    
+                    # Transient failure — retry with backoff
+                    backoff_secs = 15 * (attempt + 1)  # 15s, 30s
+                    self._log(
+                        f"[SUBTASK_RETRY] Transient failure for {service_name} subtask {subtask_id} "
+                        f"(attempt {attempt + 1}/{max_subtask_retries + 1}): {ws_error[:150]}. "
+                        f"Retrying in {backoff_secs}s...",
+                        level='warning'
+                    )
+                    time.sleep(backoff_secs)
 
                 # Update circuit breaker based on result
                 status = str(result.get('status', '')).lower()
@@ -2404,6 +2633,30 @@ class TaskExecutionService:
                 combined_tool_results = {}
                 any_failed = False
                 any_succeeded = False
+                
+                # Include results from already-completed subtasks (partial recovery case)
+                # These subtasks were completed in a prior run and skipped in this dispatch
+                dispatched_services = {info.get('service') for info in subtask_info}
+                all_subtasks = list(main_task.subtasks) if hasattr(main_task, 'subtasks') else []
+                for st in all_subtasks:
+                    if st.service_name in dispatched_services:
+                        continue  # Will be included from futures results
+                    if st.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS):
+                        # Load previously-stored result summary
+                        prev_result = st.get_result_summary() if hasattr(st, 'get_result_summary') else {}
+                        if prev_result and isinstance(prev_result, dict):
+                            analysis_data = prev_result.get('analysis', prev_result)
+                            all_services[st.service_name] = {
+                                'status': 'success' if st.status == AnalysisStatus.COMPLETED else 'partial',
+                                'service': st.service_name,
+                                'analysis': analysis_data,
+                                'error': None
+                            }
+                            any_succeeded = True
+                            self._log(
+                                f"[AGGREGATE] Included prior result for {st.service_name} (status={st.status.value})",
+                                level='debug'
+                            )
                 
                 for result in results:
                     service_name = result.get('service_name', 'unknown')
