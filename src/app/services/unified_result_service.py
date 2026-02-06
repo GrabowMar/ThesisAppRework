@@ -210,12 +210,17 @@ class UnifiedResultService:
             # Try database
             payload = self._db_load_results(task_id)
             if payload:
-                results = self._transform_to_analysis_results(task_id, payload)
-                self._cache_set(task_id, results)
-                logger.debug(f"Loaded {task_id} from database")
-                return results
+                # Check if DB data has only service references (no actual data)
+                # If so, prefer filesystem loading which resolves references
+                if not self._has_service_references_only(payload):
+                    results = self._transform_to_analysis_results(task_id, payload)
+                    self._cache_set(task_id, results)
+                    logger.debug(f"Loaded {task_id} from database")
+                    return results
+                else:
+                    logger.debug(f"DB data for {task_id} has only references, trying filesystem")
             
-            # Try filesystem fallback
+            # Try filesystem fallback (resolves service file references)
             payload = self._file_load_results(task_id)
             if payload:
                 results = self._transform_to_analysis_results(task_id, payload)
@@ -446,6 +451,45 @@ class UnifiedResultService:
             return task.get_result_summary()
         return None
     
+    @staticmethod
+    def _has_service_references_only(payload: Dict[str, Any]) -> bool:
+        """Check if payload lacks meaningful analysis data in services.
+        
+        Returns True when DB data should be skipped in favor of filesystem,
+        which happens when:
+        - Service entries are file references ({status, file})
+        - Service entries use old 'payload' key instead of 'analysis'
+        - tools list/dict is empty despite having services
+        """
+        services = payload.get('services', {})
+        if not services or not isinstance(services, dict):
+            return False
+        
+        # Check if tools are empty despite having services
+        tools = payload.get('tools')
+        tools_empty = not tools or (isinstance(tools, (list, dict)) and len(tools) == 0)
+        
+        has_real_data = False
+        for svc_data in services.values():
+            if not isinstance(svc_data, dict):
+                continue
+            # File reference entries — always prefer filesystem
+            if 'file' in svc_data and set(svc_data.keys()) <= {'status', 'file', 'error'}:
+                return True
+            # Old DB format uses 'payload' key — not compatible with report pipeline
+            if 'payload' in svc_data and 'analysis' not in svc_data:
+                continue  # Treat as non-standard, prefer filesystem
+            elif 'analysis' in svc_data:
+                analysis = svc_data.get('analysis')
+                if analysis and isinstance(analysis, dict) and len(analysis) > 0:
+                    has_real_data = True
+        
+        # If no service has real data and tools are empty, prefer filesystem
+        if not has_real_data and tools_empty:
+            return True
+        
+        return False
+    
     # ==========================================================================
     # FILE SUBSYSTEM - Filesystem Operations
     # ==========================================================================
@@ -599,16 +643,24 @@ class UnifiedResultService:
                 # New structure: results/{model}/app{N}/task_{task_id}/*.json
                 task_dir = app_dir / task_id
                 if task_dir.exists() and task_dir.is_dir():
-                    # Find the main JSON file (not manifest.json)
+                    # Find the main JSON file
+                    # Priority: consolidated.json > file with task_id in name > any other JSON
                     json_files = list(task_dir.glob('*.json'))
-                    main_json = next((jf for jf in json_files if jf.name != 'manifest.json' and task_id in jf.name), None)
-                    if not main_json and json_files:
-                        main_json = next((jf for jf in json_files if jf.name != 'manifest.json'), None)
+                    consolidated = task_dir / 'consolidated.json'
+                    if consolidated.exists():
+                        main_json = consolidated
+                    else:
+                        main_json = next((jf for jf in json_files if jf.name != 'manifest.json' and task_id in jf.name), None)
+                        if not main_json and json_files:
+                            main_json = next((jf for jf in json_files if jf.name != 'manifest.json'), None)
                     
                     if main_json:
                         try:
                             with open(main_json, 'r', encoding='utf-8') as f:
-                                return json.load(f)
+                                payload = json.load(f)
+                            # Resolve service file references into actual data
+                            payload = self._resolve_service_references(payload, task_dir)
+                            return payload
                         except Exception as e:
                             logger.error(f"Failed to load {main_json}: {e}")
                 
@@ -622,6 +674,47 @@ class UnifiedResultService:
                         logger.error(f"Failed to load {legacy_file}: {e}")
         
         return None
+    
+    def _resolve_service_references(
+        self,
+        payload: Dict[str, Any],
+        task_dir: Path
+    ) -> Dict[str, Any]:
+        """Resolve service file references in consolidated.json into actual data.
+        
+        If services entries only contain {status, file} references (from
+        standardized consolidated.json), load the actual JSON data from the
+        referenced service files.
+        """
+        services = payload.get('services', {})
+        if not services or not isinstance(services, dict):
+            return payload
+        
+        resolved = False
+        for svc_name, svc_data in services.items():
+            if not isinstance(svc_data, dict):
+                continue
+            # Detect reference-only entries: have 'file' key and few other keys
+            svc_file = svc_data.get('file')
+            if svc_file and set(svc_data.keys()) <= {'status', 'file', 'error'}:
+                # This is a reference — load the actual file
+                file_path = task_dir / svc_file
+                if file_path.exists():
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            actual_data = json.load(f)
+                        if isinstance(actual_data, dict):
+                            services[svc_name] = actual_data
+                            resolved = True
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to resolve service file {file_path}: {e}"
+                        )
+        
+        if resolved:
+            payload['services'] = services
+        
+        return payload
     
     def _file_discover_results(
         self,
@@ -792,6 +885,12 @@ class UnifiedResultService:
         # Get full services data (not just tools) - template needs this
         services = results_data.get('services', {})
         
+        # Normalize service entries: unwrap {metadata, results: {analysis: ...}}
+        # into {analysis: ..., status: ...} for consistent access by all consumers
+        if services:
+            services = self._normalize_service_entries(services)
+            results_data['services'] = services
+        
         # Also check for tools at top level (AI analyzer stores tools here)
         # Priority: services > payload.tools > results_data.tools
         tools_data = services
@@ -821,6 +920,57 @@ class UnifiedResultService:
             app_number=app_number,
             modified_at=modified_at
         )
+    
+    @staticmethod
+    def _normalize_service_entries(tools_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize service entries so 'analysis' is always at the top level.
+        
+        Handles three formats:
+        1. Already normalized: {analysis: {...}, status: ...}
+        2. Resolved service file: {metadata: {...}, results: {analysis: {...}}}
+        3. Unwrapped: raw analysis data without any wrapper (has tools_used/tool_results)
+        
+        All are normalized to: {status: ..., analysis: {...}, ...}
+        """
+        if not tools_data or not isinstance(tools_data, dict):
+            return tools_data
+        
+        normalized = {}
+        for name, data in tools_data.items():
+            if not isinstance(data, dict):
+                normalized[name] = data
+                continue
+            
+            # Already has 'analysis' at top level — keep as-is
+            if 'analysis' in data:
+                normalized[name] = data
+                continue
+            
+            # Check for {metadata, results: {analysis: ...}} pattern
+            inner_results = data.get('results')
+            if isinstance(inner_results, dict) and 'analysis' in inner_results:
+                normalized[name] = {
+                    'status': inner_results.get('status', data.get('status', 'unknown')),
+                    'service': inner_results.get('service', name),
+                    'analysis': inner_results.get('analysis', {}),
+                    'metadata': data.get('metadata', {}),
+                    'type': inner_results.get('type'),
+                    'timestamp': inner_results.get('timestamp'),
+                }
+                continue
+            
+            # Unwrapped format: data IS the analysis (has tools_used, tool_results, etc.)
+            if any(k in data for k in ('tools_used', 'tool_results', 'configuration_applied')):
+                normalized[name] = {
+                    'status': data.get('status', 'unknown'),
+                    'service': name,
+                    'analysis': data,
+                }
+                continue
+            
+            normalized[name] = data
+        
+        return normalized
     
     def _extract_summary(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Extract summary data."""

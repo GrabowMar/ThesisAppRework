@@ -243,10 +243,12 @@ def execute_analysis(self, task_id: int) -> Dict[str, Any]:
         if not task:
             return {'status': 'error', 'error': f'Task {task_id} not found'}
         
-        # Idempotency guard: Skip if already in a terminal or running state
-        if task.status in (AnalysisStatus.RUNNING, AnalysisStatus.COMPLETED, 
-                           AnalysisStatus.FAILED, AnalysisStatus.PARTIAL_SUCCESS):
-            logger.info(f"[CELERY] Task {task_id} already in state {task.status.value}, skipping re-execution")
+        # Idempotency guard: Skip if already in a terminal state
+        # NOTE: We allow RUNNING status because the polling loop may have already set it
+        # before dispatching to Celery. This is expected behavior.
+        if task.status in (AnalysisStatus.COMPLETED, AnalysisStatus.FAILED, 
+                           AnalysisStatus.PARTIAL_SUCCESS):
+            logger.info(f"[CELERY] Task {task_id} already in terminal state {task.status.value}, skipping re-execution")
             return {
                 'status': 'skipped',
                 'reason': f'Task already in state: {task.status.value}',
@@ -257,7 +259,8 @@ def execute_analysis(self, task_id: int) -> Dict[str, Any]:
         with database_write_lock(f"task_{task_id}_start"):
             # Re-check status inside lock (double-check pattern)
             db.session.refresh(task)
-            if task.status != AnalysisStatus.PENDING:
+            # Allow PENDING or RUNNING (polling loop may set RUNNING before Celery picks up)
+            if task.status not in (AnalysisStatus.PENDING, AnalysisStatus.RUNNING):
                 logger.info(f"[CELERY] Task {task_id} status changed to {task.status.value}, skipping")
                 return {
                     'status': 'skipped',

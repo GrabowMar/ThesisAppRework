@@ -939,6 +939,17 @@ class TaskExecutionService:
                     if self._is_redis_available():
                         from app.tasks import execute_analysis
                         self._log(f"[EXEC] Dispatching task {task.task_id} to Celery worker")
+                        
+                        # CRITICAL FIX: Reset task status to PENDING before Celery dispatch
+                        # The polling loop already set status=RUNNING, but Celery's execute_analysis
+                        # has an idempotency guard that skips RUNNING tasks. Reset to PENDING so
+                        # Celery can properly mark it as RUNNING when it starts execution.
+                        if task.status == AnalysisStatus.RUNNING:
+                            task.status = AnalysisStatus.PENDING
+                            task.started_at = None
+                            db.session.commit()
+                            self._log(f"[EXEC] Reset task {task.task_id} to PENDING for Celery dispatch")
+                        
                         # Dispatch task to Celery
                         result = execute_analysis.delay(task.id)
                         self._log(f"[EXEC] Task {task.task_id} dispatched to Celery (task_id={result.id})")

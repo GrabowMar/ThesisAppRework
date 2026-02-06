@@ -390,6 +390,7 @@ class ReportService:
         logger.info(f"Generating model report for {model_slug} (normalized: {normalized_slug}, variants: {slug_variants})")
         
         # Query completed tasks for this model using slug variants
+        # Only include main tasks (not subtasks) for report grouping
         query = AnalysisTask.query.filter(
             AnalysisTask.target_model.in_(slug_variants),
             AnalysisTask.status.in_([  # type: ignore[union-attr]
@@ -397,7 +398,11 @@ class ReportService:
                 AnalysisStatus.PARTIAL_SUCCESS,
                 AnalysisStatus.FAILED,
                 AnalysisStatus.CANCELLED
-            ])
+            ]),
+            db.or_(
+                AnalysisTask.is_main_task.is_(True),
+                AnalysisTask.parent_task_id.is_(None)
+            )
         )
         
         if date_range.get('start'):
@@ -413,7 +418,7 @@ class ReportService:
         report.update_progress(20)
         db.session.commit()
         
-        # Group by app and get latest task per app
+        # Group by app and get best task per app
         apps_map: Dict[int, List[AnalysisTask]] = {}
         for task in tasks:
             app_num = task.target_app_number
@@ -428,9 +433,10 @@ class ReportService:
         
         for app_number in sorted(apps_map.keys()):
             app_tasks = apps_map[app_number]
-            latest_task = app_tasks[0]
+            # Pick best task: prefer one with most issues_found (indicates complete analysis)
+            best_task = max(app_tasks, key=lambda t: (t.issues_found or 0, t.completed_at or t.created_at))
             
-            app_entry = self._process_task_for_report(latest_task, model_slug, app_number)
+            app_entry = self._process_task_for_report(best_task, model_slug, app_number)
             apps_data.append(app_entry)
             
             # Aggregate findings
@@ -781,16 +787,23 @@ class ReportService:
         per_model_metrics = {}
         
         for app in apps:
-            # Get latest completed task for this app
-            task = AnalysisTask.query.filter(
+            # Get best completed main task for this app (prefer most complete results)
+            candidate_tasks = AnalysisTask.query.filter(
                 AnalysisTask.target_model == app.model_slug,
                 AnalysisTask.target_app_number == app.app_number,
                 AnalysisTask.status.in_([  # type: ignore[union-attr]
                     AnalysisStatus.COMPLETED,
                     AnalysisStatus.PARTIAL_SUCCESS,
                     AnalysisStatus.FAILED
-                ])
-            ).order_by(AnalysisTask.completed_at.desc()).first()  # type: ignore[union-attr]
+                ]),
+                db.or_(
+                    AnalysisTask.is_main_task.is_(True),
+                    AnalysisTask.parent_task_id.is_(None)
+                )
+            ).all()
+            
+            # Pick task with most issues_found (indicates complete analysis)
+            task = max(candidate_tasks, key=lambda t: (t.issues_found or 0, t.completed_at or t.created_at)) if candidate_tasks else None
             
             if task:
                 entry = self._process_task_for_report(task, app.model_slug, app.app_number)
@@ -1336,7 +1349,7 @@ class ReportService:
         filter_model = config.get('filter_model')
         filter_app = config.get('filter_app')
         
-        # Query completed tasks
+        # Query completed tasks (main tasks only)
         query = AnalysisTask.query.filter(
             AnalysisTask.status.in_([  # type: ignore[union-attr]
                 AnalysisStatus.COMPLETED,
@@ -1402,10 +1415,18 @@ class ReportService:
                     continue
                 
                 # Detect if this is a direct tool entry (AI analyzer) or a service entry
-                # Direct tools have 'status' and optionally 'tool_name' at top level, no 'analysis' key
+                # Service entries have 'analysis', 'tool_results', or multiple result keys
+                # Direct tools have 'status' and simple result data
+                is_service = (
+                    'analysis' in item_data or
+                    'tool_results' in item_data or
+                    'tools_used' in item_data or
+                    ('tools' in item_data and isinstance(item_data.get('tools'), dict))
+                )
+                
                 is_direct_tool = (
+                    not is_service and
                     'status' in item_data and 
-                    'analysis' not in item_data and
                     ('tool_name' in item_data or 'results' in item_data or 'metadata' in item_data)
                 )
                 
@@ -1414,8 +1435,13 @@ class ReportService:
                     tool_results = {item_name: self._normalize_tool_data(item_data)}
                     service_name = 'ai-analyzer'  # Infer service from direct tool structure
                 else:
-                    # item_data is a service containing tools
-                    tool_results = self._extract_tools_from_service(item_data)
+                    # item_data is a service containing tools (possibly without 'analysis' wrapper)
+                    # If no 'analysis' key, try treating the item_data itself as the analysis
+                    if 'analysis' not in item_data and ('results' in item_data or 'tool_results' in item_data or 'tools' in item_data):
+                        wrapped = {'analysis': item_data}
+                        tool_results = self._extract_tools_from_service(wrapped)
+                    else:
+                        tool_results = self._extract_tools_from_service(item_data)
                     service_name = item_name
                 
                 for t_name, t_data in tool_results.items():
@@ -2271,6 +2297,11 @@ class ReportService:
             # Extract tools - merge top-level 'tools' with services tools
             tools = raw.get('tools') or results_wrapper.get('tools') or {}
             
+            # Filter out metadata/config entries that aren't real tools
+            _NON_TOOL_KEYS = {'_metadata', 'config_used', 'metadata'}
+            tools = {k: v for k, v in tools.items() 
+                     if k not in _NON_TOOL_KEYS and not k.startswith('_')}
+            
             # Extract additional tools from services (e.g. ai-analyzer)
             service_tools = self._extract_tools_from_services(raw.get('services', {}))
             
@@ -2363,12 +2394,18 @@ class ReportService:
         1. Static analyzer: analysis.results.{language}.{tool}
         2. AI analyzer: analysis.tools.{tool}
         3. Dynamic/Perf: analysis.results.{tool} or tool_results.{tool}
+        4. Resolved service file: results.analysis.results.{language}.{tool}
         """
         tools = {}
         
         analysis = service_data.get('analysis', {})
-        if not isinstance(analysis, dict):
-            return tools
+        if not isinstance(analysis, dict) or not analysis:
+            # Fallback: resolved service files have results.analysis structure
+            inner_results = service_data.get('results', {})
+            if isinstance(inner_results, dict) and 'analysis' in inner_results:
+                analysis = inner_results.get('analysis', {})
+            if not isinstance(analysis, dict):
+                analysis = {}
         
         # 1. AI Analyzer structure: analysis.tools.{tool_name}
         ai_tools = analysis.get('tools', {})
@@ -2392,6 +2429,8 @@ class ReportService:
                     if has_tool_children:
                         # Language wrapper - extract tools
                         for tool_name, tool_data in value.items():
+                            if tool_name.startswith('_'):
+                                continue
                             if isinstance(tool_data, dict) and ('status' in tool_data or 'executed' in tool_data):
                                 tools[tool_name] = self._normalize_tool_data(tool_data)
                     elif 'status' in value or 'executed' in value:
