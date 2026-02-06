@@ -694,6 +694,15 @@ class TaskExecutionService:
         ]
         
         for task in failed_tasks:
+            # RACE GUARD: Skip tasks with active aggregation futures
+            with self._futures_lock:
+                if task.task_id in self._active_futures:
+                    self._log(
+                        f"[TRANSIENT_RECOVERY] Skipping {task.task_id} — aggregation in progress",
+                        level='debug'
+                    )
+                    continue
+            
             # Check if error message indicates transient failure
             error_msg = task.error_message or ''
             is_transient = any(pattern.lower() in error_msg.lower() for pattern in transient_error_patterns)
@@ -817,6 +826,15 @@ class TaskExecutionService:
         
         recovered_count = 0
         for main_task in partial_tasks:
+            # RACE GUARD: Skip tasks with active aggregation futures
+            with self._futures_lock:
+                if main_task.task_id in self._active_futures:
+                    self._log(
+                        f"[PARTIAL_RECOVERY] Skipping {main_task.task_id} — aggregation in progress",
+                        level='debug'
+                    )
+                    continue
+            
             subtasks = list(main_task.subtasks) if hasattr(main_task, 'subtasks') else []
             if not subtasks:
                 continue
@@ -940,10 +958,21 @@ class TaskExecutionService:
                         task_db: AnalysisTask | None = AnalysisTask.query.filter_by(id=task.id).first()
                         if not task_db or task_db.status != AnalysisStatus.PENDING:
                             continue
-                        task_db.status = AnalysisStatus.RUNNING
-                        # Use timezone-aware UTC timestamps to prevent naive/aware mixing errors
-                        task_db.started_at = datetime.now(timezone.utc)
-                        db.session.commit()
+                        
+                        # Atomically transition PENDING→RUNNING with error handling
+                        try:
+                            task_db.status = AnalysisStatus.RUNNING
+                            # Use timezone-aware UTC timestamps to prevent naive/aware mixing errors
+                            task_db.started_at = datetime.now(timezone.utc)
+                            db.session.commit()
+                        except Exception as e:
+                            db.session.rollback()
+                            self._log(
+                                "Failed to mark task %s as RUNNING: %s",
+                                task_db.task_id, e, level='error'
+                            )
+                            continue
+                        
                         try:  # Emit start
                             from app.realtime.task_events import emit_task_event
                             emit_task_event(
@@ -1925,9 +1954,18 @@ class TaskExecutionService:
             )
             
             # Mark main task as RUNNING and spawn aggregation thread
-            main_task.status = AnalysisStatus.RUNNING
-            main_task.progress_percentage = 30.0  # Subtasks started
-            db.session.commit()
+            try:
+                main_task.status = AnalysisStatus.RUNNING
+                main_task.progress_percentage = 30.0  # Subtasks started
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                self._log(f"Failed to commit RUNNING status for {main_task_id}: {e}", level='error')
+                raise
+            
+            # RACE GUARD: Track BEFORE submitting so recovery checks see it immediately
+            with self._futures_lock:
+                self._active_futures[main_task_id] = None  # Sentinel — will be replaced with actual future
             
             # Submit aggregation task that waits for all subtasks
             aggregation_future = self.executor.submit(
@@ -1937,7 +1975,7 @@ class TaskExecutionService:
                 subtask_info
             )
             
-            # Track the aggregation future
+            # Replace sentinel with actual future
             with self._futures_lock:
                 self._active_futures[main_task_id] = aggregation_future
             
@@ -2620,11 +2658,23 @@ class TaskExecutionService:
                 
                 self._log(f"[AGGREGATE] All {len(results)} subtasks completed for main task {main_task_id}")
                 
-                # Get main task from DB
+                # Get main task from DB — refresh to get latest state after waiting for futures
                 main_task = AnalysisTask.query.filter_by(task_id=main_task_id).first()
                 if not main_task:
                     self._log(f"[AGGREGATE] Main task {main_task_id} not found", level='error')
                     return {'status': 'error', 'error': 'Main task not found'}
+                
+                # RACE GUARD: Check if recovery already finalized this task while we waited
+                db.session.refresh(main_task)
+                if main_task.status not in (AnalysisStatus.RUNNING, AnalysisStatus.PENDING):
+                    self._log(
+                        f"[AGGREGATE] Main task {main_task_id} already finalized (status={main_task.status.value}), "
+                        "skipping aggregation to avoid overwriting recovery decision",
+                        level='warning'
+                    )
+                    with self._futures_lock:
+                        self._active_futures.pop(main_task_id, None)
+                    return {'status': main_task.status.value, 'skipped': True}
                 
                 # Aggregate results from subtasks
                 # CRITICAL FIX: Store services with 'analysis' key that templates expect
@@ -2639,6 +2689,7 @@ class TaskExecutionService:
                 dispatched_services = {info.get('service') for info in subtask_info}
                 all_subtasks = list(main_task.subtasks) if hasattr(main_task, 'subtasks') else []
                 for st in all_subtasks:
+                    db.session.refresh(st)  # Get latest state — prevents stale reads after wait
                     if st.service_name in dispatched_services:
                         continue  # Will be included from futures results
                     if st.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS):
@@ -2835,6 +2886,30 @@ class TaskExecutionService:
                         'app_number': main_task.target_app_number
                     }
                 }
+                
+                # RACE GUARD: Re-check main task status before finalizing
+                # Recovery may have changed it while we were aggregating
+                db.session.refresh(main_task)
+                if main_task.status not in (AnalysisStatus.RUNNING, AnalysisStatus.PENDING):
+                    self._log(
+                        f"[AGGREGATE] Main task {main_task_id} status changed to {main_task.status.value} during aggregation, "
+                        "skipping status update",
+                        level='warning'
+                    )
+                    with self._futures_lock:
+                        self._active_futures.pop(main_task_id, None)
+                    # Still store results even if status was changed
+                    try:
+                        unified_service = ServiceLocator.get_unified_result_service()
+                        unified_service.store_analysis_results(  # type: ignore[union-attr]
+                            task_id=main_task_id,
+                            payload=unified_payload,
+                            model_slug=main_task.target_model,
+                            app_number=main_task.target_app_number
+                        )
+                    except Exception:
+                        pass
+                    return unified_payload
                 
                 # Update main task status - use PARTIAL_SUCCESS for mixed results
                 if overall_status == 'completed':

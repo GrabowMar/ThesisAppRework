@@ -140,6 +140,7 @@ class PipelineExecutionService:
         self._thread: Optional[threading.Thread] = None
         self._running = False
         self._current_pipeline_id: Optional[str] = None
+        self._processing_pipelines: set[int] = set()  # Re-entry guard for pipeline processing
         
         # Parallel analysis execution
         self._analysis_executor: Optional[ThreadPoolExecutor] = None
@@ -606,6 +607,12 @@ class PipelineExecutionService:
 
                     # Process each running pipeline
                     for pipeline in pipelines:
+                        # Re-entry guard: skip if already being processed
+                        with self._pipeline_state_lock:
+                            if pipeline.id in self._processing_pipelines:
+                                self._log("MAIN", f"Pipeline {pipeline.pipeline_id} already in-flight, skipping", level='debug')
+                                continue
+                            self._processing_pipelines.add(pipeline.id)
                         try:
                             self._current_pipeline_id = pipeline.pipeline_id
                             self._process_pipeline(pipeline)
@@ -637,6 +644,8 @@ class PipelineExecutionService:
                                     pass
                         finally:
                             self._current_pipeline_id = None
+                            with self._pipeline_state_lock:
+                                self._processing_pipelines.discard(pipeline.id)
 
                 except Exception as e:
                     self._log("ERROR", f"Pipeline execution loop error: {e}", level='error')
