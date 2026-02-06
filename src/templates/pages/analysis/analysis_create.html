@@ -504,19 +504,19 @@
           <div class="card-body p-0">
             {# Step indicators as clickable bar #}
             <div class="d-flex border-bottom" style="font-size: 0.8rem;">
-              <button class="btn btn-ghost-primary flex-fill py-2 rounded-0 border-end step-nav-btn active"
+              <button class="btn flex-fill py-2 rounded-0 border-end step-nav-btn active"
                       data-step="1" _="on click call goToStep(1)" style="border-top-left-radius: var(--tblr-card-border-radius) !important;">
                 <i class="fa-solid fa-brain me-1"></i>Model
               </button>
-              <button class="btn btn-ghost-primary flex-fill py-2 rounded-0 border-end step-nav-btn"
+              <button class="btn flex-fill py-2 rounded-0 border-end step-nav-btn"
                       data-step="2" _="on click call goToStep(2)">
                 <i class="fa-solid fa-rocket me-1"></i>App
               </button>
-              <button class="btn btn-ghost-primary flex-fill py-2 rounded-0 border-end step-nav-btn"
+              <button class="btn flex-fill py-2 rounded-0 border-end step-nav-btn"
                       data-step="3" _="on click call goToStep(3)">
                 <i class="fa-solid fa-cogs me-1"></i>Config
               </button>
-              <button class="btn btn-ghost-primary flex-fill py-2 rounded-0 step-nav-btn"
+              <button class="btn flex-fill py-2 rounded-0 step-nav-btn"
                       data-step="4" _="on click call goToStep(4)" style="border-top-right-radius: var(--tblr-card-border-radius) !important;">
                 <i class="fa-solid fa-check me-1"></i>Review
               </button>
@@ -600,9 +600,9 @@
 </form>
 
 <style>
-  .step-nav-btn.active { font-weight: 600; color: var(--tblr-primary) !important; border-bottom: 2px solid var(--tblr-primary) !important; background: transparent !important; }
-  .step-nav-btn { font-weight: 400; color: var(--tblr-muted) !important; transition: all 0.15s; background: transparent !important; }
-  .step-nav-btn:hover { color: var(--tblr-primary) !important; background: rgba(var(--tblr-primary-rgb), 0.04) !important; }
+  .step-nav-btn { font-weight: 400; color: var(--tblr-muted) !important; transition: color 0.15s; background: transparent !important; box-shadow: none !important; border-bottom: 2px solid transparent !important; }
+  .step-nav-btn.active { font-weight: 600; color: var(--tblr-primary) !important; border-bottom-color: var(--tblr-primary) !important; }
+  .step-nav-btn:hover:not(.active) { color: var(--tblr-body-color) !important; }
 </style>
 
 {# Tool Selection Confirmation Modal - Tabler Standard #}
