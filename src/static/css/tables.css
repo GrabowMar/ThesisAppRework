@@ -1177,6 +1177,49 @@ td.text-truncate {
 }
 
 /* ========================================
+   Models Table Specific Styles
+   ======================================== */
+
+#models-table .badge {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 0.2rem 0.4rem;
+  line-height: 1.3;
+}
+
+#models-table .badge .fa-xs {
+  font-size: 0.65rem;
+}
+
+/* Model + Provider merged cell */
+#models-table .model-cell-name {
+  max-width: 240px;
+}
+
+#models-table .model-cell-name a {
+  max-width: 100%;
+  font-size: 0.8125rem;
+}
+
+/* View button — consistent with applications */
+#models-table .app-btn-view {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+/* Icon buttons */
+#models-table .btn-icon.btn-sm {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ========================================
    Analysis Tasks Table Specific Styles
    ======================================== */
 

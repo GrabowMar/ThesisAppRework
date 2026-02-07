@@ -638,8 +638,7 @@ function renderModelsTable(models) {
   const tbody = document.getElementById('models-table-body');
   if (!tbody) return;
   if (!models.length) {
-    tbody.innerHTML = '<tr><td colspan="12" class="text-center py-4 text-muted">No models found</td></tr>';
-    // Update selection indicator even when no models shown
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">No models found</td></tr>';
     updateBatchSelectionCount();
     updateCompareButton();
     return;
@@ -648,143 +647,115 @@ function renderModelsTable(models) {
     const isFree = (+m.input_price_per_1k || 0) === 0 && (+m.output_price_per_1k || 0) === 0;
     const hasApps = m.has_applications || false;
     const isInstalled = m.installed || false;
-    
-    // Build badges - compact with consistent sizing
-    const badges = [];
-    if (isFree) badges.push('<span class="badge bg-success-lt text-success ms-2" title="Free tier available"><i class="fa-solid fa-gift fa-xs"></i></span>');
-    if (hasApps) badges.push('<span class="badge bg-info-lt text-info ms-1" title="Has generated apps"><i class="fa-solid fa-box fa-xs"></i></span>');
-    if (isInstalled) badges.push('<span class="badge bg-primary-lt text-primary ms-1" title="Used in project"><i class="fa-solid fa-check fa-xs"></i></span>');
-    
-    // Modality - show all available input types from capabilities
+
+    // Provider badge (shown under model name like applications page)
+    const providerCount = m.provider_count || 0;
+    const providerHtml = providerCount > 1
+      ? `<span class="badge bg-azure-lt text-azure cursor-pointer" style="font-size:.625rem" onclick="showProviderDropdown('${m.slug}', this)" title="${providerCount} providers">
+           ${m.provider || ''} <span class="opacity-75">+${providerCount - 1}</span>
+         </span>`
+      : `<span class="badge bg-azure-lt text-azure" style="font-size:.625rem">${m.provider || ''}</span>`;
+
+    // Inline badges next to model name
+    const nameBadges = [];
+    if (isFree) nameBadges.push('<span class="badge bg-success-lt text-success" title="Free"><i class="fa-solid fa-gift fa-xs"></i></span>');
+    if (hasApps) nameBadges.push('<span class="badge bg-info-lt text-info" title="Has apps"><i class="fa-solid fa-box fa-xs"></i></span>');
+    if (isInstalled) nameBadges.push('<span class="badge bg-primary-lt text-primary" title="Used"><i class="fa-solid fa-check fa-xs"></i></span>');
+
+    // Variant badge
+    const variantCount = m.variant_count || 0;
+    const variantBadge = variantCount > 1
+      ? `<span class="badge bg-purple-lt text-purple cursor-pointer" onclick="showVariantDropdown('${m.slug}', this)" title="${variantCount} tiers"><i class="fa-solid fa-layer-group fa-xs"></i></span>`
+      : '';
+
+    // Modality icons
     const caps_raw = m.capabilities_raw || {};
     const arch = caps_raw.architecture || {};
     const modality_str = arch.modality || '';
     const modalities = [];
-    
-    // Parse modality string (e.g., "text+image->text") - use subtle badges
-    if (modality_str.toLowerCase().includes('text')) {
-      modalities.push('<span class="badge bg-azure-lt text-azure" title="Text"><i class="fa-solid fa-font fa-xs"></i></span>');
-    }
-    if (modality_str.toLowerCase().includes('image') || m.supports_vision) {
-      modalities.push('<span class="badge bg-cyan-lt text-cyan" title="Image/Vision"><i class="fa-solid fa-eye fa-xs"></i></span>');
-    }
-    if (modality_str.toLowerCase().includes('audio')) {
-      modalities.push('<span class="badge bg-purple-lt text-purple" title="Audio"><i class="fa-solid fa-microphone fa-xs"></i></span>');
-    }
-    if (modality_str.toLowerCase().includes('video')) {
-      modalities.push('<span class="badge bg-pink-lt text-pink" title="Video"><i class="fa-solid fa-video fa-xs"></i></span>');
-    }
-    
+    if (modality_str.toLowerCase().includes('text')) modalities.push('<span class="badge bg-azure-lt text-azure" title="Text"><i class="fa-solid fa-font fa-xs"></i></span>');
+    if (modality_str.toLowerCase().includes('image') || m.supports_vision) modalities.push('<span class="badge bg-cyan-lt text-cyan" title="Vision"><i class="fa-solid fa-eye fa-xs"></i></span>');
+    if (modality_str.toLowerCase().includes('audio')) modalities.push('<span class="badge bg-purple-lt text-purple" title="Audio"><i class="fa-solid fa-microphone fa-xs"></i></span>');
+    if (modality_str.toLowerCase().includes('video')) modalities.push('<span class="badge bg-pink-lt text-pink" title="Video"><i class="fa-solid fa-video fa-xs"></i></span>');
     const modalityHtml = modalities.length > 0 ? `<div class="d-flex gap-1 justify-content-center">${modalities.join('')}</div>` : '<span class="badge bg-azure-lt text-azure"><i class="fa-solid fa-font fa-xs"></i></span>';
-    
-    // All available features - compact icon display
-    const features = [];
-    if (m.supports_function_calling) features.push('<span class="badge bg-primary-lt text-primary" title="Function Calling"><i class="fa-solid fa-code fa-xs"></i></span>');
-    if (m.supports_vision) features.push('<span class="badge bg-cyan-lt text-cyan" title="Vision"><i class="fa-solid fa-eye fa-xs"></i></span>');
-    if (m.supports_json_mode) features.push('<span class="badge bg-green-lt text-green" title="JSON Mode"><i class="fa-solid fa-file-code fa-xs"></i></span>');
-    if (m.supports_streaming) features.push('<span class="badge bg-yellow-lt text-yellow" title="Streaming"><i class="fa-solid fa-stream fa-xs"></i></span>');
-    
-    const featuresHtml = features.length ? '<div class="d-flex gap-1 justify-content-center flex-wrap">' + features.join('') + '</div>' : '<span class="text-muted small">—</span>';
-    
-    // Tokenizer type - consistent badge styling
-    const tokenizer = arch.tokenizer || '';
-    let tokenizerHtml = '<span class="text-muted">—</span>';
-    if (tokenizer) {
-      const tokLower = tokenizer.toLowerCase();
-      if (tokLower.includes('gpt') || tokLower.includes('claude')) {
-        tokenizerHtml = '<span class="badge badge-outline text-primary">GPT</span>';
-      } else if (tokLower.includes('llama')) {
-        tokenizerHtml = '<span class="badge badge-outline text-green">Llama</span>';
-      } else if (tokLower.includes('qwen')) {
-        tokenizerHtml = '<span class="badge badge-outline text-orange">Qwen</span>';
-      } else if (tokLower.includes('mistral')) {
-        tokenizerHtml = '<span class="badge badge-outline text-cyan">Mistral</span>';
-      } else {
-        tokenizerHtml = `<span class="badge badge-outline text-muted" title="${tokenizer}">${tokenizer.substring(0, 6)}</span>`;
-      }
-    }
-    
-    // Instruction type - treat null/undefined as "base" model
+
+    // Type (instruct type + tokenizer merged)
     const instructType = arch.instruct_type;
-    let instructHtml = '<span class="text-muted">—</span>';
-    if (instructType === null || instructType === undefined || instructType === '') {
-      // No instruct_type means it's a base model (not instruction-tuned)
-      instructHtml = '<span class="badge badge-outline text-secondary">Base</span>';
+    let typeHtml = '';
+    if (!instructType || instructType === '' || instructType === 'none') {
+      typeHtml = '<span class="badge badge-outline text-secondary">Base</span>';
     } else {
       const instLower = instructType.toLowerCase();
-      if (instLower === 'none' || instLower === 'base') {
-        instructHtml = '<span class="badge badge-outline text-secondary">Base</span>';
-      } else if (instLower.includes('chat')) {
-        instructHtml = '<span class="badge badge-outline text-info" title="Chat model"><i class="fa-solid fa-comments fa-xs"></i> Chat</span>';
-      } else if (instLower.includes('instruct')) {
-        instructHtml = '<span class="badge badge-outline text-primary" title="Instruction-tuned"><i class="fa-solid fa-terminal fa-xs"></i> Inst</span>';
-      } else {
-        instructHtml = `<span class="badge badge-outline text-muted">${instructType.substring(0, 4)}</span>`;
-      }
+      if (instLower.includes('chat')) typeHtml = '<span class="badge badge-outline text-info"><i class="fa-solid fa-comments fa-xs me-1"></i>Chat</span>';
+      else if (instLower.includes('instruct')) typeHtml = '<span class="badge badge-outline text-primary"><i class="fa-solid fa-terminal fa-xs me-1"></i>Inst</span>';
+      else typeHtml = `<span class="badge badge-outline text-muted">${instructType.substring(0, 5)}</span>`;
     }
-    
-    // Cost efficiency display - cleaner percentage
+    // Tokenizer sub-badge
+    const tokenizer = arch.tokenizer || '';
+    if (tokenizer) {
+      const tokLower = tokenizer.toLowerCase();
+      let tokLabel = tokenizer.substring(0, 5);
+      let tokClass = 'text-muted';
+      if (tokLower.includes('gpt') || tokLower.includes('claude')) { tokLabel = 'GPT'; tokClass = 'text-primary'; }
+      else if (tokLower.includes('llama')) { tokLabel = 'Llama'; tokClass = 'text-green'; }
+      else if (tokLower.includes('qwen')) { tokLabel = 'Qwen'; tokClass = 'text-orange'; }
+      else if (tokLower.includes('mistral')) { tokLabel = 'Mistral'; tokClass = 'text-cyan'; }
+      typeHtml += `<div class="mt-1"><span class="text-muted" style="font-size:.65rem">${tokLabel}</span></div>`;
+    }
+
+    // Price per 1M tokens
+    const inputPrice = ((m.input_price_per_1k || 0) * 1000).toFixed(2);
+    const outputPrice = ((m.output_price_per_1k || 0) * 1000).toFixed(2);
+    const priceHtml = isFree
+      ? '<span class="badge bg-green text-white">Free</span>'
+      : `<div class="text-nowrap small"><span class="text-muted">$${inputPrice}</span><span class="text-muted opacity-50"> / </span><span class="text-muted">$${outputPrice}</span></div>`;
+
+    // Context with max output underneath
+    const contextMain = m.context_length ? `${(m.context_length / 1000).toFixed(0)}K` : '—';
+    const maxOut = m.max_output_tokens ? `${(m.max_output_tokens / 1000).toFixed(0)}K out` : '';
+    const contextHtml = `<span class="text-muted small">${contextMain}</span>${maxOut ? `<div class="text-muted" style="font-size:.65rem">${maxOut}</div>` : ''}`;
+
+    // Cost efficiency
     const costEff = m.cost_efficiency || 0;
     let costEffHtml = '<span class="text-muted">—</span>';
     if (costEff > 0) {
       const effPercent = (costEff * 100).toFixed(0);
       let effClass = 'text-danger';
-      if (costEff >= 0.7) { effClass = 'text-green'; }
-      else if (costEff >= 0.4) { effClass = 'text-orange'; }
-      costEffHtml = `<span class="fw-medium ${effClass}" title="Cost Efficiency Score">${effPercent}%</span>`;
+      if (costEff >= 0.7) effClass = 'text-green';
+      else if (costEff >= 0.4) effClass = 'text-orange';
+      costEffHtml = `<span class="fw-medium ${effClass}" title="Cost Efficiency">${effPercent}%</span>`;
     }
-    
-    // Format prices per 1M tokens - cleaner layout
-    const inputPrice = ((m.input_price_per_1k || 0) * 1000).toFixed(2);
-    const outputPrice = ((m.output_price_per_1k || 0) * 1000).toFixed(2);
-    const priceHtml = isFree 
-      ? '<span class="badge bg-green text-white">Free</span>' 
-      : `<div class="text-nowrap small"><span class="text-muted">$${inputPrice}</span> <span class="text-muted opacity-50">/</span> <span class="text-muted">$${outputPrice}</span></div>`;
-    
-    // Context and max output - simple text display
-    const contextHtml = m.context_length ? `<span class="text-muted small">${(m.context_length / 1000).toFixed(0)}K</span>` : '<span class="text-muted">—</span>';
-    const maxOutputHtml = m.max_output_tokens ? `<span class="text-muted small">${(m.max_output_tokens / 1000).toFixed(0)}K</span>` : '<span class="text-muted">—</span>';
-    
-    // Provider with count badge - clean minimal style
-    const providerCount = m.provider_count || 0;
-    const providerHtml = providerCount > 1 
-      ? `<span class="badge bg-azure-lt text-azure cursor-pointer" onclick="showProviderDropdown('${m.slug}', this)" title="${providerCount} providers available">
-           ${m.provider || ''} <span class="opacity-75">+${providerCount - 1}</span>
-         </span>`
-      : `<span class="badge bg-azure-lt text-azure">${m.provider || ''}</span>`;
-    
-    // Variant count badge (if multiple pricing tiers exist) - subtle indicator
-    const variantCount = m.variant_count || 0;
-    const variantBadge = variantCount > 1
-      ? `<span class="badge bg-purple-lt text-purple cursor-pointer ms-1" onclick="showVariantDropdown('${m.slug}', this)" title="${variantCount} pricing tiers available">
-           <i class="fa-solid fa-layer-group fa-xs"></i>
-         </span>`
-      : '';
-    
+
+    // Features
+    const features = [];
+    if (m.supports_function_calling) features.push('<span class="badge bg-primary-lt text-primary" title="Function Calling"><i class="fa-solid fa-code fa-xs"></i></span>');
+    if (m.supports_vision) features.push('<span class="badge bg-cyan-lt text-cyan" title="Vision"><i class="fa-solid fa-eye fa-xs"></i></span>');
+    if (m.supports_json_mode) features.push('<span class="badge bg-green-lt text-green" title="JSON Mode"><i class="fa-solid fa-file-code fa-xs"></i></span>');
+    if (m.supports_streaming) features.push('<span class="badge bg-yellow-lt text-yellow" title="Streaming"><i class="fa-solid fa-stream fa-xs"></i></span>');
+    const featuresHtml = features.length ? '<div class="d-flex gap-1 justify-content-center flex-wrap">' + features.join('') + '</div>' : '<span class="text-muted small">—</span>';
+
     return `<tr>
       <td><input type="checkbox" class="form-check-input m-0 model-checkbox" value="${m.slug}" onchange="toggleModelSelection('${m.slug}')" aria-label="Select" ${selectedModels.includes(m.slug) ? 'checked' : ''}></td>
-      <td>
-        <div class="d-flex align-items-center">
-          <strong>${m.name}</strong>
-          ${badges.join('')}
+      <td class="model-cell-name">
+        <a href="/models/${m.slug}" class="fw-medium d-block text-truncate">${m.name}</a>
+        <div class="d-flex align-items-center gap-1 mt-1">
+          ${providerHtml}
+          ${nameBadges.join('')}
           ${variantBadge}
         </div>
       </td>
-      <td>${providerHtml}</td>
       <td class="text-center">${modalityHtml}</td>
-      <td class="text-center">${tokenizerHtml}</td>
-      <td class="text-center">${instructHtml}</td>
-      <td class="text-end">${priceHtml}</td>
+      <td class="text-center">${typeHtml}</td>
+      <td class="text-center">${priceHtml}</td>
       <td class="text-center">${contextHtml}</td>
-      <td class="text-center">${maxOutputHtml}</td>
       <td class="text-center">${costEffHtml}</td>
       <td class="text-center">${featuresHtml}</td>
       <td>
-        <div class="btn-group btn-group-sm" role="group">
-          <button type="button" class="btn btn-icon btn-ghost-primary" onclick="viewModelDetails('${m.slug}')" title="View details" aria-label="View details">
-            <i class="fa-solid fa-eye"></i>
-          </button>
-          <button type="button" class="btn btn-icon btn-ghost-info" onclick="openOnOpenRouter('${m.model_id || m.slug}')" title="View on OpenRouter" aria-label="View on OpenRouter">
+        <div class="d-flex align-items-center gap-1">
+          <a href="/models/${m.slug}" class="btn btn-sm btn-primary app-btn-view" title="View details">
+            <i class="fa-solid fa-eye me-1"></i>View
+          </a>
+          <button type="button" class="btn btn-icon btn-sm btn-ghost-info" onclick="openOnOpenRouter('${m.model_id || m.slug}')" title="OpenRouter" aria-label="View on OpenRouter">
             <i class="fa-solid fa-external-link-alt"></i>
           </button>
         </div>
