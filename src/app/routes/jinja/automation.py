@@ -10,10 +10,9 @@ Note: Reports stage was removed (Dec 2025) - use Reports module separately.
 from __future__ import annotations
 
 import os
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from flask import Blueprint, current_app, jsonify, render_template, flash, redirect, url_for, request, make_response
+from flask import Blueprint, current_app, jsonify, render_template, flash, redirect, url_for, request
 from flask_login import current_user
 
 from app.services.generation_v2 import get_generation_service
@@ -39,7 +38,6 @@ def _get_analyzer_host(service_name: str) -> str:
     
     # Use environment variable if set, otherwise localhost
     return os.environ.get('ANALYZER_HOST', 'localhost')
-from app.services.service_locator import ServiceLocator
 from app.models import ModelCapability, GeneratedApplication, AnalysisTask, PipelineSettings, PipelineExecution, PipelineExecutionStatus
 from app.constants import AnalysisStatus
 from app.extensions import db
@@ -1322,7 +1320,6 @@ def api_analyzer_status():
             sys.path.insert(0, str(project_root))
         
         from analyzer.analyzer_manager import AnalyzerManager
-        import asyncio
         
         manager = AnalyzerManager()
         

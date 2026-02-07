@@ -14,14 +14,13 @@ from typing import Optional, Dict, Any, List
 
 from app.extensions import db
 from app.models import GeneratedApplication
-from app.paths import GENERATED_APPS_DIR
 from app.utils.time import utc_now
 from app.utils.async_utils import run_async_safely
 from app.paths import REQUIREMENTS_DIR
 
 from .config import GenerationConfig, GenerationResult
-from .scaffolding import ScaffoldingManager, get_scaffolding_manager
-from .code_generator import CodeGenerator, get_code_generator
+from .scaffolding import get_scaffolding_manager
+from .code_generator import get_code_generator
 from .code_merger import CodeMerger
 from app.services.dependency_healer import DependencyHealer
 
@@ -116,7 +115,6 @@ class GenerationService:
         }
 
         try:
-            from sqlalchemy import func
             from app.models import ModelCapability
 
             summary['total_results'] = GeneratedApplication.query.count()

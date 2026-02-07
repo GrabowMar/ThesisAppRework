@@ -15,7 +15,7 @@ import json
 import logging
 import uuid
 import statistics
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Literal
 
 from ..extensions import db
@@ -28,7 +28,7 @@ from ..utils.time import utc_now
 from ..utils.slug_utils import normalize_model_slug, generate_slug_variants
 from .unified_result_service import UnifiedResultService
 from .service_locator import ServiceLocator
-from .reports import _count_loc_from_files
+from .reports import count_loc_from_generated_files
 
 logger = logging.getLogger(__name__)
 
@@ -558,7 +558,7 @@ class ReportService:
         
         # Calculate LOC metrics using the shared helper
         app_numbers = sorted(apps_map.keys())
-        loc_metrics = _count_loc_from_files(model_slug, app_numbers)
+        loc_metrics = count_loc_from_generated_files(model_slug, app_numbers)
         
         # Calculate issues_per_100_loc if we have LOC data
         # Use correct_total_findings (from findings_count), NOT len(all_findings) which is truncated
@@ -997,7 +997,7 @@ class ReportService:
             }
             
             # LOC metrics
-            loc_data = _count_loc_from_files(app.model_slug, [app.app_number])
+            loc_data = count_loc_from_generated_files(app.model_slug, [app.app_number])
             if loc_data.get('total_loc', 0) > 0:
                 metrics['loc'] = {
                     'available': True,
@@ -1423,7 +1423,7 @@ class ReportService:
             # Get LOC for this app (cached by app_key)
             app_loc = 0
             if app:
-                loc_data = _count_loc_from_files(model_slug, [task.target_app_number])
+                loc_data = count_loc_from_generated_files(model_slug, [task.target_app_number])
                 app_loc = loc_data.get('total_loc', 0)
             
             # Extract tool data from services OR direct tools
@@ -1970,8 +1970,7 @@ class ReportService:
         - Fix effectiveness (automatic, LLM, manual)
         - Generation attempt statistics
         """
-        from datetime import datetime, timedelta
-        from sqlalchemy import func
+        from datetime import timedelta
 
         report.update_progress(10)
         db.session.commit()

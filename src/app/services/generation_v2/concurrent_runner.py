@@ -16,16 +16,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional, Callable, TypeVar
+from typing import List, Dict, Optional, Callable, TypeVar
 
 from app.services.generation_v2.code_generator import CodeGenerator
 from app.services.generation_v2.config import GenerationConfig
 from app.services.generation_v2.scaffolding import ScaffoldingManager
 from app.services.generation_v2.code_merger import CodeMerger
-from app.constants import GenerationMode
 
 try:
     from flask import current_app

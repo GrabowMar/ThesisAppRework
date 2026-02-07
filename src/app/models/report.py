@@ -5,8 +5,7 @@ v2: Reports store JSON data directly in database - no file I/O.
 Reports are rendered client-side using JavaScript.
 """
 import json
-from typing import Dict, Any, List, Optional
-from pathlib import Path
+from typing import Dict, Any, Optional
 from ..extensions import db
 from ..utils.time import utc_now
 

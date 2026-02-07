@@ -4,14 +4,26 @@ Reports generation module.
 Contains specialized report generators for different analysis perspectives.
 """
 from .base_generator import BaseReportGenerator
-from .model_report_generator import ModelReportGenerator, _count_loc_from_files
+from .loc_utils import count_loc_from_generated_files
+from .report_constants import KNOWN_TOOLS, CWE_CATEGORIES
+from .report_utils import (
+    extract_tools_from_services,
+    extract_findings_from_services,
+    calculate_scientific_metrics,
+    extract_cwe_statistics,
+)
 from .app_report_generator import AppReportGenerator
 from .tool_report_generator import ToolReportGenerator
 
 __all__ = [
     'BaseReportGenerator',
-    'ModelReportGenerator',
     'AppReportGenerator',
     'ToolReportGenerator',
-    '_count_loc_from_files',
+    'count_loc_from_generated_files',
+    'KNOWN_TOOLS',
+    'CWE_CATEGORIES',
+    'extract_tools_from_services',
+    'extract_findings_from_services',
+    'calculate_scientific_metrics',
+    'extract_cwe_statistics',
 ]

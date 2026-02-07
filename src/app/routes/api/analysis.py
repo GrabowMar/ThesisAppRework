@@ -4,16 +4,13 @@ Handles security analysis, performance testing, and analysis summaries.
 All tool operations are now delegated to the container-based tool registry.
 """
 
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request
 from app.routes.api.common import api_error
 from app.engines.container_tool_registry import get_container_tool_registry
-from app.paths import PROJECT_ROOT
 from app.utils.analysis_utils import extract_issues_from_sarif
 from app.utils.tool_parsers import extract_tool_findings
 import logging
-import json
-from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List
+from typing import Any, Dict, Optional, List
 
 logger = logging.getLogger(__name__)
 

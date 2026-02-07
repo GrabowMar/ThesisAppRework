@@ -109,35 +109,3 @@ __all__ = [
     "json_error",
     "handle_exceptions",
 ]
-
-# ---------------------------------------------------------------------------
-# Additional Helpers (Pagination, Validation Stubs)
-# ---------------------------------------------------------------------------
-
-def build_pagination_envelope(query, page: int, per_page: int):
-    """Paginate a SQLAlchemy query and return (items, meta_dict).
-
-    Expects a query object with .paginate(). Returns list of items and
-    a meta dictionary for inclusion in json_success under meta["pagination"].
-    """
-    paginated = query.paginate(page=page, per_page=per_page, error_out=False)
-    meta = {
-        "page": paginated.page,
-        "pages": paginated.pages,
-        "per_page": paginated.per_page,
-        "total": paginated.total,
-        "has_next": paginated.has_next,
-        "has_prev": paginated.has_prev,
-    }
-    return paginated.items, meta
-
-
-def require_fields(data: dict, required: list[str]):
-    """Validate required fields present; return (missing_list).
-
-    Caller may decide how to handle missing (e.g., return json_error).
-    """
-    missing = [f for f in required if f not in data]
-    return missing
-
-__all__.extend(["build_pagination_envelope", "require_fields"])

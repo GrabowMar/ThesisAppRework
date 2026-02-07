@@ -18,13 +18,13 @@ import json
 import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 
-from app.constants import SeverityLevel, AnalysisStatus
+from app.constants import SeverityLevel
 from app.extensions import db
 from app.models.analysis_models import AnalysisResult, AnalysisTask
-from app.models.simple_tool_results import ToolResult, ToolSummary
+from app.models.simple_tool_results import ToolResult
 from app.models.results_cache import AnalysisResultsCache
 from app.paths import RESULTS_DIR
 from app.utils.analysis_utils import resolve_task_directory

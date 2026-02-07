@@ -9,7 +9,7 @@ handling the common case where an event loop may or may not already be running.
 import asyncio
 import logging
 import threading
-from typing import Any, Callable, Coroutine, TypeVar
+from typing import Any, Coroutine, TypeVar
 
 logger = logging.getLogger(__name__)
 

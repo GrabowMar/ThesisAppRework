@@ -10,19 +10,18 @@ Enhanced with:
 - LOC metrics and defect density
 - Quantitative metrics from performance tests
 """
-import re
 import logging
 import statistics
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from pathlib import Path
-from collections import defaultdict, Counter
+from collections import defaultdict
 
 from .base_generator import BaseReportGenerator
+from .report_constants import KNOWN_TOOLS, CWE_CATEGORIES
 from ...extensions import db
 from ...models import AnalysisTask, PerformanceTest, OpenRouterAnalysis, SecurityAnalysis
 from ...constants import AnalysisStatus
 from ...services.service_locator import ServiceLocator
-from ...services.service_base import ValidationError, NotFoundError
 from ...utils.time import utc_now
 
 logger = logging.getLogger(__name__)
@@ -99,265 +98,10 @@ class ToolReportGenerator(BaseReportGenerator):
     Enhanced with scientific metrics, CWE analysis, and quantitative measurements.
     """
     
-    # Known analysis tools by category - for classification and filtering
-    KNOWN_TOOLS = {
-        # Static Analysis - Python
-        'bandit': {'category': 'security', 'language': 'python'},
-        'semgrep': {'category': 'security', 'language': 'multi'},
-        'pylint': {'category': 'quality', 'language': 'python'},
-        'flake8': {'category': 'quality', 'language': 'python'},
-        'mypy': {'category': 'types', 'language': 'python'},
-        'ruff': {'category': 'quality', 'language': 'python'},
-        'safety': {'category': 'dependencies', 'language': 'python'},
-        'pip-audit': {'category': 'dependencies', 'language': 'python'},
-        'vulture': {'category': 'quality', 'language': 'python'},
-        'radon': {'category': 'complexity', 'language': 'python'},
-        # Static Analysis - JavaScript
-        'eslint': {'category': 'quality', 'language': 'javascript'},
-        'jshint': {'category': 'quality', 'language': 'javascript'},
-        'npm-audit': {'category': 'dependencies', 'language': 'javascript'},
-        'stylelint': {'category': 'quality', 'language': 'css'},
-        # Dynamic Analysis
-        'zap': {'category': 'security', 'language': 'runtime'},
-        'owasp-zap': {'category': 'security', 'language': 'runtime'},
-        # Performance
-        'locust': {'category': 'performance', 'language': 'runtime'},
-        'artillery': {'category': 'performance', 'language': 'runtime'},
-        'ab': {'category': 'performance', 'language': 'runtime'},
-        'aiohttp': {'category': 'performance', 'language': 'runtime'},
-        # AI Analysis
-        'ai-analyzer': {'category': 'ai', 'language': 'multi'},
-    }
-    
-    # CWE categories for vulnerability classification
-    CWE_CATEGORIES = {
-        'CWE-78': 'OS Command Injection',
-        'CWE-79': 'Cross-site Scripting (XSS)',
-        'CWE-89': 'SQL Injection',
-        'CWE-94': 'Code Injection',
-        'CWE-95': 'Eval Injection',
-        'CWE-119': 'Buffer Overflow',
-        'CWE-125': 'Out-of-bounds Read',
-        'CWE-200': 'Information Exposure',
-        'CWE-259': 'Hard-coded Password',
-        'CWE-284': 'Access Control',
-        'CWE-285': 'Improper Authorization',
-        'CWE-287': 'Authentication Issues',
-        'CWE-311': 'Missing Encryption',
-        'CWE-312': 'Cleartext Storage',
-        'CWE-327': 'Broken Crypto',
-        'CWE-400': 'Resource Exhaustion',
-        'CWE-434': 'Unrestricted Upload',
-        'CWE-502': 'Deserialization',
-        'CWE-601': 'Open Redirect',
-        'CWE-611': 'XXE',
-        'CWE-798': 'Hard-coded Credentials',
-    }
-    
     # =========================================================================
     # Helper Methods for Enhanced Metrics
     # =========================================================================
-    
-    def _extract_tools_from_services(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract flattened tool results from nested service structures.
-        
-        Handles multiple result formats from analyzer_manager.
-        Applies filter_mode from config to exclude/include specific analyzer services.
-        """
-        tools = {}
-        
-        # Direct tools key
-        if 'tools' in raw_data:
-            tools.update(raw_data['tools'])
-        
-        # Nested in results
-        results = raw_data.get('results', {})
-        if isinstance(results, dict):
-            if 'tools' in results:
-                tools.update(results['tools'])
-            
-            # Tool results nested under services - apply filter here
-            services = results.get('services', {})
-            services = self.filter_services_data(services)
-            if isinstance(services, dict):
-                for service_name, service_data in services.items():
-                    if isinstance(service_data, dict):
-                        # Check for tool_results in analysis
-                        analysis = service_data.get('analysis', {})
-                        if isinstance(analysis, dict):
-                            tool_results = analysis.get('tool_results', {})
-                            if isinstance(tool_results, dict):
-                                for tool_name, tool_data in tool_results.items():
-                                    if tool_name not in tools:
-                                        tools[tool_name] = tool_data
-        
-        # Services at top level
-        if 'services' in raw_data:
-            for service_name, service_data in raw_data.get('services', {}).items():
-                if isinstance(service_data, dict):
-                    analysis = service_data.get('analysis', {})
-                    if isinstance(analysis, dict):
-                        tool_results = analysis.get('tool_results', {})
-                        if isinstance(tool_results, dict):
-                            for tool_name, tool_data in tool_results.items():
-                                if tool_name not in tools:
-                                    tools[tool_name] = tool_data
-        
-        return tools
-    
-    def _extract_findings_from_services(self, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Extract findings from nested service structures.
-        
-        Handles multiple result formats and deduplicates.
-        Applies filter_mode from config to exclude/include specific analyzer services.
-        """
-        findings = []
-        seen_signatures = set()
-        
-        def add_finding(finding: Dict[str, Any]):
-            sig = f"{finding.get('file', '')}:{finding.get('line', 0)}:{finding.get('rule_id', '')}:{finding.get('message', '')[:50]}"
-            if sig not in seen_signatures:
-                seen_signatures.add(sig)
-                findings.append(finding)
-        
-        # Direct findings key
-        if 'findings' in raw_data and isinstance(raw_data['findings'], list):
-            for f in raw_data['findings']:
-                add_finding(f)
-        
-        # Nested in results - apply filter to services
-        results = raw_data.get('results', {})
-        if isinstance(results, dict):
-            if 'findings' in results and isinstance(results['findings'], list):
-                for f in results['findings']:
-                    add_finding(f)
-            
-            # Findings nested under services - apply filter
-            services = results.get('services', {})
-            services = self.filter_services_data(services)
-            if isinstance(services, dict):
-                for service_data in services.values():
-                    if isinstance(service_data, dict):
-                        svc_findings = service_data.get('findings', [])
-                        if isinstance(svc_findings, list):
-                            for f in svc_findings:
-                                add_finding(f)
-        
-        # Services at top level - apply filter
-        if 'services' in raw_data:
-            services = self.filter_services_data(raw_data.get('services', {}))
-            for service_data in services.values():
-                if isinstance(service_data, dict):
-                    svc_findings = service_data.get('findings', [])
-                    if isinstance(svc_findings, list):
-                        for f in svc_findings:
-                            add_finding(f)
-        
-        return findings
-    
-    def _calculate_scientific_metrics(self, values: List[float]) -> Dict[str, float]:
-        """Calculate scientific statistics for a list of numeric values.
-        
-        Returns dict with: count, sum, mean, median, std_dev, variance, min, max, range, cv
-        """
-        if not values:
-            return {}
-        
-        n = len(values)
-        total = sum(values)
-        mean = total / n if n > 0 else 0
-        
-        result = {
-            'count': n,
-            'sum': round(total, 4),
-            'mean': round(mean, 4),
-            'min': round(min(values), 4),
-            'max': round(max(values), 4),
-            'range': round(max(values) - min(values), 4),
-        }
-        
-        if n >= 2:
-            result['median'] = round(statistics.median(values), 4)
-            result['std_dev'] = round(statistics.stdev(values), 4)
-            result['variance'] = round(statistics.variance(values), 4)
-            # Coefficient of variation (CV) - relative standard deviation
-            if mean != 0:
-                result['cv'] = round((result['std_dev'] / abs(mean)) * 100, 2)
-            else:
-                result['cv'] = 0.0
-        else:
-            result['median'] = result['mean']
-            result['std_dev'] = 0.0
-            result['variance'] = 0.0
-            result['cv'] = 0.0
-        
-        return result
-    
-    def _extract_cwe_statistics(self, findings: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Extract and categorize CWE statistics from findings.
-        
-        Returns dict with: cwe_counts, top_cwes, cwe_categories, total_with_cwe
-        """
-        cwe_counter = Counter()
-        findings_with_cwe = 0
-        
-        # Pattern to extract CWE IDs
-        cwe_pattern = re.compile(r'CWE-(\d+)', re.IGNORECASE)
-        
-        for finding in findings:
-            cwe_id = None
-            
-            # Check common CWE field locations
-            if 'cwe' in finding:
-                cwe_val = finding['cwe']
-                if isinstance(cwe_val, str):
-                    match = cwe_pattern.search(cwe_val)
-                    if match:
-                        cwe_id = f"CWE-{match.group(1)}"
-                elif isinstance(cwe_val, int):
-                    cwe_id = f"CWE-{cwe_val}"
-            
-            # Check rule_id for CWE references
-            if not cwe_id and 'rule_id' in finding:
-                match = cwe_pattern.search(str(finding['rule_id']))
-                if match:
-                    cwe_id = f"CWE-{match.group(1)}"
-            
-            # Check message for CWE references
-            if not cwe_id and 'message' in finding:
-                match = cwe_pattern.search(str(finding['message']))
-                if match:
-                    cwe_id = f"CWE-{match.group(1)}"
-            
-            if cwe_id:
-                cwe_counter[cwe_id] += 1
-                findings_with_cwe += 1
-        
-        # Build result
-        top_cwes = cwe_counter.most_common(10)
-        cwe_with_names = [
-            {
-                'cwe_id': cwe_id,
-                'count': count,
-                'name': self.CWE_CATEGORIES.get(cwe_id, 'Unknown')
-            }
-            for cwe_id, count in top_cwes
-        ]
-        
-        # Categorize by vulnerability type
-        categories = defaultdict(int)
-        for cwe_id, count in cwe_counter.items():
-            category = self.CWE_CATEGORIES.get(cwe_id, 'Other')
-            categories[category] += count
-        
-        return {
-            'total_with_cwe': findings_with_cwe,
-            'unique_cwes': len(cwe_counter),
-            'cwe_counts': dict(cwe_counter),
-            'top_cwes': cwe_with_names,
-            'categories': dict(categories),
-        }
-    
+
     def _calculate_loc_metrics(self, model_slug: str, app_number: int, findings_count: int) -> Dict[str, Any]:
         """Calculate LOC metrics for a specific app.
         
@@ -655,7 +399,7 @@ class ToolReportGenerator(BaseReportGenerator):
                 # Add CWE category mapping
                 stats['cwe_categories'] = {}
                 for cwe_id, count in cwe_stats.items():
-                    category = self.CWE_CATEGORIES.get(cwe_id, 'other')
+                    category = CWE_CATEGORIES.get(cwe_id, 'other')
                     if category not in stats['cwe_categories']:
                         stats['cwe_categories'][category] = 0
                     stats['cwe_categories'][category] += count
@@ -696,7 +440,7 @@ class ToolReportGenerator(BaseReportGenerator):
             
             # Classify tool by category from KNOWN_TOOLS
             stats['tool_category'] = 'other'
-            for category, tool_info in self.KNOWN_TOOLS.items():
+            for category, tool_info in KNOWN_TOOLS.items():
                 if tool_name_key == category:  # category is actually tool name
                     stats['tool_category'] = tool_info.get('category', 'other')
                     break
@@ -797,7 +541,7 @@ class ToolReportGenerator(BaseReportGenerator):
         # Aggregate CWE by category
         cwe_by_category = defaultdict(int)
         for cwe_id, count in aggregate_cwe.items():
-            category = self.CWE_CATEGORIES.get(cwe_id, 'other')
+            category = CWE_CATEGORIES.get(cwe_id, 'other')
             cwe_by_category[category] += count
         data['aggregate_statistics']['cwe_by_category'] = dict(cwe_by_category)
         

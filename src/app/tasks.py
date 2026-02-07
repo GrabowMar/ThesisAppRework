@@ -10,7 +10,7 @@ import logging
 import json
 import asyncio
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 from app.celery_worker import celery
 from app.extensions import db

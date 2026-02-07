@@ -6,7 +6,7 @@ Supports JSON and CSV formats with filtering.
 """
 
 from flask import Blueprint, request, jsonify, make_response, current_app
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func
 from datetime import datetime
 import csv
 import io

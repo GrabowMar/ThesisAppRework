@@ -8,13 +8,12 @@ Provides resilience patterns for service calls:
 """
 
 import logging
-import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from functools import wraps
 from threading import Lock
-from typing import Any, Callable, Dict, Optional, TypeVar, Generic
+from typing import Any, Callable, Dict, Optional, TypeVar
 
 from app.decorators import retry_with_backoff
 

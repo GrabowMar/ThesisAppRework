@@ -10,13 +10,12 @@ Key use cases:
 - Result file writes
 """
 
-import time
 import redis
 from contextlib import contextmanager
 from typing import Optional
 import logging
 
-from app.utils.redis_isolation import get_redis_db_number, get_isolation_aware_redis_url
+from app.utils.redis_isolation import get_isolation_aware_redis_url
 
 logger = logging.getLogger(__name__)
 

@@ -21,7 +21,7 @@ def get_tool_categories_from_registry() -> Tuple[List[Tuple[str, List[str], str,
         - all_known_tools: Flat list of all tool names for "Other" category detection
     """
     try:
-        from ...engines.container_tool_registry import get_container_tool_registry, AnalyzerContainer
+        from ...engines.container_tool_registry import get_container_tool_registry
         
         registry = get_container_tool_registry()
         registry.initialize()

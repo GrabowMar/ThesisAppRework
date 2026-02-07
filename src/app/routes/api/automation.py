@@ -20,7 +20,6 @@ from datetime import datetime
 
 from flask import Blueprint, current_app, request, send_file
 from flask_login import current_user
-from werkzeug.utils import secure_filename
 
 from app.extensions import db
 from app.models import AnalysisTask, PipelineExecution, PipelineExecutionStatus, PipelineSettings

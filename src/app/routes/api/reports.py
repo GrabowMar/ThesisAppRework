@@ -10,7 +10,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import current_user, login_user
 
 from ...extensions import db
-from ...models import Report, User
+from ...models import User
 from ...services.report_service import get_report_service
 
 logger = logging.getLogger(__name__)

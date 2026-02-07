@@ -19,7 +19,7 @@ import time
 import uuid
 from typing import Dict, Any, Tuple, Optional
 
-from app.utils.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerOpenError
+from app.utils.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 from app.services.rate_limiter import get_openrouter_rate_limiter
 
 logger = logging.getLogger(__name__)

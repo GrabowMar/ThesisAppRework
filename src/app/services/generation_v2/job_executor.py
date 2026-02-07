@@ -13,16 +13,14 @@ Design:
 
 import logging
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional, Set, Callable
+from typing import Dict, Any, Optional, Set
 
 from app.extensions import db
 from app.models import PipelineExecution, PipelineExecutionStatus
-from app.utils.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 
-from .config import GenerationConfig, GenerationResult
+from .config import GenerationConfig
 from .service import get_generation_service
 
 logger = logging.getLogger(__name__)

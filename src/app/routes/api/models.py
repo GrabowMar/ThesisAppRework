@@ -693,7 +693,7 @@ def api_models_import():
                          metadata = json.load(f)
                  
                  # Restore folders
-                 from app.paths import PROJECT_ROOT, GENERATED_ROOT, RESULTS_DIR
+                 from app.paths import GENERATED_ROOT, RESULTS_DIR
                  
                  restored_stats = {'results': 0, 'generated': 0}
                  

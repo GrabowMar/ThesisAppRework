@@ -8,7 +8,6 @@ import csv
 import json
 import logging
 import re
-import time
 from datetime import datetime, UTC
 from io import StringIO
 from pathlib import Path

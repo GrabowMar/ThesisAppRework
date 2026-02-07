@@ -6,7 +6,6 @@ parallel test sessions.
 """
 
 import os
-from typing import Optional
 
 
 def get_redis_key_prefix() -> str:

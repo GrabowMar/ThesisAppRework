@@ -31,7 +31,6 @@ import threading
 import time
 import json
 import logging
-import sys
 import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,7 +38,6 @@ from typing import Optional, Dict, Any, List
 from concurrent.futures import ThreadPoolExecutor, Future
 
 from app.utils.logging_config import get_logger
-from app.config.config_manager import get_config
 from app.extensions import db, get_components
 from app.models import AnalysisTask
 from app.constants import AnalysisStatus
@@ -50,20 +48,13 @@ from app.utils.redis_isolation import get_redis_db_number, get_isolation_aware_r
 # Import shared utilities for consistent result handling
 from app.utils.sarif_utils import (
     extract_sarif_to_files,
-    strip_sarif_rules,
 )
 from app.utils.tool_normalization import (
-    normalize_severity,
     get_severity_breakdown,
     collect_normalized_tools,
     aggregate_findings_from_services,
     categorize_services,
     determine_overall_status,
-)
-from app.utils.result_builder import (
-    build_result_from_services,
-    save_result_to_filesystem,
-    build_universal_format,
 )
 
 # Module-level logger (will be used by main thread)
@@ -2792,7 +2783,6 @@ class TaskExecutionService:
                 # CRITICAL FIX: Hydrate SARIF files from disk for each service
                 # The in-memory analysis_data doesn't include SARIF references, so we need to
                 # load the service JSON files from disk which have the SARIF paths
-                import os
                 from pathlib import Path
                 from app.utils.sarif_utils import load_sarif_from_reference, extract_issues_from_sarif, is_ruff_sarif, remap_ruff_sarif_severity
                 

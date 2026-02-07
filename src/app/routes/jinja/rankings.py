@@ -12,12 +12,10 @@ Static benchmark data loaded by default for fast page loads.
 Live refresh available on-demand via refresh button.
 """
 
-import json
 import logging
-from typing import Dict, Any, List
 
 from flask import Blueprint, request, jsonify, session, flash, redirect, url_for
-from flask_login import current_user, login_required
+from flask_login import current_user
 
 from flask import render_template
 from app.services.model_rankings_service import get_rankings_service

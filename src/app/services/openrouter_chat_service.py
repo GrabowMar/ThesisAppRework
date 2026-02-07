@@ -17,7 +17,6 @@ This service focuses on making individual API calls reliably.
 
 import aiohttp
 import asyncio
-import json
 import logging
 import os
 import time

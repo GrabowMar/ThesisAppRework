@@ -676,7 +676,7 @@ def _get_task_statistics() -> Dict[str, Any]:
     """Gather statistics about analysis tasks from the database."""
     try:
         from app.models import AnalysisTask
-        from app.constants import AnalysisStatus, AnalysisType
+        from app.constants import AnalysisStatus
         from sqlalchemy import func
         
         # Get total task counts by status
@@ -708,7 +708,6 @@ def _get_task_statistics() -> Dict[str, Any]:
         success_rate = (completed_tasks / (completed_tasks + failed_tasks) * 100) if (completed_tasks + failed_tasks) > 0 else 0.0
         
         # Calculate average duration for completed tasks
-        from sqlalchemy import func
         avg_duration_result = AnalysisTask.query.filter(
             AnalysisTask.status == AnalysisStatus.COMPLETED  # type: ignore[arg-type]
         ).filter(

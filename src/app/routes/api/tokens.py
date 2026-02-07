@@ -7,7 +7,6 @@ Endpoints for generating and managing API tokens for programmatic access.
 
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
-from app.extensions import db
 from app.models import User
 
 # Create blueprint

@@ -11,7 +11,6 @@ GUI application while leveraging the modern REST API backend.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Dict, List
 
 from flask import Blueprint, current_app, jsonify, render_template, flash, redirect, url_for, request

@@ -27,7 +27,6 @@ from sqlalchemy import func, desc
 from ..extensions import db
 from ..models import (
     GeneratedApplication,
-    ModelCapability, 
     AnalysisTask,
 )
 from ..constants import AnalysisStatus

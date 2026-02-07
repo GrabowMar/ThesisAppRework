@@ -19,7 +19,6 @@ logger = logging.getLogger('pipeline_model')
 import uuid
 
 from ..extensions import db
-from ..constants import AnalysisStatus
 
 
 class PipelineExecutionStatus:

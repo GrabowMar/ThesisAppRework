@@ -24,7 +24,6 @@ from ..models import GeneratedApplication
 from ..extensions import db
 from ..constants import AnalysisStatus
 from .service_base import NotFoundError, ValidationError
-from ..utils.time import utc_now
 
 # Exceptions now provided by service_base (NotFoundError, ValidationError)
 

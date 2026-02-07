@@ -13,7 +13,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union, cast
+from typing import Any, Dict, Iterable, List, Optional, Set, Union, cast
 
 try:  # pragma: no cover - optional dependency
     import redis  # type: ignore
@@ -321,8 +321,6 @@ class JsonResultsManager:
         model_safe = self._normalize_model_name(model)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return f"{model_safe}_app{app_num}_{analysis_type}_{timestamp}.json"
-
-        return str(model_slug), int(app_number), analysis_type, payload
 
     def _extract_app_number(self, file_path: Path) -> Optional[int]:
         for part in reversed(file_path.parts):

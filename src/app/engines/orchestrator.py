@@ -8,10 +8,6 @@ Replaces the old rigid type-based analysis engines.
 
 import json
 import logging
-import asyncio
-import uuid
-import os
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -22,7 +18,7 @@ from .unified_registry import get_unified_tool_registry
 from ..utils.json_results_manager import JsonResultsManager
 from ..utils.helpers import get_app_directory
 from ..paths import GENERATED_APPS_DIR, PROJECT_ROOT
-from ..extensions import get_components, get_analyzer_integration
+from ..extensions import get_analyzer_integration
 import socket
 
 logger = logging.getLogger(__name__)

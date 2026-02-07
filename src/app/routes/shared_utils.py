@@ -39,7 +39,6 @@ PROVIDER_COLORS = {
 
 # Initialize services
 openrouter_service = OpenRouterService()
-_openrouter_service = OpenRouterService()  # Legacy alias
 
 # ============================================================================
 # UTILITY FUNCTIONS

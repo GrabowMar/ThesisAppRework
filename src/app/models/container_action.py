@@ -157,7 +157,6 @@ class ContainerAction(db.Model):
         if self.started_at and self.completed_at:
             # Handle timezone-naive vs timezone-aware datetime comparison
             # SQLite may return naive datetimes even with timezone=True
-            from datetime import timezone
             started = self.started_at
             completed = self.completed_at
             

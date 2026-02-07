@@ -16,15 +16,20 @@ Focuses on QUANTITATIVE metrics (matching ModelReportGenerator standard):
 - Generation cost/token efficiency
 """
 import logging
-import re
 import statistics
 from typing import Dict, Any, List, Optional, Union
-from collections import Counter
 
 from .base_generator import BaseReportGenerator
+from .report_constants import CWE_CATEGORIES
+from .report_utils import (
+    extract_tools_from_services,
+    extract_findings_from_services,
+    calculate_scientific_metrics,
+    extract_cwe_statistics,
+)
 from ...extensions import db
 from ...models import (
-    AnalysisTask, 
+    AnalysisTask,
     GeneratedApplication,
     PerformanceTest,
     OpenRouterAnalysis,
@@ -32,31 +37,14 @@ from ...models import (
 )
 from ...constants import AnalysisStatus
 from ...services.service_locator import ServiceLocator
-from ...services.service_base import ValidationError, NotFoundError
+from ...services.service_base import ValidationError
 from ...utils.time import utc_now
 from ..generation_statistics import load_generation_records
 
 logger = logging.getLogger(__name__)
 
 
-def _count_loc_from_files(model_slug: str, app_numbers: Union[int, List[int]]) -> Dict[str, Any]:
-    """
-    Count lines of code directly from generated app files.
-    
-    Fallback when generation metadata is unavailable.
-    Counts LOC in Python (.py) and JavaScript/JSX (.js, .jsx) files,
-    excluding scaffolding files.
-    
-    Args:
-        model_slug: Model identifier
-        app_numbers: Single app number (int) or list of app numbers to count
-        
-    Returns:
-        Dict with total_loc, backend_loc, frontend_loc, per_app breakdown
-    """
-    from .loc_utils import count_loc_from_generated_files
-
-    return count_loc_from_generated_files(model_slug=model_slug, app_numbers=app_numbers)
+from .loc_utils import count_loc_from_generated_files
 
 
 class AppReportGenerator(BaseReportGenerator):
@@ -73,272 +61,26 @@ class AppReportGenerator(BaseReportGenerator):
     - Best/worst model identification with rankings
     """
     
-    # Tool classification for categorization (matching ModelReportGenerator)
-    KNOWN_TOOLS: Dict[str, Dict[str, str]] = {
-        # Python security
-        'bandit': {'category': 'security', 'language': 'python'},
-        'safety': {'category': 'security', 'language': 'python'},
-        'pip-audit': {'category': 'security', 'language': 'python'},
-        'semgrep': {'category': 'security', 'language': 'multi'},
-        
-        # Python quality
-        'pylint': {'category': 'quality', 'language': 'python'},
-        'flake8': {'category': 'quality', 'language': 'python'},
-        'ruff': {'category': 'quality', 'language': 'python'},
-        'mypy': {'category': 'type-checking', 'language': 'python'},
-        'vulture': {'category': 'quality', 'language': 'python'},
-        'radon': {'category': 'complexity', 'language': 'python'},
-        
-        # JavaScript/Node
-        'eslint': {'category': 'quality', 'language': 'javascript'},
-        'jshint': {'category': 'quality', 'language': 'javascript'},
-        'npm-audit': {'category': 'security', 'language': 'javascript'},
-        'stylelint': {'category': 'quality', 'language': 'css'},
-        
-        # Dynamic/Security
-        'zap': {'category': 'security', 'language': 'web'},
-        'zap-quick': {'category': 'security', 'language': 'web'},
-        'zap-baseline': {'category': 'security', 'language': 'web'},
-        'zap-full': {'category': 'security', 'language': 'web'},
-        'nmap': {'category': 'security', 'language': 'network'},
-        'curl': {'category': 'probe', 'language': 'http'},
-        
-        # Performance
-        'ab': {'category': 'performance', 'language': 'http'},
-        'aiohttp': {'category': 'performance', 'language': 'python'},
-        'locust': {'category': 'performance', 'language': 'python'},
-        'artillery': {'category': 'performance', 'language': 'javascript'},
-        
-        # AI
-        'ai_analysis': {'category': 'ai', 'language': 'multi'},
-        'openrouter': {'category': 'ai', 'language': 'multi'},
-        
-        # Secrets
-        'detect-secrets': {'category': 'security', 'language': 'multi'},
-    }
-    
-    # CWE categorization (matching ModelReportGenerator)
-    CWE_CATEGORIES: Dict[str, str] = {
-        'CWE-89': 'SQL Injection',
-        'CWE-79': 'Cross-Site Scripting (XSS)',
-        'CWE-78': 'OS Command Injection',
-        'CWE-94': 'Code Injection',
-        'CWE-502': 'Deserialization',
-        'CWE-798': 'Hardcoded Credentials',
-        'CWE-327': 'Weak Cryptography',
-        'CWE-326': 'Inadequate Encryption',
-        'CWE-22': 'Path Traversal',
-        'CWE-611': 'XML External Entity',
-        'CWE-918': 'SSRF',
-        'CWE-352': 'Cross-Site Request Forgery',
-        'CWE-287': 'Authentication Issues',
-        'CWE-306': 'Missing Authentication',
-        'CWE-862': 'Missing Authorization',
-        'CWE-863': 'Incorrect Authorization',
-        'CWE-200': 'Information Exposure',
-        'CWE-532': 'Log Injection',
-        'CWE-117': 'Log Forging',
-        'CWE-400': 'Resource Exhaustion',
-        'CWE-770': 'Allocation without Limits',
-    }
-    
     # =====================================================================
-    # Helper Methods (matching ModelReportGenerator standard)
+    # Helper Methods
     # =====================================================================
-    
+
     def _extract_tools_from_services(self, services: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract flat tool results from nested service structure.
-        
-        Handles the nested structure from analyzer results:
-        services -> static-analyzer -> analysis -> tool_results -> bandit -> {status, issues}
-        
-        Applies filter_mode from config to exclude/include specific analyzer services.
-        """
-        # Apply filter mode first
-        services = self.filter_services_data(services)
-        
-        flat_tools = {}
-        
-        if not isinstance(services, dict):
-            return flat_tools
-        
-        for service_name, service_data in services.items():
-            if not isinstance(service_data, dict):
-                continue
-            
-            # Try direct tool_results
-            tool_results = service_data.get('tool_results', {})
-            
-            # Try nested in analysis
-            if not tool_results and isinstance(service_data.get('analysis'), dict):
-                tool_results = service_data['analysis'].get('tool_results', {})
-            
-            # Try nested in results
-            if not tool_results and isinstance(service_data.get('results'), dict):
-                for lang_key, lang_data in service_data['results'].items():
-                    if isinstance(lang_data, dict):
-                        for tool_name, tool_data in lang_data.items():
-                            if isinstance(tool_data, dict) and 'status' in tool_data:
-                                flat_tools[tool_name] = tool_data
-            
-            # Add found tools
-            if isinstance(tool_results, dict):
-                for tool_name, tool_data in tool_results.items():
-                    if isinstance(tool_data, dict):
-                        flat_tools[tool_name] = tool_data
-        
-        return flat_tools
-    
+        """Extract flat tool results from nested service structure."""
+        return extract_tools_from_services(services, filter_fn=self.filter_services_data)
+
     def _extract_findings_from_services(self, services: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Extract flat list of findings from nested service structure.
-        
-        Looks for findings/issues in multiple locations:
-        - services -> {service} -> findings
-        - services -> {service} -> analysis -> findings
-        - services -> {service} -> results -> {lang} -> {tool} -> issues
-        
-        Applies filter_mode from config to exclude/include specific analyzer services.
-        """
-        # Apply filter mode first
-        services = self.filter_services_data(services)
-        
-        all_findings = []
-        
-        if not isinstance(services, dict):
-            return all_findings
-        
-        for service_name, service_data in services.items():
-            if not isinstance(service_data, dict):
-                continue
-            
-            # Direct findings list
-            if isinstance(service_data.get('findings'), list):
-                for f in service_data['findings']:
-                    if isinstance(f, dict):
-                        f['service'] = service_name
-                        all_findings.append(f)
-            
-            # Nested in analysis
-            if isinstance(service_data.get('analysis'), dict):
-                analysis = service_data['analysis']
-                if isinstance(analysis.get('findings'), list):
-                    for f in analysis['findings']:
-                        if isinstance(f, dict):
-                            f['service'] = service_name
-                            all_findings.append(f)
-            
-            # Nested in results -> language -> tool -> issues
-            if isinstance(service_data.get('results'), dict):
-                for lang_key, lang_data in service_data['results'].items():
-                    if isinstance(lang_data, dict):
-                        for tool_name, tool_data in lang_data.items():
-                            if isinstance(tool_data, dict):
-                                issues = tool_data.get('issues', [])
-                                if isinstance(issues, list):
-                                    for issue in issues:
-                                        if isinstance(issue, dict):
-                                            issue['tool'] = tool_name
-                                            issue['service'] = service_name
-                                            all_findings.append(issue)
-        
-        return all_findings
-    
+        """Extract flat list of findings from nested service structure."""
+        return extract_findings_from_services(services, filter_fn=self.filter_services_data)
+
     def _calculate_scientific_metrics(self, values: List[float]) -> Dict[str, float]:
-        """Calculate scientific statistics for a list of values.
-        
-        Returns mean, median, std_dev, variance, min, max, and coefficient of variation.
-        """
-        if not values:
-            return {
-                'mean': 0.0,
-                'median': 0.0,
-                'std_dev': 0.0,
-                'variance': 0.0,
-                'min': 0.0,
-                'max': 0.0,
-                'coefficient_of_variation': 0.0,
-                'count': 0
-            }
-        
-        clean_values = [float(v) for v in values if v is not None]
-        if not clean_values:
-            return {
-                'mean': 0.0,
-                'median': 0.0,
-                'std_dev': 0.0,
-                'variance': 0.0,
-                'min': 0.0,
-                'max': 0.0,
-                'coefficient_of_variation': 0.0,
-                'count': 0
-            }
-        
-        mean = statistics.mean(clean_values)
-        std_dev = statistics.stdev(clean_values) if len(clean_values) > 1 else 0.0
-        
-        return {
-            'mean': round(mean, 4),
-            'median': round(statistics.median(clean_values), 4),
-            'std_dev': round(std_dev, 4),
-            'variance': round(statistics.variance(clean_values) if len(clean_values) > 1 else 0.0, 4),
-            'min': round(min(clean_values), 4),
-            'max': round(max(clean_values), 4),
-            'coefficient_of_variation': round((std_dev / mean) if mean > 0 else 0.0, 4),
-            'count': len(clean_values)
-        }
-    
+        """Calculate scientific statistics for a list of values."""
+        return calculate_scientific_metrics(values)
+
     def _extract_cwe_statistics(self, findings: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Extract CWE statistics from findings list.
-        
-        Matches CWE IDs in rule_id, message, or cwe fields.
-        Categorizes by CWE type and calculates frequency.
-        """
-        cwe_counts: Counter = Counter()
-        cwe_findings: Dict[str, List[Dict]] = {}
-        
-        cwe_pattern = re.compile(r'CWE-\d+', re.IGNORECASE)
-        
-        for finding in findings:
-            if not isinstance(finding, dict):
-                continue
-            
-            # Look for CWE in multiple fields
-            cwe_ids = set()
-            
-            for field in ['rule_id', 'cwe', 'cwe_id', 'message', 'description']:
-                value = finding.get(field)
-                if isinstance(value, str):
-                    matches = cwe_pattern.findall(value.upper())
-                    cwe_ids.update(matches)
-                elif isinstance(value, list):
-                    for item in value:
-                        if isinstance(item, str):
-                            matches = cwe_pattern.findall(item.upper())
-                            cwe_ids.update(matches)
-            
-            for cwe_id in cwe_ids:
-                cwe_counts[cwe_id] += 1
-                if cwe_id not in cwe_findings:
-                    cwe_findings[cwe_id] = []
-                cwe_findings[cwe_id].append(finding)
-        
-        # Build categorized output
-        categorized = {}
-        for cwe_id, count in cwe_counts.most_common():
-            category = self.CWE_CATEGORIES.get(cwe_id, 'Other')
-            if category not in categorized:
-                categorized[category] = {'total': 0, 'cwes': {}}
-            categorized[category]['total'] += count
-            categorized[category]['cwes'][cwe_id] = count
-        
-        return {
-            'total_cwe_findings': sum(cwe_counts.values()),
-            'unique_cwes': len(cwe_counts),
-            'cwe_counts': dict(cwe_counts.most_common()),
-            'by_category': categorized,
-            'top_5': dict(cwe_counts.most_common(5)),
-        }
-    
+        """Extract CWE statistics from findings list."""
+        return extract_cwe_statistics(findings, cwe_categories=CWE_CATEGORIES)
+
     def _calculate_loc_metrics(
         self, 
         model_slug: str, 
@@ -373,7 +115,7 @@ class AppReportGenerator(BaseReportGenerator):
             source = 'generation_metadata'
         else:
             # Fall back to direct file counting
-            file_counts = _count_loc_from_files(model_slug, app_numbers)
+            file_counts = count_loc_from_generated_files(model_slug, app_numbers)
             if file_counts.get('counted'):
                 total_loc = file_counts['total_loc']
                 backend_loc = file_counts['backend_loc']

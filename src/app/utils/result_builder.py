@@ -17,14 +17,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from .sarif_utils import extract_sarif_to_files, strip_sarif_rules
+from .sarif_utils import extract_sarif_to_files
 from .tool_normalization import (
-    SEVERITY_LEVELS,
     aggregate_findings_from_services,
     categorize_services,
     collect_normalized_tools,
     determine_overall_status,
-    get_severity_breakdown,
 )
 
 logger = logging.getLogger(__name__)

@@ -173,7 +173,7 @@ def generate():
             )
         
         # Validate model exists in database
-        from app.models import ModelCapability, GeneratedApplication
+        from app.models import ModelCapability
         model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
         if not model:
             logger.error(f"Model not found in database: {model_slug} (raw: {model_slug_raw})")

@@ -11,9 +11,6 @@ from app.config.config_manager import get_config
 from app.services.service_locator import ServiceLocator
 from app.utils.circuit_breaker import (
     CircuitBreaker,
-    CircuitBreakerConfig,
-    CircuitBreakerOpenError,
-    retry_with_backoff,
     STATIC_ANALYZER_BREAKER,
     DYNAMIC_ANALYZER_BREAKER,
     PERFORMANCE_TESTER_BREAKER,
@@ -30,11 +27,9 @@ import websockets
 from websockets.exceptions import ConnectionClosed
 
 from ..extensions import db
-from ..models import AnalysisResult
 from ..constants import AnalysisType
 
 
-from ..constants import AnalysisType
 
 try:
     from flask import current_app
@@ -114,7 +109,6 @@ class ConnectionManager:
     
     async def _create_connection_with_retry(self, service_type: AnalyzerServiceType) -> Optional[Any]:
         """Create WebSocket connection with exponential backoff retry."""
-        import time
         
         service_key = service_type.value
         last_error = None

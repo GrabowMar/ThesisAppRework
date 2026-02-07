@@ -14,15 +14,14 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any, List, Optional
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from typing import Dict, Any, Optional
 
-from app.paths import REQUIREMENTS_DIR, SCAFFOLDING_DIR
+from app.paths import REQUIREMENTS_DIR
 from app.models import ModelCapability
 
-from .config import GenerationConfig, GenerationResult
+from .config import GenerationConfig
 from .api_client import get_api_client
-from .backend_scanner import scan_backend_response, BackendScanResult
+from .backend_scanner import scan_backend_response
 from .prompt_loader import PromptLoader
 
 logger = logging.getLogger(__name__)

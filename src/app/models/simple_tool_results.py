@@ -6,7 +6,6 @@ Simple database models for storing tool results efficiently.
 """
 
 from sqlalchemy import Column, Integer, String, Text, Boolean, Float, DateTime
-from sqlalchemy.orm import relationship
 import json
 from datetime import datetime
 from typing import Dict, Any, Optional

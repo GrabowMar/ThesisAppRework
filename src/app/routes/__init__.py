@@ -20,7 +20,7 @@ from .jinja.rankings import rankings_bp
 from .api import (
     api_bp, core_bp, models_bp as api_models_bp, system_bp, dashboard_bp,
     applications_bp, analysis_bp as api_analysis_bp, gen_bp,
-    tasks_rt_bp, container_tools_bp, export_bp, reports_bp as api_reports_bp
+    tasks_rt_bp, container_tools_bp, export_bp
 )
 
 # API Token management

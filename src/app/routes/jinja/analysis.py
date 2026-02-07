@@ -28,7 +28,6 @@ from app.services.task_service import AnalysisTaskService
 from app.services.unified_result_service import UnifiedResultService
 from app.models import AnalysisTask, GeneratedApplication
 from app.constants import AnalysisStatus
-from app.extensions import db
 from sqlalchemy import or_
 from sqlalchemy.orm import joinedload, defer
 
@@ -927,7 +926,6 @@ def export_task_sarif(task_id: str):
     Attempts to load pre-generated SARIF document from file system.
     If multiple SARIF files exist, returns a ZIP archive.
     """
-    from app.services.unified_result_service import UnifiedResultService
     import zipfile
     import io
 

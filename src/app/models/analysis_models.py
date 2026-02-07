@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from ..extensions import db
 from ..utils.time import utc_now
-from ..constants import AnalysisStatus, JobPriority as Priority, SeverityLevel, AnalysisType
+from ..constants import AnalysisStatus, JobPriority as Priority, SeverityLevel
 
 class AnalyzerConfiguration(db.Model):
     """Configuration profiles for different analyzer types and tools."""
@@ -683,6 +683,3 @@ class AnalysisResult(db.Model):
     
     def __repr__(self) -> str:
         return f'<AnalysisResult {self.result_id} ({self.tool_name})>'
-
-class AnalysisIssue:
-    pass

@@ -921,7 +921,6 @@ def application_section_tools(model_slug, app_number):
 
 def _collect_developer_tools_context(model_slug: str, app_number: int) -> dict:
     """Collect context data for developer tools section."""
-    from pathlib import Path
     import json
     import sqlite3
     
@@ -1092,7 +1091,6 @@ def application_tools_env_edit(model_slug, app_number):
 @applications_bp.route('/<model_slug>/<int:app_number>/tools/env/save', methods=['POST'])
 def application_tools_env_save(model_slug, app_number):
     """Save .env file content."""
-    from pathlib import Path
     app_path = get_app_directory(model_slug, app_number)
     env_content = request.form.get('env_content', '').strip()
     

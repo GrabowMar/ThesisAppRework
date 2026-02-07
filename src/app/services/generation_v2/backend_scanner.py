@@ -7,7 +7,6 @@ Provides structured context about endpoints, models, and auth to inform frontend
 
 import re
 import logging
-from pathlib import Path
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 

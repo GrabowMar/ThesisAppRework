@@ -1171,7 +1171,6 @@ def list_container_actions():
         status: str - Filter by status (pending, running, completed, failed, cancelled)
         limit: int - Maximum results (default: 50)
     """
-    from app.services.container_action_service import get_container_action_service
     from app.models.container_action import ContainerAction, ContainerActionStatus
     
     try:

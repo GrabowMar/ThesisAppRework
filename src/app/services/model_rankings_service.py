@@ -13,19 +13,15 @@ Enhanced with modular fetchers for:
 - Artificial Analysis (Performance metrics: TTFT, throughput, quality index)
 """
 
-import json
 import logging
 import os
 import re
 import requests
 from datetime import timedelta
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 from flask import Flask
 
 from .benchmark_fetchers import (
-    HuggingFaceBenchmarkFetcher,
-    GitHubRawFetcher,
-    ArtificialAnalysisFetcher,
     CombinedBenchmarkAggregator
 )
 
@@ -763,8 +759,6 @@ class ModelRankingsService:
         Returns:
             List of aggregated model rankings
         """
-        from ..models import ModelBenchmarkCache, db
-        from ..utils.time import utc_now
         
         # Check cache first unless force_refresh
         if not force_refresh:
@@ -1402,7 +1396,7 @@ class ModelRankingsService:
     def _get_cached_rankings(self) -> Optional[List[Dict[str, Any]]]:
         """Get rankings from database cache if valid."""
         try:
-            from ..models import ModelBenchmarkCache, db
+            from ..models import ModelBenchmarkCache
             from ..utils.time import utc_now
 
             now = utc_now()

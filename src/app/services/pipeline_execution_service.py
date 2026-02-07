@@ -23,7 +23,6 @@ from __future__ import annotations
 import os
 import threading
 import time
-import logging
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import datetime, timezone
@@ -32,10 +31,9 @@ from typing import Optional, Dict, Any, List, Set
 from app.decorators import log_execution
 
 from app.utils.logging_config import get_logger
-from app.extensions import db, get_components
-from app.models import PipelineExecution, PipelineExecutionStatus, GeneratedApplication, AnalysisTask
+from app.extensions import db
+from app.models import PipelineExecution, PipelineExecutionStatus, AnalysisTask
 from app.constants import AnalysisStatus
-from app.services.service_locator import ServiceLocator
 from app.services.generation_v2.concurrent_runner import ConcurrentGenerationRunner, GenerationJob
 from app.services.generation_v2.concurrent_analysis_runner import ConcurrentAnalysisRunner, AnalysisJobSpec
 

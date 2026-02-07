@@ -18,9 +18,8 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Any, Callable, cast, Dict, List, Optional, Tuple
+from datetime import timedelta
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..extensions import db
 from ..models.container_action import ContainerAction, ContainerActionType, ContainerActionStatus

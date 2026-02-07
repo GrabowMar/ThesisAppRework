@@ -12,7 +12,7 @@ import threading
 import docker
 from docker.errors import NotFound as DockerNotFound
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Callable
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 
 """NOTE: Use 'svc.docker_manager' logger name to align with existing log format.
@@ -86,7 +86,6 @@ class DockerManager:
         conditions when Docker is still initializing.
         """
         import platform
-        import os
         
         # Determine platform-specific connection URLs
         system = platform.system().lower()

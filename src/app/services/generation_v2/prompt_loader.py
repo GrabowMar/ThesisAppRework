@@ -6,11 +6,10 @@ Centralizes all prompt logic to separate it from the execution logic.
 """
 
 import logging
-from pathlib import Path
 from typing import Dict, Any, Tuple
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from app.paths import MISC_DIR, SCAFFOLDING_DIR, PROMPTS_V2_DIR
+from app.paths import SCAFFOLDING_DIR, PROMPTS_V2_DIR
 
 logger = logging.getLogger(__name__)
 

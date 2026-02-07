@@ -9,13 +9,11 @@ proper initialization.
 import os
 import logging
 from pathlib import Path
-from typing import Optional
 
 from flask import Flask
-from sqlalchemy import text
 
 # Import extensions and configurations
-from app.extensions import db, init_extensions, get_components
+from app.extensions import db, init_extensions
 # Lazy import analyzer integration only if enabled to reduce startup coupling
 try:
     from app.services.analyzer_integration import get_analyzer_integration as create_analyzer_integration  # type: ignore
