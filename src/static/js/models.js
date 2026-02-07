@@ -700,7 +700,7 @@ function renderModelsTable(models) {
       else if (tokLower.includes('llama')) { tokLabel = 'Llama'; tokClass = 'text-green'; }
       else if (tokLower.includes('qwen')) { tokLabel = 'Qwen'; tokClass = 'text-orange'; }
       else if (tokLower.includes('mistral')) { tokLabel = 'Mistral'; tokClass = 'text-cyan'; }
-      typeHtml += `<div class="mt-1"><span class="text-muted" style="font-size:.65rem">${tokLabel}</span></div>`;
+      typeHtml += `<div><span class="text-muted" style="font-size:.65rem">${tokLabel}</span></div>`;
     }
 
     // Price per 1M tokens
@@ -738,7 +738,7 @@ function renderModelsTable(models) {
       <td><input type="checkbox" class="form-check-input m-0 model-checkbox" value="${m.slug}" onchange="toggleModelSelection('${m.slug}')" aria-label="Select" ${selectedModels.includes(m.slug) ? 'checked' : ''}></td>
       <td class="model-cell-name">
         <a href="/models/${m.slug}" class="fw-medium d-block text-truncate">${m.name}</a>
-        <div class="d-flex align-items-center gap-1 mt-1">
+        <div class="d-flex align-items-center gap-1">
           ${providerHtml}
           ${nameBadges.join('')}
           ${variantBadge}

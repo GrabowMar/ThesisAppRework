@@ -10,41 +10,38 @@
 
 <div id="main-tasks-table-wrapper">
 <div class="card card-table-compact" id="analysis-tasks-table-section">
-  <div class="card-header d-flex flex-wrap align-items-center gap-3">
-    <div class="d-flex flex-wrap align-items-center gap-2">
-      <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-        <i class="fa-solid fa-microscope text-primary"></i>
-        <span>Analysis Tasks</span>
-      </h3>
-      <div class="d-flex flex-wrap align-items-center gap-1 status-indicators ms-2">
-        <span class="badge bg-primary-lt text-primary d-inline-flex align-items-center gap-1" title="Total tasks{% if pagination and pagination.has_filters %} (filtered){% endif %}">
-          <i class="fa-solid fa-tasks fa-xs"></i>
-          <span>{{ pagination.total if pagination else 0 }}</span>
-        </span>
-        {% if pagination and pagination.active_count > 0 %}
-        <span class="badge bg-warning-lt text-warning d-inline-flex align-items-center gap-1" title="Active tasks{% if pagination.has_filters %} (filtered){% endif %}">
-          <i class="fa-solid fa-spinner fa-pulse fa-xs"></i>
-          <span>{{ pagination.active_count }} active</span>
-        </span>
-        {% elif pagination and pagination.has_filters and pagination.global_active > 0 %}
-        {# Show hint that there are active tasks globally but filtered out #}
-        <span class="badge bg-secondary-lt text-muted d-inline-flex align-items-center gap-1" title="{{ pagination.global_active }} active tasks exist but are filtered out">
-          <i class="fa-solid fa-filter fa-xs"></i>
-          <span>{{ pagination.global_active }} active (other apps)</span>
-        </span>
-        {% endif %}
-        {% if pagination and pagination.total_completed > 0 %}
-        <span class="badge bg-success-lt text-success d-inline-flex align-items-center gap-1" title="Completed tasks{% if pagination.has_filters %} (filtered){% endif %}">
-          <i class="fa-solid fa-check-circle fa-xs"></i>
-          <span>{{ pagination.total_completed }} done</span>
-        </span>
-        {% endif %}
-      </div>
+  <div class="card-header d-flex flex-wrap align-items-center gap-2">
+    <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+      <i class="fa-solid fa-microscope text-primary"></i>
+      <span>Analysis Tasks</span>
+    </h3>
+    <div class="d-flex flex-wrap align-items-center gap-1 status-indicators ms-1">
+      <span class="badge bg-primary-lt text-primary d-inline-flex align-items-center gap-1" title="Total tasks{% if pagination and pagination.has_filters %} (filtered){% endif %}">
+        <i class="fa-solid fa-tasks fa-xs"></i>
+        <span>{{ pagination.total if pagination else 0 }}</span>
+      </span>
+      {% if pagination and pagination.active_count > 0 %}
+      <span class="badge bg-warning-lt text-warning d-inline-flex align-items-center gap-1" title="Active tasks{% if pagination.has_filters %} (filtered){% endif %}">
+        <i class="fa-solid fa-spinner fa-pulse fa-xs"></i>
+        <span>{{ pagination.active_count }} active</span>
+      </span>
+      {% elif pagination and pagination.has_filters and pagination.global_active > 0 %}
+      <span class="badge bg-secondary-lt text-muted d-inline-flex align-items-center gap-1" title="{{ pagination.global_active }} active tasks exist but are filtered out">
+        <i class="fa-solid fa-filter fa-xs"></i>
+        <span>{{ pagination.global_active }} active (other)</span>
+      </span>
+      {% endif %}
+      {% if pagination and pagination.total_completed > 0 %}
+      <span class="badge bg-success-lt text-success d-inline-flex align-items-center gap-1" title="Completed tasks{% if pagination.has_filters %} (filtered){% endif %}">
+        <i class="fa-solid fa-check-circle fa-xs"></i>
+        <span>{{ pagination.total_completed }} done</span>
+      </span>
+      {% endif %}
     </div>
     <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
-      <label class="d-flex align-items-center gap-2 mb-0">
-        <span class="text-muted small">Limit:</span>
-        <select id="analysis-per-page" class="form-select form-select-sm w-auto" onchange="changeAnalysisPerPage(this.value)">
+      <label class="d-flex align-items-center gap-1 mb-0">
+        <span class="text-muted small">Show:</span>
+        <select id="analysis-per-page" class="form-select form-select-sm" style="width:auto;" onchange="changeAnalysisPerPage(this.value)">
           <option value="10" {% if request.args.get('per_page','25') == '10' %}selected{% endif %}>10</option>
           <option value="25" {% if request.args.get('per_page','25') == '25' %}selected{% endif %}>25</option>
           <option value="50" {% if request.args.get('per_page','25') == '50' %}selected{% endif %}>50</option>
@@ -52,8 +49,8 @@
         </select>
       </label>
       <div class="btn-list">
-        <button class="btn btn-sm btn-primary" onclick="refreshAnalysisTasks()" title="Refresh tasks" type="button">
-          <i class="fa-solid fa-sync me-1" aria-hidden="true"></i>Refresh
+        <button class="btn btn-sm btn-primary" onclick="refreshAnalysisTasks()" title="Refresh" type="button">
+          <i class="fa-solid fa-sync" aria-hidden="true"></i>
         </button>
         {% if pagination and pagination.active_count > 0 %}
         <button class="btn btn-sm btn-danger" onclick="stopAllTasks()" title="Stop all pending and running tasks" type="button">
@@ -61,65 +58,42 @@
         </button>
         {% endif %}
         <a href="{{ url_for('analysis.analysis_create') }}" class="btn btn-sm btn-success">
-          <i class="fa-solid fa-plus me-1" aria-hidden="true"></i>New Analysis
+          <i class="fa-solid fa-plus me-1" aria-hidden="true"></i>New
         </a>
       </div>
     </div>
   </div>
   
-  <div class="card-body border-top py-3">
-    <div class="row g-2 align-items-center">
-      <div class="col-auto">
-        <label class="d-flex align-items-center gap-2 mb-0" for="analysis-model-filter">
-          <span class="text-muted d-flex align-items-center gap-1">
-            <i class="fa-solid fa-brain" aria-hidden="true"></i>
-            <span>Model</span>
-          </span>
-          <input type="text" class="form-control form-control-sm" style="min-width: 180px;" 
-                 id="analysis-model-filter" 
-                 placeholder="e.g. anthropic_claude" 
-                 value="{{ model_filter or '' }}"
-                 onkeyup="debounceAnalysisFilters()"
-                 aria-label="Filter by model">
-        </label>
+  {# Compact filter bar — matches applications/models pattern #}
+  <div class="card-body border-top py-2">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <div class="input-group input-group-flat" style="max-width:200px;">
+        <span class="input-group-text py-1"><i class="fa-solid fa-search fa-sm" aria-hidden="true"></i></span>
+        <input type="text" class="form-control form-control-sm"
+               id="analysis-model-filter"
+               placeholder="Model..."
+               value="{{ model_filter or '' }}"
+               onkeyup="debounceAnalysisFilters()"
+               aria-label="Filter by model" />
       </div>
-      <div class="col-auto">
-        <label class="d-flex align-items-center gap-2 mb-0" for="analysis-app-filter">
-          <span class="text-muted d-flex align-items-center gap-1">
-            <i class="fa-solid fa-hashtag" aria-hidden="true"></i>
-            <span>App</span>
-          </span>
-          <input type="text" class="form-control form-control-sm" style="width: 80px;" 
-                 id="analysis-app-filter" 
-                 placeholder="7" 
-                 value="{{ app_filter or '' }}"
-                 onkeyup="debounceAnalysisFilters()"
-                 aria-label="Filter by app number">
-        </label>
-      </div>
-      <div class="col-auto">
-        <label class="d-flex align-items-center gap-2 mb-0" for="analysis-status-filter">
-          <span class="text-muted d-flex align-items-center gap-1">
-            <i class="fa-solid fa-toggle-on" aria-hidden="true"></i>
-            <span>Status</span>
-          </span>
-          <select class="form-select form-select-sm" style="min-width: 120px;" 
-                  id="analysis-status-filter" 
-                  onchange="applyAnalysisFilters()" 
-                  aria-label="Filter by status">
-            <option value="">All Statuses</option>
-            <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
-            <option value="running" {% if status_filter == 'running' %}selected{% endif %}>Running</option>
-            <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
-            <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>Failed</option>
-          </select>
-        </label>
-      </div>
-      <div class="col-auto ms-auto">
-        <button class="btn btn-sm btn-outline-secondary" onclick="clearAnalysisFilters()" type="button" aria-label="Clear all filters">
-          <i class="fa-solid fa-times-circle me-1" aria-hidden="true"></i>Clear Filters
-        </button>
-      </div>
+      <input type="text" class="form-control form-control-sm" style="width:70px;"
+             id="analysis-app-filter"
+             placeholder="App#"
+             value="{{ app_filter or '' }}"
+             onkeyup="debounceAnalysisFilters()"
+             aria-label="Filter by app number">
+      <select class="form-select form-select-sm" style="width:140px;"
+              id="analysis-status-filter"
+              onchange="applyAnalysisFilters()"
+              aria-label="Filter by status">
+        <option value="">All Statuses</option>
+        <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+        <option value="running" {% if status_filter == 'running' %}selected{% endif %}>Running</option>
+        <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+        <option value="partial_success" {% if status_filter == 'partial_success' %}selected{% endif %}>Partial</option>
+        <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>Failed</option>
+      </select>
+      <button class="btn btn-sm btn-outline-secondary py-1" onclick="clearAnalysisFilters()" type="button" style="line-height:1.5;">Clear</button>
     </div>
   </div>
 
@@ -274,39 +248,35 @@
                 {% endif %}
               </td>
               <td>
-                <div class="btn-group btn-group-sm" role="group">
+                <div class="d-flex align-items-center gap-1">
                   {% if item.type == 'result' %}
                     <a href="{{ url_for('analysis.analysis_result_detail', result_id=item.id) }}" 
-                       class="btn btn-ghost-primary btn-icon" 
-                       title="View details">
-                      <i class="fa-solid fa-eye"></i>
+                       class="btn btn-sm btn-primary app-btn-view" title="View details">
+                      <i class="fa-solid fa-eye me-1"></i>View
                     </a>
                     <a href="{{ url_for('analysis.analysis_result_download', result_id=item.id) }}" 
-                       class="btn btn-ghost-secondary btn-icon" 
-                       title="Download JSON">
+                       class="btn btn-icon btn-sm btn-ghost-secondary" title="Download JSON">
                       <i class="fa-solid fa-download"></i>
                     </a>
                   {% elif item.status in ['completed', 'success', 'failed', 'error', 'partial_success'] and item.completed_at %}
                     {% set descriptor = item.result_descriptor %}
                     {% if descriptor %}
                       <a href="{{ url_for('analysis.analysis_result_detail', result_id=descriptor.identifier) }}" 
-                         class="btn btn-ghost-primary btn-icon" 
-                         title="View results{% if item.status in ['failed', 'error', 'partial_success'] %} (partial){% endif %}">
-                        <i class="fa-solid fa-eye"></i>
+                         class="btn btn-sm btn-primary app-btn-view" title="View results{% if item.status in ['failed', 'error', 'partial_success'] %} (partial){% endif %}">
+                        <i class="fa-solid fa-eye me-1"></i>View
                       </a>
                       <a href="{{ url_for('analysis.analysis_result_download', result_id=descriptor.identifier) }}" 
-                         class="btn btn-ghost-secondary btn-icon" 
-                         title="Download JSON">
+                         class="btn btn-icon btn-sm btn-ghost-secondary" title="Download JSON">
                         <i class="fa-solid fa-download"></i>
                       </a>
                     {% else %}
-                      <button class="btn btn-ghost-secondary btn-icon disabled" type="button" title="Result file not found" disabled>
+                      <button class="btn btn-icon btn-sm btn-ghost-secondary disabled" type="button" title="Result file not found" disabled>
                         <i class="fa-solid fa-eye-slash"></i>
                       </button>
                     {% endif %}
                   {% else %}
-                    <button class="btn btn-ghost-secondary btn-icon" 
-                            onclick="refreshAnalysisTasks()" 
+                    <button class="btn btn-icon btn-sm btn-ghost-secondary"
+                            onclick="refreshAnalysisTasks()"
                             title="Refresh status">
                       <i class="fa-solid fa-sync"></i>
                     </button>

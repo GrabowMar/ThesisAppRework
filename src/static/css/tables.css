@@ -74,7 +74,7 @@
 .card-table-compact .card-header {
   background-color: transparent;
   border-bottom: none;
-  padding: 1rem 1.25rem;
+  padding: 0.5rem 1rem;
 }
 
 .card-table-compact .card-title {
@@ -89,13 +89,13 @@
 }
 
 .card-table-compact .card-body {
-  padding: 0.75rem 1.25rem;
+  padding: 0.375rem 1rem;
 }
 
 .card-table-compact .card-footer {
   background-color: transparent;
   border-top: 1px solid var(--table-border-color);
-  padding: 0.75rem 1.25rem;
+  padding: 0.375rem 1rem;
 }
 
 /* ========================================
@@ -197,7 +197,7 @@ th.sortable.sorted .sort-icon {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--color-text-muted);
-  padding: 0.75rem 0.625rem;
+  padding: 0.375rem 0.5rem;
   border-bottom: 2px solid var(--table-border-color);
   white-space: nowrap;
   vertical-align: middle;
@@ -213,7 +213,7 @@ th.sortable.sorted .sort-icon {
    ======================================== */
 .card-table-compact .table tbody td,
 .card-table-compact .table>tbody>tr>td {
-  padding: 0.5rem 0.625rem;
+  padding: 0.25rem 0.5rem;
   font-size: 0.8125rem;
   vertical-align: middle;
   transition: background-color 0.15s ease;
