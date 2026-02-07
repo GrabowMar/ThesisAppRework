@@ -73,6 +73,35 @@ def build_applications_context():
     except Exception as e:
         current_app.logger.warning(f"Failed to load PortConfiguration from DB: {e}")
 
+    # Preload analysis status map: (model_slug, app_number) -> best status + issues
+    analysis_status_map: dict[tuple[str, int], str] = {}
+    analysis_issues_map: dict[tuple[str, int], int] = {}
+    analysis_tasks_map: dict[tuple[str, int], int] = {}
+    try:
+        from app.models.analysis_models import AnalysisTask
+        from sqlalchemy import func
+        # Get status, issue count, and task count per app from main tasks
+        analysis_rows = db.session.query(
+            AnalysisTask.target_model,
+            AnalysisTask.target_app_number,
+            AnalysisTask.status,
+            AnalysisTask.issues_found,
+        ).filter(AnalysisTask.is_main_task.is_(True)).all()
+        _status_priority = {'completed': 5, 'partial_success': 4, 'running': 3, 'pending': 2, 'failed': 1}
+        for row in analysis_rows:
+            key = (row.target_model, row.target_app_number)
+            # Best status
+            cur = analysis_status_map.get(key)
+            new_p = _status_priority.get(row.status, 0)
+            cur_p = _status_priority.get(cur, 0)
+            if new_p > cur_p:
+                analysis_status_map[key] = row.status
+            # Accumulate issues and tasks
+            analysis_issues_map[key] = analysis_issues_map.get(key, 0) + (row.issues_found or 0)
+            analysis_tasks_map[key] = analysis_tasks_map.get(key, 0) + 1
+    except Exception as e:
+        current_app.logger.warning(f"Failed to load analysis status from DB: {e}")
+
     # Base GeneratedApplication query (apps-level)
     q = GeneratedApplication.query
     if model_filter_list:
@@ -153,6 +182,16 @@ def build_applications_context():
         except Exception as e:
             current_app.logger.warning(f"Failed to get bulk status from cache: {e}")
 
+    # Pre-fetch ModelCapability data in one query (avoids N+1 per-row queries)
+    model_cap_map: dict[str, Any] = {}
+    try:
+        unique_slugs = {r.model_slug for r in rows}
+        if unique_slugs:
+            for m in ModelCapability.query.filter(ModelCapability.canonical_slug.in_(unique_slugs)).all():
+                model_cap_map[m.canonical_slug] = m
+    except Exception:
+        pass
+
     # Build application dicts
     applications_all: list[dict] = []
     running_count = 0
@@ -164,13 +203,9 @@ def build_applications_context():
                 val = ports.get(key)
                 if isinstance(val, int):
                     derived_ports.append({'host_port': val})
-        try:
-            m = ModelCapability.query.filter_by(canonical_slug=r.model_slug).first()
-            model_provider = getattr(m, 'provider', None) or r.provider or 'local'
-            display_name = getattr(m, 'display_name', None) or getattr(m, 'model_name', None) or r.model_slug
-        except Exception:
-            model_provider = r.provider or 'local'
-            display_name = r.model_slug
+        m = model_cap_map.get(r.model_slug)
+        model_provider = getattr(m, 'provider', None) or r.provider or 'local' if m else (r.provider or 'local')
+        display_name = getattr(m, 'display_name', None) or getattr(m, 'model_name', None) or r.model_slug if m else r.model_slug
         
         # Determine status - use cache if Docker checks requested
         status_details = {}
@@ -273,13 +308,24 @@ def build_applications_context():
             'generation_mode': r.generation_mode.value if r.generation_mode else 'guarded',
             'ports': derived_ports,
             'container_size': None,
-            'analysis_status': 'none',
+            'analysis_status': analysis_status_map.get((r.model_slug, r.app_number), 'none'),
+            'analysis_issues': analysis_issues_map.get((r.model_slug, r.app_number), 0),
+            'analysis_tasks': analysis_tasks_map.get((r.model_slug, r.app_number), 0),
             'status_details': status_details,
             'created_at': r.created_at,
             # Generation failure tracking
             'is_generation_failed': is_generation_failed,
             'failure_stage': failure_stage,
-            'error_message': error_message
+            'error_message': error_message,
+            # Extra context for enriched table
+            'version': getattr(r, 'version', None) or 1,
+            'generation_attempts': getattr(r, 'generation_attempts', None) or 1,
+            'total_fixes': (
+                (getattr(r, 'retry_fixes', None) or 0)
+                + (getattr(r, 'automatic_fixes', None) or 0)
+                + (getattr(r, 'llm_fixes', None) or 0)
+                + (getattr(r, 'manual_fixes', None) or 0)
+            ),
         })
 
     # Apply in-memory filters that depend on enriched fields

@@ -193,6 +193,13 @@ class AnalysisTask(db.Model):
             'target_model', 'target_app_number', 'batch_id',
             name='uq_analysis_task_model_app_pipeline'
         ),
+        # Covering index so the applications table query can be answered
+        # entirely from the index without touching heavy row data (results_data).
+        db.Index(
+            'ix_analysis_tasks_main_coverage',
+            'is_main_task', 'target_model', 'target_app_number',
+            'status', 'issues_found',
+        ),
         {'extend_existing': True}
     )
     

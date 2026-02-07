@@ -4,10 +4,12 @@
 <div id="applications-table-wrapper" class="w-100">
   <div id="applications-table-refresher"
        hx-get="/applications/table"
-       hx-target="#applications-table-section"
+       hx-target="#applications-table-swap-target"
        hx-trigger="load, refresh-applications-table from:body"
-       hx-swap="outerHTML"></div>
-  {% include 'pages/applications/partials/_table_block.html' %}
+       hx-swap="innerHTML"></div>
+  <div id="applications-table-swap-target">
+    {% include 'pages/applications/partials/_table_block.html' %}
+  </div>
 </div>
 
 <!-- Application Details Modal (for quick view) -->
@@ -115,7 +117,7 @@
 // ============================================================================
 
 document.body.addEventListener('htmx:beforeSwap', function(evt) {
-  if (evt.detail.target && evt.detail.target.id === 'applications-table-section') {
+  if (evt.detail.target && (evt.detail.target.id === 'applications-table-swap-target' || evt.detail.target.id === 'applications-table-section')) {
     const status = evt.detail.xhr ? evt.detail.xhr.status : 0;
     if (!evt.detail.xhr.response || evt.detail.xhr.response.trim() === '' || status === 204) {
       evt.preventDefault();

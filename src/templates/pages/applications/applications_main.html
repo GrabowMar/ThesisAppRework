@@ -595,15 +595,15 @@ document.getElementById('batchApplicationsModal')?.addEventListener('hidden.bs.m
     if (extra.page) params.set('page', extra.page);
 
     htmx.ajax('GET', `/applications/table?${params.toString()}`, {
-      target: '#applications-table-section',
-      swap: 'outerHTML'
+      target: '#applications-table-swap-target',
+      swap: 'innerHTML'
     });
   }
 
   function refreshApplications() {
     htmx.ajax('GET', '/applications/table', {
-      target: '#applications-table-section',
-      swap: 'outerHTML'
+      target: '#applications-table-swap-target',
+      swap: 'innerHTML'
     });
   }
 
@@ -624,20 +624,10 @@ document.getElementById('batchApplicationsModal')?.addEventListener('hidden.bs.m
         params.set('dir', direction);
         
         htmx.ajax('GET', `/applications/table?${params.toString()}`, {
-          target: '#applications-table-section',
-          swap: 'outerHTML'
+          target: '#applications-table-swap-target',
+          swap: 'innerHTML'
         });
       }
-    });
-
-    // Initialize AdvancedFilterPanel
-    const filterPanel = new TableUtils.AdvancedFilterPanel('applications-advanced-filters', {
-      countBadgeId: 'applications-active-filters-count',
-      filterInputIds: [
-        'filter-status-running', 'filter-status-stopped', 'filter-status-error',
-        'filter-status-pending', 'filter-status-not-created',
-        'filter-date-from', 'filter-date-to'
-      ]
     });
 
     // Initialize BulkSelectionManager
@@ -690,7 +680,7 @@ document.getElementById('batchApplicationsModal')?.addEventListener('hidden.bs.m
     let activeCount = 0;
     
     // Count checked status filters
-    ['running', 'stopped', 'error', 'pending', 'not-created'].forEach(status => {
+    ['running', 'stopped', 'error', 'pending', 'not-created', 'build-failed', 'generation-failed'].forEach(status => {
       if (document.getElementById(`filter-status-${status}`)?.checked) activeCount++;
     });
     
@@ -723,9 +713,10 @@ document.getElementById('batchApplicationsModal')?.addEventListener('hidden.bs.m
     
     // Get advanced status filters (multiple checkboxes)
     const statusFilters = [];
-    ['running', 'stopped', 'error', 'pending', 'not-created'].forEach(status => {
-      if (document.getElementById(`filter-status-${status}`)?.checked) {
-        statusFilters.push(status);
+    ['running', 'stopped', 'error', 'pending', 'not-created', 'build-failed', 'generation-failed'].forEach(status => {
+      const cb = document.getElementById(`filter-status-${status}`);
+      if (cb?.checked) {
+        statusFilters.push(cb.value);
       }
     });
     if (statusFilters.length > 0) {
@@ -740,8 +731,8 @@ document.getElementById('batchApplicationsModal')?.addEventListener('hidden.bs.m
     
     // Apply filters via HTMX
     htmx.ajax('GET', `/applications/table?${params.toString()}`, {
-      target: '#applications-table-section',
-      swap: 'outerHTML'
+      target: '#applications-table-swap-target',
+      swap: 'innerHTML'
     });
     
     // Update badge count
@@ -753,7 +744,7 @@ document.getElementById('batchApplicationsModal')?.addEventListener('hidden.bs.m
    */
   function clearApplicationsAdvancedFilters() {
     // Clear status checkboxes
-    ['running', 'stopped', 'error', 'pending', 'not-created'].forEach(status => {
+    ['running', 'stopped', 'error', 'pending', 'not-created', 'build-failed', 'generation-failed'].forEach(status => {
       const checkbox = document.getElementById(`filter-status-${status}`);
       if (checkbox) checkbox.checked = false;
     });
@@ -782,7 +773,7 @@ document.getElementById('batchApplicationsModal')?.addEventListener('hidden.bs.m
   if (wrapper) {
     wrapper.addEventListener('htmx:afterSwap', function(evt) {
       // Check if the swapped content is the table section
-      if (evt.target.id === 'applications-table-section') {
+      if (evt.target.id === 'applications-table-swap-target' || evt.target.id === 'applications-table-section') {
         initializeApplicationsTableUtils();
       }
     });
@@ -809,8 +800,8 @@ document.getElementById('batchApplicationsModal')?.addEventListener('hidden.bs.m
     
     // Refresh table without any filters
     htmx.ajax('GET', '/applications/table', {
-      target: '#applications-table-section',
-      swap: 'outerHTML'
+      target: '#applications-table-swap-target',
+      swap: 'innerHTML'
     });
   }
 
