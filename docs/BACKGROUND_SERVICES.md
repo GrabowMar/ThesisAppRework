@@ -1,5 +1,9 @@
 # Background Services
 
+> **Summary**: Celery worker, pipeline execution polling, and maintenance service configuration, behavior, and debugging.
+> **Key files**: `src/app/celery_worker.py`, `src/app/services/pipeline_execution_service.py`, `src/app/services/maintenance_service.py`
+> **See also**: [Architecture Overview](ARCHITECTURE.md), [Deployment Guide](deployment-guide.md)
+
 ThesisAppRework uses three background services for task execution, cleanup, and automation. This document details their configuration, behavior, and debugging.
 
 ## Overview
@@ -149,7 +153,7 @@ for task in stuck:
     print(f"{task.task_id}: running since {task.started_at}")
 
 # Manual recovery
-python scripts/fix_task_statuses.py
+python scripts/reset_stuck_tasks.py
 ```
 
 #### Monitor Celery Workers (Docker)
@@ -186,7 +190,7 @@ docker compose ps celery-worker
 | Symptom | Cause | Solution |
 |---------|-------|----------|
 | Tasks stuck in PENDING | Service not running | Restart Flask app |
-| Tasks stuck in RUNNING | Service crashed mid-execution | Run `scripts/fix_task_statuses.py` |
+| Tasks stuck in RUNNING | Service crashed mid-execution | Run `scripts/reset_stuck_tasks.py` |
 | Slow task pickup | Long poll interval | Set `TASK_POLL_INTERVAL=2` |
 
 ---
@@ -287,10 +291,10 @@ with app.app_context():
 
 ### Database Migration
 
-If upgrading from before Nov 2025, run the migration to add the `missing_since` column:
+If upgrading from before Nov 2025, the `missing_since` column should already exist. If not, add it manually via SQLite:
 
 ```bash
-python scripts/add_missing_since_column.py
+sqlite3 src/data/thesis_app.db "ALTER TABLE generated_application ADD COLUMN missing_since DATETIME;"
 ```
 
 ### Log Output

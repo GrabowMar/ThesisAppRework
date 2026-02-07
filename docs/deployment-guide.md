@@ -1,5 +1,9 @@
 # Deployment Guide
 
+> **Summary**: Docker Compose production deployment, environment configuration, TLS, and operational procedures.
+> **Key files**: `docker-compose.yml`, `Dockerfile`, `Caddyfile`
+> **See also**: [Quick Start Guide](QUICKSTART.md), [Troubleshooting](TROUBLESHOOTING.md)
+
 Production deployment for ThesisAppRework.
 
 ## Deployment Options
@@ -285,6 +289,46 @@ find $BACKUP_DIR -mtime +30 -delete
 - [ ] Backup strategy in place (database + results)
 - [ ] Secure Redis (network isolation, no public access)
 
+## Initial Setup
+
+### Create Admin User
+
+```bash
+docker compose exec -T web python -c "
+from app.factory import create_app
+from app.models.user import User
+from app.extensions import db
+app = create_app()
+with app.app_context():
+    admin = User.query.filter_by(username='admin').first()
+    if not admin:
+        admin = User(username='admin', email='admin@local.dev')
+        admin.set_password('admin123')
+        db.session.add(admin)
+        db.session.commit()
+        print('Admin created: admin / admin123')
+    else:
+        print('Admin already exists')
+"
+```
+
+### Docker Socket Permissions
+
+```bash
+# Detect and set Docker GID (required for container management)
+DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
+echo "DOCKER_GID=$DOCKER_GID" >> .env
+docker compose up -d --force-recreate web celery-worker
+```
+
+### Required Directories
+
+```bash
+mkdir -p generated/apps generated/raw/responses generated/metadata results logs instance src/data
+chmod -R 777 generated results logs instance src/data
+docker network create thesis-apps-network 2>/dev/null || true
+```
+
 ## Troubleshooting
 
 | Issue | Solution |
@@ -294,6 +338,8 @@ find $BACKUP_DIR -mtime +30 -delete
 | Out of memory | Increase container limits, add swap |
 | Port conflict | Check `netstat -tlnp`, stop conflicting service |
 | Analyzer timeout | Increase `*_TIMEOUT` env variables |
+| Pipeline not processing | Ensure `./instance:/app/instance` volume is in both web and celery-worker |
+| Permission denied on generated/ | Run `chmod -R 777 generated results logs instance src/data` |
 
 ### Recovery Commands
 
@@ -311,7 +357,7 @@ docker compose up -d --build static-analyzer
 ./start.ps1 -Mode CleanRebuild
 
 # Fix stuck tasks
-python scripts/fix_task_statuses.py
+python scripts/reset_stuck_tasks.py
 
 # Maintenance cleanup (7-day grace period for orphan apps)
 ./start.ps1 -Mode Maintenance

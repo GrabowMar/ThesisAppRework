@@ -1,5 +1,9 @@
 # Development Guide
 
+> **Summary**: Local development setup, testing workflow, coding conventions, and contribution guidelines.
+> **Key files**: `pytest.ini`, `requirements.txt`, `conftest.py`
+> **See also**: [Quick Start Guide](QUICKSTART.md), [API Reference](api-reference.md)
+
 Setup and development workflow for ThesisAppRework.
 
 ## Prerequisites
@@ -262,7 +266,7 @@ async def run_new_tool(self, source_path: str) -> dict:
 
 ## Adding a New API Endpoint
 
-1. **Create route** in [src/app/api/](../src/app/api/):
+1. **Create route** in [src/app/routes/api/](../src/app/routes/api/):
 
 ```python
 @api_bp.route('/new-endpoint', methods=['POST'])

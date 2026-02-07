@@ -1,5 +1,9 @@
 # API Reference
 
+> **Summary**: REST API endpoints, authentication, WebSocket events, and request/response formats.
+> **Key files**: `src/app/routes/api/*`, `src/app/routes/websockets/api.py`
+> **See also**: [Development Guide](development-guide.md)
+
 REST API documentation for ThesisAppRework.
 
 ## Authentication

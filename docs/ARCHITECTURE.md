@@ -1,5 +1,9 @@
 # Architecture Overview
 
+> **Summary**: System design, component interaction, and service layer architecture for ThesisAppRework.
+> **Key files**: `src/app/factory.py`, `src/app/services/service_locator.py`, `docker-compose.yml`
+> **See also**: [Analysis Pipeline](ANALYSIS_PIPELINE.md), [Background Services](BACKGROUND_SERVICES.md)
+
 ThesisAppRework is a Flask-based web application with containerized microservices for analyzing AI-generated applications. The system evaluates code quality, security, performance, and requirements compliance.
 
 ## System Architecture
@@ -59,8 +63,7 @@ flowchart TB
 | App Factory | [src/app/factory.py](../src/app/factory.py) | Initialization, DI setup |
 | Service Locator | [src/app/services/service_locator.py](../src/app/services/service_locator.py) | Dependency injection |
 | Models | [src/app/models/](../src/app/models/) | SQLAlchemy ORM |
-| Routes | [src/app/routes/](../src/app/routes/) | Web endpoints |
-| API | [src/app/api/](../src/app/api/) | REST API endpoints |
+| Routes | [src/app/routes/](../src/app/routes/) | Web + API endpoints |
 
 ### Analyzer Services
 

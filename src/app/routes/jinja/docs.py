@@ -66,12 +66,19 @@ def docs_file(filepath):
             md_content,
             extensions=[
                 'fenced_code',      # ``` code blocks
-                'codehilite',      # Syntax highlighting
+                'codehilite',      # Syntax highlighting (Pygments)
                 'tables',          # Table support
                 'toc',             # Table of contents
-                'nl2br',           # Line breaks
-                'sane_lists'       # Better list handling
-            ]
+                'sane_lists',      # Better list handling
+                'smarty',          # Smart quotes and dashes
+            ],
+            extension_configs={
+                'codehilite': {
+                    'css_class': 'codehilite',
+                    'guess_lang': False,   # Don't guess — avoids wrong highlighting
+                    'noclasses': False,    # Use CSS classes (not inline styles)
+                },
+            },
         )
 
         # Get file info for the template

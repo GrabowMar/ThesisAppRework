@@ -1,5 +1,9 @@
 # Models Reference
 
+> **Summary**: Supported LLM providers, model identifiers, capabilities, and configuration for code generation.
+> **Key files**: `src/app/services/openrouter_service.py`, `models_to_test.md`
+> **See also**: [Generation Process](GENERATION_PROCESS.md)
+
 Reference documentation for supported AI models and their capabilities.
 
 ## Supported Providers
@@ -100,9 +104,8 @@ Each app gets unique ports:
 
 | Component | Port Range |
 |-----------|------------|
-| Backend | 3000-3999 |
-| Frontend | 4000-4999 |
-| Database | 5432+ |
+| Backend | 5001+ (dynamically allocated) |
+| Frontend | 8001+ (dynamically allocated) |
 
 Port assignments stored in `misc/port_config.json`.
 

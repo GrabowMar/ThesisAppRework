@@ -1,5 +1,9 @@
 # Quick Start Guide
 
+> **Summary**: Installation, configuration, and first run instructions for ThesisAppRework using Docker Compose or local setup.
+> **Key files**: `docker-compose.yml`, `.env`, `start.sh`
+> **See also**: [Deployment Guide](deployment-guide.md), [Development Guide](development-guide.md)
+
 Get up and running with ThesisAppRework in under 5 minutes.
 
 ## Prerequisites

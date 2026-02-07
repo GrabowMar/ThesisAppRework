@@ -51,10 +51,15 @@ class DocsService:
     # }
 
     CATEGORY_RULES: List[tuple] = [
-        # Quick Start / Getting Started
-        (r"^QUICKSTART|^GETTING_STARTED|^QUICK_REF|^QUICK_START", "Quick Start"),
-        # Architecture & Overview
+        # Getting Started
+        (r"^QUICKSTART|^GETTING_STARTED|^QUICK_REF|^QUICK_START|^README", "Quick Start"),
+        # Architecture & Design
         (r"^ARCHITECTURE|^OVERVIEW", "Architecture"),
+        # Pipeline & Background
+        (r"^ANALYSIS_PIPELINE|^PIPELINE_", "Pipeline"),
+        (r"^BACKGROUND_", "Pipeline"),
+        # Generation
+        (r"^GENERATION_|^TEMPLATE_SPEC", "Generation"),
         # API & Development
         (r"^api-reference|^API_", "API"),
         (r"^development-guide|^DEVELOPMENT_", "Development"),

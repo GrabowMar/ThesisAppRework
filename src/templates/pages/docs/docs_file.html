@@ -91,151 +91,194 @@
 <!-- Mermaid.js for diagram rendering -->
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
+    /* ===== Pygments Monokai Theme ===== */
+    .codehilite .hll { background-color: #49483e }
+    .codehilite { background: #272822; color: #F8F8F2 }
+    .codehilite .c, .codehilite .ch, .codehilite .cm, .codehilite .cp,
+    .codehilite .cpf, .codehilite .c1, .codehilite .cs { color: #959077 }
+    .codehilite .gd { color: #FF4689 }
+    .codehilite .gi { color: #A6E22E }
+    .codehilite .go { color: #66D9EF }
+    .codehilite .gp { color: #FF4689; font-weight: bold }
+    .codehilite .gs { font-weight: bold }
+    .codehilite .ge { font-style: italic }
+    .codehilite .gu { color: #959077 }
+    .codehilite .k, .codehilite .kc, .codehilite .kd, .codehilite .kp,
+    .codehilite .kr, .codehilite .kt { color: #66D9EF }
+    .codehilite .kn { color: #FF4689 }
+    .codehilite .l, .codehilite .m, .codehilite .mb, .codehilite .mf,
+    .codehilite .mh, .codehilite .mi, .codehilite .mo, .codehilite .il { color: #AE81FF }
+    .codehilite .s, .codehilite .sa, .codehilite .sb, .codehilite .sc,
+    .codehilite .dl, .codehilite .sd, .codehilite .s2, .codehilite .sh,
+    .codehilite .si, .codehilite .sx, .codehilite .sr, .codehilite .s1,
+    .codehilite .ss, .codehilite .ld { color: #E6DB74 }
+    .codehilite .se { color: #AE81FF }
+    .codehilite .na { color: #A6E22E }
+    .codehilite .nc, .codehilite .nd, .codehilite .ne, .codehilite .nf,
+    .codehilite .nx, .codehilite .fm { color: #A6E22E }
+    .codehilite .no { color: #66D9EF }
+    .codehilite .nt { color: #FF4689 }
+    .codehilite .o { color: #FF4689 }
+    .codehilite .ow { color: #FF4689 }
+    .codehilite .err { color: #F8F8F2; background-color: transparent }
+    .codehilite .w, .codehilite .n, .codehilite .p, .codehilite .nb,
+    .codehilite .bp, .codehilite .nl, .codehilite .nn, .codehilite .py,
+    .codehilite .nv, .codehilite .vc, .codehilite .vg, .codehilite .vi,
+    .codehilite .vm, .codehilite .x, .codehilite .esc, .codehilite .g,
+    .codehilite .gr, .codehilite .gh, .codehilite .gt, .codehilite .pm,
+    .codehilite .ge, .codehilite .ges, .codehilite .ni { color: #F8F8F2 }
+
     /* ===== Table of Contents ===== */
     .docs-toc {
         max-height: calc(100vh - 220px);
         overflow-y: auto;
         font-size: 0.8125rem;
     }
-
     .toc-link {
         display: block;
-        padding: 0.375rem 1rem;
+        padding: 0.3rem 1rem;
         color: var(--tblr-secondary);
         text-decoration: none;
         border-left: 2px solid transparent;
         transition: all 0.15s ease;
     }
-
     .toc-link:hover {
         color: var(--tblr-primary);
         background-color: rgba(32, 107, 196, 0.04);
         text-decoration: none;
     }
-
     .toc-link.active {
         color: var(--tblr-primary);
         border-left-color: var(--tblr-primary);
         background-color: rgba(32, 107, 196, 0.08);
         font-weight: 600;
     }
-
-    /* ToC indentation */
     .toc-link.level-1 { padding-left: 1rem; font-weight: 600; color: var(--tblr-body-color); }
     .toc-link.level-2 { padding-left: 1.5rem; }
     .toc-link.level-3 { padding-left: 2rem; font-size: 0.75rem; }
     .toc-link.level-4 { padding-left: 2.5rem; font-size: 0.75rem; }
 
     /* ===== Document Header ===== */
-    .docs-header {
-        border-bottom: 2px solid var(--tblr-primary) !important;
-    }
+    .docs-header { border-bottom: 2px solid var(--tblr-primary) !important; }
+    .docs-title { font-size: 1.75rem; font-weight: 700; margin: 0; }
+    .docs-content-wrapper { padding: 1.75rem 2rem; }
 
-    .docs-title {
-        font-size: 2rem;
-        font-weight: 700;
-        color: var(--tblr-body-color);
-        margin: 0;
-    }
-
-    .docs-content-wrapper {
-        padding: 2rem;
-    }
-
-    /* ===== Markdown Content Styles ===== */
+    /* ===== Markdown Content ===== */
     .docs-content {
         font-size: 0.9375rem;
-        line-height: 1.7;
+        line-height: 1.75;
         color: var(--tblr-body-color);
+        max-width: 100%;
     }
-
     .docs-content h1 {
-        font-size: 1.75rem;
-        font-weight: 700;
-        margin: 2.5rem 0 1rem 0;
-        padding-bottom: 0.5rem;
+        font-size: 1.6rem; font-weight: 700;
+        margin: 2.5rem 0 0.75rem 0;
+        padding-bottom: 0.4rem;
         border-bottom: 2px solid var(--tblr-primary);
-        color: var(--tblr-body-color);
     }
-
-    .docs-content h1:first-child {
-        display: none; /* Hide duplicate title */
-    }
-
+    .docs-content h1:first-child { display: none; }
     .docs-content h2 {
-        font-size: 1.5rem;
-        font-weight: 600;
-        margin: 2rem 0 1rem 0;
-        padding-bottom: 0.375rem;
+        font-size: 1.35rem; font-weight: 600;
+        margin: 2rem 0 0.75rem 0;
+        padding-bottom: 0.3rem;
         border-bottom: 1px solid var(--tblr-border-color);
-        color: var(--tblr-body-color);
     }
-
     .docs-content h3 {
-        font-size: 1.25rem;
-        font-weight: 600;
-        margin: 1.75rem 0 0.75rem 0;
-        color: var(--tblr-body-color);
-    }
-
-    .docs-content h4 {
-        font-size: 1.1rem;
-        font-weight: 600;
+        font-size: 1.15rem; font-weight: 600;
         margin: 1.5rem 0 0.5rem 0;
+    }
+    .docs-content h4 {
+        font-size: 1rem; font-weight: 600;
+        margin: 1.25rem 0 0.4rem 0;
         color: var(--tblr-secondary);
     }
-
-    .docs-content p {
-        margin-bottom: 1rem;
-    }
-
+    .docs-content p { margin-bottom: 0.875rem; }
     .docs-content a {
         color: var(--tblr-primary);
         text-decoration: none;
         border-bottom: 1px solid transparent;
         transition: border-color 0.15s ease;
     }
+    .docs-content a:hover { border-bottom-color: var(--tblr-primary); }
 
-    .docs-content a:hover {
-        border-bottom-color: var(--tblr-primary);
-    }
-
-    /* ===== Code Blocks - High Contrast ===== */
-    .docs-content code {
-        font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
-        font-size: 0.8125rem;
-        background-color: #1e293b;
-        color: #e2e8f0;
-        padding: 0.2em 0.4em;
-        border-radius: 6px;
-        font-weight: 500;
-    }
-
-    .docs-content pre {
-        background-color: #0f172a;
-        border: 1px solid #334155;
-        border-radius: 8px;
-        padding: 1rem 1.25rem;
-        margin: 1.25rem 0;
-        overflow-x: auto;
-        position: relative;
-    }
-
-    .docs-content pre code {
-        background-color: transparent;
-        color: #e2e8f0;
-        padding: 0;
-        font-size: 0.8125rem;
+    /* ===== Summary Blockquote (first blockquote = doc summary) ===== */
+    .docs-content > blockquote:first-of-type {
+        margin: 0 0 1.5rem 0;
+        padding: 0.875rem 1.25rem;
+        background: linear-gradient(135deg, rgba(32, 107, 196, 0.06) 0%, rgba(32, 107, 196, 0.02) 100%);
+        border-left: 4px solid var(--tblr-primary);
+        border-radius: 0 8px 8px 0;
+        font-size: 0.875rem;
         line-height: 1.6;
     }
+    .docs-content > blockquote:first-of-type strong {
+        color: var(--tblr-primary);
+    }
+    .docs-content > blockquote:first-of-type code {
+        font-size: 0.8em;
+        background-color: rgba(32, 107, 196, 0.1);
+        color: var(--tblr-body-color);
+    }
 
-    /* Code block line numbers effect */
-    .docs-content pre::before {
+    /* ===== Regular Blockquotes ===== */
+    .docs-content blockquote {
+        margin: 1rem 0;
+        padding: 0.75rem 1rem;
+        background-color: var(--tblr-bg-surface-secondary, rgba(0,0,0,0.02));
+        border-left: 3px solid var(--tblr-border-color);
+        border-radius: 0 6px 6px 0;
+        color: var(--tblr-secondary);
+    }
+    .docs-content blockquote p:last-child { margin-bottom: 0; }
+
+    /* ===== Inline Code ===== */
+    .docs-content code {
+        font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+        font-size: 0.8em;
+        background-color: var(--tblr-bg-surface-secondary, #f1f5f9);
+        color: var(--tblr-code-color, #d63384);
+        padding: 0.15em 0.4em;
+        border-radius: 4px;
+        font-weight: 500;
+        word-break: break-word;
+    }
+
+    /* ===== Code Blocks (Pygments) ===== */
+    .docs-content .codehilite,
+    .docs-content pre {
+        background-color: #272822;
+        border: 1px solid #3e3d32;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin: 1rem 0;
+        overflow-x: auto;
+        position: relative;
+        font-size: 0.8125rem;
+        line-height: 1.65;
+    }
+    .docs-content .codehilite pre {
+        background: transparent;
+        border: none;
+        padding: 0;
+        margin: 0;
+        overflow: visible;
+    }
+    .docs-content .codehilite code,
+    .docs-content pre code {
+        background-color: transparent;
+        color: #F8F8F2;
+        padding: 0;
+        font-size: inherit;
+        line-height: inherit;
+        border-radius: 0;
+        word-break: normal;
+    }
+    /* Accent bar on code blocks */
+    .docs-content .codehilite::before,
+    .docs-content pre:not(.codehilite pre)::before {
         content: '';
         position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
+        left: 0; top: 0; bottom: 0;
         width: 3px;
         background: linear-gradient(180deg, #3b82f6, #8b5cf6);
         border-radius: 8px 0 0 8px;
@@ -244,119 +287,75 @@
     /* ===== Tables ===== */
     .docs-content table {
         width: 100%;
-        margin: 1.25rem 0;
+        margin: 1rem 0;
         border-collapse: collapse;
-        font-size: 0.875rem;
+        font-size: 0.85rem;
         border: 1px solid var(--tblr-border-color);
         border-radius: 8px;
         overflow: hidden;
     }
-
     .docs-content th {
         background-color: var(--tblr-bg-surface-secondary);
         font-weight: 600;
         text-align: left;
-        padding: 0.75rem 1rem;
+        padding: 0.6rem 0.875rem;
         border-bottom: 2px solid var(--tblr-border-color);
-        color: var(--tblr-body-color);
     }
-
     .docs-content td {
-        padding: 0.625rem 1rem;
+        padding: 0.5rem 0.875rem;
         border-bottom: 1px solid var(--tblr-border-color);
         vertical-align: top;
     }
-
-    .docs-content tr:last-child td {
-        border-bottom: none;
-    }
-
-    .docs-content tr:hover td {
-        background-color: rgba(32, 107, 196, 0.03);
-    }
-
-    /* ===== Blockquotes ===== */
-    .docs-content blockquote {
-        margin: 1.25rem 0;
-        padding: 1rem 1.25rem;
-        background-color: rgba(32, 107, 196, 0.05);
-        border-left: 4px solid var(--tblr-primary);
-        border-radius: 0 8px 8px 0;
-        color: var(--tblr-secondary);
-    }
-
-    .docs-content blockquote p:last-child {
-        margin-bottom: 0;
-    }
+    .docs-content tr:last-child td { border-bottom: none; }
+    .docs-content tr:hover td { background-color: rgba(32, 107, 196, 0.03); }
 
     /* ===== Lists ===== */
     .docs-content ul, .docs-content ol {
-        margin: 1rem 0;
+        margin: 0.75rem 0;
         padding-left: 1.5rem;
     }
+    .docs-content li { margin-bottom: 0.3rem; }
+    .docs-content li > ul, .docs-content li > ol { margin: 0.25rem 0; }
 
-    .docs-content li {
-        margin-bottom: 0.375rem;
-    }
-
-    .docs-content li > ul, .docs-content li > ol {
-        margin: 0.375rem 0;
-    }
-
-    /* ===== Horizontal Rules ===== */
+    /* ===== Misc ===== */
     .docs-content hr {
-        margin: 2rem 0;
+        margin: 1.75rem 0;
         border: none;
         border-top: 1px solid var(--tblr-border-color);
     }
-
-    /* ===== Images ===== */
     .docs-content img {
         max-width: 100%;
         height: auto;
         border-radius: 8px;
-        margin: 1.25rem 0;
+        margin: 1rem 0;
         border: 1px solid var(--tblr-border-color);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
     }
+    .docs-content strong { font-weight: 600; }
 
     /* ===== Mermaid Diagrams ===== */
-    .mermaid-container {
-        position: relative;
-        margin: 1.5rem 0;
-    }
-
+    .mermaid-container { position: relative; margin: 1.25rem 0; }
     .docs-content .mermaid {
         background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
         border: 1px solid var(--tblr-border-color);
         border-radius: 8px;
-        padding: 2rem;
+        padding: 1.5rem;
         text-align: center;
         overflow-x: auto;
     }
-
     [data-bs-theme="dark"] .docs-content .mermaid {
         background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
     }
-
-    .docs-content .mermaid svg {
-        max-width: 100%;
-        height: auto;
-    }
-
-    .docs-content pre.mermaid-source {
-        display: none !important;
-    }
-
+    .docs-content .mermaid svg { max-width: 100%; height: auto; }
+    .docs-content pre.mermaid-source,
+    .docs-content div.mermaid-source { display: none !important; }
     .mermaid-container::before {
         content: 'Diagram';
         position: absolute;
-        top: -0.625rem;
-        left: 1.25rem;
+        top: -0.5rem; left: 1rem;
         background: var(--tblr-card-bg, #fff);
-        padding: 0 0.625rem;
-        font-size: 0.6875rem;
-        font-weight: 600;
+        padding: 0 0.5rem;
+        font-size: 0.625rem; font-weight: 700;
         color: var(--tblr-muted);
         text-transform: uppercase;
         letter-spacing: 0.05em;
@@ -366,35 +365,27 @@
     /* ===== Copy Button ===== */
     .code-copy-btn {
         position: absolute;
-        top: 0.5rem;
-        right: 0.5rem;
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        top: 0.4rem; right: 0.4rem;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
         color: #94a3b8;
-        padding: 0.25rem 0.5rem;
-        border-radius: 6px;
-        font-size: 0.75rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
         cursor: pointer;
         opacity: 0;
-        transition: all 0.15s ease;
+        transition: opacity 0.15s ease;
     }
-
-    .docs-content pre:hover .code-copy-btn {
-        opacity: 1;
-    }
-
+    .docs-content .codehilite:hover .code-copy-btn,
+    .docs-content pre:hover .code-copy-btn { opacity: 1; }
     .code-copy-btn:hover {
         background: rgba(255, 255, 255, 0.2);
         color: #e2e8f0;
     }
 
-    /* ===== Sticky Sidebar ===== */
-    .sticky-top {
-        top: 1rem;
-        z-index: 100;
-    }
+    /* ===== Layout ===== */
+    .sticky-top { top: 1rem; z-index: 100; }
 
-    /* ===== Print Styles ===== */
     @media print {
         .docs-toc, .btn, nav { display: none !important; }
         .docs-content pre { white-space: pre-wrap; }
@@ -436,46 +427,41 @@ function initMermaid() {
         } : {}
     });
 
-    // Find all code blocks with mermaid content
-    const codeBlocks = document.querySelectorAll('.docs-content pre code');
+    // Find all code blocks — handles both <pre><code> and <div.codehilite><pre>
+    const preBlocks = document.querySelectorAll('.docs-content pre');
     let mermaidCount = 0;
-    
-    codeBlocks.forEach((codeBlock, index) => {
-        const text = codeBlock.textContent.trim();
-        // Check if this looks like mermaid code
-        if (text.startsWith('flowchart') || 
-            text.startsWith('graph') || 
-            text.startsWith('sequenceDiagram') || 
-            text.startsWith('classDiagram') ||
-            text.startsWith('stateDiagram') ||
-            text.startsWith('erDiagram') ||
-            text.startsWith('gantt') ||
-            text.startsWith('pie') ||
-            text.startsWith('gitGraph')) {
-            
-            const pre = codeBlock.parentElement;
-            
-            // Create container
-            const container = document.createElement('div');
-            container.className = 'mermaid-container';
-            
-            const mermaidDiv = document.createElement('div');
-            mermaidDiv.className = 'mermaid';
-            mermaidDiv.id = 'mermaid-' + mermaidCount++;
-            mermaidDiv.textContent = text;
-            
-            container.appendChild(mermaidDiv);
-            
-            // Insert container after pre and hide pre
-            pre.classList.add('mermaid-source');
-            pre.insertAdjacentElement('afterend', container);
-        }
+
+    preBlocks.forEach((pre) => {
+        const text = pre.textContent.trim();
+        const mermaidKeywords = ['flowchart', 'graph', 'sequenceDiagram', 'classDiagram',
+            'stateDiagram', 'erDiagram', 'gantt', 'pie', 'gitGraph'];
+        if (!mermaidKeywords.some(kw => text.startsWith(kw))) return;
+
+        // Hide the source — could be <pre> or parent <div.codehilite>
+        const hideEl = pre.closest('.codehilite') || pre;
+        hideEl.classList.add('mermaid-source');
+        hideEl.style.display = 'none';
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        const mermaidDiv = document.createElement('div');
+        mermaidDiv.className = 'mermaid';
+        mermaidDiv.id = 'mermaid-' + mermaidCount++;
+        mermaidDiv.textContent = text;
+        container.appendChild(mermaidDiv);
+        hideEl.insertAdjacentElement('afterend', container);
     });
 
     // Run mermaid on all .mermaid divs
     if (mermaidCount > 0) {
         mermaid.run().catch(err => {
             console.warn('Mermaid rendering error:', err);
+            // Show source code as fallback for failed diagrams
+            document.querySelectorAll('.mermaid-source').forEach(el => {
+                el.style.display = '';
+                el.classList.remove('mermaid-source');
+            });
+            document.querySelectorAll('.mermaid-container').forEach(el => el.remove());
         });
     }
 }
@@ -644,35 +630,36 @@ function enhanceExternalLinks() {
 }
 
 function setupCodeBlockCopy() {
-    const codeBlocks = document.querySelectorAll('.docs-content pre:not(.mermaid-source)');
+    // Add copy button to both codehilite divs and standalone pre blocks
+    const codeBlocks = document.querySelectorAll('.docs-content .codehilite, .docs-content pre:not(.codehilite pre):not(.mermaid-source)');
 
     codeBlocks.forEach(block => {
+        if (block.classList.contains('mermaid-source')) return;
+        if (block.querySelector('.code-copy-btn')) return;
+
         const copyBtn = document.createElement('button');
         copyBtn.className = 'code-copy-btn';
         copyBtn.innerHTML = '<i class="fa-solid fa-copy me-1"></i>Copy';
         copyBtn.setAttribute('title', 'Copy to clipboard');
-        copyBtn.setAttribute('aria-label', 'Copy code to clipboard');
 
         copyBtn.addEventListener('click', function() {
-            const code = block.querySelector('code');
-            if (code) {
-                navigator.clipboard.writeText(code.textContent).then(() => {
-                    copyBtn.innerHTML = '<i class="fa-solid fa-check me-1"></i>Copied!';
-                    copyBtn.style.color = '#4ade80';
-
-                    setTimeout(() => {
-                        copyBtn.innerHTML = '<i class="fa-solid fa-copy me-1"></i>Copy';
-                        copyBtn.style.color = '';
-                    }, 2000);
-                }).catch(() => {
-                    copyBtn.innerHTML = '<i class="fa-solid fa-xmark me-1"></i>Failed';
-                    setTimeout(() => {
-                        copyBtn.innerHTML = '<i class="fa-solid fa-copy me-1"></i>Copy';
-                    }, 2000);
-                });
-            }
+            const text = (block.querySelector('pre') || block).textContent.trim();
+            navigator.clipboard.writeText(text).then(() => {
+                copyBtn.innerHTML = '<i class="fa-solid fa-check me-1"></i>Copied!';
+                copyBtn.style.color = '#4ade80';
+                setTimeout(() => {
+                    copyBtn.innerHTML = '<i class="fa-solid fa-copy me-1"></i>Copy';
+                    copyBtn.style.color = '';
+                }, 2000);
+            }).catch(() => {
+                copyBtn.innerHTML = '<i class="fa-solid fa-xmark me-1"></i>Failed';
+                setTimeout(() => {
+                    copyBtn.innerHTML = '<i class="fa-solid fa-copy me-1"></i>Copy';
+                }, 2000);
+            });
         });
 
+        block.style.position = 'relative';
         block.appendChild(copyBtn);
     });
 }

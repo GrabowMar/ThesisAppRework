@@ -1,5 +1,9 @@
 # Analysis Pipeline
 
+> **Summary**: End-to-end generation → analysis workflow, including task orchestration, analyzer dispatch, and result consolidation.
+> **Key files**: `src/app/services/pipeline_execution_service.py`, `analyzer/shared/protocol.py`
+> **See also**: [Analyzer Guide](ANALYZER_GUIDE.md), [Background Services](BACKGROUND_SERVICES.md)
+
 This document describes the containerized analysis system that evaluates generated web applications across security, code quality, performance, and requirements compliance dimensions.
 
 ## Architecture Overview

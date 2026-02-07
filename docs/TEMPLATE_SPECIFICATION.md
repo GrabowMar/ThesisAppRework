@@ -1,5 +1,9 @@
 # Template Specification
 
+> **Summary**: JSON requirement template format used to define web application specifications for LLM code generation.
+> **Key files**: `misc/requirements/*.json`, `src/app/services/generation_v2/prompt_loader.py`
+> **See also**: [Generation Process](GENERATION_PROCESS.md)
+
 This document describes the requirement template system used to define web applications for LLM code generation.
 
 ## Overview
@@ -316,22 +320,20 @@ flowchart TB
         C5["{{ admin_api_endpoints | format }}"]
     end
     
-    subgraph Queries["4 LLM Queries"]
-        Q1["Query 1: Backend User\nUses: BR, EP, DM"]
-        Q2["Query 2: Backend Admin\nUses: AR, AE"]
-        Q3["Query 3: Frontend User\nUses: FR, EP"]
-        Q4["Query 4: Frontend Admin\nUses: AR, AE"]
+    subgraph Queries["2 LLM Queries"]
+        Q1["Query 1: Backend\nUses: BR, AR, EP, AE, DM"]
+        Q2["Query 2: Frontend\nUses: FR, AR, EP, AE"]
     end
     
     BR --> Q1
     EP --> Q1
     DM --> Q1
+    AR --> Q1
+    AE --> Q1
+    FR --> Q2
+    EP --> Q2
     AR --> Q2
     AE --> Q2
-    FR --> Q3
-    EP --> Q3
-    AR --> Q4
-    AE --> Q4
 ```
 
 ## Creating New Templates

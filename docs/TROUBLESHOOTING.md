@@ -1,5 +1,9 @@
 # Troubleshooting Guide
 
+> **Summary**: Common issues, diagnostic commands, and solutions for Docker, database, analyzer, and pipeline problems.
+> **Key files**: N/A
+> **See also**: [Deployment Guide](deployment-guide.md), [Background Services](BACKGROUND_SERVICES.md)
+
 Solutions for common issues in ThesisAppRework.
 
 ## Quick Diagnostics
@@ -277,7 +281,7 @@ python analyzer/analyzer_manager.py analyze model 1 static --verbose
 **Manual Solution:**
 ```bash
 # Fix stuck tasks
-python scripts/fix_task_statuses.py
+python scripts/reset_stuck_tasks.py
 
 # Or run maintenance cleanup
 ./start.ps1 -Mode Maintenance
@@ -429,13 +433,13 @@ rm src/data/thesis_app.db
 python src/init_db.py
 
 # Fix task statuses
-python scripts/fix_task_statuses.py
+python scripts/reset_stuck_tasks.py
 
-# Sync generated apps to database
-python scripts/sync_generated_apps.py
+# Reconstruct missing results
+python scripts/reconstruct_results.py
 
-# Add missing_since column (one-time migration)
-python scripts/add_missing_since_column.py
+# Reset stuck pipelines
+python scripts/reset_pipelines.py
 ```
 
 ## Maintenance Service

@@ -177,7 +177,7 @@ Generate tokens via **User → API Access** in the web UI.
 
 | Guide | Description |
 |-------|-------------|
-| [Docs Index](docs/README.md) | Entry point for all docs (including archive) |
+| [Docs Index](docs/README.md) | Entry point for all docs |
 | [Quick Start](docs/QUICKSTART.md) | Installation and first steps |
 | [Architecture](docs/ARCHITECTURE.md) | System design, components, data flow |
 | [API Reference](docs/api-reference.md) | REST endpoints, authentication |

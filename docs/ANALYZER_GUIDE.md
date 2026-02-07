@@ -1,5 +1,9 @@
 # Analyzer Services Guide
 
+> **Summary**: Configuration, usage, and internals of the four analyzer microservices: static, dynamic, performance, and AI.
+> **Key files**: `analyzer/services/*`, `analyzer/shared/protocol.py`
+> **See also**: [Analysis Pipeline](ANALYSIS_PIPELINE.md), [Architecture Overview](ARCHITECTURE.md)
+
 Detailed documentation for the containerized analyzer microservices.
 
 ## Overview
@@ -15,26 +19,31 @@ ThesisAppRework uses four Docker-based analyzer services:
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                   Flask Application                      │
-│                    (Port 5000)                          │
-└─────────────────────────┬───────────────────────────────┘
-                          │ WebSocket
-         ┌────────────────┼────────────────┐
-         │                │                │
-         ▼                ▼                ▼
-    ┌─────────┐     ┌─────────┐     ┌─────────┐
-    │ Static  │     │ Dynamic │     │  Perf   │
-    │  2001   │     │  2002   │     │  2003   │
-    └─────────┘     └─────────┘     └─────────┘
-         │                │                │
-         └────────────────┼────────────────┘
-                          ▼
-              ┌───────────────────────┐
-              │  generated/apps/      │
-              │  (mounted read-only)  │
-              └───────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Flask["Flask Application :5000"]
+        WS["WebSocket Dispatch"]
+    end
+
+    subgraph Analyzers["Analyzer Microservices"]
+        Static["Static Analyzer\n:2001"]
+        Dynamic["Dynamic Analyzer\n:2002"]
+        Perf["Performance Tester\n:2003"]
+        AI["AI Analyzer\n:2004"]
+    end
+
+    subgraph Storage["File System"]
+        Generated["generated/apps/\n(mounted read-only)"]
+    end
+
+    WS -->|WebSocket| Static
+    WS -->|WebSocket| Dynamic
+    WS -->|WebSocket| Perf
+    WS -->|WebSocket| AI
+    Static --> Generated
+    Dynamic --> Generated
+    Perf --> Generated
+    AI --> Generated
 ```
 
 ## Static Analyzer (Port 2001)
@@ -52,8 +61,12 @@ Performs code quality and security analysis without executing code.
 | Flake8 | Python | Style checking |
 | Ruff | Python | Fast linting |
 | MyPy | Python | Type checking |
+| Vulture | Python | Dead code detection |
+| Radon | Python | Cyclomatic complexity |
+| detect-secrets | Multi | Credential detection |
+| pip-audit | Python | Package vulnerability audit |
 | ESLint | JavaScript | JS/TS linting |
-| JSHint | JavaScript | JS quality |
+| Stylelint | CSS | CSS/Tailwind linting |
 
 ### Usage
 

@@ -1,5 +1,9 @@
 # Application Generation Process
 
+> **Summary**: How LLM code generation works, from prompt construction through scaffolding injection to final app output.
+> **Key files**: `src/app/services/generation_v2/service.py`, `misc/requirements/*.json`
+> **See also**: [Template Specification](TEMPLATE_SPECIFICATION.md), [Models Reference](MODELS_REFERENCE.md)
+
 This document describes the code generation architecture used in ThesisAppRework. The system generates full-stack web applications by combining immutable Docker scaffolding with AI-generated application code.
 
 ## Architecture Overview
@@ -55,10 +59,11 @@ The generation system follows a **"scaffolding-first"** approach where Docker in
 | `nginx.conf` | ❌ Never | Reverse proxy config |
 | `vite.config.js` | ❌ Never | Build tool config |
 | `tailwind.config.js` | ❌ Never | CSS framework config |
-| `app.py` (router only) | ❌ Never | Flask app initialization |
-| `App.jsx` (router only) | ❌ Never | React routing setup |
-| `models.py`, `services.py` | ✅ Yes | Business logic |
-| `pages/*.jsx`, `hooks/*.js` | ✅ Yes | UI components |
+| `main.jsx`, `index.html` | ❌ Never | React entry point |
+| `backend/app.py` | ✅ Replace entirely | Flask app (models, routes, auth) |
+| `frontend/src/App.jsx` | ✅ Replace entirely | React app (components, pages, hooks) |
+| `requirements.txt` | ✅ Extend only | AI adds below marker comment |
+| `package.json` | ✅ Extend only | AI adds from allowed libraries |
 
 This ensures:
 - **Reproducible builds** across all generated applications
@@ -69,7 +74,7 @@ This ensures:
 
 ### GUARDED Mode (Primary - Used for Research)
 
-The **GUARDED mode** is the primary generation strategy used for this research. It employs a structured **4-query system** that separates user-facing and admin functionality:
+The **GUARDED mode** is the primary generation strategy used for this research. It employs a structured **2-query system** that generates backend and frontend separately:
 
 ```mermaid
 sequenceDiagram
@@ -82,22 +87,14 @@ sequenceDiagram
     GS->>FS: Copy scaffolding to app directory
     
     Note over GS: Phase 2: Backend Generation
-    GS->>OR: Query 1: Backend User Code
-    OR-->>GS: models.py, services.py, routes/user.py
-    GS->>FS: Write backend user files
-    
-    GS->>OR: Query 2: Backend Admin Code
-    OR-->>GS: routes/admin.py only
-    GS->>FS: Write admin routes (restricted)
+    GS->>OR: Query 1: Complete Backend (app.py)
+    OR-->>GS: Single app.py with models, routes, auth
+    GS->>FS: Write backend/app.py
     
     Note over GS: Phase 3: Frontend Generation
-    GS->>OR: Query 3: Frontend User Pages
-    OR-->>GS: UserPage.jsx, useData.js, api.js
-    GS->>FS: Write frontend user files
-    
-    GS->>OR: Query 4: Frontend Admin Pages
-    OR-->>GS: AdminPage.jsx only
-    GS->>FS: Write admin page (restricted)
+    GS->>OR: Query 2: Complete Frontend (App.jsx)
+    OR-->>GS: Single App.jsx with all components
+    GS->>FS: Write frontend/src/App.jsx
     
     Note over GS: Phase 4: Post-Processing
     GS->>FS: Run dependency healing
@@ -105,16 +102,14 @@ sequenceDiagram
     GS->>FS: Validate syntax
 ```
 
-#### 4-Query File Restrictions
+#### 2-Query File Output
 
-Each query has a strict **file whitelist** enforced by the generation service:
+Each query produces a single file:
 
 | Query | Component | Output File |
 |-------|-----------|-------------|
-| 1 | Backend User | `app.py` (complete backend with models, auth, user routes) |
-| 2 | Backend Admin | `app.py` (admin routes merged into same file) |
-| 3 | Frontend User | `App.jsx` (complete React app with all components, auth, pages) |
-| 4 | Frontend Admin | `App.jsx` (admin page merged into same file) |
+| 1 | Backend | `app.py` (complete backend with models, auth, user+admin routes) |
+| 2 | Frontend | `App.jsx` (complete React app with all components, auth, pages) |
 
 **Single-File Architecture:**
 - Backend: ALL code in one `app.py` file (~500-800 lines)
@@ -144,16 +139,9 @@ The HomePage serves **both public and logged-in users** through conditional rend
 - POST/PUT/DELETE endpoints require authentication
 - Public endpoints return ALL data (no filtering by auth status)
 
-### UNGUARDED Mode (Experimental - Not Used for Research)
+### UNGUARDED Mode (Defined, Not Implemented)
 
-An alternative **UNGUARDED mode** exists that gives the AI "full creative control" over architecture decisions using only 2 queries (backend + frontend). However, this mode has a **very high failure rate** (>80% of applications fail to build or run) due to:
-
-- AI making incompatible architectural decisions
-- Missing or incorrect import statements
-- Routing conflicts with scaffolding
-- Inconsistent file naming conventions
-
-**This mode is NOT used for the research study** due to unreliable results.
+An alternative **UNGUARDED mode** is defined in constants (`GenerationMode.UNGUARDED`) but has **no implementation** in the generation service. The service always uses GUARDED mode. This was planned as a mode giving the AI "full creative control" but was never completed due to expected high failure rates.
 
 ## Generation Workflow Detail
 
@@ -230,10 +218,12 @@ Located in `misc/prompts/v2/`:
 
 | Directory | Purpose |
 |-----------|---------|
-| `backend/` | Flask backend prompts (system + user templates) |
-| `frontend/` | React frontend prompts (system + user templates) |
+| `backend/system.md.jinja2` | Flask backend system prompt |
+| `backend/user.md.jinja2` | Flask backend user prompt template |
+| `frontend/system.md.jinja2` | React frontend system prompt |
+| `frontend/user.md.jinja2` | React frontend user prompt template |
 
-Each directory contains system and user prompt templates used for the 2-query generation approach (backend + frontend).
+Each directory contains system and user prompt Jinja2 templates used for the 2-query generation approach (backend + frontend).
 
 ### Step 4: OpenRouter API Integration
 
@@ -253,33 +243,24 @@ flowchart TB
     Request --> Response
 ```
 
-#### Model-Specific Token Limits
+#### Token Limits
 
-| Model Family | Max Tokens |
-|--------------|------------|
-| Anthropic Claude 3.5 | 16,384 |
-| OpenAI GPT-4o | 32,768 |
-| Google Gemini | 16,384 |
-| DeepSeek | 16,384 |
-| Default | 8,192 |
+All models use a unified token limit:
 
-> **Research Limitation**: Token limits vary by model, which may affect code completeness for complex templates. This is acknowledged as a controlled variable that cannot be fully standardized across providers.
+| Setting | Value |
+|---------|-------|
+| Default `max_tokens` | 32,000 |
+| Dynamic calculation | `max(8000, min(32000, available_context))` |
+| Hardcoded cap | 32,000 |
+
+> **Note**: Token limits are not model-specific. The same cap applies to all providers via OpenRouter.
 
 ### Step 5: Code Merging
 
-The AI response contains code in markdown fenced blocks:
+The AI response contains code in markdown fenced blocks. Each query produces a single file:
 
-```markdown
-```python:models.py
-from flask_sqlalchemy import SQLAlchemy
-...
-```
-
-```python:services.py
-class TodoService:
-...
-```
-```
+- **Backend query** → `app.py` (all models, routes, auth in one file, ~500-800 lines)
+- **Frontend query** → `App.jsx` (all components, pages, hooks in one file, ~600-900 lines)
 
 The merging process:
 1. **Extract** code blocks by filename pattern
@@ -344,16 +325,14 @@ The `DependencyHealer` performs automatic fixes:
 
 ## Port Allocation
 
-Ports are deterministically allocated based on model and app number to prevent conflicts:
+Ports are dynamically allocated starting from base values, checking for availability:
 
 ```
-Backend Port  = 3000 + (model_index * 100) + app_number
-Frontend Port = 4000 + (model_index * 100) + app_number
+Backend Port  = 5001 + sequential offset (next free)
+Frontend Port = 8001 + sequential offset (next free)
 ```
 
-Example for `openai_gpt-4` (index 0), app 1:
-- Backend: 3001
-- Frontend: 4001
+The port allocator (`PortAllocationService`) checks both OS port availability and database records to prevent conflicts. Pre-configured ports can be set in `misc/port_config.json`.
 
 ## Error Handling
 
@@ -369,9 +348,9 @@ Example for `openai_gpt-4` (index 0), app 1:
 ### Success Metrics
 
 A generation is considered **successful** if:
-1. All 4 queries complete without API errors
-2. Backend Python files pass syntax validation
-3. Frontend JSX files are syntactically valid
+1. Both queries (backend + frontend) complete without API errors
+2. Backend `app.py` passes Python syntax validation
+3. Frontend `App.jsx` is syntactically valid
 4. Docker build completes without errors
 
 ## Related Documentation
