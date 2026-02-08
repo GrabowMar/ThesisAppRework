@@ -709,11 +709,12 @@ class ConcurrentAnalysisRunner:
         return result
 
     async def _downgrade_task_to_static(self, job_index: int, job: AnalysisJobSpec) -> None:
-        """Cancel non-static subtasks when containers failed to build.
+        """Cancel container-dependent subtasks when containers failed to build.
         
-        Marks dynamic-analyzer, performance-tester subtasks as cancelled since
-        they require running containers. Static-analyzer and ai-analyzer subtasks
-        continue as they only need source code.
+        Marks dynamic-analyzer, performance-tester, and ai-analyzer subtasks as
+        cancelled since they require running containers. AI analyzer needs containers
+        for API endpoint testing. Static-analyzer subtasks continue as they only
+        need source code.
         """
         try:
             from app.models import AnalysisTask
@@ -725,7 +726,7 @@ class ConcurrentAnalysisRunner:
                 return
             
             # Cancel subtasks for services that require running containers
-            container_services = {'dynamic-analyzer', 'performance-tester'}
+            container_services = {'dynamic-analyzer', 'performance-tester', 'ai-analyzer'}
             subtasks = list(task.subtasks) if hasattr(task, 'subtasks') else []
             cancelled_count = 0
             

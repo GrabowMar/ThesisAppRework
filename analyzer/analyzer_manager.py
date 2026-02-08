@@ -1136,8 +1136,8 @@ class AnalyzerManager:
                     url,
                     open_timeout=10,
                     close_timeout=10,
-                    ping_interval=30,
-                    ping_timeout=10,
+                    ping_interval=None,
+                    ping_timeout=None,
                     max_size=100 * 1024 * 1024  # 100 MB for large SARIF responses
                 ) as websocket:
                     # Send request

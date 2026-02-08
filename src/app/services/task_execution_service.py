@@ -2396,15 +2396,17 @@ class TaskExecutionService:
                     }
                 
                 # ==============================================================
-                # TARGET APP CONTAINER PRE-FLIGHT CHECK (dynamic/performance only)
+                # TARGET APP CONTAINER PRE-FLIGHT CHECK
                 # ==============================================================
-                # Dynamic and performance analyzers need target app containers running
-                # Skip this check for static/ai analyzers (they read source code, not running apps)
-                services_requiring_running_app = {'dynamic-analyzer', 'performance-tester'}
+                # Dynamic, performance, and AI analyzers need target app containers running.
+                # AI analyzer tests live API endpoints via HTTP in scan_requirements().
+                # Skip this check for static analyzer only (reads source code, not running apps).
+                services_requiring_running_app = {'dynamic-analyzer', 'performance-tester', 'ai-analyzer'}
                 
-                # Initialize ports to None (default if not resolved from containers)
+                # Initialize ports and build_id to None (default if not resolved from containers)
                 backend_port = None
                 frontend_port = None
+                container_build_id = None
                 
                 if service_name in services_requiring_running_app:
                     self._log(
@@ -2452,13 +2454,14 @@ class TaskExecutionService:
                             'container_check': container_result
                         }
                     
-                    # Log successful container check
+                    # Log successful container check and extract connection details
                     action_taken = container_result.get('action_taken', 'none')
                     backend_port = container_result.get('backend_port')
                     frontend_port = container_result.get('frontend_port')
+                    container_build_id = container_result.get('build_id')
                     self._log(
                         f"[SUBTASK] Containers ready for {service_name} (action={action_taken}, "
-                        f"ports: backend={backend_port}, frontend={frontend_port})"
+                        f"build_id={container_build_id}, ports: backend={backend_port}, frontend={frontend_port})"
                     )
                 
                 # Mark as running
@@ -2509,7 +2512,8 @@ class TaskExecutionService:
                         timeout=service_timeout,
                         tool_config=tool_config,
                         backend_port=backend_port,
-                        frontend_port=frontend_port
+                        frontend_port=frontend_port,
+                        build_id=container_build_id
                     )
                     
                     ws_status = str(result.get('status', '')).lower()
@@ -3031,7 +3035,8 @@ class TaskExecutionService:
         retry_delay: float = 2.0,
         tool_config: Optional[Dict[str, Any]] = None,
         backend_port: Optional[int] = None,
-        frontend_port: Optional[int] = None
+        frontend_port: Optional[int] = None,
+        build_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Execute analysis via WebSocket (synchronous wrapper for thread pool).
         
@@ -3044,6 +3049,7 @@ class TaskExecutionService:
             max_retries: Maximum retry attempts for transient failures
             retry_delay: Base delay between retries (with exponential backoff)
             tool_config: Per-tool configuration dict (e.g., {'bandit': {'severity_level': 'high'}})
+            build_id: Pre-resolved build_id from container readiness check
         
         Includes retry logic with exponential backoff for transient connection failures.
         """
@@ -3091,7 +3097,8 @@ class TaskExecutionService:
                             service_name, port, model_slug, app_number, tools, timeout,
                             tool_config=tool_config,
                             backend_port=backend_port,
-                            frontend_port=frontend_port
+                            frontend_port=frontend_port,
+                            build_id=build_id
                         )
                     )
 
@@ -3244,7 +3251,8 @@ class TaskExecutionService:
         timeout: int,
         tool_config: Optional[Dict[str, Any]] = None,
         backend_port: Optional[int] = None,
-        frontend_port: Optional[int] = None
+        frontend_port: Optional[int] = None,
+        build_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Execute WebSocket request to analyzer service (async).
         
@@ -3256,6 +3264,7 @@ class TaskExecutionService:
             tools: List of tool names to run
             timeout: Execution timeout in seconds
             tool_config: Per-tool configuration dict (e.g., {'bandit': {'severity_level': 'high'}})
+            build_id: Pre-resolved build_id from container readiness check
         """
         import websockets
         from websockets.exceptions import ConnectionClosed
@@ -3305,39 +3314,44 @@ class TaskExecutionService:
                     
                     if is_docker:
                         # Container-to-container: use Docker container names with build_id
-                        build_id = None
-                        try:
-                            docker_mgr = ServiceLocator.get_docker_manager()
-                            if docker_mgr:
-                                build_id = docker_mgr.get_running_build_id(model_slug, app_number)
-                                if build_id:
-                                    self._log(f"[WebSocket] Using build_id from running container: {build_id}", level='debug')
-                        except Exception as e:
-                            self._log(f"[WebSocket] Could not get build_id from Docker: {e}", level='debug')
+                        # Prefer pre-resolved build_id from container readiness check
+                        resolved_build_id = build_id
+                        if resolved_build_id:
+                            self._log(f"[WebSocket] Using pre-resolved build_id: {resolved_build_id}", level='debug')
+                        
+                        if not resolved_build_id:
+                            try:
+                                docker_mgr = ServiceLocator.get_docker_manager()
+                                if docker_mgr:
+                                    resolved_build_id = docker_mgr.get_running_build_id(model_slug, app_number)
+                                    if resolved_build_id:
+                                        self._log(f"[WebSocket] Using build_id from running container: {resolved_build_id}", level='debug')
+                            except Exception as e:
+                                self._log(f"[WebSocket] Could not get build_id from Docker: {e}", level='debug')
                         
                         # Fall back to database if not found in running containers
-                        if not build_id:
+                        if not resolved_build_id:
                             try:
                                 from app.models import GeneratedApplication
                                 app = GeneratedApplication.query.filter_by(
                                     model_slug=model_slug, app_number=app_number
                                 ).first()
                                 if app and app.build_id:
-                                    build_id = app.build_id
-                                    self._log(f"[WebSocket] Using build_id from database: {build_id}", level='debug')
+                                    resolved_build_id = app.build_id
+                                    self._log(f"[WebSocket] Using build_id from database: {resolved_build_id}", level='debug')
                             except Exception as e:
                                 self._log(f"[WebSocket] Could not lookup build_id from database: {e}", level='debug')
                         
                         safe_slug = model_slug.replace('/', '-').replace('_', '-').replace('.', '-')
-                        if build_id:
-                            container_prefix = f"{safe_slug}-app{app_number}-{build_id}"
+                        if resolved_build_id:
+                            container_prefix = f"{safe_slug}-app{app_number}-{resolved_build_id}"
                         else:
                             container_prefix = f"{safe_slug}-app{app_number}"
                         target_urls = [
                             f"http://{container_prefix}_backend:{bp}",
                             f"http://{container_prefix}_frontend:80"  # ALWAYS use port 80 for frontend in Docker network
                         ]
-                        self._log(f"[WebSocket] Resolved target URLs for {service_name} (container network, build_id={build_id}): {target_urls}")
+                        self._log(f"[WebSocket] Resolved target URLs for {service_name} (container network, build_id={resolved_build_id}): {target_urls}")
                     else:
                         # Host-to-host: use localhost mapped ports
                         target_urls = [
