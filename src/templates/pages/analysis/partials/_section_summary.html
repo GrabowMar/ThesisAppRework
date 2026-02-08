@@ -1,0 +1,106 @@
+{# Summary Section — severity charts + per-service dashboard #}
+{% set severity_order = ['critical', 'high', 'medium', 'low', 'info'] %}
+
+{# ── Per-service factual breakdown ── #}
+{% if services|length > 0 %}
+<div class="card card-sm mb-3">
+  <div class="card-body py-2">
+    <div class="row g-0 summary-dashboard-grid">
+      {% set svc_items = [
+        ('static', 'fa-code text-primary', 'Static'),
+        ('dynamic', 'fa-shield-halved text-success', 'Dynamic'),
+        ('performance', 'fa-gauge-high text-info', 'Performance'),
+        ('ai', 'fa-robot text-warning', 'AI')
+      ] %}
+      {% for svc_key, svc_icon, svc_label in svc_items %}
+        {% set svc = services.get(svc_key) if services is mapping else none %}
+        {% if svc %}
+        <div class="col-6 col-md-3 px-2 py-1 {% if not loop.last %}border-end-md{% endif %}">
+          <div class="d-flex align-items-center gap-1 mb-1">
+            <i class="fa-solid {{ svc_icon }} small"></i>
+            <span class="fw-bold small">{{ svc_label }}</span>
+            {% set svc_status = svc.status|default('unknown') %}
+            <span class="badge badge-sm {% if svc_status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif svc_status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %} ms-auto">
+              {{ svc_status|replace('_', ' ')|title }}
+            </span>
+          </div>
+          <div class="text-muted" style="font-size: 0.75rem;">
+            {% if svc_key == 'ai' %}
+              {% set ai_a = svc.analysis if svc.analysis else {} %}
+              {% set ai_s = ai_a.summary if ai_a.summary else {} %}
+              {% if ai_s.overall_compliance is defined %}Compliance: {{ ai_s.overall_compliance|round(1) }}%{% endif %}
+              {% if ai_s.code_quality_score is defined %} · Quality: {{ ai_s.code_quality_score }}/100{% endif %}
+              {% if not ai_s.overall_compliance is defined and not ai_s.code_quality_score is defined %}No data{% endif %}
+            {% else %}
+              {% set svc_analysis = svc.analysis if svc.analysis else {} %}
+              {% set svc_results = svc_analysis.results if svc_analysis.results else {} %}
+              {% set svc_tools = svc_analysis.tools_used if svc_analysis.tools_used else [] %}
+              {{ svc_tools|length if svc_tools else (svc_results|length if svc_results is mapping else 0) }} tools
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Severity Distribution Charts ── #}
+{% if descriptor.severity_breakdown and descriptor.severity_breakdown|length > 0 %}
+<div class="row g-3 mb-3 d-print-none">
+  <div class="col-md-5">
+    <div class="card card-sm">
+      <div class="card-body py-2">
+        <div class="small fw-bold text-muted mb-1">Severity Distribution</div>
+        <div style="height: 160px; position: relative;">
+          <canvas id="severityDonutChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-7">
+    <div class="card card-sm">
+      <div class="card-body py-2">
+        <div class="small fw-bold text-muted mb-1">Findings per Service</div>
+        <div style="height: 160px; position: relative;">
+          <canvas id="serviceBarChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Timing details ── #}
+{% if timing_info and timing_info.actual_duration %}
+<div class="card card-sm">
+  <div class="card-body py-2">
+    <div class="row g-3">
+      <div class="col-auto">
+        <div class="text-muted small">Duration</div>
+        {% set dur = timing_info.actual_duration|int %}
+        <div class="fw-bold">{% if dur >= 3600 %}{{ (dur // 3600) }}h {{ ((dur % 3600) // 60) }}m{% elif dur >= 60 %}{{ (dur // 60) }}m {{ (dur % 60) }}s{% else %}{{ dur }}s{% endif %}</div>
+      </div>
+      {% if timing_info.queue_time and timing_info.queue_time > 0 %}
+      <div class="col-auto border-start ps-3">
+        <div class="text-muted small">Queue Time</div>
+        <div class="fw-bold">{{ timing_info.queue_time|int }}s</div>
+      </div>
+      {% endif %}
+      {% if timing_info.started_at %}
+      <div class="col-auto border-start ps-3">
+        <div class="text-muted small">Started</div>
+        <div class="fw-bold">{{ timing_info.started_at }}</div>
+      </div>
+      {% endif %}
+      {% if timing_info.completed_at %}
+      <div class="col-auto border-start ps-3">
+        <div class="text-muted small">Completed</div>
+        <div class="fw-bold">{{ timing_info.completed_at }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}

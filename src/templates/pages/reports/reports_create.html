@@ -1,0 +1,670 @@
+{# Report Creation Wizard — full-page multi-step form #}
+{% extends 'layouts/base_smart.html' %}
+{% set active_page = 'reports' %}
+{% set page_title = 'Create Report' %}
+{% set page_icon = 'fa-solid fa-file-circle-plus' %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block head_styles %}
+<style>
+  .report-type-card {
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    border: 2px solid transparent;
+  }
+  .report-type-card:hover {
+    border-color: var(--tblr-primary);
+    box-shadow: 0 0 0 0.15rem rgba(var(--tblr-primary-rgb), 0.15);
+  }
+  .report-type-card.selected {
+    border-color: var(--tblr-primary);
+    box-shadow: 0 0 0 0.2rem rgba(var(--tblr-primary-rgb), 0.25);
+    background: rgba(var(--tblr-primary-rgb), 0.03);
+  }
+  .report-type-card .card-body { padding: 1rem; }
+  .report-type-card .type-icon {
+    width: 48px; height: 48px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 0.5rem;
+    font-size: 1.25rem;
+  }
+  .wizard-step { display: none; }
+  .wizard-step.active { display: block; }
+  .step-indicator {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; font-weight: 600;
+    background: var(--tblr-bg-surface-secondary);
+    color: var(--tblr-secondary);
+    transition: all 0.2s;
+  }
+  .step-indicator.active {
+    background: var(--tblr-primary);
+    color: #fff;
+  }
+  .step-indicator.done {
+    background: var(--tblr-success);
+    color: #fff;
+  }
+  .step-connector {
+    width: 2px; height: 24px;
+    background: var(--tblr-border-color);
+    margin-left: 13px;
+  }
+  .step-connector.done { background: var(--tblr-success); }
+  .review-item {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--tblr-border-color);
+  }
+  .review-item:last-child { border-bottom: none; }
+  .review-label { font-weight: 500; min-width: 120px; color: var(--tblr-secondary); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  {# ── Left: Wizard Steps ── #}
+  <div class="col-lg-8 col-xl-9">
+
+    {# Step 1: Report Type Selection #}
+    <div class="wizard-step active" data-step="1">
+      <div class="card card-table-compact">
+        <div class="card-header py-2">
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary text-uppercase rounded-pill px-3">Step 1</span>
+            <div>
+              <h3 class="card-title mb-0 d-flex align-items-center gap-2">
+                <i class="fa-solid fa-list-check text-primary"></i>
+                <span>Select Report Type</span>
+              </h3>
+              <div class="text-muted small">Choose the type of analysis report you want to generate</div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body border-top">
+          <div class="row g-3">
+            {# Model Analysis #}
+            <div class="col-md-6">
+              <div class="card report-type-card h-100" data-type="model_analysis" onclick="selectReportType(this)">
+                <div class="card-body">
+                  <div class="d-flex align-items-start gap-3">
+                    <div class="type-icon bg-azure-lt text-azure">
+                      <i class="fa-solid fa-brain"></i>
+                    </div>
+                    <div>
+                      <h4 class="mb-1">Model Analysis</h4>
+                      <p class="text-muted small mb-0">Aggregate all analysis results for a specific AI model across all its generated applications. Shows severity breakdown, tool performance, and per-app findings.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {# Template Comparison #}
+            <div class="col-md-6">
+              <div class="card report-type-card h-100" data-type="template_comparison" onclick="selectReportType(this)">
+                <div class="card-body">
+                  <div class="d-flex align-items-start gap-3">
+                    <div class="type-icon bg-purple-lt text-purple">
+                      <i class="fa-solid fa-code-compare"></i>
+                    </div>
+                    <div>
+                      <h4 class="mb-1">Template Comparison</h4>
+                      <p class="text-muted small mb-0">Compare how different models implemented the same application template. Side-by-side metrics, shared findings, and consistency analysis.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {# Tool Analysis #}
+            <div class="col-md-6">
+              <div class="card report-type-card h-100" data-type="tool_analysis" onclick="selectReportType(this)">
+                <div class="card-body">
+                  <div class="d-flex align-items-start gap-3">
+                    <div class="type-icon bg-teal-lt text-teal">
+                      <i class="fa-solid fa-wrench"></i>
+                    </div>
+                    <div>
+                      <h4 class="mb-1">Tool Analysis</h4>
+                      <p class="text-muted small mb-0">Analyze the effectiveness and performance of analysis tools across all results. Reliability, speed, and finding rates per tool.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {# Generation Analytics #}
+            <div class="col-md-6">
+              <div class="card report-type-card h-100" data-type="generation_analytics" onclick="selectReportType(this)">
+                <div class="card-body">
+                  <div class="d-flex align-items-start gap-3">
+                    <div class="type-icon bg-orange-lt text-orange">
+                      <i class="fa-solid fa-chart-line"></i>
+                    </div>
+                    <div>
+                      <h4 class="mb-1">Generation Analytics</h4>
+                      <p class="text-muted small mb-0">App generation success/failure patterns, fix statistics, framework distribution, and per-model generation performance.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Step 2: Configure Parameters #}
+    <div class="wizard-step" data-step="2">
+      <div class="card card-table-compact">
+        <div class="card-header py-2">
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary text-uppercase rounded-pill px-3">Step 2</span>
+            <div>
+              <h3 class="card-title mb-0 d-flex align-items-center gap-2">
+                <i class="fa-solid fa-sliders text-primary"></i>
+                <span>Configure Parameters</span>
+              </h3>
+              <div class="text-muted small">Set the parameters for your report</div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body border-top">
+          {# Dynamic config fields inserted by JS #}
+          <div id="config-fields-container"></div>
+
+          <hr class="my-3">
+
+          {# Common fields #}
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Custom Title <span class="text-muted">(optional)</span></label>
+              <input type="text" class="form-control" id="report-title" placeholder="Leave blank for auto-generated title">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Analyzer Filter Mode</label>
+              <select class="form-select" id="filter-mode">
+                <option value="all" selected>All Analyzers</option>
+                <option value="exclude_dynamic_perf">Exclude Dynamic & Performance</option>
+                <option value="only_dynamic_perf">Only Dynamic & Performance</option>
+              </select>
+              <div class="form-text">
+                <i class="fa-solid fa-info-circle me-1"></i>
+                Use "Exclude Dynamic & Performance" for consistent comparisons when runtime tests don't work for all apps.
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Description <span class="text-muted">(optional)</span></label>
+              <textarea class="form-control" id="report-description" rows="2" placeholder="Brief description of this report"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Step 3: Review & Generate #}
+    <div class="wizard-step" data-step="3">
+      <div class="card card-table-compact">
+        <div class="card-header py-2">
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary text-uppercase rounded-pill px-3">Step 3</span>
+            <div>
+              <h3 class="card-title mb-0 d-flex align-items-center gap-2">
+                <i class="fa-solid fa-clipboard-check text-primary"></i>
+                <span>Review & Generate</span>
+              </h3>
+              <div class="text-muted small">Verify your selections and generate the report</div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body border-top">
+          <div id="review-summary"></div>
+
+          <div class="mt-3">
+            <div class="alert alert-info d-flex align-items-center gap-2 mb-0">
+              <i class="fa-solid fa-circle-info"></i>
+              <div>Report generation may take a few moments depending on the amount of data. You will be redirected to the reports list where you can monitor progress.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Navigation buttons #}
+    <div class="d-flex justify-content-between mt-3">
+      <div>
+        <a href="{{ url_for('reports.reports_index') }}" class="btn btn-ghost-secondary">
+          <i class="fa-solid fa-arrow-left me-1"></i>Back to Reports
+        </a>
+      </div>
+      <div class="btn-list">
+        <button type="button" class="btn btn-secondary" id="btn-prev" onclick="wizardPrev()" style="display:none">
+          <i class="fa-solid fa-chevron-left me-1"></i>Previous
+        </button>
+        <button type="button" class="btn btn-primary" id="btn-next" onclick="wizardNext()" disabled>
+          Next<i class="fa-solid fa-chevron-right ms-1"></i>
+        </button>
+        <button type="button" class="btn btn-success" id="btn-generate" onclick="submitReport()" style="display:none">
+          <i class="fa-solid fa-file-lines me-1"></i>Generate Report
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {# ── Right: Sidebar ── #}
+  <div class="col-lg-4 col-xl-3">
+    {# Step Progress #}
+    <div class="card mb-3">
+      <div class="card-header py-2">
+        <h3 class="card-title mb-0">
+          <i class="fa-solid fa-shoe-prints me-2 text-primary"></i>Progress
+        </h3>
+      </div>
+      <div class="card-body">
+        <div class="d-flex flex-column">
+          <div class="d-flex align-items-center gap-2">
+            <div class="step-indicator active" id="step-ind-1">1</div>
+            <span class="small fw-medium" id="step-label-1">Report Type</span>
+          </div>
+          <div class="step-connector" id="step-conn-1"></div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="step-indicator" id="step-ind-2">2</div>
+            <span class="small text-muted" id="step-label-2">Parameters</span>
+          </div>
+          <div class="step-connector" id="step-conn-2"></div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="step-indicator" id="step-ind-3">3</div>
+            <span class="small text-muted" id="step-label-3">Review & Generate</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Selection Summary #}
+    <div class="card" id="selection-summary-card">
+      <div class="card-header py-2">
+        <h3 class="card-title mb-0">
+          <i class="fa-solid fa-clipboard-list me-2 text-primary"></i>Selection
+        </h3>
+      </div>
+      <div class="card-body small" id="selection-summary">
+        <div class="text-muted fst-italic">No selections yet</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  // ─── Data from server ───
+  const MODELS = {{ models|tojson }};
+  const TEMPLATES = {{ templates|tojson }};
+  const TOOLS = {{ tools|tojson }};
+
+  const TYPE_META = {
+    model_analysis:       { label: 'Model Analysis',       icon: 'fa-brain',        color: 'azure' },
+    template_comparison:  { label: 'Template Comparison',   icon: 'fa-code-compare', color: 'purple' },
+    tool_analysis:        { label: 'Tool Analysis',         icon: 'fa-wrench',       color: 'teal' },
+    generation_analytics: { label: 'Generation Analytics',  icon: 'fa-chart-line',   color: 'orange' }
+  };
+
+  let currentStep = 1;
+  let selectedType = null;
+
+  // ─── Step navigation ───
+  window.wizardNext = function() {
+    if (currentStep === 1 && !selectedType) return;
+    if (currentStep === 2 && !validateStep2()) return;
+    goToStep(currentStep + 1);
+  };
+  window.wizardPrev = function() {
+    if (currentStep > 1) goToStep(currentStep - 1);
+  };
+
+  function goToStep(step) {
+    document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
+    document.querySelector(`.wizard-step[data-step="${step}"]`).classList.add('active');
+    currentStep = step;
+    updateStepIndicators();
+    updateButtons();
+    if (step === 3) buildReviewSummary();
+    updateSelectionSummary();
+  }
+
+  function updateStepIndicators() {
+    for (let i = 1; i <= 3; i++) {
+      const ind = document.getElementById('step-ind-' + i);
+      const label = document.getElementById('step-label-' + i);
+      const conn = document.getElementById('step-conn-' + i);
+      ind.className = 'step-indicator';
+      if (i < currentStep) {
+        ind.classList.add('done');
+        ind.innerHTML = '<i class="fa-solid fa-check fa-xs"></i>';
+        if (label) { label.classList.remove('text-muted'); label.classList.add('fw-medium'); }
+      } else if (i === currentStep) {
+        ind.classList.add('active');
+        ind.textContent = i;
+        if (label) { label.classList.remove('text-muted'); label.classList.add('fw-medium'); }
+      } else {
+        ind.textContent = i;
+        if (label) { label.classList.add('text-muted'); label.classList.remove('fw-medium'); }
+      }
+      if (conn) {
+        conn.className = 'step-connector' + (i < currentStep ? ' done' : '');
+      }
+    }
+  }
+
+  function updateButtons() {
+    const prev = document.getElementById('btn-prev');
+    const next = document.getElementById('btn-next');
+    const gen = document.getElementById('btn-generate');
+    prev.style.display = currentStep > 1 ? '' : 'none';
+    next.style.display = currentStep < 3 ? '' : 'none';
+    gen.style.display = currentStep === 3 ? '' : 'none';
+    // Enable/disable next based on step
+    if (currentStep === 1) next.disabled = !selectedType;
+    else if (currentStep === 2) next.disabled = !validateStep2();
+    else next.disabled = false;
+  }
+
+  // ─── Step 1: Type selection ───
+  window.selectReportType = function(el) {
+    document.querySelectorAll('.report-type-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedType = el.dataset.type;
+    updateButtons();
+    updateSelectionSummary();
+    buildConfigFields();
+  };
+
+  // ─── Step 2: Config fields ───
+  function buildConfigFields() {
+    const container = document.getElementById('config-fields-container');
+    if (!selectedType) { container.innerHTML = ''; return; }
+
+    let html = '';
+    if (selectedType === 'model_analysis') {
+      html = `
+        <div class="mb-3">
+          <label class="form-label required">Model</label>
+          <select class="form-select" id="cfg-model-slug" required onchange="updateButtons(); updateSelectionSummary();">
+            <option value="">Select model...</option>
+            ${MODELS.map(m => `<option value="${m.slug}">${m.name} (${m.provider})</option>`).join('')}
+          </select>
+          <div class="form-text">View all analyses for this model across all apps</div>
+        </div>`;
+    } else if (selectedType === 'template_comparison') {
+      const grouped = {};
+      TEMPLATES.forEach(t => { const c = t.category || 'general'; (grouped[c] = grouped[c] || []).push(t); });
+      let tOpts = '<option value="">Select template...</option>';
+      Object.keys(grouped).sort().forEach(cat => {
+        tOpts += `<optgroup label="${cat.charAt(0).toUpperCase() + cat.slice(1)}">`;
+        grouped[cat].forEach(t => { tOpts += `<option value="${t.slug}">${t.name}</option>`; });
+        tOpts += '</optgroup>';
+      });
+      html = `
+        <div class="mb-3">
+          <label class="form-label required">Template</label>
+          <select class="form-select" id="cfg-template-slug" required onchange="updateButtons(); updateSelectionSummary();">
+            ${tOpts}
+          </select>
+          <div class="form-text">Compare all models' implementations of this template</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Filter by Models <span class="text-muted">(optional)</span></label>
+          <select class="form-select" id="cfg-filter-models" multiple size="4" onchange="updateSelectionSummary();">
+            ${MODELS.map(m => `<option value="${m.slug}">${m.name} (${m.provider})</option>`).join('')}
+          </select>
+          <div class="form-text">Leave empty to compare all models, or Ctrl+click to select specific ones</div>
+        </div>`;
+    } else if (selectedType === 'tool_analysis') {
+      const byContainer = {};
+      TOOLS.forEach(t => { (byContainer[t.container] = byContainer[t.container] || []).push(t); });
+      let toolOpts = '<option value="">All tools</option>';
+      Object.keys(byContainer).sort().forEach(c => {
+        const label = c.replace(/-/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
+        toolOpts += `<optgroup label="${label}">`;
+        byContainer[c].forEach(t => {
+          toolOpts += `<option value="${t.name}">${t.display_name}${t.available ? '' : ' (unavailable)'}</option>`;
+        });
+        toolOpts += '</optgroup>';
+      });
+      html = `
+        <div class="mb-3">
+          <label class="form-label">Specific Tool <span class="text-muted">(optional)</span></label>
+          <select class="form-select" id="cfg-tool-name" onchange="updateSelectionSummary();">
+            ${toolOpts}
+          </select>
+          <div class="form-text">Select a specific tool or leave blank to analyze all</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Filter by Model <span class="text-muted">(optional)</span></label>
+          <select class="form-select" id="cfg-filter-model" onchange="updateSelectionSummary();">
+            <option value="">All models</option>
+            ${MODELS.map(m => `<option value="${m.slug}">${m.name} (${m.provider})</option>`).join('')}
+          </select>
+        </div>`;
+    } else if (selectedType === 'generation_analytics') {
+      const grouped = {};
+      TEMPLATES.forEach(t => { const c = t.category || 'general'; (grouped[c] = grouped[c] || []).push(t); });
+      let tOpts = '<option value="">All templates</option>';
+      Object.keys(grouped).sort().forEach(cat => {
+        tOpts += `<optgroup label="${cat.charAt(0).toUpperCase() + cat.slice(1)}">`;
+        grouped[cat].forEach(t => { tOpts += `<option value="${t.slug}">${t.name}</option>`; });
+        tOpts += '</optgroup>';
+      });
+      html = `
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Model <span class="text-muted">(optional)</span></label>
+            <select class="form-select" id="cfg-model-slug" onchange="updateSelectionSummary();">
+              <option value="">All models</option>
+              ${MODELS.map(m => `<option value="${m.slug}">${m.name} (${m.provider})</option>`).join('')}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Template <span class="text-muted">(optional)</span></label>
+            <select class="form-select" id="cfg-template-slug" onchange="updateSelectionSummary();">
+              ${tOpts}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Time Period</label>
+            <select class="form-select" id="cfg-days-back">
+              <option value="7">Last 7 days</option>
+              <option value="14">Last 14 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="60">Last 60 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="">All time</option>
+            </select>
+          </div>
+        </div>`;
+    }
+    container.innerHTML = html;
+  }
+
+  function validateStep2() {
+    if (selectedType === 'model_analysis') {
+      const sel = document.getElementById('cfg-model-slug');
+      return sel && sel.value !== '';
+    }
+    if (selectedType === 'template_comparison') {
+      const sel = document.getElementById('cfg-template-slug');
+      return sel && sel.value !== '';
+    }
+    return true; // tool_analysis and generation_analytics have no required fields
+  }
+
+  // ─── Selection summary (sidebar) ───
+  function updateSelectionSummary() {
+    const el = document.getElementById('selection-summary');
+    if (!selectedType) {
+      el.innerHTML = '<div class="text-muted fst-italic">No selections yet</div>';
+      return;
+    }
+    const meta = TYPE_META[selectedType];
+    let html = `<div class="d-flex align-items-center gap-2 mb-2">
+      <span class="badge bg-${meta.color}-lt text-${meta.color}"><i class="fa-solid ${meta.icon} me-1"></i>${meta.label}</span>
+    </div>`;
+
+    // Type-specific selections
+    const modelSel = document.getElementById('cfg-model-slug');
+    const templateSel = document.getElementById('cfg-template-slug');
+    const toolSel = document.getElementById('cfg-tool-name');
+    const filterModelSel = document.getElementById('cfg-filter-model');
+    const filterModelsSel = document.getElementById('cfg-filter-models');
+
+    if (selectedType === 'model_analysis' && modelSel?.value) {
+      html += `<div class="text-muted mb-1"><strong>Model:</strong> ${modelSel.options[modelSel.selectedIndex]?.text || modelSel.value}</div>`;
+    }
+    if (selectedType === 'template_comparison') {
+      if (templateSel?.value) html += `<div class="text-muted mb-1"><strong>Template:</strong> ${templateSel.options[templateSel.selectedIndex]?.text || templateSel.value}</div>`;
+      if (filterModelsSel) {
+        const selected = Array.from(filterModelsSel.selectedOptions).map(o => o.text);
+        if (selected.length) html += `<div class="text-muted mb-1"><strong>Models:</strong> ${selected.length} selected</div>`;
+      }
+    }
+    if (selectedType === 'tool_analysis') {
+      if (toolSel?.value) html += `<div class="text-muted mb-1"><strong>Tool:</strong> ${toolSel.options[toolSel.selectedIndex]?.text || toolSel.value}</div>`;
+      if (filterModelSel?.value) html += `<div class="text-muted mb-1"><strong>Model:</strong> ${filterModelSel.options[filterModelSel.selectedIndex]?.text}</div>`;
+    }
+    if (selectedType === 'generation_analytics') {
+      if (modelSel?.value) html += `<div class="text-muted mb-1"><strong>Model:</strong> ${modelSel.options[modelSel.selectedIndex]?.text}</div>`;
+      if (templateSel?.value) html += `<div class="text-muted mb-1"><strong>Template:</strong> ${templateSel.options[templateSel.selectedIndex]?.text}</div>`;
+    }
+
+    const title = document.getElementById('report-title');
+    if (title?.value) html += `<div class="text-muted mb-1"><strong>Title:</strong> ${title.value}</div>`;
+
+    el.innerHTML = html;
+  }
+
+  // ─── Step 3: Review ───
+  function buildReviewSummary() {
+    const el = document.getElementById('review-summary');
+    const meta = TYPE_META[selectedType];
+    let items = [];
+
+    items.push({ label: 'Report Type', value: `<span class="badge bg-${meta.color}-lt text-${meta.color}"><i class="fa-solid ${meta.icon} me-1"></i>${meta.label}</span>` });
+
+    if (selectedType === 'model_analysis') {
+      const sel = document.getElementById('cfg-model-slug');
+      items.push({ label: 'Model', value: sel?.options[sel.selectedIndex]?.text || sel?.value || '—' });
+    } else if (selectedType === 'template_comparison') {
+      const tSel = document.getElementById('cfg-template-slug');
+      items.push({ label: 'Template', value: tSel?.options[tSel.selectedIndex]?.text || tSel?.value || '—' });
+      const fmSel = document.getElementById('cfg-filter-models');
+      if (fmSel) {
+        const selected = Array.from(fmSel.selectedOptions).map(o => o.text);
+        items.push({ label: 'Models Filter', value: selected.length ? selected.join(', ') : 'All models' });
+      }
+    } else if (selectedType === 'tool_analysis') {
+      const tSel = document.getElementById('cfg-tool-name');
+      items.push({ label: 'Tool', value: tSel?.value ? (tSel.options[tSel.selectedIndex]?.text || tSel.value) : 'All tools' });
+      const fmSel = document.getElementById('cfg-filter-model');
+      items.push({ label: 'Model Filter', value: fmSel?.value ? (fmSel.options[fmSel.selectedIndex]?.text || fmSel.value) : 'All models' });
+    } else if (selectedType === 'generation_analytics') {
+      const mSel = document.getElementById('cfg-model-slug');
+      items.push({ label: 'Model', value: mSel?.value ? (mSel.options[mSel.selectedIndex]?.text || mSel.value) : 'All models' });
+      const tSel = document.getElementById('cfg-template-slug');
+      items.push({ label: 'Template', value: tSel?.value ? (tSel.options[tSel.selectedIndex]?.text || tSel.value) : 'All templates' });
+      const dSel = document.getElementById('cfg-days-back');
+      items.push({ label: 'Time Period', value: dSel?.options[dSel.selectedIndex]?.text || 'Last 30 days' });
+    }
+
+    const fm = document.getElementById('filter-mode');
+    items.push({ label: 'Filter Mode', value: fm?.options[fm.selectedIndex]?.text || 'All Analyzers' });
+
+    const title = document.getElementById('report-title');
+    if (title?.value) items.push({ label: 'Title', value: title.value });
+
+    const desc = document.getElementById('report-description');
+    if (desc?.value) items.push({ label: 'Description', value: desc.value });
+
+    el.innerHTML = items.map(it =>
+      `<div class="review-item"><span class="review-label">${it.label}</span><span>${it.value}</span></div>`
+    ).join('');
+  }
+
+  // ─── Submit ───
+  window.submitReport = async function() {
+    const btn = document.getElementById('btn-generate');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generating…';
+
+    const payload = {
+      report_type: selectedType,
+      title: document.getElementById('report-title')?.value || null,
+      description: document.getElementById('report-description')?.value || null,
+      filter_mode: document.getElementById('filter-mode')?.value || 'all',
+      config: {}
+    };
+
+    if (selectedType === 'model_analysis') {
+      payload.config.model_slug = document.getElementById('cfg-model-slug')?.value;
+    } else if (selectedType === 'template_comparison') {
+      payload.config.template_slug = document.getElementById('cfg-template-slug')?.value;
+      const fmSel = document.getElementById('cfg-filter-models');
+      if (fmSel) {
+        const selected = Array.from(fmSel.selectedOptions).map(o => o.value).filter(v => v);
+        if (selected.length) payload.config.filter_models = selected;
+      }
+    } else if (selectedType === 'tool_analysis') {
+      const tool = document.getElementById('cfg-tool-name')?.value;
+      if (tool) payload.config.tool_name = tool;
+      const fm = document.getElementById('cfg-filter-model')?.value;
+      if (fm) payload.config.filter_model = fm;
+    } else if (selectedType === 'generation_analytics') {
+      const ms = document.getElementById('cfg-model-slug')?.value;
+      if (ms) payload.config.model_slug = ms;
+      const ts = document.getElementById('cfg-template-slug')?.value;
+      if (ts) payload.config.template_slug = ts;
+      const db = document.getElementById('cfg-days-back')?.value;
+      if (db) payload.config.days_back = parseInt(db, 10);
+    }
+
+    try {
+      const response = await fetch('/api/reports/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      if (result.success) {
+        if (window.showToast) showToast('Report generation started!', 'success');
+        setTimeout(() => { window.location.href = '{{ url_for("reports.reports_index") }}'; }, 800);
+      } else {
+        throw new Error(result.error || 'Failed to generate report');
+      }
+    } catch (error) {
+      console.error('Report generation error:', error);
+      if (window.showToast) showToast(error.message, 'error');
+      else alert('Error: ' + error.message);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-file-lines me-1"></i>Generate Report';
+    }
+  };
+
+  // ─── URL param pre-fill ───
+  const params = new URLSearchParams(window.location.search);
+  const preType = params.get('type');
+  if (preType && TYPE_META[preType]) {
+    const card = document.querySelector(`.report-type-card[data-type="${preType}"]`);
+    if (card) {
+      selectReportType(card);
+      // Auto-advance to step 2
+      setTimeout(() => goToStep(2), 100);
+    }
+  }
+
+  // Make updateButtons and updateSelectionSummary available globally for onchange handlers
+  window.updateButtons = updateButtons;
+  window.updateSelectionSummary = updateSelectionSummary;
+})();
+</script>
+{% endblock %}

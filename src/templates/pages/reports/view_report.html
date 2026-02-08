@@ -1,257 +1,669 @@
+{# Report Viewer — server-rendered accordion layout (v2 compact) #}
 {% extends 'layouts/base_smart.html' %}
 {% set active_page = 'reports' %}
-{% set page_title = report.title %}
+{% set page_title = report.title or 'Report' %}
 {% set page_icon = 'fa-solid fa-file-lines' %}
+
+{% set type_meta = {
+  'model_analysis':       ('Model Analysis',       'azure',  'fa-brain'),
+  'template_comparison':  ('Template Comparison',   'purple', 'fa-code-compare'),
+  'tool_analysis':        ('Tool Analysis',         'teal',   'fa-wrench'),
+  'generation_analytics': ('Generation Analytics',  'orange', 'fa-chart-line')
+} %}
+{% set rt = report.report_type %}
+{% set tm = type_meta.get(rt, (rt|replace('_',' ')|title, 'secondary', 'fa-file')) %}
+{% set sev_colors = {'critical':'danger','high':'orange','medium':'warning','low':'success','info':'info'} %}
 
 {% block head_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/detail-pages.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/analysis-report.css') }}">
 <style>
   @media print {
-
-    .btn,
-    .navbar,
-    .sidebar,
-    footer,
-    .no-print {
-      display: none !important;
-    }
-
-    .container-xl {
-      max-width: 100% !important;
-      margin: 0 !important;
-    }
-
-    .card {
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
-
-    .research-header-actions {
-      display: none !important;
-    }
+    .btn, .navbar, .sidebar, footer, .no-print, .section-jump-nav { display: none !important; }
+    .container-xl { max-width: 100% !important; margin: 0 !important; }
+    .card { break-inside: avoid; }
+    .accordion-collapse { display: block !important; }
   }
-
-  /* Report content styles */
-  .severity-critical {
-    color: var(--tblr-danger, #d63939);
-  }
-
-  .severity-high {
-    color: var(--tblr-orange, #f76707);
-  }
-
-  .severity-medium {
-    color: var(--tblr-yellow, #f59f00);
-  }
-
-  .severity-low {
-    color: var(--tblr-success, #2fb344);
-  }
-
-  .severity-info {
-    color: var(--tblr-info, #0ea5e9);
-  }
-
-  .finding-card {
-    border-left: 4px solid;
-    margin-bottom: 0.5rem;
-  }
-
-  .finding-card.critical {
-    border-left-color: var(--tblr-danger, #d63939);
-  }
-
-  .finding-card.high {
-    border-left-color: var(--tblr-orange, #f76707);
-  }
-
-  .finding-card.medium {
-    border-left-color: var(--tblr-yellow, #f59f00);
-  }
-
-  .finding-card.low {
-    border-left-color: var(--tblr-success, #2fb344);
-  }
-
-  .tool-status-success {
-    color: var(--tblr-success, #2fb344);
-  }
-
-  .tool-status-error {
-    color: var(--tblr-danger, #d63939);
-  }
-
-  .tool-status-no_issues {
-    color: var(--tblr-primary, #206bc4);
-  }
-
-  .comparison-cell {
-    text-align: center;
-  }
-
-  .comparison-cell.winner {
-    background-color: rgba(47, 179, 68, 0.1);
-  }
-
-  /* Status badge colors */
-  .status-completed {
-    background-color: var(--tblr-success, #2fb344) !important;
-  }
-
-  .status-partial {
-    background-color: var(--tblr-warning, #f59f00) !important;
-    color: #000 !important;
-  }
-
-  .status-failed {
-    background-color: var(--tblr-danger, #d63939) !important;
-  }
-
-  .status-cancelled {
-    background-color: var(--tblr-secondary, #626976) !important;
-  }
-
-  .status-running {
-    background-color: var(--tblr-primary, #206bc4) !important;
-  }
-
-  .status-pending {
-    background-color: var(--tblr-gray-500, #868e96) !important;
-  }
-
-  /* Chart container */
-  .chart-container {
-    position: relative;
-    height: 250px;
-  }
-
-  /* Finding details */
-  .finding-item {
-    border-left: 3px solid;
-    padding-left: 12px;
-    margin-bottom: 8px;
-  }
-
-  .finding-item.severity-critical {
-    border-color: var(--tblr-danger, #d63939);
-  }
-
-  .finding-item.severity-high {
-    border-color: var(--tblr-orange, #f76707);
-  }
-
-  .finding-item.severity-medium {
-    border-color: var(--tblr-yellow, #f59f00);
-  }
-
-  .finding-item.severity-low {
-    border-color: var(--tblr-success, #2fb344);
-  }
-
-  .finding-item.severity-info {
-    border-color: var(--tblr-info, #0ea5e9);
-  }
-
-  /* Collapsible sections */
-  .section-collapse {
-    cursor: pointer;
-  }
-
-  .section-collapse:hover {
-    background-color: rgba(0, 0, 0, 0.02);
-  }
+  .mc { text-align:center; padding:0.5rem 0.25rem; }
+  .mc .mv { font-size:1.25rem; font-weight:700; line-height:1.2; }
+  .mc .ml { font-size:0.7rem; color:var(--tblr-secondary); text-transform:uppercase; letter-spacing:0.03em; }
+  .mc .mh { font-size:0.65rem; color:var(--tblr-secondary); opacity:0.7; }
+  .finding-row { border-left:3px solid; padding-left:8px; }
+  .finding-row.severity-critical { border-color:var(--tblr-danger); }
+  .finding-row.severity-high { border-color:var(--tblr-orange); }
+  .finding-row.severity-medium { border-color:var(--tblr-yellow); }
+  .finding-row.severity-low { border-color:var(--tblr-success); }
+  .finding-row.severity-info { border-color:var(--tblr-info); }
+  .chart-box { position:relative; height:200px; }
+  .sev-bar { height:6px; border-radius:3px; display:inline-block; }
+  .compact-table th, .compact-table td { padding:0.25rem 0.5rem; font-size:0.8rem; }
+  .accordion-button { padding:0.5rem 0.75rem; font-size:0.875rem; }
+  .accordion-body { padding:0.75rem; }
 </style>
 {% endblock %}
 
 {% block title %}{{ page_title }}{% endblock %}
 
 {% block content %}
-<div class="research-detail-shell" id="report-detail-container" data-report-id="{{ report.report_id }}"
-  data-report-type="{{ report.report_type }}">
-  {# Header #}
+<div class="research-detail-shell" id="report-detail-container">
+
+  {# ── Header ── #}
   <div class="research-header no-print">
-    <div class="research-header-icon">
-      <i class="{{ page_icon }}"></i>
+    <div class="d-flex align-items-center gap-1 me-2">
+      <a href="{{ url_for('reports.reports_index') }}" class="btn btn-ghost-secondary btn-icon btn-sm" title="Back"><i class="fa-solid fa-arrow-left"></i></a>
+      {% if prev_report_id %}<a href="{{ url_for('reports.view_report', report_id=prev_report_id) }}" class="btn btn-ghost-secondary btn-icon btn-sm" title="Previous"><i class="fa-solid fa-chevron-left"></i></a>{% endif %}
+      {% if next_report_id %}<a href="{{ url_for('reports.view_report', report_id=next_report_id) }}" class="btn btn-ghost-secondary btn-icon btn-sm" title="Next"><i class="fa-solid fa-chevron-right"></i></a>{% endif %}
     </div>
+    <div class="research-header-icon"><i class="fa-solid {{ tm[2] }}"></i></div>
     <div class="research-header-identity">
       <div class="research-header-pretitle">
-        {% set type_badges = {
-        'model_analysis': 'Model Analysis',
-        'template_comparison': 'Template Comparison',
-        'tool_analysis': 'Tool Analysis'
-        } %}
-        {{ type_badges.get(report.report_type, report.report_type) }}
+        <span class="badge bg-{{ tm[1] }}-lt text-{{ tm[1] }}">{{ tm[0] }}</span>
+        {% set cfg = report.config if report.config is mapping else {} %}
+        {% if cfg.get('model_slug') %}<span class="badge bg-azure-lt text-azure ms-1">{{ cfg.model_slug }}</span>{% endif %}
+        {% if cfg.get('template_slug') %}<span class="badge bg-purple-lt text-purple ms-1">{{ cfg.template_slug }}</span>{% endif %}
+        {% if cfg.get('filter_mode') and cfg.filter_mode != 'all' %}<span class="badge bg-warning-lt text-warning ms-1"><i class="fa-solid fa-filter me-1"></i>{{ cfg.filter_mode|replace('_',' ')|title }}</span>{% endif %}
       </div>
-      <h1 class="research-header-title">
-        {{ report.title }}
-        <span class="badge bg-success-lt ms-2">Completed</span>
-      </h1>
-      {% if report.description %}
-      <div class="research-header-subtitle">
-        {{ report.description }}
-      </div>
-      {% endif %}
-      <div class="research-header-subtitle mt-2" id="filter-mode-display">
-        {# Will be populated by JavaScript from report config #}
+      <h1 class="research-header-title">{{ report.title }}</h1>
+      {% if report.description %}<div class="research-header-subtitle">{{ report.description }}</div>{% endif %}
+      <div class="research-header-subtitle mt-1">
+        {% if report.created_at %}<span><i class="fa-solid fa-calendar me-1"></i>{{ report.created_at[:16] if report.created_at is string else report.created_at }}</span>{% endif %}
       </div>
     </div>
     <div class="research-header-actions">
-      <a href="{{ url_for('reports.reports_index') }}" class="btn btn-ghost-secondary">
-        <i class="fa-solid fa-arrow-left me-2"></i>Back
-      </a>
-      <div class="vr"></div>
-      <button class="btn btn-ghost-primary" onclick="window.print()">
-        <i class="fa-solid fa-print me-2"></i>Print
-      </button>
-      <button class="btn btn-primary" onclick="downloadJSON()">
-        <i class="fa-solid fa-download me-2"></i>Download JSON
-      </button>
+      <button class="btn btn-ghost-secondary btn-icon btn-sm" onclick="navigator.clipboard.writeText(location.href).then(()=>{if(window.showToast)showToast('Link copied','success')})" title="Copy Link"><i class="fa-solid fa-link"></i></button>
+      <button class="btn btn-ghost-primary btn-sm" onclick="window.print()" title="Print"><i class="fa-solid fa-print"></i></button>
+      <a href="/api/reports/{{ report_id }}/data" target="_blank" class="btn btn-ghost-primary btn-sm" title="JSON"><i class="fa-solid fa-download"></i></a>
+      {% set regen_url = '/api/reports/' ~ report_id ~ '/regenerate' %}
+      {% set list_url = url_for('reports.reports_index') %}
+      <button class="btn btn-ghost-warning btn-sm" onclick="if(confirm('Regenerate?'))fetch('{{ regen_url }}',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.success){if(window.showToast)showToast('Queued','success');setTimeout(()=>location.href='{{ list_url }}',800)}else{if(window.showToast)showToast(d.error,'error')}})" title="Regenerate"><i class="fa-solid fa-rotate"></i></button>
     </div>
   </div>
 
-  {# Loading state #}
-  <div id="loading-state" class="text-center py-5">
-    <div class="spinner-border text-primary mb-3" role="status"></div>
-    <p class="text-muted">Loading report data...</p>
+  {# ── Section Jump Nav ── #}
+  <div class="section-jump-nav no-print mb-2" id="sectionJumpNav">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      {% if rt == 'model_analysis' %}
+        <a href="#s-overview" class="section-nav-link active">Overview</a>
+        <a href="#s-quality" class="section-nav-link">Code Quality</a>
+        <a href="#s-tools" class="section-nav-link">Tools</a>
+        <a href="#s-apps" class="section-nav-link">Applications</a>
+        <a href="#s-issues" class="section-nav-link">Common Issues</a>
+        <a href="#s-generation" class="section-nav-link">Generation</a>
+        <a href="#s-execution" class="section-nav-link">Execution</a>
+        <a href="#s-docker" class="section-nav-link">Docker</a>
+      {% elif rt == 'template_comparison' %}
+        <a href="#s-overview" class="section-nav-link active">Overview</a>
+        <a href="#s-rankings" class="section-nav-link">Rankings</a>
+        <a href="#s-comparison" class="section-nav-link">Comparison</a>
+        <a href="#s-issues" class="section-nav-link">Common Issues</a>
+        <a href="#s-generation" class="section-nav-link">Generation</a>
+      {% elif rt == 'tool_analysis' %}
+        <a href="#s-overview" class="section-nav-link active">Overview</a>
+        <a href="#s-tools" class="section-nav-link">Tool Details</a>
+        <a href="#s-models" class="section-nav-link">By Model</a>
+        <a href="#s-issues" class="section-nav-link">Common Issues</a>
+      {% elif rt == 'generation_analytics' %}
+        <a href="#s-overview" class="section-nav-link active">Overview</a>
+        <a href="#s-models" class="section-nav-link">By Model</a>
+        <a href="#s-templates" class="section-nav-link">By Template</a>
+        <a href="#s-fixes" class="section-nav-link">Fixes</a>
+      {% endif %}
+      <span class="ms-auto"></span>
+      <button class="btn btn-sm btn-ghost-secondary py-0 px-1" onclick="toggleAll(true)" title="Expand All"><i class="fa-solid fa-expand fa-xs"></i></button>
+      <button class="btn btn-sm btn-ghost-secondary py-0 px-1" onclick="toggleAll(false)" title="Collapse All"><i class="fa-solid fa-compress fa-xs"></i></button>
+    </div>
   </div>
 
-  {# Error state #}
-  <div id="error-state" class="d-none">
-    <div class="alert alert-danger">
-      <div class="d-flex">
-        <i class="fa-solid fa-exclamation-triangle me-3 fa-2x"></i>
-        <div>
-          <h4 class="alert-title">Failed to load report</h4>
-          <p id="error-message" class="mb-0">An error occurred while loading the report data.</p>
+  {% set summary = report_data.get('summary', {}) %}
+  {% set sev = report_data.get('findings_breakdown', summary.get('severity_breakdown', {})) %}
+  {% set sci = report_data.get('scientific_metrics', {}) %}
+  {% set dist = sci.get('findings_distribution', {}) %}
+
+  {# ── ACCORDION ── #}
+  <div class="accordion" id="rptAcc">
+
+  {% if rt == 'model_analysis' %}
+  {# ════════════════════════ MODEL ANALYSIS ════════════════════════ #}
+
+    {# ── Overview ── #}
+    <div class="accordion-item" id="s-overview">
+      <h2 class="accordion-header"><button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#c-overview"><i class="fa-solid fa-chart-pie me-2 text-primary"></i>Overview</button></h2>
+      <div id="c-overview" class="accordion-collapse collapse show" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          {# Key metrics row #}
+          <div class="row g-1 mb-2">
+            <div class="col"><div class="card mc"><div class="mv text-primary">{{ report_data.get('apps_count', 0) }}{% if total_model_apps %}<small class="text-muted fw-normal"> / {{ total_model_apps }}</small>{% endif %}</div><div class="ml">Apps Analyzed</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ summary.get('total_findings', 0) }}</div><div class="ml">Total Findings</div><div class="mh">{{ "%.1f"|format(summary.get('avg_findings_per_app', 0)) }} avg/app</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv text-danger">{{ sev.get('critical', 0) }}</div><div class="ml">Critical</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv" style="color:var(--tblr-orange)">{{ sev.get('high', 0) }}</div><div class="ml">High</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv text-warning">{{ sev.get('medium', 0) }}</div><div class="ml">Medium</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv text-success">{{ sev.get('low', 0) }}</div><div class="ml">Low</div></div></div>
+          </div>
+          <div class="row g-2">
+            <div class="col-md-5">
+              {# Severity table #}
+              <table class="table table-sm compact-table mb-2">
+                <thead><tr><th>Severity</th><th class="text-end">Count</th><th class="text-end">%</th><th style="width:40%">Distribution</th></tr></thead>
+                <tbody>
+                  {% set total_f = summary.get('total_findings', 1) %}
+                  {% for sl in ['critical', 'high', 'medium', 'low', 'info'] %}
+                  {% set sc = sev.get(sl, 0) %}
+                  {% set pct = (sc / total_f * 100) if total_f else 0 %}
+                  <tr>
+                    <td><span class="badge bg-{{ sev_colors[sl] }}-lt" style="min-width:55px">{{ sl|title }}</span></td>
+                    <td class="text-end fw-medium">{{ sc }}</td>
+                    <td class="text-end text-muted">{{ "%.1f"|format(pct) }}%</td>
+                    <td><div class="sev-bar bg-{{ sev_colors[sl] }}" style="width:{{ [pct, 100]|min }}%">&nbsp;</div></td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              {# Statistics #}
+              <table class="table table-sm compact-table mb-0">
+                <tbody>
+                  <tr><td class="text-muted">Mean ± StdDev</td><td class="text-end">{{ "%.1f"|format(dist.get('mean', 0)) }} ± {{ "%.1f"|format(dist.get('std_dev', 0)) }}</td></tr>
+                  <tr><td class="text-muted">Median</td><td class="text-end">{{ dist.get('median', 0) }}</td></tr>
+                  <tr><td class="text-muted">Range</td><td class="text-end">{{ dist.get('min', 0) }} – {{ dist.get('max', 0) }}</td></tr>
+                  <tr><td class="text-muted">CV</td><td class="text-end">{{ "%.2f"|format(sci.get('coefficient_of_variation', 0)) }}</td></tr>
+                  {% set as = report_data.get('analysis_stats', {}) %}
+                  <tr><td class="text-muted">Analysis Success</td><td class="text-end">{{ as.get('completed_analyses', 0) }} complete, {{ as.get('partial_analyses', 0) }} partial, {{ as.get('failed_analyses', 0) }} failed</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="col-md-4">
+              <div class="chart-box"><canvas id="chart-sev-donut"></canvas></div>
+            </div>
+            <div class="col-md-3">
+              {# Findings by tool #}
+              <h6 class="mb-1 text-muted" style="font-size:0.75rem">FINDINGS BY TOOL</h6>
+              <table class="table table-sm compact-table mb-0">
+                <tbody>
+                  {% for tool, count in tool_finding_counts|dictsort(by='value', reverse=true) %}
+                  <tr><td><span class="badge bg-secondary-lt">{{ tool }}</span></td><td class="text-end">{{ count }}</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-    <a href="{{ url_for('reports.reports_index') }}" class="btn btn-secondary">
-      <i class="fa-solid fa-arrow-left me-2"></i>Back to Reports
-    </a>
-  </div>
 
-  {# Report content (populated by JavaScript) #}
-  <div id="report-content" class="d-none research-content"></div>
+    {# ── Code Quality & LOC ── #}
+    {% set loc = report_data.get('loc_metrics', {}) %}
+    {% if loc.get('counted') %}
+    <div class="accordion-item" id="s-quality">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-quality"><i class="fa-solid fa-code me-2 text-primary"></i>Code Quality & Density</button></h2>
+      <div id="c-quality" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <div class="row g-1 mb-2">
+            <div class="col"><div class="card mc"><div class="mv text-primary">{{ "{:,}".format(loc.get('total_loc', 0)) }}</div><div class="ml">Total LOC</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ "%.1f"|format(loc.get('issues_per_100_loc', 0)) }}</div><div class="ml">Issues/100 LOC</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ "{:,}".format(loc.get('backend_loc', 0)) }}</div><div class="ml">Backend LOC</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ "{:,}".format(loc.get('frontend_loc', 0)) }}</div><div class="ml">Frontend LOC</div></div></div>
+          </div>
+          {% set per_app = loc.get('per_app', {}) %}
+          {% if per_app %}
+          <table class="table table-sm compact-table table-striped mb-0">
+            <thead><tr><th>App</th><th class="text-end">LOC</th><th class="text-end">Issues</th><th class="text-end">Issues/100 LOC</th><th style="width:30%">Density</th></tr></thead>
+            <tbody>
+              {% for app_id, am in per_app.items()|sort(attribute='1.issues_per_100_loc', reverse=true) %}
+              <tr>
+                <td>App {{ am.get('app_number', app_id) }}</td>
+                <td class="text-end">{{ am.get('total_loc', 0) }}</td>
+                <td class="text-end">{{ am.get('issues_count', 0) }}</td>
+                <td class="text-end fw-medium {% if am.get('issues_per_100_loc', 0) > 15 %}text-danger{% elif am.get('issues_per_100_loc', 0) > 10 %}text-warning{% endif %}">{{ "%.1f"|format(am.get('issues_per_100_loc', 0)) }}</td>
+                <td><div class="progress progress-sm"><div class="progress-bar bg-{{ 'danger' if am.get('issues_per_100_loc', 0) > 15 else ('warning' if am.get('issues_per_100_loc', 0) > 10 else 'success') }}" style="width:{{ [am.get('issues_per_100_loc', 0) * 3, 100]|min }}%"></div></div></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Tools Performance ── #}
+    {% set tools = report_data.get('tools_statistics', report_data.get('tool_summary', {})) %}
+    {% if tools %}
+    <div class="accordion-item" id="s-tools">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-tools"><i class="fa-solid fa-wrench me-2 text-primary"></i>Tools Performance ({{ tools|length }})</button></h2>
+      <div id="c-tools" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <table class="table table-sm compact-table table-striped table-hover mb-0">
+            <thead><tr><th>Tool</th><th class="text-center">Runs</th><th class="text-center">Success</th><th class="text-center">Findings</th><th class="text-center">Avg/Run</th><th class="text-end">Avg Time</th></tr></thead>
+            <tbody>
+              {% for tn, td in tools.items()|sort(attribute='1.total_findings', reverse=true) %}
+              {% set runs = td.get('executions', td.get('total_executions', td.get('total_runs', 0))) %}
+              {% set tf = td.get('total_findings', 0) %}
+              <tr>
+                <td><span class="badge bg-secondary-lt">{{ td.get('display_name', tn) }}</span></td>
+                <td class="text-center">{{ runs }}</td>
+                <td class="text-center"><span class="badge bg-{{ 'success' if td.get('success_rate', 0) >= 80 else ('warning' if td.get('success_rate', 0) >= 50 else 'danger') }}-lt">{{ "%.0f"|format(td.get('success_rate', 0)) }}%</span></td>
+                <td class="text-center fw-medium">{{ tf }}</td>
+                <td class="text-center text-muted">{{ "%.1f"|format(td.get('findings_per_run', 0)) }}</td>
+                <td class="text-end text-muted">{{ "%.1f"|format(td.get('avg_duration', 0)) }}s</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Per-App Results ── #}
+    {% set apps = report_data.get('apps', []) %}
+    {% if apps %}
+    <div class="accordion-item" id="s-apps">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-apps"><i class="fa-solid fa-boxes-stacked me-2 text-primary"></i>Applications ({{ apps|length }}{% if total_model_apps %} of {{ total_model_apps }}{% endif %})</button></h2>
+      <div id="c-apps" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <table class="table table-sm compact-table table-striped table-hover mb-0">
+            <thead><tr><th>App</th><th>Template</th><th class="text-center">Status</th><th class="text-center">Build</th><th class="text-center">Findings</th><th>Severity</th><th class="text-end">Duration</th></tr></thead>
+            <tbody>
+              {% for app in apps %}
+              <tr>
+                <td class="fw-medium">{{ app.get('app_number', loop.index) }}</td>
+                <td><span class="badge bg-purple-lt text-purple" style="font-size:0.7rem">{{ app.get('template_slug', '—') }}</span></td>
+                <td class="text-center">
+                  {% set st = app.get('status', 'unknown') %}
+                  <span class="badge bg-{{ 'success' if st == 'completed' else ('warning' if st == 'partial_success' else ('danger' if st == 'failed' else 'secondary')) }}-lt" style="font-size:0.7rem">{{ st|replace('_',' ')|title }}</span>
+                </td>
+                <td class="text-center">
+                  {% set cs = app.get('container_status', '') %}
+                  {% if cs == 'running' %}<span class="badge bg-success-lt" style="font-size:0.65rem">Running</span>
+                  {% elif cs == 'stopped' %}<span class="badge bg-secondary-lt" style="font-size:0.65rem">Stopped</span>
+                  {% elif 'fail' in cs|lower or 'error' in cs|lower %}<span class="badge bg-danger-lt" style="font-size:0.65rem">{{ cs|replace('_',' ')|title }}</span>
+                  {% elif cs %}<span class="badge bg-secondary-lt" style="font-size:0.65rem">{{ cs|replace('_',' ')|title }}</span>
+                  {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-center fw-medium">{{ app.get('findings_count', 0) }}</td>
+                <td>
+                  {% set sc = app.get('severity_counts', app.get('severity_breakdown', {})) %}
+                  {% for s in ['critical', 'high', 'medium', 'low'] %}
+                    {% if sc.get(s, 0) > 0 %}<span class="badge bg-{{ sev_colors[s] }}-lt me-1" style="font-size:0.65rem">{{ s[:1]|upper }}{{ sc[s] }}</span>{% endif %}
+                  {% endfor %}
+                </td>
+                <td class="text-end text-muted" style="font-size:0.75rem">{{ "%.0f"|format(app.get('duration_seconds', 0)) }}s</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Most Common Issues ── #}
+    {% if common_issues %}
+    <div class="accordion-item" id="s-issues">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-issues"><i class="fa-solid fa-list-ol me-2 text-warning"></i>Most Common Issues (top {{ common_issues|length }})</button></h2>
+      <div id="c-issues" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <table class="table table-sm compact-table table-striped mb-0">
+            <thead><tr><th class="text-center" style="width:50px">#</th><th>Issue</th><th>Tool</th><th>Severity</th><th class="text-center">Apps</th></tr></thead>
+            <tbody>
+              {% for ci in common_issues %}
+              <tr>
+                <td class="text-center fw-bold">{{ ci.count }}</td>
+                <td class="small" style="max-width:400px"><div class="text-truncate" title="{{ ci.message }}">{{ ci.message }}</div></td>
+                <td><span class="badge bg-secondary-lt" style="font-size:0.7rem">{{ ci.tool }}</span></td>
+                <td><span class="badge bg-{{ sev_colors.get(ci.severity, 'secondary') }}-lt" style="font-size:0.7rem">{{ ci.severity|title }}</span></td>
+                <td class="text-center text-muted">{{ ci.app_count }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Generation Context ── #}
+    {% set gen = report_data.get('generation_stats', {}) %}
+    {% set qm = report_data.get('quantitative_metrics', {}) %}
+    {% set gen_qm = qm.get('generation', {}) %}
+    <div class="accordion-item" id="s-generation">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-generation"><i class="fa-solid fa-microchip me-2 text-primary"></i>Generation</button></h2>
+      <div id="c-generation" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <div class="row g-1 mb-2">
+            <div class="col"><div class="card mc"><div class="mv text-success">{{ gen.get('successful_generations', gen_qm.get('successful_apps', 0)) }}</div><div class="ml">Successful</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv text-danger">{{ gen.get('failed_generations', gen_qm.get('failed_apps', 0)) }}</div><div class="ml">Failed</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ "%.0f"|format(gen_qm.get('success_rate', 100 if gen.get('failed_generations', 0) == 0 else 0)) }}%</div><div class="ml">Success Rate</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ "%.1f"|format(gen_qm.get('avg_attempts_per_app', 1)) }}</div><div class="ml">Avg Attempts</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ gen.get('total_scripted_fixes', 0) + gen.get('total_llm_fixes', 0) }}</div><div class="ml">Total Fixes</div></div></div>
+          </div>
+          {% set fw = report_data.get('framework_distribution', {}) %}
+          {% if fw %}
+          <h6 class="mb-1 text-muted" style="font-size:0.75rem">FRAMEWORKS</h6>
+          <div class="d-flex flex-wrap gap-1 mb-1">
+            {% for fn, fc in fw.items() %}<span class="badge bg-secondary-lt">{{ fn }}: {{ fc }}</span>{% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ── Execution Metrics ── #}
+    {% set ex = report_data.get('execution_metrics', {}) %}
+    {% if ex %}
+    <div class="accordion-item" id="s-execution">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-execution"><i class="fa-solid fa-clock me-2 text-primary"></i>Execution Metrics</button></h2>
+      <div id="c-execution" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <div class="row g-1">
+            <div class="col"><div class="card mc"><div class="mv">{{ "%.0f"|format(ex.get('total_duration_seconds', 0)) }}s</div><div class="ml">Total Duration</div><div class="mh">{{ "%.1f"|format(ex.get('total_duration_seconds', 0) / 60) }} min</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ "%.0f"|format(ex.get('avg_duration_seconds', 0)) }}s</div><div class="ml">Avg Duration</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ "%.0f"|format(ex.get('total_queue_time_seconds', 0)) }}s</div><div class="ml">Total Queue</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ "%.1f"|format(ex.get('avg_queue_time_seconds', 0)) }}s</div><div class="ml">Avg Queue</div></div></div>
+          </div>
+          {% set dur_stats = sci.get('duration_statistics', {}) %}
+          {% if dur_stats %}
+          <table class="table table-sm compact-table mt-2 mb-0" style="max-width:300px">
+            <tbody>
+              <tr><td class="text-muted">Median duration</td><td class="text-end">{{ "%.0f"|format(dur_stats.get('median', 0)) }}s</td></tr>
+              <tr><td class="text-muted">Total analysis time</td><td class="text-end">{{ "%.0f"|format(dur_stats.get('total', 0)) }}s</td></tr>
+            </tbody>
+          </table>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Docker / Build Status ── #}
+    {% set docker_qm = qm.get('docker', {}) %}
+    {% if docker_qm %}
+    <div class="accordion-item" id="s-docker">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-docker"><i class="fa-brands fa-docker me-2 text-primary"></i>Docker & Build Status</button></h2>
+      <div id="c-docker" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <div class="row g-1">
+            <div class="col"><div class="card mc"><div class="mv text-success">{{ docker_qm.get('build_success_count', 0) }}</div><div class="ml">Built OK</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ "%.0f"|format(docker_qm.get('build_success_rate', 0)) }}%</div><div class="ml">Build Rate</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv text-success">{{ docker_qm.get('running', 0) }}</div><div class="ml">Running</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv text-secondary">{{ docker_qm.get('stopped', 0) }}</div><div class="ml">Stopped</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv text-danger">{{ docker_qm.get('error', 0) }}</div><div class="ml">Error</div></div></div>
+          </div>
+          {% set sb = docker_qm.get('status_breakdown', {}) %}
+          {% if sb %}
+          <div class="d-flex flex-wrap gap-1 mt-2">
+            {% for status, cnt in sb.items() %}<span class="badge bg-{{ 'success' if status == 'running' else ('danger' if status == 'error' else 'secondary') }}-lt">{{ status }}: {{ cnt }}</span>{% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  {% elif rt == 'template_comparison' %}
+  {# ════════════════════════ TEMPLATE COMPARISON ════════════════════════ #}
+
+    {# Overview #}
+    <div class="accordion-item" id="s-overview">
+      <h2 class="accordion-header"><button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#c-overview"><i class="fa-solid fa-chart-pie me-2 text-purple"></i>Overview</button></h2>
+      <div id="c-overview" class="accordion-collapse collapse show" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <div class="row g-1 mb-2">
+            <div class="col"><div class="card mc"><div class="mv text-purple">{{ report_data.get('models_count', 0) }}</div><div class="ml">Models</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ summary.get('total_findings', 0) }}</div><div class="ml">Findings</div></div></div>
+            {% for sl in ['critical','high','medium','low'] %}
+            <div class="col"><div class="card mc"><div class="mv" style="color:var(--tblr-{{ sev_colors[sl] }})">{{ sev.get(sl, 0) }}</div><div class="ml">{{ sl|title }}</div></div></div>
+            {% endfor %}
+          </div>
+          <div class="row g-2">
+            <div class="col-md-7">
+              <table class="table table-sm compact-table mb-0">
+                {% for sl in ['critical','high','medium','low','info'] %}
+                {% set sc = sev.get(sl, 0) %}{% set pct = (sc / summary.get('total_findings', 1) * 100) if summary.get('total_findings') else 0 %}
+                <tr><td><span class="badge bg-{{ sev_colors[sl] }}-lt" style="min-width:55px">{{ sl|title }}</span></td><td class="text-end">{{ sc }}</td><td class="text-end text-muted">{{ "%.1f"|format(pct) }}%</td><td style="width:35%"><div class="sev-bar bg-{{ sev_colors[sl] }}" style="width:{{ [pct,100]|min }}%">&nbsp;</div></td></tr>
+                {% endfor %}
+              </table>
+            </div>
+            <div class="col-md-5"><div class="chart-box"><canvas id="chart-sev-donut"></canvas></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Rankings #}
+    {% set rankings = report_data.get('rankings', {}) %}
+    {% if rankings %}
+    <div class="accordion-item" id="s-rankings">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-rankings"><i class="fa-solid fa-trophy me-2 text-warning"></i>Rankings</button></h2>
+      <div id="c-rankings" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          {% for category, ranked in rankings.items() %}
+          {% if ranked is iterable and ranked is not string and ranked|length > 0 %}
+          <h6 class="text-muted mb-1" style="font-size:0.75rem">{{ category|replace('_',' ')|upper }}</h6>
+          <table class="table table-sm compact-table table-striped mb-2">
+            <thead><tr><th style="width:30px">#</th><th>Model</th><th class="text-end">Value</th></tr></thead>
+            <tbody>{% for rm in ranked[:10] %}<tr><td>{{ loop.index }}</td><td><span class="badge bg-azure-lt text-azure">{{ rm.get('model_slug', rm.get('model', '')) }}</span></td><td class="text-end">{{ rm.get('value', rm.get('score', rm.get('findings_count', ''))) }}</td></tr>{% endfor %}</tbody>
+          </table>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Comparison #}
+    {% set models = report_data.get('models', []) %}
+    {% if models %}
+    <div class="accordion-item" id="s-comparison">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-comparison"><i class="fa-solid fa-columns me-2 text-purple"></i>Model Comparison ({{ models|length }})</button></h2>
+      <div id="c-comparison" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <table class="table table-sm compact-table table-striped table-hover mb-0">
+            <thead><tr><th>Model</th><th class="text-center">Findings</th><th class="text-center">C</th><th class="text-center">H</th><th class="text-center">M</th><th class="text-center">L</th><th class="text-center">Status</th></tr></thead>
+            <tbody>
+              {% for m in models %}{% set ms = m.get('summary', m) %}{% set msev = ms.get('findings_by_severity', ms.get('severity_counts', {})) %}
+              <tr><td><span class="badge bg-azure-lt text-azure">{{ m.get('model_slug', m.get('model', '')) }}</span></td><td class="text-center fw-medium">{{ ms.get('total_findings', ms.get('findings_count', 0)) }}</td><td class="text-center">{{ msev.get('critical', 0) }}</td><td class="text-center">{{ msev.get('high', 0) }}</td><td class="text-center">{{ msev.get('medium', 0) }}</td><td class="text-center">{{ msev.get('low', 0) }}</td><td class="text-center"><span class="badge bg-{{ 'success' if m.get('status','completed') == 'completed' else 'warning' }}-lt" style="font-size:0.65rem">{{ m.get('status','completed')|title }}</span></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Common Issues #}
+    {% if common_issues %}
+    <div class="accordion-item" id="s-issues">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-issues"><i class="fa-solid fa-list-ol me-2 text-warning"></i>Most Common Issues ({{ common_issues|length }})</button></h2>
+      <div id="c-issues" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <table class="table table-sm compact-table table-striped mb-0">
+            <thead><tr><th class="text-center" style="width:40px">#</th><th>Issue</th><th>Tool</th><th>Severity</th></tr></thead>
+            <tbody>{% for ci in common_issues %}<tr><td class="text-center fw-bold">{{ ci.count }}</td><td class="small"><div class="text-truncate" style="max-width:400px" title="{{ ci.message }}">{{ ci.message }}</div></td><td><span class="badge bg-secondary-lt" style="font-size:0.7rem">{{ ci.tool }}</span></td><td><span class="badge bg-{{ sev_colors.get(ci.severity,'secondary') }}-lt" style="font-size:0.7rem">{{ ci.severity|title }}</span></td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Generation #}
+    {% set gen = report_data.get('generation_stats', {}) %}
+    {% if gen is mapping and gen %}
+    <div class="accordion-item" id="s-generation">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-generation"><i class="fa-solid fa-microchip me-2 text-purple"></i>Generation</button></h2>
+      <div id="c-generation" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <table class="table table-sm compact-table mb-0" style="max-width:400px">
+            <tbody>{% for k, v in gen.items() %}<tr><td class="text-muted">{{ k|replace('_',' ')|title }}</td><td class="text-end fw-medium">{{ v }}</td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  {% elif rt == 'tool_analysis' %}
+  {# ════════════════════════ TOOL ANALYSIS ════════════════════════ #}
+
+    <div class="accordion-item" id="s-overview">
+      <h2 class="accordion-header"><button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#c-overview"><i class="fa-solid fa-chart-bar me-2 text-teal"></i>Overview</button></h2>
+      <div id="c-overview" class="accordion-collapse collapse show" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <div class="row g-1 mb-2">
+            <div class="col"><div class="card mc"><div class="mv text-teal">{{ report_data.get('tools_count', 0) }}</div><div class="ml">Tools</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ report_data.get('total_executions', 0) }}</div><div class="ml">Executions</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ summary.get('total_findings', 0) }}</div><div class="ml">Findings</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv text-success">{{ summary.get('avg_success_rate', 0)|round(1) }}%</div><div class="ml">Avg Success</div></div></div>
+          </div>
+          {% set cats = report_data.get('analyzer_summary', report_data.get('categories', {})) %}
+          {% if cats is mapping and cats %}
+          <div class="row g-1">{% for cn, cd in cats.items() %}<div class="col"><div class="card mc"><div class="mv text-teal">{{ cd.get('total_tools', cd.get('tools_count', 0)) }}</div><div class="ml">{{ cn|replace('_',' ')|title }}</div><div class="mh">{{ cd.get('total_executions', 0) }} runs</div></div></div>{% endfor %}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% set tools = report_data.get('tools', {}) %}
+    {% if tools is mapping and tools %}
+    <div class="accordion-item" id="s-tools">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-tools"><i class="fa-solid fa-wrench me-2 text-teal"></i>Tool Details ({{ tools|length }})</button></h2>
+      <div id="c-tools" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <table class="table table-sm compact-table table-striped table-hover mb-0">
+            <thead><tr><th>Tool</th><th class="text-center">Runs</th><th class="text-center">Success</th><th class="text-center">Findings</th><th class="text-end">Avg Time</th></tr></thead>
+            <tbody>{% for tn, td in tools.items() %}<tr><td><span class="badge bg-teal-lt text-teal">{{ td.get('display_name', tn) }}</span></td><td class="text-center">{{ td.get('total_executions', td.get('executions', 0)) }}</td><td class="text-center"><span class="badge bg-{{ 'success' if td.get('success_rate', 0) >= 80 else ('warning' if td.get('success_rate', 0) >= 50 else 'danger') }}-lt">{{ "%.0f"|format(td.get('success_rate', 0)) }}%</span></td><td class="text-center">{{ td.get('total_findings', td.get('findings_count', 0)) }}</td><td class="text-end text-muted">{{ "%.1f"|format(td.get('avg_duration', td.get('avg_duration_seconds', 0))) }}s</td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% set by_model = report_data.get('by_model', {}) %}
+    {% if by_model is mapping and by_model %}
+    <div class="accordion-item" id="s-models">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-models"><i class="fa-solid fa-brain me-2 text-teal"></i>By Model</button></h2>
+      <div id="c-models" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <table class="table table-sm compact-table table-striped mb-0">
+            <thead><tr><th>Model</th><th class="text-center">Tasks</th><th class="text-center">Findings</th><th class="text-center">Avg</th></tr></thead>
+            <tbody>{% for mn, md in by_model.items() %}<tr><td><span class="badge bg-azure-lt text-azure">{{ mn }}</span></td><td class="text-center">{{ md.get('total_tasks', md.get('tasks', 0)) }}</td><td class="text-center">{{ md.get('total_findings', 0) }}</td><td class="text-center">{{ "%.1f"|format(md.get('avg_findings', 0)) }}</td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if common_issues %}
+    <div class="accordion-item" id="s-issues">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-issues"><i class="fa-solid fa-list-ol me-2 text-warning"></i>Most Common Issues ({{ common_issues|length }})</button></h2>
+      <div id="c-issues" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <table class="table table-sm compact-table table-striped mb-0">
+            <thead><tr><th class="text-center" style="width:40px">#</th><th>Issue</th><th>Tool</th><th>Severity</th></tr></thead>
+            <tbody>{% for ci in common_issues %}<tr><td class="text-center fw-bold">{{ ci.count }}</td><td class="small"><div class="text-truncate" style="max-width:400px" title="{{ ci.message }}">{{ ci.message }}</div></td><td><span class="badge bg-secondary-lt" style="font-size:0.7rem">{{ ci.tool }}</span></td><td><span class="badge bg-{{ sev_colors.get(ci.severity,'secondary') }}-lt" style="font-size:0.7rem">{{ ci.severity|title }}</span></td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  {% elif rt == 'generation_analytics' %}
+  {# ════════════════════════ GENERATION ANALYTICS ════════════════════════ #}
+
+    <div class="accordion-item" id="s-overview">
+      <h2 class="accordion-header"><button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#c-overview"><i class="fa-solid fa-chart-line me-2 text-orange"></i>Overview</button></h2>
+      <div id="c-overview" class="accordion-collapse collapse show" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <div class="row g-1 mb-2">
+            <div class="col"><div class="card mc"><div class="mv text-orange">{{ summary.get('total_apps', summary.get('total_generations', 0)) }}</div><div class="ml">Total</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv text-success">{{ summary.get('successful_generations', summary.get('successful', 0)) }}</div><div class="ml">Success</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv text-danger">{{ summary.get('failed_generations', summary.get('failed', 0)) }}</div><div class="ml">Failed</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ summary.get('success_rate', 0)|round(1) }}%</div><div class="ml">Rate</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ summary.get('avg_attempts', 0)|round(1) }}</div><div class="ml">Avg Attempts</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ summary.get('total_models', 0) }}</div><div class="ml">Models</div></div></div>
+          </div>
+          {% set filters = report_data.get('filters_applied', {}) %}
+          {% if filters %}<div class="d-flex flex-wrap gap-1">{% for fk, fv in filters.items() %}<span class="badge bg-secondary-lt">{{ fk }}: {{ fv }}</span>{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% set by_model = report_data.get('by_model', []) %}
+    {% if by_model %}
+    <div class="accordion-item" id="s-models">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-models"><i class="fa-solid fa-brain me-2 text-orange"></i>By Model</button></h2>
+      <div id="c-models" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <table class="table table-sm compact-table table-striped table-hover mb-0">
+            <thead><tr><th>Model</th><th class="text-center">Total</th><th class="text-center">OK</th><th class="text-center">Fail</th><th class="text-center">Rate</th><th class="text-center">Avg Att.</th></tr></thead>
+            <tbody>{% for m in by_model if m is mapping %}<tr><td><span class="badge bg-azure-lt text-azure">{{ m.get('model_slug', m.get('model', '')) }}</span></td><td class="text-center">{{ m.get('total', m.get('total_apps', 0)) }}</td><td class="text-center text-success">{{ m.get('successful', m.get('success', 0)) }}</td><td class="text-center text-danger">{{ m.get('failed', m.get('failures', 0)) }}</td><td class="text-center"><span class="badge bg-{{ 'success' if m.get('success_rate', 0) >= 80 else ('warning' if m.get('success_rate', 0) >= 50 else 'danger') }}-lt">{{ "%.0f"|format(m.get('success_rate', 0)) }}%</span></td><td class="text-center">{{ "%.1f"|format(m.get('avg_attempts', 0)) }}</td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% set by_template = report_data.get('by_template', []) %}
+    {% if by_template %}
+    <div class="accordion-item" id="s-templates">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-templates"><i class="fa-solid fa-file-code me-2 text-orange"></i>By Template</button></h2>
+      <div id="c-templates" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <table class="table table-sm compact-table table-striped table-hover mb-0">
+            <thead><tr><th>Template</th><th class="text-center">Total</th><th class="text-center">OK</th><th class="text-center">Rate</th></tr></thead>
+            <tbody>{% for t in by_template if t is mapping %}<tr><td><span class="badge bg-purple-lt text-purple">{{ t.get('template_slug', t.get('template', '')) }}</span></td><td class="text-center">{{ t.get('total', 0) }}</td><td class="text-center text-success">{{ t.get('successful', t.get('success', 0)) }}</td><td class="text-center"><span class="badge bg-{{ 'success' if t.get('success_rate', 0) >= 80 else ('warning' if t.get('success_rate', 0) >= 50 else 'danger') }}-lt">{{ "%.0f"|format(t.get('success_rate', 0)) }}%</span></td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% set fix_stats = report_data.get('fix_effectiveness', {}) %}
+    {% if fix_stats is mapping and fix_stats %}
+    <div class="accordion-item" id="s-fixes">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-fixes"><i class="fa-solid fa-hammer me-2 text-orange"></i>Fix Effectiveness</button></h2>
+      <div id="c-fixes" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <div class="row g-1">{% for ft, fd in fix_stats.items() %}<div class="col-md-4"><div class="card mc">{% if fd is mapping %}<div class="mv">{{ fd.get('count', fd.get('total', 0)) }}</div><div class="ml">{{ ft|replace('_',' ')|title }}</div><div class="mh">{{ "%.0f"|format(fd.get('success_rate', 0)) }}% effective</div>{% else %}<div class="mv">{{ fd }}</div><div class="ml">{{ ft|replace('_',' ')|title }}</div>{% endif %}</div></div>{% endfor %}</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  {% else %}
+    <div class="accordion-item" id="s-overview">
+      <h2 class="accordion-header"><button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#c-overview"><i class="fa-solid fa-file me-2"></i>Raw Data</button></h2>
+      <div id="c-overview" class="accordion-collapse collapse show">
+        <div class="accordion-body p-2"><pre class="bg-light p-2 rounded small mb-0" style="max-height:500px;overflow:auto">{{ report_data|tojson(indent=2) }}</pre></div>
+      </div>
+    </div>
+  {% endif %}
+
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="{{ url_for('static', filename='js/reports.js') }}"></script>
 <script>
-  // Initialize report logic when DOM is ready
-  document.addEventListener('DOMContentLoaded', function () {
-    // Pass report ID and Type to global scope as fallback
-    window.REPORT_ID = "{{ report.report_id }}";
-    window.REPORT_TYPE = "{{ report.report_type }}";
-
-    // Initialize the report handling
-    if (typeof initReport === 'function') {
-      initReport();
-    } else {
-      console.error('initReport function not found. Is reports.js loaded?');
-    }
-  });
+(function() {
+  const REPORT_DATA = {{ report_data|tojson }};
+  const sev = REPORT_DATA.findings_breakdown || (REPORT_DATA.summary||{}).severity_breakdown || {};
+  const canvas = document.getElementById('chart-sev-donut');
+  if (canvas && window.Chart) {
+    const d = [sev.critical||0, sev.high||0, sev.medium||0, sev.low||0, sev.info||0];
+    if (d.some(v=>v>0)) new Chart(canvas, {
+      type:'doughnut',
+      data:{labels:['Critical','High','Medium','Low','Info'],datasets:[{data:d,backgroundColor:['#d63939','#f76707','#f59f00','#2fb344','#0ea5e9']}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},padding:8}},tooltip:{callbacks:{label:ctx=>ctx.label+': '+ctx.parsed+' ('+((ctx.parsed/(d.reduce((a,b)=>a+b,0)||1))*100).toFixed(1)+'%)'}}}}
+    });
+  }
+  window.toggleAll=function(expand){document.querySelectorAll('#rptAcc .accordion-collapse').forEach(el=>{const c=bootstrap.Collapse.getOrCreateInstance(el,{toggle:false});expand?c.show():c.hide()})};
+  // Section nav tracking
+  const links=document.querySelectorAll('.section-nav-link');
+  if(links.length&&'IntersectionObserver' in window){
+    const obs=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){links.forEach(l=>l.classList.remove('active'));const l=document.querySelector('.section-nav-link[href="#'+e.target.id+'"]');if(l)l.classList.add('active')}}),{rootMargin:'-15% 0px -65% 0px'});
+    document.querySelectorAll('.accordion-item[id^="s-"]').forEach(s=>obs.observe(s));
+    links.forEach(l=>l.addEventListener('click',e=>{e.preventDefault();const t=document.querySelector(l.getAttribute('href'));if(t)t.scrollIntoView({behavior:'smooth',block:'start'})}));
+  }
+})();
 </script>
 {% endblock %}

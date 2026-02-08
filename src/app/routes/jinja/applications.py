@@ -698,7 +698,7 @@ def application_section_files(model_slug, app_number):
 
 @applications_bp.route('/<model_slug>/<int:app_number>/section/ports')
 def application_section_ports(model_slug, app_number):
-    return _render_application_section(model_slug, app_number, 'ports')
+    return _render_application_section(model_slug, app_number, 'container')
 
 
 @applications_bp.route('/<model_slug>/<int:app_number>/section/container')
@@ -713,12 +713,12 @@ def application_section_analyses(model_slug, app_number):
 
 @applications_bp.route('/<model_slug>/<int:app_number>/section/metadata')
 def application_section_metadata(model_slug, app_number):
-    return _render_application_section(model_slug, app_number, 'metadata')
+    return _render_application_section(model_slug, app_number, 'overview')
 
 
 @applications_bp.route('/<model_slug>/<int:app_number>/section/artifacts')
 def application_section_artifacts(model_slug, app_number):
-    return _render_application_section(model_slug, app_number, 'artifacts')
+    return _render_application_section(model_slug, app_number, 'files')
 
 
 @applications_bp.route('/<model_slug>/<int:app_number>/section/logs')

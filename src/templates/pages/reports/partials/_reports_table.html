@@ -1,0 +1,321 @@
+{# Reports table partial — loaded via HTMX from /reports/api/list #}
+{% set type_labels = {
+  'model_analysis': ('Model Analysis', 'bg-azure-lt text-azure', 'fa-brain'),
+  'template_comparison': ('Template Comparison', 'bg-purple-lt text-purple', 'fa-code-compare'),
+  'tool_analysis': ('Tool Analysis', 'bg-teal-lt text-teal', 'fa-wrench'),
+  'generation_analytics': ('Generation Analytics', 'bg-orange-lt text-orange', 'fa-chart-line')
+} %}
+
+<div id="main-reports-table-wrapper">
+<div class="card card-table-compact" id="reports-table-section">
+  <div class="card-header d-flex flex-wrap align-items-center gap-2">
+    <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+      <i class="fa-solid fa-file-lines text-primary"></i>
+      <span>Reports</span>
+    </h3>
+    <div class="d-flex flex-wrap align-items-center gap-1 status-indicators ms-1">
+      <span class="badge bg-primary-lt text-primary d-inline-flex align-items-center gap-1" title="Total reports">
+        <i class="fa-solid fa-hashtag fa-xs"></i>
+        <span>{{ total }}</span>
+      </span>
+      {% if count_completed > 0 %}
+      <span class="badge bg-success-lt text-success d-inline-flex align-items-center gap-1">
+        <i class="fa-solid fa-check-circle fa-xs"></i>
+        <span>{{ count_completed }} completed</span>
+      </span>
+      {% endif %}
+      {% if count_generating > 0 %}
+      <span class="badge bg-warning-lt text-warning d-inline-flex align-items-center gap-1">
+        <i class="fa-solid fa-spinner fa-pulse fa-xs"></i>
+        <span>{{ count_generating }} generating</span>
+      </span>
+      {% endif %}
+      {% if count_failed > 0 %}
+      <span class="badge bg-danger-lt text-danger d-inline-flex align-items-center gap-1">
+        <i class="fa-solid fa-times-circle fa-xs"></i>
+        <span>{{ count_failed }} failed</span>
+      </span>
+      {% endif %}
+    </div>
+    <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+      <label class="d-flex align-items-center gap-1 mb-0">
+        <span class="text-muted small">Show:</span>
+        <select class="form-select form-select-sm" style="width:auto;"
+                onchange="updateReportsFilter(this, 'per_page')">
+          {% for size in [10, 25, 50, 100] %}
+          <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="btn-list">
+        <button class="btn btn-sm btn-primary" 
+                hx-get="{{ url_for('reports.reports_table') }}"
+                hx-target="#main-reports-table-wrapper"
+                hx-swap="outerHTML"
+                title="Refresh" type="button">
+          <i class="fa-solid fa-sync" aria-hidden="true"></i>
+        </button>
+        <a href="{{ url_for('reports.reports_create') }}" class="btn btn-sm btn-success">
+          <i class="fa-solid fa-plus me-1" aria-hidden="true"></i>New Report
+        </a>
+      </div>
+    </div>
+  </div>
+
+  {# Filter bar #}
+  <div class="card-body border-top py-2">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <select class="form-select form-select-sm" style="width:160px;"
+              onchange="updateReportsFilter(this, 'report_type')">
+        <option value="">All Types</option>
+        {% for key, (label, _, _) in type_labels.items() %}
+        <option value="{{ key }}" {% if filter_type == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select class="form-select form-select-sm" style="width:140px;"
+              onchange="updateReportsFilter(this, 'status')">
+        <option value="">All Statuses</option>
+        <option value="completed" {% if filter_status == 'completed' %}selected{% endif %}>Completed</option>
+        <option value="generating" {% if filter_status == 'generating' %}selected{% endif %}>Generating</option>
+        <option value="failed" {% if filter_status == 'failed' %}selected{% endif %}>Failed</option>
+      </select>
+      {% if filter_type or filter_status %}
+      <button class="btn btn-sm btn-outline-secondary py-1"
+              hx-get="{{ url_for('reports.reports_table') }}"
+              hx-target="#main-reports-table-wrapper"
+              hx-swap="outerHTML"
+              type="button">Clear</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-striped table-vcenter table-hover table-sm card-table mb-0">
+      <thead>
+        <tr>
+          <th scope="col">Title</th>
+          <th scope="col">Type</th>
+          <th scope="col">Configuration</th>
+          <th scope="col" class="text-center">Status</th>
+          <th scope="col" class="text-end">Created</th>
+          <th scope="col" class="w-1"><span class="visually-hidden">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if reports %}
+          {% for r in reports %}
+          {% set r_dict = r.to_dict() if r.to_dict is callable else r %}
+          {% set tl = type_labels.get(r.report_type, (r.report_type|replace('_',' ')|title, 'bg-secondary-lt', 'fa-file')) %}
+          <tr>
+            <td>
+              <div class="fw-medium">
+                {% if r.status == 'completed' %}
+                <a href="{{ url_for('reports.view_report', report_id=r.report_id) }}" class="text-reset">
+                  {{ r.title or 'Untitled Report' }}
+                </a>
+                {% else %}
+                {{ r.title or 'Untitled Report' }}
+                {% endif %}
+              </div>
+              {% if r.description %}
+              <div class="text-muted small text-truncate" style="max-width: 300px;">{{ r.description }}</div>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge {{ tl[1] }} d-inline-flex align-items-center gap-1">
+                <i class="fa-solid {{ tl[2] }} fa-xs"></i>
+                {{ tl[0] }}
+              </span>
+            </td>
+            <td class="small text-muted">
+              {% set cfg = r.get_config() if r.get_config is callable else {} %}
+              {% if r.report_type == 'model_analysis' and cfg.get('model_slug') %}
+                <span class="badge bg-azure-lt text-azure">{{ cfg.model_slug }}</span>
+              {% elif r.report_type == 'template_comparison' and cfg.get('template_slug') %}
+                <span class="badge bg-purple-lt text-purple">{{ cfg.template_slug }}</span>
+              {% elif r.report_type == 'tool_analysis' and cfg.get('tool_name') %}
+                <span class="badge bg-teal-lt text-teal">{{ cfg.tool_name }}</span>
+              {% elif r.report_type == 'generation_analytics' %}
+                {% if cfg.get('model_slug') %}
+                  <span class="badge bg-orange-lt text-orange">{{ cfg.model_slug }}</span>
+                {% elif cfg.get('days_back') %}
+                  <span class="text-muted">Last {{ cfg.days_back }}d</span>
+                {% else %}
+                  <span class="text-muted fst-italic">All data</span>
+                {% endif %}
+              {% else %}
+                <span class="text-muted fst-italic">—</span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              {% if r.status == 'completed' %}
+              <span class="badge bg-success-lt text-success">
+                <i class="fa-solid fa-check fa-xs me-1"></i>Completed
+              </span>
+              {% elif r.status == 'generating' %}
+              <span class="badge bg-warning-lt text-warning">
+                <i class="fa-solid fa-spinner fa-spin fa-xs me-1"></i>Generating
+                {% if r.progress_percent %}<small>({{ r.progress_percent }}%)</small>{% endif %}
+              </span>
+              {% elif r.status == 'failed' %}
+              <span class="badge bg-danger-lt text-danger" title="{{ r.error_message or '' }}">
+                <i class="fa-solid fa-times fa-xs me-1"></i>Failed
+              </span>
+              {% else %}
+              <span class="badge bg-secondary-lt">{{ r.status|default('unknown')|title }}</span>
+              {% endif %}
+            </td>
+            <td class="text-end text-muted small text-nowrap">
+              {% if r.created_at %}
+                {{ r.created_at.strftime('%Y-%m-%d %H:%M') }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td>
+              <div class="btn-list flex-nowrap">
+                {% if r.status == 'completed' %}
+                <a href="{{ url_for('reports.view_report', report_id=r.report_id) }}"
+                   class="btn btn-sm btn-ghost-primary btn-icon" title="View Report">
+                  <i class="fa-solid fa-eye"></i>
+                </a>
+                <a href="/api/reports/{{ r.report_id }}/data" target="_blank"
+                   class="btn btn-sm btn-ghost-secondary btn-icon" title="Download JSON">
+                  <i class="fa-solid fa-download"></i>
+                </a>
+                {% endif %}
+                {% if r.status in ['completed', 'failed'] %}
+                <button class="btn btn-sm btn-ghost-warning btn-icon" title="Regenerate"
+                        onclick="regenerateReport('{{ r.report_id }}')">
+                  <i class="fa-solid fa-rotate"></i>
+                </button>
+                {% endif %}
+                <button class="btn btn-sm btn-ghost-danger btn-icon" title="Delete"
+                        onclick="deleteReport('{{ r.report_id }}')">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="6">
+              <div class="empty py-5">
+                <div class="empty-icon">
+                  <i class="fa-solid fa-file-lines fa-3x text-muted"></i>
+                </div>
+                <p class="empty-title h5">No reports found</p>
+                <p class="empty-subtitle text-muted">
+                  {% if filter_type or filter_status %}
+                    Try adjusting your filters or generate a new report.
+                  {% else %}
+                    Generate your first analysis report to get started.
+                  {% endif %}
+                </p>
+                <div class="empty-action">
+                  <a href="{{ url_for('reports.reports_create') }}" class="btn btn-primary">
+                    <i class="fa-solid fa-plus me-2"></i>Generate Report
+                  </a>
+                </div>
+              </div>
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  {# Pagination #}
+  {% if total_pages > 1 %}
+  <div class="card-footer d-flex align-items-center justify-content-between">
+    <p class="m-0 text-muted small">
+      Showing {{ (page - 1) * per_page + 1 }}–{{ [page * per_page, total]|min }} of {{ total }}
+    </p>
+    <ul class="pagination pagination-sm m-0">
+      <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+        <a class="page-link" href="#"
+           hx-get="{{ url_for('reports.reports_table', page=page-1, per_page=per_page, report_type=filter_type, status=filter_status) }}"
+           hx-target="#main-reports-table-wrapper"
+           hx-swap="outerHTML">
+          <i class="fa-solid fa-chevron-left fa-xs"></i>
+        </a>
+      </li>
+      {% for p in range(1, total_pages + 1) %}
+        {% if p == page or p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+        <li class="page-item {% if p == page %}active{% endif %}">
+          <a class="page-link" href="#"
+             hx-get="{{ url_for('reports.reports_table', page=p, per_page=per_page, report_type=filter_type, status=filter_status) }}"
+             hx-target="#main-reports-table-wrapper"
+             hx-swap="outerHTML">{{ p }}</a>
+        </li>
+        {% elif p == page - 3 or p == page + 3 %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+      <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+        <a class="page-link" href="#"
+           hx-get="{{ url_for('reports.reports_table', page=page+1, per_page=per_page, report_type=filter_type, status=filter_status) }}"
+           hx-target="#main-reports-table-wrapper"
+           hx-swap="outerHTML">
+          <i class="fa-solid fa-chevron-right fa-xs"></i>
+        </a>
+      </li>
+    </ul>
+  </div>
+  {% endif %}
+</div>
+</div>
+
+<script>
+function updateReportsFilter(el, param) {
+  const wrapper = document.getElementById('main-reports-table-wrapper');
+  const url = new URL('{{ url_for("reports.reports_table") }}', window.location.origin);
+  
+  // Gather current filter values from the DOM
+  wrapper.querySelectorAll('select[onchange*="updateReportsFilter"]').forEach(sel => {
+    const p = sel.getAttribute('onchange').match(/'(\w+)'/)?.[1];
+    if (p && sel.value) url.searchParams.set(p, sel.value);
+  });
+  // Override with the changed one
+  if (el.value) {
+    url.searchParams.set(param, el.value);
+  } else {
+    url.searchParams.delete(param);
+  }
+  // Reset to page 1 on filter change (except per_page)
+  if (param !== 'per_page') url.searchParams.delete('page');
+  
+  htmx.ajax('GET', url.pathname + url.search, {target: '#main-reports-table-wrapper', swap: 'outerHTML'});
+}
+
+function deleteReport(reportId) {
+  if (!confirm('Are you sure you want to delete this report?')) return;
+  fetch('/api/reports/' + reportId, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        if (window.showToast) showToast('Report deleted', 'success');
+        htmx.ajax('GET', '{{ url_for("reports.reports_table") }}', {target: '#main-reports-table-wrapper', swap: 'outerHTML'});
+      } else {
+        if (window.showToast) showToast('Failed to delete: ' + (data.error || 'Unknown error'), 'error');
+      }
+    })
+    .catch(() => { if (window.showToast) showToast('Network error', 'error'); });
+}
+
+function regenerateReport(reportId) {
+  if (!confirm('Regenerate this report with fresh data?')) return;
+  fetch('/api/reports/' + reportId + '/regenerate', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        if (window.showToast) showToast('Report queued for regeneration', 'success');
+        htmx.ajax('GET', '{{ url_for("reports.reports_table") }}', {target: '#main-reports-table-wrapper', swap: 'outerHTML'});
+      } else {
+        if (window.showToast) showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+      }
+    })
+    .catch(() => { if (window.showToast) showToast('Network error', 'error'); });
+}
+</script>

@@ -4,7 +4,8 @@
   <div class="col-12">
     <div class="row g-2" id="pipeline-summary">
       <div class="col-md-6">
-        <div class="card card-sm h-100 border">
+        {# Generate-new summary #}
+        <div class="card card-sm h-100 border" id="review-generate-card">
           <div class="card-body py-2 px-3">
             <div class="d-flex align-items-center gap-2 mb-1">
               <i class="fa-solid fa-code text-azure"></i>
@@ -14,6 +15,19 @@
               <span><span class="text-muted">Templates:</span> <strong id="summary-templates">-</strong></span>
               <span><span class="text-muted">Models:</span> <strong id="summary-models">-</strong></span>
               <span><span class="text-muted">Jobs:</span> <strong class="text-azure" id="summary-gen-jobs">0</strong></span>
+            </div>
+          </div>
+        </div>
+        {# Existing-apps summary (hidden by default) #}
+        <div class="card card-sm h-100 border d-none" id="review-existing-card">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <i class="fa-solid fa-folder-open text-azure"></i>
+              <span class="fw-semibold small">Existing Apps</span>
+            </div>
+            <div class="d-flex gap-3 small">
+              <span><span class="text-muted">Selected:</span> <strong class="text-azure" id="summary-existing-count">0</strong> apps</span>
+              <span class="badge bg-azure-lt text-azure">Analysis only</span>
             </div>
           </div>
         </div>

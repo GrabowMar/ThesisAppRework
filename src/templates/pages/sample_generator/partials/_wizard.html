@@ -1,22 +1,24 @@
-{# Sample Generator Wizard - analysis-style layout #}
+{# Sample Generator Wizard - automation-pipeline-style layout #}
 <div id="sample-generator-wizard">
-  <div class="row row-cards g-3">
+  <div class="row row-cards g-2">
     <div class="col-xxl-8 col-xl-7 col-lg-7">
-      <div class="row row-cards g-3">
+      <div class="row row-cards g-2">
         <input type="hidden" id="input-scaffolding-id" value="default">
         <input type="hidden" id="input-rerun-on-failure" value="false">
         <input type="hidden" id="input-max-retries" value="1">
         <div class="col-12 wizard-panel active" data-panel="1">
           <div class="card card-table-compact">
-            <div class="card-header d-flex flex-wrap align-items-center gap-3 py-2">
-              <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-primary text-uppercase rounded-pill px-3">Step 1</span>
-                <div>
-                  <h3 class="card-title mb-0 d-flex align-items-center gap-2">
-                    <i class="fa-solid fa-cube text-primary"></i>
-                    <span>Select Scaffolding</span>
-                  </h3>
-                  <div class="text-muted small">Choose the base project scaffold for generated apps.</div>
+            <div class="card-header d-flex flex-wrap align-items-center gap-2 py-2">
+              <span class="badge bg-primary text-uppercase rounded-pill px-2">1</span>
+              <h3 class="card-title mb-0 d-flex align-items-center gap-2">
+                <i class="fa-solid fa-cube text-primary"></i>
+                <span>Select Scaffolding</span>
+              </h3>
+              <span class="text-muted small d-none d-md-inline">— Base project scaffold for generated apps</span>
+              <div class="ms-auto">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="enable-scaffolding" checked>
+                  <label class="form-check-label small" for="enable-scaffolding">Enabled</label>
                 </div>
               </div>
             </div>
@@ -38,6 +40,34 @@
                               </div>
                               <div>
                                 <span class="badge bg-success-lt" id="scaffolding-selected-indicator">Selected</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col-12">
+                          <div class="card selectable-card opacity-50" style="pointer-events: none;">
+                            <div class="card-body d-flex align-items-center gap-3">
+                              <div class="avatar bg-secondary-lt text-secondary rounded"><i class="fa-solid fa-cubes"></i></div>
+                              <div class="flex-fill">
+                                <h4 class="h6 mb-1">Custom Stack</h4>
+                                <p class="text-muted small mb-0">Define your own frontend/backend combination with custom Docker configuration.</p>
+                              </div>
+                              <div>
+                                <span class="badge bg-muted-lt">Coming Soon</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col-12">
+                          <div class="card selectable-card opacity-50" style="pointer-events: none;">
+                            <div class="card-body d-flex align-items-center gap-3">
+                              <div class="avatar bg-secondary-lt text-secondary rounded"><i class="fa-solid fa-shuffle"></i></div>
+                              <div class="flex-fill">
+                                <h4 class="h6 mb-1">Alternative Stack</h4>
+                                <p class="text-muted small mb-0">Pre-built alternative technology combinations for broader model evaluation.</p>
+                              </div>
+                              <div>
+                                <span class="badge bg-muted-lt">Coming Soon</span>
                               </div>
                             </div>
                           </div>
@@ -230,17 +260,13 @@
 
         <div class="col-12 wizard-panel" data-panel="2">
           <div class="card card-table-compact">
-            <div class="card-header d-flex flex-wrap align-items-center gap-3 py-2">
-              <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-primary text-uppercase rounded-pill px-3">Step 2</span>
-                <div>
-                  <h3 class="card-title mb-0 d-flex align-items-center gap-2">
-                    <i class="fa-solid fa-layer-group text-primary"></i>
-                    <span>Select Templates &amp; Models</span>
-                  </h3>
-                  <div class="text-muted small">Pick the requirements and AI models to combine.</div>
-                </div>
-              </div>
+            <div class="card-header d-flex flex-wrap align-items-center gap-2 py-2">
+              <span class="badge bg-primary text-uppercase rounded-pill px-2">2</span>
+              <h3 class="card-title mb-0 d-flex align-items-center gap-2">
+                <i class="fa-solid fa-layer-group text-primary"></i>
+                <span>Select Templates &amp; Models</span>
+              </h3>
+              <span class="text-muted small d-none d-md-inline">— Pick requirements and AI models to combine</span>
             </div>
             <div class="card-body border-top">
               <div class="row g-4">
@@ -302,17 +328,13 @@
 
         <div class="col-12 wizard-panel" data-panel="3">
           <div class="card card-table-compact">
-            <div class="card-header d-flex flex-wrap align-items-center gap-3 py-2">
-              <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-primary text-uppercase rounded-pill px-3">Step 3</span>
-                <div>
-                  <h3 class="card-title mb-0 d-flex align-items-center gap-2">
-                    <i class="fa-solid fa-clipboard-check text-primary"></i>
-                    <span>Review &amp; Generate</span>
-                  </h3>
-                  <div class="text-muted small">Confirm selections, launch generation, and track results.</div>
-                </div>
-              </div>
+            <div class="card-header d-flex flex-wrap align-items-center gap-2 py-2">
+              <span class="badge bg-primary text-uppercase rounded-pill px-2">3</span>
+              <h3 class="card-title mb-0 d-flex align-items-center gap-2">
+                <i class="fa-solid fa-clipboard-check text-primary"></i>
+                <span>Review &amp; Generate</span>
+              </h3>
+              <span class="text-muted small d-none d-md-inline">— Confirm selections and launch generation</span>
             </div>
             <div class="card-body border-top">
               <div class="row g-3">
@@ -426,6 +448,17 @@
               <button type="button" class="btn btn-success btn-sm py-1 px-2 d-none" id="start-btn-loading" disabled>
                 <span class="spinner-border spinner-border-sm me-1" role="status"></span>Generating...
               </button>
+            </div>
+          </div>
+        </div>
+
+        {# Copilot Mode - Coming Soon #}
+        <div class="card card-sm mb-2">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex align-items-center gap-2">
+              <i class="fa-solid fa-robot text-muted"></i>
+              <span class="small text-muted">Copilot Mode</span>
+              <span class="badge bg-muted-lt ms-auto" title="Interactive AI-assisted generation — coming in a future update">Coming Soon</span>
             </div>
           </div>
         </div>

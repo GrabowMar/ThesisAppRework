@@ -1007,12 +1007,9 @@ def _build_application_sections(model_slug: str, app_number: int) -> Tuple[List[
         ('overview', 'Overview', 'fas fa-info-circle', 'pages/applications/partials/_overview.html'),
         ('prompts', 'Prompts', 'fas fa-terminal', 'pages/applications/partials/_prompts.html'),
         ('files', 'Files', 'fas fa-folder-open', 'pages/applications/partials/_files.html'),
-        ('ports', 'Ports', 'fas fa-network-wired', 'pages/applications/partials/_ports.html'),
         ('container', 'Container', 'fab fa-docker', 'pages/applications/partials/_container.html'),
         ('tools', 'Dev Tools', 'fas fa-toolbox', 'pages/applications/partials/_tools.html'),
         ('analyses', 'Analyses', 'fas fa-flask', 'pages/applications/partials/_analyses.html'),
-        ('metadata', 'Metadata', 'fas fa-database', 'pages/applications/partials/_metadata.html'),
-        ('artifacts', 'Artifacts', 'fas fa-book', 'pages/applications/partials/_artifacts.html'),
         ('logs', 'Logs', 'fas fa-file-lines', 'pages/applications/partials/_logs.html'),
     ]
     sections: List[Dict[str, Any]] = []
@@ -1060,6 +1057,11 @@ def build_application_detail_context(model_slug: str, app_number: int, allow_syn
         'automatic_fixes': getattr(app, 'automatic_fixes', 0) or 0,
         'llm_fixes': getattr(app, 'llm_fixes', 0) or 0,
         'manual_fixes': getattr(app, 'manual_fixes', 0) or 0,
+        # Generation metadata (used in overview)
+        'generation_duration': getattr(app, 'generation_duration', None),
+        'prompt_template': getattr(app, 'prompt_template', None),
+        'token_usage': getattr(app, 'token_usage', None),
+        'database_type': getattr(app, 'database_type', None),
     }
     app_data['app_type'] = app_data['app_type'] or 'unknown'
     app_data['container_status_display'] = (app_data.get('container_status') or 'unknown').replace('_', ' ').title()
@@ -1131,8 +1133,15 @@ def build_application_detail_context(model_slug: str, app_number: int, allow_syn
         'actions': actions,
     }
 
+    breadcrumb_items = [
+        {'label': 'Applications', 'url': '/applications'},
+        {'label': model_dict.get('display_name') or resolved_slug, 'url': f'/models/{resolved_slug}'},
+        {'label': f'App #{app_number}'},
+    ]
+
     return {
         'view': view,
+        'breadcrumb_items': breadcrumb_items,
         'metrics': metrics,
         'sections': sections,
         'app_data': app_data,
@@ -1340,6 +1349,300 @@ def _build_model_sections(model_slug: str) -> Tuple[List[Dict[str, Any]], Dict[s
         sections.append(section)
         sections_map[identifier] = section
     return sections, sections_map
+
+
+def _build_analysis_result_metrics(
+    descriptor: Dict[str, Any],
+    summary: Dict[str, Any],
+    timing_info: Dict[str, Any],
+    services: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    """Build the metric cards for the analysis result detail page."""
+    status_raw = str(descriptor.get('status') or 'unknown').lower()
+    status_display = status_raw.replace('_', ' ').title()
+    status_tone = {
+        'completed': 'text-success',
+        'success': 'text-success',
+        'partial_success': 'text-warning',
+        'failed': 'text-danger',
+        'error': 'text-danger',
+    }.get(status_raw, 'text-muted')
+
+    total_findings = summary.get('total_findings', descriptor.get('total_findings', 0)) or 0
+    findings_tone = 'text-danger' if total_findings > 20 else ('text-warning' if total_findings > 10 else 'text-success')
+
+    tools_executed = summary.get('tools_executed', descriptor.get('tools_executed', 0)) or 0
+    # Count individual tools across all services (not just service count)
+    tools_total_count = 0
+    if services:
+        for svc_data in services.values():
+            if isinstance(svc_data, dict):
+                analysis = svc_data.get('analysis', {})
+                if isinstance(analysis, dict):
+                    used = analysis.get('tools_used', [])
+                    results_keys = analysis.get('results', {})
+                    if used:
+                        tools_total_count += len(used)
+                    elif isinstance(results_keys, dict):
+                        tools_total_count += len(results_keys)
+    tools_total: Any = tools_total_count if tools_total_count > 0 else '?'
+
+    dur = int(timing_info.get('actual_duration') or 0)
+    if dur >= 3600:
+        dur_display = f"{dur // 3600}h {(dur % 3600) // 60}m"
+    elif dur >= 60:
+        dur_display = f"{dur // 60}m {dur % 60}s"
+    elif dur > 0:
+        dur_display = f"{dur}s"
+    else:
+        dur_display = '—'
+
+    metrics: List[Dict[str, Any]] = [
+        {
+            'label': 'Status',
+            'value': status_display,
+            'tone': status_tone,
+            'icon': 'fa-solid fa-circle-dot',
+            'status_color': status_tone.replace('text-', ''),
+        },
+        {
+            'label': 'Findings',
+            'value': total_findings,
+            'tone': findings_tone,
+            'icon': 'fa-solid fa-bug',
+        },
+        {
+            'label': 'Tools',
+            'value': f"{tools_executed}/{tools_total}",
+            'hint': 'Executed / Available',
+            'icon': 'fa-solid fa-wrench',
+        },
+        {
+            'label': 'Services',
+            'value': len(services) if services else 0,
+            'icon': 'fa-solid fa-server',
+        },
+        {
+            'label': 'Duration',
+            'value': dur_display,
+            'icon': 'fa-solid fa-clock',
+        },
+    ]
+
+    # Add severity breakdown as individual metrics
+    severity_breakdown = descriptor.get('severity_breakdown', {})
+    sev_colors = {'critical': 'text-danger', 'high': 'text-danger', 'medium': 'text-warning', 'low': 'text-info', 'info': 'text-muted'}
+    for sev_name in ['critical', 'high', 'medium', 'low']:
+        sev_count = severity_breakdown.get(sev_name, 0)
+        if sev_count and sev_count > 0:
+            metrics.append({
+                'label': sev_name.title(),
+                'value': sev_count,
+                'tone': sev_colors.get(sev_name, 'text-muted'),
+                'icon': 'fa-solid fa-triangle-exclamation' if sev_name in ('critical', 'high') else 'fa-solid fa-circle-info',
+            })
+
+    return metrics
+
+
+def _build_analysis_result_sections(result_id: str) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    """Build the section list for the analysis result detail page."""
+    base = [
+        ('summary', 'Summary', 'fa-solid fa-chart-pie', 'pages/analysis/partials/_section_summary.html'),
+        ('static', 'Static Analysis', 'fa-solid fa-code', 'pages/analysis/partials/_section_static.html'),
+        ('dynamic', 'Dynamic Analysis', 'fa-solid fa-shield-halved', 'pages/analysis/partials/_section_dynamic.html'),
+        ('performance', 'Performance', 'fa-solid fa-gauge-high', 'pages/analysis/partials/_section_performance.html'),
+        ('ai', 'AI Requirements', 'fa-solid fa-robot', 'pages/analysis/partials/_section_ai.html'),
+        ('metadata', 'Metadata', 'fa-solid fa-info-circle', 'pages/analysis/partials/_section_metadata.html'),
+    ]
+    sections: List[Dict[str, Any]] = []
+    sections_map: Dict[str, Dict[str, Any]] = {}
+    for identifier, label, icon, template in base:
+        section = {
+            'id': identifier,
+            'label': label,
+            'icon': icon,
+            'template': template,
+            'hx': f"/analysis/results/{result_id}/section/{identifier}",
+            'dom_id': f"section-{identifier}",
+            'placeholder_rows': 3,
+        }
+        sections.append(section)
+        sections_map[identifier] = section
+    return sections, sections_map
+
+
+def _build_analysis_result_actions(
+    descriptor: Dict[str, Any],
+    result_id: str,
+    prev_task_id: Optional[str],
+    next_task_id: Optional[str],
+) -> List[Dict[str, Any]]:
+    """Build the action buttons for the analysis result header."""
+    actions: List[Dict[str, Any]] = []
+    # Prev navigation
+    actions.append({
+        'key': 'prev',
+        'type': 'link' if prev_task_id else 'button',
+        'label': 'Previous',
+        'icon': 'fa-solid fa-chevron-left',
+        'classes': 'btn-ghost-secondary btn-sm btn-icon',
+        'href': f"/analysis/results/{prev_task_id}" if prev_task_id else None,
+        'visible': True,
+        'disabled': not prev_task_id,
+    })
+    # Back to list
+    actions.append({
+        'key': 'list',
+        'type': 'link',
+        'label': 'All Analyses',
+        'icon': 'fa-solid fa-list',
+        'classes': 'btn-ghost-secondary btn-sm btn-icon',
+        'href': '/analysis/list',
+        'visible': True,
+    })
+    # Next navigation
+    actions.append({
+        'key': 'next',
+        'type': 'link' if next_task_id else 'button',
+        'label': 'Next',
+        'icon': 'fa-solid fa-chevron-right',
+        'classes': 'btn-ghost-secondary btn-sm btn-icon',
+        'href': f"/analysis/results/{next_task_id}" if next_task_id else None,
+        'visible': True,
+        'disabled': not next_task_id,
+    })
+    # Re-run
+    model_slug = descriptor.get('model_slug', '')
+    app_number = descriptor.get('app_number', '')
+    actions.append({
+        'key': 'rerun',
+        'type': 'link',
+        'label': 'Re-run',
+        'icon': 'fa-solid fa-rotate-right',
+        'classes': 'btn-ghost-warning btn-sm',
+        'href': f"/analysis/create?model_slug={model_slug}&app_number={app_number}",
+        'visible': True,
+    })
+    # View JSON
+    actions.append({
+        'key': 'json',
+        'type': 'link',
+        'label': 'JSON',
+        'icon': 'fa-solid fa-file-code',
+        'classes': 'btn-ghost-info btn-sm btn-icon',
+        'href': f"/analysis/results/{result_id}.json",
+        'target': '_blank',
+        'visible': True,
+    })
+    # Download SARIF
+    actions.append({
+        'key': 'sarif',
+        'type': 'link',
+        'label': 'SARIF',
+        'icon': 'fa-solid fa-file-shield',
+        'classes': 'btn-ghost-success btn-sm btn-icon',
+        'href': f"/analysis/tasks/{result_id}/export/sarif",
+        'visible': True,
+    })
+    # Download
+    actions.append({
+        'key': 'download',
+        'type': 'link',
+        'label': 'Download',
+        'icon': 'fa-solid fa-download',
+        'classes': 'btn-primary btn-sm',
+        'href': f"/analysis/results/{result_id}/download",
+        'visible': True,
+    })
+    return actions
+
+
+def build_analysis_result_context(
+    result_id: str,
+    descriptor: Dict[str, Any],
+    payload: Dict[str, Any],
+    services: Dict[str, Any],
+    summary: Dict[str, Any],
+    metadata: Dict[str, Any],
+    timing_info: Dict[str, Any],
+    findings: List[Any],
+    findings_limit: Optional[int],
+    prev_task_id: Optional[str],
+    next_task_id: Optional[str],
+) -> Dict[str, Any]:
+    """Build the unified context for the analysis result detail page.
+
+    Follows the same pattern as build_model_detail_context and
+    build_application_detail_context so that the template can use the shared
+    research-detail macros.
+    """
+    model_slug = descriptor.get('model_slug', 'unknown')
+    app_number = descriptor.get('app_number', 0)
+    task_name = descriptor.get('task_name', result_id[:16])
+
+    actions = _build_analysis_result_actions(descriptor, result_id, prev_task_id, next_task_id)
+    metrics = _build_analysis_result_metrics(descriptor, summary, timing_info, services)
+    sections, sections_map = _build_analysis_result_sections(result_id)
+
+    # Resolve timestamp for subtitle
+    timestamp_str = 'N/A'
+    if hasattr(descriptor, 'display_timestamp') and callable(descriptor.display_timestamp):
+        ts = descriptor.display_timestamp()
+        if ts and ts != 'N/A':
+            timestamp_str = ts
+    if timestamp_str == 'N/A':
+        # Fallback to timing_info timestamps
+        for ts_key in ('completed_at', 'created_at', 'started_at'):
+            ts_val = timing_info.get(ts_key)
+            if ts_val:
+                try:
+                    timestamp_str = ts_val.strftime('%Y-%m-%d %H:%M:%S') if hasattr(ts_val, 'strftime') else str(ts_val)
+                except Exception:
+                    timestamp_str = str(ts_val)
+                break
+
+    view = {
+        'pretitle': 'Analysis Result',
+        'icon': 'fa-solid fa-chart-bar',
+        'title': f"{model_slug} · App #{app_number}",
+        'subtitle': (
+            f'{task_name.replace("_", " ").title()} · '
+            f'<code class="user-select-all">{result_id[:20]}…</code> · '
+            f'{timestamp_str}'
+        ),
+        'badges': [],
+        'actions': actions,
+    }
+
+    breadcrumb_items = [
+        {'label': 'Analysis', 'url': '/analysis/list'},
+        {'label': model_slug, 'url': f'/models/{model_slug}'},
+        {'label': f'App #{app_number}', 'url': f'/applications/{model_slug}/{app_number}'},
+        {'label': f'Task {result_id[:12]}…'},
+    ]
+
+    return {
+        'view': view,
+        'breadcrumb_items': breadcrumb_items,
+        'metrics': metrics,
+        'sections': sections,
+        'sections_map': sections_map,
+        # Pass through all original data for section partials
+        'descriptor': descriptor,
+        'payload': payload,
+        'services': services,
+        'summary': summary,
+        'metadata': metadata,
+        'timing_info': timing_info,
+        'findings': findings,
+        'findings_limit': findings_limit,
+        'task_info': {'task_id': result_id, 'status': descriptor.get('status')},
+        'prev_task_id': prev_task_id,
+        'next_task_id': next_task_id,
+        'active_page': 'analysis',
+        'result_id': result_id,
+    }
 
 
 def build_model_detail_context(

@@ -32,20 +32,28 @@
 
         {# Content Container #}
         <div id="modal-content">
-          {# Summary Bar #}
-          <div class="bg-light border-bottom px-3 py-2 mb-3 rounded-2">
-            <div class="row g-3 align-items-center small">
-              <div class="col-auto">
-                <strong class="text-muted">Status:</strong> <span id="meta-status" class="badge bg-secondary-lt">Unknown</span>
-              </div>
-              <div class="col-auto border-start ps-3">
-                <strong class="text-muted">Total Issues:</strong> <span id="meta-total-issues" class="fw-bold">0</span>
-              </div>
-              <div class="col-auto border-start ps-3" id="meta-exec-time-container">
-                <strong class="text-muted">Duration:</strong> <span id="meta-exec-time">—</span>
-              </div>
-              <div class="col-auto border-start ps-3 d-none" id="severity-summary-container">
-                <div id="severity-badges" class="d-flex gap-1"></div>
+          {# Summary Bar - Tabler card-header style #}
+          <div class="card card-sm shadow-sm mb-3">
+            <div class="card-body py-2 px-3">
+              <div class="d-flex flex-wrap align-items-center gap-3 small">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="text-muted fw-bold">Status</span>
+                  <span id="meta-status" class="badge bg-secondary-lt text-secondary">Unknown</span>
+                </div>
+                <div class="vr"></div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="text-muted fw-bold">Issues</span>
+                  <span id="meta-total-issues" class="fw-bold">0</span>
+                </div>
+                <div class="vr" id="meta-exec-time-divider"></div>
+                <div class="d-flex align-items-center gap-2" id="meta-exec-time-container">
+                  <span class="text-muted fw-bold">Duration</span>
+                  <span id="meta-exec-time">—</span>
+                </div>
+                <div class="vr d-none" id="severity-summary-divider"></div>
+                <div class="d-flex align-items-center gap-1 d-none" id="severity-summary-container">
+                  <div id="severity-badges" class="d-flex gap-1"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -77,87 +85,57 @@
 
               {# Issues Table Section #}
               <div id="issues-section">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <h6 class="text-uppercase text-muted small fw-bold mb-0">Findings</h6>
-                  <div class="d-flex gap-2">
-                    <input type="text" class="form-control form-control-sm" id="issue-search" placeholder="Search findings..." style="width: 200px;">
-                    <select class="form-select form-select-sm" id="severity-filter" style="width: 120px;">
-                      <option value="all">All Severities</option>
-                      <option value="critical">Critical</option>
-                      <option value="high">High</option>
-                      <option value="medium">Medium</option>
-                      <option value="low">Low</option>
-                      <option value="info">Info</option>
-                    </select>
+                <div class="card card-table-compact shadow-sm">
+                  <div class="card-header d-flex flex-wrap align-items-center gap-3 py-2">
+                    <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                      <i class="fa-solid fa-magnifying-glass-chart text-muted"></i>
+                      <span class="text-uppercase small fw-bold text-muted mb-0">Findings</span>
+                      <small class="text-muted fw-normal" id="filter-count"></small>
+                    </h3>
+                    <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+                      <input type="text" class="form-control form-control-sm" id="issue-search" placeholder="Search findings..." style="width: 180px;">
+                      <select class="form-select form-select-sm" id="severity-filter" style="width: 130px;">
+                        <option value="all">All Severities</option>
+                        <option value="critical">Critical</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                        <option value="info">Info</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="table-responsive">
+                    <table class="table table-sm table-vcenter table-hover table-striped mb-0 card-table" id="issues-table">
+                      <thead>
+                        <tr>
+                          <th style="width: 6rem;">Severity</th>
+                          <th>Message</th>
+                          <th style="width: 12rem;">Location</th>
+                          <th style="width: 2.5rem;"></th>
+                        </tr>
+                      </thead>
+                      <tbody id="issues-table-body">
+                        {# Populated dynamically #}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {# Pagination #}
+                  <div id="issues-pagination" class="card-footer d-flex align-items-center gap-2 justify-content-between d-none">
+                    <div class="text-muted small" id="pagination-info"></div>
+                    <nav aria-label="Issues pagination">
+                      <ul class="pagination pagination-sm mb-0" id="pagination-controls"></ul>
+                    </nav>
                   </div>
                 </div>
 
-                <div class="table-responsive border rounded-2">
-                  <table class="table table-sm table-vcenter table-hover mb-0" id="issues-table">
-                    <thead class="bg-body-secondary">
-                      <tr>
-                        <th class="w-10">Severity</th>
-                        <th>Message</th>
-                        <th>Location</th>
-                        <th class="w-1">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody id="issues-table-body">
-                      {# Populated dynamically #}
-                    </tbody>
-                  </table>
-                </div>
                 <div id="no-issues-message" class="empty py-5 d-none">
                   <div class="empty-icon">
                     <i class="fa-solid fa-check-circle fa-3x text-success"></i>
                   </div>
                   <p class="empty-title h5">No issues found</p>
                   <p class="empty-subtitle text-muted">This tool completed without detecting any issues.</p>
-                </div>
-              </div>
-
-              {# Detail View (Hidden by default, shown when clicking an issue) #}
-              <div id="detail-view" class="d-none mt-3 border-top pt-3">
-                <button class="btn btn-sm btn-ghost-secondary mb-3" id="back-to-list-btn" type="button">
-                  <i class="fa-solid fa-arrow-left me-1"></i> Back to List
-                </button>
-                
-                <h4 id="detail-title" class="mb-2"></h4>
-                <div class="mb-3">
-                  <span id="detail-severity" class="badge bg-secondary"></span>
-                  <span id="detail-location" class="text-muted ms-2 font-monospace small"></span>
-                </div>
-
-                <div class="card bg-body-secondary mb-3">
-                  <div class="card-body">
-                    <h6 class="card-title text-uppercase text-muted small fw-bold">Description</h6>
-                    <p class="card-text" id="detail-description"></p>
-                  </div>
-                </div>
-
-                <div id="detail-code-section" class="mb-3 d-none">
-                  <h6 class="text-uppercase text-muted small fw-bold">Code / Context</h6>
-                  <pre class="bg-dark text-light p-3 rounded-2"><code id="detail-code"></code></pre>
-                </div>
-
-                <div id="detail-remediation-section" class="mb-3 d-none">
-                  <h6 class="text-uppercase text-muted small fw-bold text-success">Remediation</h6>
-                  <div class="alert alert-success bg-success-lt border-success" id="detail-remediation"></div>
-                </div>
-
-                <div class="accordion accordion-flush" id="evidenceAccordion">
-                  <div class="accordion-item">
-                    <h2 class="accordion-header">
-                      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#evidenceCollapse" aria-expanded="false" aria-controls="evidenceCollapse">
-                        <i class="fa-solid fa-code me-2"></i>Raw Evidence
-                      </button>
-                    </h2>
-                    <div id="evidenceCollapse" class="accordion-collapse collapse" data-bs-parent="#evidenceAccordion">
-                      <div class="accordion-body p-0">
-                        <pre class="small mb-0 overflow-auto" style="max-height: 300px;"><code id="detail-evidence"></code></pre>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -168,21 +146,21 @@
                 <h6 class="text-uppercase text-muted small fw-bold mb-0">
                   <i class="fa-solid fa-file-code me-1"></i> Raw Tool Output
                 </h6>
-                <div class="btn-group">
-                  <button class="btn btn-sm btn-outline-primary" id="copy-raw-btn" type="button" title="Copy to clipboard">
+                <div class="btn-list">
+                  <button class="btn btn-sm btn-ghost-primary" id="copy-raw-btn" type="button" title="Copy to clipboard">
                     <i class="fa-solid fa-copy me-1"></i> Copy
                   </button>
-                  <button class="btn btn-sm btn-outline-secondary" id="download-raw-btn" type="button" title="Download JSON">
+                  <button class="btn btn-sm btn-ghost-secondary" id="download-raw-btn" type="button" title="Download JSON">
                     <i class="fa-solid fa-download me-1"></i> Download
                   </button>
                 </div>
               </div>
-              <div class="border rounded-2 bg-dark p-2" style="max-height: 500px; overflow: auto;">
-                <pre class="text-light mb-0 small" style="white-space: pre-wrap; word-wrap: break-word;"><code id="raw-output-content">Loading...</code></pre>
+              <div class="border rounded-2 bg-dark p-3" style="max-height: 500px; overflow: auto;">
+                <pre class="mb-0 small" style="white-space: pre-wrap; word-wrap: break-word;"><code id="raw-output-content" class="json-highlighted">Loading...</code></pre>
               </div>
               <div class="mt-2 text-muted small">
                 <i class="fa-solid fa-info-circle me-1"></i>
-                This shows the complete raw output from the tool, including all metadata and unparsed results.
+                Complete raw output from the tool, including all metadata and unparsed results.
               </div>
             </div>
           </div>
@@ -190,7 +168,8 @@
         </div>
       </div>
       
-      <div class="modal-footer">
+      <div class="modal-footer d-flex justify-content-between align-items-center">
+        <span class="text-muted small" id="modal-footer-count"></span>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
           <i class="fa-solid fa-times me-1"></i>Close
         </button>
@@ -198,3 +177,48 @@
     </div>
   </div>
 </div>
+
+<style>
+  {# Scoped styles for tool detail modal #}
+  #toolDetailModal .card-table-compact thead th {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    color: var(--tblr-secondary);
+  }
+  #toolDetailModal .issue-row {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+  #toolDetailModal .issue-row:hover {
+    background-color: rgba(var(--tblr-primary-rgb), 0.04);
+  }
+  #toolDetailModal .issue-row.expanded {
+    background-color: rgba(var(--tblr-primary-rgb), 0.06);
+    border-bottom: none;
+  }
+  #toolDetailModal .issue-row .chevron-icon {
+    transition: transform 0.2s ease;
+    font-size: 0.75rem;
+    color: var(--tblr-secondary);
+  }
+  #toolDetailModal .issue-row.expanded .chevron-icon {
+    transform: rotate(180deg);
+  }
+  #toolDetailModal .issue-detail-row td {
+    padding: 0;
+    border-top: none;
+    background: var(--tblr-bg-surface-secondary, var(--tblr-gray-100));
+  }
+  #toolDetailModal .issue-detail-content {
+    padding: 1rem 1.25rem;
+    border-left: 3px solid var(--tblr-primary);
+  }
+  {# JSON syntax highlighting for raw output #}
+  #toolDetailModal .json-highlighted .json-key { color: #7ec8e3; }
+  #toolDetailModal .json-highlighted .json-string { color: #a8d8a8; }
+  #toolDetailModal .json-highlighted .json-number { color: #f0ad4e; }
+  #toolDetailModal .json-highlighted .json-boolean { color: #d9a0f7; }
+  #toolDetailModal .json-highlighted .json-null { color: #999; }
+</style>

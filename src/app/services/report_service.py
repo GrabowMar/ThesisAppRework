@@ -20,7 +20,7 @@ from typing import Dict, Any, List, Optional, Literal
 
 from ..extensions import db
 from ..models import (
-    Report, AnalysisTask, GeneratedApplication, ModelCapability,
+    Report, AnalysisTask, AnalysisResult, GeneratedApplication, ModelCapability,
     PerformanceTest, SecurityAnalysis, OpenRouterAnalysis
 )
 from ..constants import AnalysisStatus, ReportFilterMode
@@ -28,7 +28,7 @@ from ..utils.time import utc_now
 from ..utils.slug_utils import normalize_model_slug, generate_slug_variants
 from .unified_result_service import UnifiedResultService
 from .service_locator import ServiceLocator
-from .reports import count_loc_from_generated_files
+from .reports import count_loc_from_generated_files, collect_finding_analytics
 
 logger = logging.getLogger(__name__)
 
@@ -588,7 +588,24 @@ class ReportService:
         
         # Collect quantitative metrics from database models
         quantitative_metrics = self._get_quantitative_metrics(model_slug, app_numbers)
-        
+
+        # Collect finding analytics from DB (bypasses 50-finding cap)
+        task_ids_for_analytics = [t.task_id for t in tasks]
+        finding_analytics = collect_finding_analytics(task_ids_for_analytics)
+
+        # Build per-app LOC list for scatter chart (LOC vs findings)
+        scatter_data = []
+        for app_entry in apps_data:
+            app_num = app_entry.get('app_number')
+            per_app = loc_metrics.get('per_app', {}).get(app_num, {})
+            app_loc = per_app.get('total_loc', 0)
+            if app_loc > 0:
+                scatter_data.append({
+                    'app_number': app_num,
+                    'loc': app_loc,
+                    'findings': app_entry.get('findings_count', 0),
+                })
+
         return {
             'report_type': 'model_analysis',
             'model_slug': model_slug,
@@ -633,8 +650,12 @@ class ReportService:
             'loc_metrics': loc_metrics,
             # NEW: Quantitative metrics from DB models (docker, generation, performance, ai, security)
             'quantitative_metrics': quantitative_metrics,
+            # NEW: Deep finding analytics from DB (CWE, categories, confidence, file hotspots)
+            'finding_analytics': finding_analytics,
+            # NEW: Scatter chart data (LOC vs findings per app)
+            'scatter_data': scatter_data,
         }
-    
+
     def _get_quantitative_metrics(
         self,
         model_slug: str,
@@ -897,10 +918,21 @@ class ReportService:
         
         # Calculate aggregate AI scores
         ai_comparison = self._calculate_ai_comparison(apps)
-        
+
+        # NEW: Per-model finding analytics for cross-model CWE comparison
+        cross_model_analytics = {}
+        for m in models_data:
+            m_slug = m.get('model_slug')
+            m_task_id = m.get('task_id')
+            if m_slug and m_task_id:
+                cross_model_analytics[m_slug] = collect_finding_analytics([m_task_id])
+
+        # NEW: Radar chart data - normalize 5 axes to 0-100 scale
+        radar_chart_data = self._build_radar_chart_data(models_data, apps)
+
         report.update_progress(85)
         db.session.commit()
-        
+
         return {
             'report_type': 'template_comparison',
             'template_slug': template_slug,
@@ -960,11 +992,97 @@ class ReportService:
             
             # AI analysis comparison
             'ai_comparison': ai_comparison,
-            
+
+            # NEW: Per-model finding analytics for cross-model CWE comparison
+            'cross_model_analytics': cross_model_analytics,
+
+            # NEW: Radar chart data (5 quality axes, 0-100 scale per model)
+            'radar_chart_data': radar_chart_data,
+
             # Sample findings
             'findings': all_findings[:500]
         }
-    
+
+    @staticmethod
+    def _extract_score(source: Any, key: str) -> float:
+        """Extract a numeric score from either flat value or {'mean': x} dict."""
+        val = source.get(key) if isinstance(source, dict) else None
+        if val is None:
+            return 0.0
+        if isinstance(val, dict):
+            return float(val.get('mean', 0) or 0)
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _build_radar_chart_data(
+        self,
+        models_data: List[Dict[str, Any]],
+        apps: List[GeneratedApplication],
+    ) -> Dict[str, Any]:
+        """Build radar chart data normalizing 5 axes to 0-100 per model.
+
+        Handles both flat scores (from _get_per_model_metrics) and nested
+        dicts like ``{'mean': x}`` (from collect_quantitative_metrics).
+        """
+        axes = ['Security Score', 'Code Quality', 'Performance', 'Maintainability', 'Issue Density']
+        datasets = []
+
+        for m in models_data:
+            slug = m.get('model_slug', '')
+            qm = m.get('quantitative_metrics', {})
+            ai = qm.get('ai_analysis', {})
+            has_ai = ai.get('available', False) if isinstance(ai, dict) else False
+
+            # Security score (from AI analysis, 0-10 → 0-100)
+            security = min(100, self._extract_score(ai, 'security_score') * 10) if has_ai else 0
+
+            # Code quality score (from AI analysis, 0-10 → 0-100)
+            quality = min(100, self._extract_score(ai, 'code_quality_score') * 10) if has_ai else 0
+
+            # Performance (invert error rate: lower error = better, cap at 100)
+            perf = qm.get('performance', {})
+            has_perf = perf.get('available', False) if isinstance(perf, dict) else False
+            if has_perf:
+                error_rate = self._extract_score(perf, 'error_rate') if isinstance(perf, dict) else 0
+                # error_rate may be 0-1 (fraction) or 0-100 (percent) depending on source
+                if isinstance(error_rate, (int, float)) and error_rate > 1:
+                    error_rate = error_rate / 100  # normalize to fraction
+                performance = max(0, 100 - error_rate * 100)
+            else:
+                performance = 0  # no data → 0, not 100
+
+            # Maintainability (from AI analysis, 0-10 → 0-100)
+            maintainability = min(100, self._extract_score(ai, 'maintainability_score') * 10) if has_ai else 0
+
+            # Issue density (invert: fewer issues per LOC = better)
+            loc_info = qm.get('loc', {})
+            total_loc = loc_info.get('total_loc', 0) if isinstance(loc_info, dict) and loc_info.get('available') else 0
+            findings_count = m.get('findings_count', 0) or m.get('total_findings', 0)
+            if total_loc > 0:
+                density = findings_count / total_loc * 100  # issues per 100 LOC
+                issue_density_score = max(0, 100 - density * 10)  # 10 issues/100LOC = 0 score
+            else:
+                issue_density_score = 50  # neutral when no LOC data
+
+            datasets.append({
+                'model_slug': slug,
+                'model_name': m.get('model_name', slug),
+                'values': [
+                    round(security, 1),
+                    round(quality, 1),
+                    round(performance, 1),
+                    round(maintainability, 1),
+                    round(issue_density_score, 1),
+                ],
+            })
+
+        return {
+            'axes': axes,
+            'datasets': datasets,
+        }
+
     def _get_per_model_metrics(self, app: GeneratedApplication) -> Dict[str, Any]:
         """Get comprehensive metrics for a single model/app."""
         metrics = {
@@ -1953,14 +2071,64 @@ class ReportService:
                 ]
             },
             
+            # NEW: Severity heatmap data — tools (rows) × severities (cols) → count
+            'severity_heatmap_data': {
+                'tools': [t['tool_name'] for t in tools_list],
+                'severities': ['critical', 'high', 'medium', 'low', 'info'],
+                'matrix': [
+                    [t['findings_by_severity'].get(s, 0) for s in ['critical', 'high', 'medium', 'low', 'info']]
+                    for t in tools_list
+                ],
+            },
+
+            # NEW: Per-tool category/confidence breakdown from DB
+            'tool_finding_analytics': self._build_tool_finding_analytics(tools_list, tasks),
+
             # Sample findings
             'findings': all_findings[:500]
         }
-    
+
+    def _build_tool_finding_analytics(
+        self,
+        tools_list: List[Dict[str, Any]],
+        tasks: List[AnalysisTask],
+    ) -> Dict[str, Any]:
+        """Query AnalysisResult grouped by tool_name for category/confidence breakdown."""
+        task_ids = [t.task_id for t in tasks]
+        if not task_ids:
+            return {}
+
+        try:
+            rows = (
+                db.session.query(
+                    AnalysisResult.tool_name,
+                    AnalysisResult.category,
+                    AnalysisResult.confidence,
+                    db.func.count(AnalysisResult.id),
+                )
+                .filter(AnalysisResult.task_id.in_(task_ids))
+                .group_by(AnalysisResult.tool_name, AnalysisResult.category, AnalysisResult.confidence)
+                .all()
+            )
+        except Exception as e:
+            logger.warning(f"Failed to build tool finding analytics: {e}")
+            return {}
+
+        per_tool: Dict[str, Dict[str, Any]] = {}
+        for tool_name, category, confidence, count in rows:
+            if tool_name not in per_tool:
+                per_tool[tool_name] = {'categories': {}, 'confidence': {}}
+            cat = category or 'uncategorized'
+            per_tool[tool_name]['categories'][cat] = per_tool[tool_name]['categories'].get(cat, 0) + count
+            conf = (confidence or 'unknown').lower()
+            per_tool[tool_name]['confidence'][conf] = per_tool[tool_name]['confidence'].get(conf, 0) + count
+
+        return per_tool
+
     # ==========================================================================
     # GENERATION ANALYTICS
     # ==========================================================================
-    
+
     def _generate_generation_analytics(self, config: Dict[str, Any], report: 'Report') -> Dict[str, Any]:
         """Generate analytics about app generation success/failure patterns.
 
@@ -2111,7 +2279,21 @@ class ReportService:
             key=lambda x: x['count'],
             reverse=True
         )[:20]  # Top 20 error patterns
-        
+
+        # NEW: Model × Template success matrix (for heatmap)
+        model_template_matrix = self._build_model_template_matrix(apps)
+
+        # NEW: Timing distribution per model
+        timing_distribution = {}
+        for app in apps:
+            slug = app.model_slug or 'unknown'
+            if slug not in timing_distribution:
+                timing_distribution[slug] = []
+            # Use generation duration if available
+            duration = getattr(app, 'generation_duration', None)
+            if duration is not None:
+                timing_distribution[slug].append(round(duration, 2))
+
         return {
             'summary': {
                 'total_apps': total_apps,
@@ -2140,9 +2322,52 @@ class ReportService:
             'attempts_distribution': [
                 {'attempts': k, 'count': v}
                 for k, v in sorted(attempts_distribution.items())
-            ]
+            ],
+            # NEW: Model × Template success heatmap
+            'model_template_matrix': model_template_matrix,
+            # NEW: Timing distribution per model
+            'timing_distribution': timing_distribution,
         }
-    
+
+    def _build_model_template_matrix(
+        self, apps: List[GeneratedApplication]
+    ) -> Dict[str, Any]:
+        """Build model × template → success/failed/total matrix."""
+        models_set: set = set()
+        templates_set: set = set()
+        cells: Dict[str, Dict[str, Dict[str, int]]] = {}
+
+        for app in apps:
+            m = app.model_slug or 'unknown'
+            t = app.template_slug or 'unknown'
+            models_set.add(m)
+            templates_set.add(t)
+            key = f"{m}|{t}"
+            if key not in cells:
+                cells[key] = {'success': 0, 'failed': 0, 'total': 0}
+            cells[key]['total'] += 1
+            if app.is_generation_failed:
+                cells[key]['failed'] += 1
+            else:
+                cells[key]['success'] += 1
+
+        models = sorted(models_set)
+        templates = sorted(templates_set)
+
+        # Build matrix: list of lists  [model_idx][template_idx] = {success, failed, total}
+        matrix = []
+        for m in models:
+            row = []
+            for t in templates:
+                row.append(cells.get(f"{m}|{t}", {'success': 0, 'failed': 0, 'total': 0}))
+            matrix.append(row)
+
+        return {
+            'models': models,
+            'templates': templates,
+            'matrix': matrix,
+        }
+
     def _extract_error_pattern(self, error_message: str) -> str:
         """Extract a normalized error pattern for grouping similar errors."""
         if not error_message:

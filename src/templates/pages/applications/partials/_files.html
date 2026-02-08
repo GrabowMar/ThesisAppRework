@@ -1,9 +1,75 @@
 {# Application files explorer - Compact Layout #}
 {% if files %}
 <div class="row g-2">
+  {# Key Artifacts (merged from artifacts section) #}
+  {% if artifacts.project_index or artifacts.readme or artifacts.compose_path %}
+  <div class="col-12">
+    <div class="card card-sm shadow-sm">
+      <div class="card-header py-2">
+        <div class="d-flex align-items-center">
+          <i class="fa-solid fa-archive text-primary me-2"></i>
+          <span class="fw-bold">Key Artifacts</span>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="list-group list-group-flush">
+          {% if artifacts.project_index and artifacts.project_index.exists() %}
+          <div class="list-group-item py-2 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <i class="fa-solid fa-list-ul text-primary me-2"></i>
+              <div>
+                <span class="fw-medium small">PROJECT_INDEX.md</span>
+                <div class="text-muted" style="font-size: 0.7rem;">Structure overview</div>
+              </div>
+            </div>
+            <button class="btn btn-sm btn-ghost-primary py-0"
+                    hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/file?path=PROJECT_INDEX.md"
+                    hx-target="#artifact-preview-modal .modal-body" data-bs-toggle="modal" data-bs-target="#artifact-preview-modal">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+          {% endif %}
+          {% if artifacts.readme and artifacts.readme.exists() %}
+          <div class="list-group-item py-2 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <i class="fa-solid fa-book text-info me-2"></i>
+              <div>
+                <span class="fw-medium small">README.md</span>
+                <div class="text-muted" style="font-size: 0.7rem;">Documentation</div>
+              </div>
+            </div>
+            <button class="btn btn-sm btn-ghost-primary py-0"
+                    hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/file?path=README.md"
+                    hx-target="#artifact-preview-modal .modal-body" data-bs-toggle="modal" data-bs-target="#artifact-preview-modal">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+          {% endif %}
+          {% if artifacts.compose_path and artifacts.compose_path.exists() %}
+          <div class="list-group-item py-2 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <i class="fa-solid fa-cube text-success me-2"></i>
+              <div>
+                <span class="fw-medium small">docker-compose.yml</span>
+                <div class="text-muted" style="font-size: 0.7rem;">Container config</div>
+              </div>
+            </div>
+            <button class="btn btn-sm btn-ghost-primary py-0"
+                    hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/file?path=docker-compose.yml"
+                    hx-target="#artifact-preview-modal .modal-body" data-bs-toggle="modal" data-bs-target="#artifact-preview-modal">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {# Stats Row - Inline #}
   <div class="col-12">
-    <div class="card card-sm">
+    <div class="card card-sm shadow-sm">
       <div class="card-body py-2">
         <div class="d-flex align-items-center flex-wrap gap-3">
           <span class="text-muted small"><i class="fa-solid fa-folder-open text-primary me-1"></i>File Stats:</span>
@@ -18,7 +84,7 @@
 
   {# File Browser - Compact #}
   <div class="col-12">
-    <div class="card card-sm">
+    <div class="card card-sm shadow-sm">
       <div class="card-header py-2 d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center">
           <i class="fa-solid fa-folder-tree text-primary me-2"></i>
@@ -59,7 +125,7 @@
   {# File Types - Compact Table (3 per row) #}
   {% if file_stats.by_extension %}
   <div class="col-12">
-    <div class="card card-sm">
+    <div class="card card-sm shadow-sm">
       <div class="card-header py-1">
         <div class="d-flex align-items-center">
           <i class="fa-solid fa-layer-group text-info me-1" style="font-size: 0.75rem;"></i>
@@ -90,11 +156,11 @@
 </div>
 
 <style>
-.file-preview-container { height: 350px; overflow: auto; background: #1e1e2e; }
+.file-preview-container { height: 350px; overflow: auto; background: var(--tblr-bg-surface, #1e1e2e); }
 .file-preview-container .file-preview { background: transparent; }
-.file-preview-container .file-preview pre { margin: 0; padding: 0.5rem; background: transparent; color: #cdd6f4; }
-.file-preview-container .file-preview-header { padding: 0.25rem 0.5rem; background: #2d2d3a; border-bottom: 1px solid #3d3d4a; }
-.file-preview-container .file-preview-header span { color: #a0a0b0 !important; }
+.file-preview-container .file-preview pre { margin: 0; padding: 0.5rem; background: transparent; color: var(--tblr-body-color, #cdd6f4); }
+.file-preview-container .file-preview-header { padding: 0.25rem 0.5rem; background: var(--tblr-bg-surface-secondary, #2d2d3a); border-bottom: 1px solid var(--tblr-border-color, #3d3d4a); }
+.file-preview-container .file-preview-header span { color: var(--tblr-secondary-color, #a0a0b0) !important; }
 </style>
 
 <script>
@@ -114,14 +180,32 @@
   });
 })();
 </script>
+
+{# Artifact preview modal #}
+<div class="modal fade" id="artifact-preview-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2"><h6 class="modal-title">File Preview</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body p-0"><div class="text-center p-4"><div class="spinner-border"></div></div></div>
+    </div>
+  </div>
+</div>
+
 {% else %}
-<div class="card card-sm">
-  <div class="card-body py-4 text-center">
-    <i class="fa-solid fa-folder-open text-muted fa-2x mb-2"></i>
-    <p class="mb-2 text-muted">No files discovered</p>
-    <button class="btn btn-primary btn-sm" hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/scan-files" hx-target="#section-files" hx-swap="innerHTML">
-      <i class="fa-solid fa-search me-1"></i>Scan
-    </button>
+<div class="card card-sm shadow-sm">
+  <div class="card-body p-0">
+    <div class="research-empty-state">
+      <div class="research-empty-icon">
+        <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
+      </div>
+      <div class="research-empty-title">No files discovered</div>
+      <div class="research-empty-message">Scan the application directory to discover source files.</div>
+      <div class="research-empty-action">
+        <button class="btn btn-primary btn-sm" hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/scan-files" hx-target="#section-files" hx-swap="innerHTML">
+          <i class="fa-solid fa-search me-1"></i>Scan Files
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 {% endif %}

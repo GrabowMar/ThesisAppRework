@@ -1,11 +1,17 @@
 {# Application Detail - Research Dashboard Design #}
 {% extends 'layouts/base_smart.html' %}
 {% from 'shared/macros/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_section, research_scroll_spy_script %}
+{% from 'shared/macros/nav_macros.html' import breadcrumb %}
 {% set active_page = 'applications' %}
 {% set page_title = view.title if view else 'Application Detail' %}
 
 {% block content %}
 <div class="research-detail-shell">
+  {# Breadcrumb navigation #}
+  {% if breadcrumb_items %}
+  {{ breadcrumb(breadcrumb_items, 'mb-2') }}
+  {% endif %}
+
   {# Warning banner for container build failures #}
   {% set container_status_lower = (app_data.container_status|default(''))|lower %}
   {% set is_container_unhealthy = app_data.is_container_unhealthy|default(false) %}
@@ -125,7 +131,7 @@ function copyAdjacentPre(btn) {
 function startApplication() {
   showToast('Starting application...', 'info');
   htmx.ajax('POST', '/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/start', {
-    target: '#tab-container',
+    target: '#section-container',
     swap: 'innerHTML'
   }).then(() => {
     showToast('Application started successfully', 'success');
@@ -137,7 +143,7 @@ function startApplication() {
 function stopApplication() {
   showToast('Stopping application...', 'info');
   htmx.ajax('POST', '/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/stop', {
-    target: '#tab-container',
+    target: '#section-container',
     swap: 'innerHTML'
   }).then(() => {
     showToast('Application stopped successfully', 'success');
@@ -149,7 +155,7 @@ function stopApplication() {
 function restartApplication() {
   showToast('Restarting application...', 'info');
   htmx.ajax('POST', '/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/restart', {
-    target: '#tab-container',
+    target: '#section-container',
     swap: 'innerHTML'
   }).then(() => {
     showToast('Application restarted successfully', 'success');
@@ -161,7 +167,7 @@ function restartApplication() {
 function buildApplication() {
   showToast('Building application...', 'info');
   htmx.ajax('POST', '/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/build', {
-    target: '#tab-container',
+    target: '#section-container',
     swap: 'innerHTML'
   }).then(() => {
     showToast('Build completed successfully', 'success');
@@ -173,7 +179,7 @@ function buildApplication() {
 function analyzeApplication(type) {
   showToast(`Starting ${type} analysis...`, 'info');
   htmx.ajax('POST', `/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/analyze/${type}`, {
-    target: '#tab-analyses',
+    target: '#section-analyses',
     swap: 'innerHTML'
   }).then(() => {
     showToast('Analysis started', 'success');
@@ -181,6 +187,21 @@ function analyzeApplication(type) {
     showToast('Failed to start analysis', 'danger');
   });
 }
+
+// Handle section loading states
+document.addEventListener('htmx:beforeRequest', evt => {
+  const section = evt.detail.elt;
+  if (section && section.matches('[data-research-section]')) {
+    section.classList.add('is-loading');
+  }
+});
+
+document.addEventListener('htmx:afterSwap', evt => {
+  const section = evt.detail.elt;
+  if (section && section.matches('[data-research-section]')) {
+    section.classList.remove('is-loading');
+  }
+});
 
 // Listen for HTMX events
 document.body.addEventListener('htmx:afterRequest', function(evt) {
@@ -191,8 +212,35 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
   }
 });
 
-document.body.addEventListener('htmx:responseError', function(evt) {
-  showToast('A server error occurred. Please try again.', 'danger');
+document.addEventListener('htmx:responseError', evt => {
+  const section = evt.detail.elt;
+  if (!section || !section.matches('[data-research-section]')) {
+    showToast('A server error occurred. Please try again.', 'danger');
+    return;
+  }
+  const sectionId = section.getAttribute('data-research-section');
+  const sectionTitle = section.querySelector('.research-section-title span')?.textContent || 'Section';
+  section.innerHTML = `
+    <div class="research-section-header">
+      <h2 class="research-section-title">
+        <i class="fa-solid fa-exclamation-triangle text-warning" aria-hidden="true"></i>
+        <span>Failed to load ${sectionTitle}</span>
+      </h2>
+    </div>
+    <div class="research-empty-state">
+      <div class="research-empty-icon">
+        <i class="fa-solid fa-exclamation-triangle" aria-hidden="true"></i>
+      </div>
+      <div class="research-empty-title">Content could not be loaded</div>
+      <div class="research-empty-message">There was an error loading this section. Please try again.</div>
+      <div class="research-empty-action">
+        <button class="btn btn-primary" onclick="htmx.ajax('GET', '${section.getAttribute('hx-get')}', { target: '[data-research-section=\\'${sectionId}\\']', swap: 'innerHTML' })">
+          <i class="fa-solid fa-refresh me-1"></i>Retry
+        </button>
+      </div>
+    </div>
+  `;
+  section.classList.remove('is-loading');
 });
 </script>
 {% endblock %}

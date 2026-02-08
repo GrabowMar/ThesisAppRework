@@ -15,6 +15,9 @@ class ToolDetailController {
         this.currentToolName = null;
         this.currentFilter = 'all';
         this.currentSearch = '';
+        this.currentPage = 1;
+        this.pageSize = 25;
+        this.expandedIssueId = null;
         
         if (this.modalElement) {
             this.bsModal = bootstrap.Modal.getInstance(this.modalElement) || new bootstrap.Modal(this.modalElement);
@@ -36,30 +39,36 @@ class ToolDetailController {
             }
         });
 
-        // Listener for "View Issue" buttons inside the modal table
+        // Listener for issue row clicks (accordion expand/collapse)
         this.modalElement.addEventListener('click', (e) => {
-            const btn = e.target.closest('.view-issue-btn');
-            if (btn) {
+            const row = e.target.closest('.issue-row');
+            if (row) {
                 e.preventDefault();
-                const issueId = btn.dataset.issueId;
-                this.showIssueDetail(issueId);
+                const issueId = row.dataset.issueId;
+                this.toggleIssueDetail(issueId, row);
             }
         });
 
-        // Back button
-        const backBtn = document.getElementById('back-to-list-btn');
-        if (backBtn) {
-            backBtn.addEventListener('click', () => {
-                document.getElementById('detail-view').classList.add('d-none');
-                document.getElementById('issues-section').classList.remove('d-none');
-            });
-        }
+        // Pagination clicks
+        this.modalElement.addEventListener('click', (e) => {
+            const pageBtn = e.target.closest('.page-link[data-page]');
+            if (pageBtn) {
+                e.preventDefault();
+                const page = parseInt(pageBtn.dataset.page, 10);
+                if (page && page !== this.currentPage) {
+                    this.currentPage = page;
+                    this.renderIssuesTable(this.currentToolData.issues);
+                }
+            }
+        });
 
         // Filter listeners
         const severityFilter = document.getElementById('severity-filter');
         if (severityFilter) {
             severityFilter.addEventListener('change', (e) => {
                 this.currentFilter = e.target.value;
+                this.currentPage = 1;
+                this.expandedIssueId = null;
                 this.renderIssuesTable(this.currentToolData.issues);
             });
         }
@@ -68,6 +77,8 @@ class ToolDetailController {
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
                 this.currentSearch = e.target.value.toLowerCase();
+                this.currentPage = 1;
+                this.expandedIssueId = null;
                 this.renderIssuesTable(this.currentToolData.issues);
             });
         }
@@ -109,8 +120,6 @@ class ToolDetailController {
         }
 
         // Check if we need to fetch detailed data from API
-        // Condition: No issues parsed locally, but total_issues > 0
-        // This handles cases where issues are in SARIF format or need backend hydration
         if (this.currentToolData.issues.length === 0 && 
             this.currentToolData.summary.total_issues > 0) {
             
@@ -119,8 +128,6 @@ class ToolDetailController {
                 this.bsModal.show();
 
                 const resultId = window.ANALYSIS_DATA.task_id;
-                // Fetch detailed tool data which should include hydrated issues or SARIF content
-                // Include credentials to ensure session cookies are sent
                 const response = await fetch(`/api/analysis/results/${resultId}/tools/${toolName}?service=${serviceType}`, {
                     credentials: 'same-origin'
                 });
@@ -135,14 +142,11 @@ class ToolDetailController {
                     const result = await response.json();
                     const detailedData = result.data || result;
 
-                    // Merge fetched data into currentToolData.raw
                     if (detailedData) {
                         this.currentToolData.raw = { ...this.currentToolData.raw, ...detailedData };
                     }
 
                     if (detailedData.issues && detailedData.issues.length > 0) {
-                        // If backend hydrated the issues, use them
-                        // Normalize them to match the format expected by renderIssuesTable
                         this.currentToolData.issues = detailedData.issues.map((issue, idx) => ({
                             id: `fetched-${toolName}-${idx}`,
                             tool: toolName,
@@ -152,15 +156,12 @@ class ToolDetailController {
                             line: issue.line || issue.line_number || issue.location?.line || 0,
                             raw: issue
                         }));
-                        // Update the summary with actual count
                         this.currentToolData.summary.total_issues = this.currentToolData.issues.length;
                     } else if (detailedData.sarif_content) {
-                        // If backend returned SARIF content
                         const sarifIssues = window.AnalysisParserFactory.SarifParser.parse(detailedData.sarif_content);
                         this.currentToolData.issues = sarifIssues;
                         this.currentToolData.summary.total_issues = sarifIssues.length;
                     } else if (detailedData.sarif) {
-                        // If we got inline SARIF data, parse it directly
                         const sarifIssues = window.AnalysisParserFactory.SarifParser.parse(detailedData.sarif);
                         this.currentToolData.issues = sarifIssues;
                         this.currentToolData.summary.total_issues = sarifIssues.length;
@@ -181,6 +182,7 @@ class ToolDetailController {
         document.getElementById('issues-table-body').innerHTML = '<tr><td colspan="4" class="text-center p-4"><div class="spinner-border text-primary" role="status"></div></td></tr>';
         document.getElementById('metrics-section').classList.add('d-none');
         document.getElementById('severity-summary-container').classList.add('d-none');
+        document.getElementById('severity-summary-divider').classList.add('d-none');
         document.getElementById('raw-output-content').textContent = 'Loading...';
     }
 
@@ -194,8 +196,10 @@ class ToolDetailController {
         document.getElementById('modal-tool-subtitle').textContent = `${summary.status} • ${summary.total_issues} issues`;
 
         // 2. Metadata
-        document.getElementById('meta-status').textContent = summary.status;
-        document.getElementById('meta-status').className = `badge bg-${summary.status === 'success' || summary.status === 'completed' ? 'success' : 'secondary'}-lt`;
+        const statusEl = document.getElementById('meta-status');
+        statusEl.textContent = summary.status;
+        const isSuccess = summary.status === 'success' || summary.status === 'completed';
+        statusEl.className = `badge ${isSuccess ? 'bg-success-lt text-success' : 'bg-secondary-lt text-secondary'}`;
         document.getElementById('meta-total-issues').textContent = summary.total_issues;
         document.getElementById('meta-exec-time').textContent = summary.execution_time ? `${(summary.execution_time).toFixed(2)}s` : '—';
 
@@ -204,14 +208,15 @@ class ToolDetailController {
         this.renderSeveritySummary(data.issues);
 
         // 4. Issues Table
+        this.currentPage = 1;
+        this.expandedIssueId = null;
         this.renderIssuesTable(data.issues);
 
         // 5. Raw Output Tab
         this.renderRawOutput(data.raw);
 
-        // 6. Reset Views
-        document.getElementById('detail-view').classList.add('d-none');
-        document.getElementById('issues-section').classList.remove('d-none');
+        // 6. Footer count
+        this.updateFooterCount(data.summary.total_issues);
         
         // Switch to issues tab
         const issuesTab = document.getElementById('issues-tab');
@@ -233,7 +238,7 @@ class ToolDetailController {
         section.classList.remove('d-none');
         container.innerHTML = metrics.map(m => `
             <div class="col-md-3 col-6">
-                <div class="border rounded p-2 text-center bg-white">
+                <div class="border rounded-2 p-2 text-center bg-body">
                     <div class="small text-muted text-uppercase fw-bold" style="font-size: 0.7rem;">${m.name}</div>
                     <div class="fs-4 fw-bold text-primary">${m.value}</div>
                 </div>
@@ -244,13 +249,16 @@ class ToolDetailController {
     renderSeveritySummary(issues) {
         const container = document.getElementById('severity-badges');
         const wrapper = document.getElementById('severity-summary-container');
+        const divider = document.getElementById('severity-summary-divider');
 
         if (!issues || issues.length === 0) {
             wrapper.classList.add('d-none');
+            divider.classList.add('d-none');
             return;
         }
 
         wrapper.classList.remove('d-none');
+        divider.classList.remove('d-none');
         
         const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
         issues.forEach(i => {
@@ -261,17 +269,16 @@ class ToolDetailController {
 
         container.innerHTML = Object.entries(counts)
             .filter(([_, count]) => count > 0)
-            .map(([sev, count]) => `
-                <span class="badge bg-${this.getSeverityColor(sev)} me-1">
-                    ${sev.toUpperCase()}: ${count}
-                </span>
-            `).join('');
+            .map(([sev, count]) => {
+                const cls = this.getSeverityBadgeClass(sev);
+                return `<span class="badge ${cls}">${sev.toUpperCase()}: ${count}</span>`;
+            }).join('');
     }
 
     renderIssuesTable(issues) {
         const tbody = document.getElementById('issues-table-body');
         const noIssuesMsg = document.getElementById('no-issues-message');
-        const table = document.getElementById('issues-table');
+        const tableCard = document.getElementById('issues-table').closest('.card');
         
         // Filter issues
         let filtered = issues;
@@ -285,28 +292,201 @@ class ToolDetailController {
             );
         }
 
+        // Update filter count
+        const filterCountEl = document.getElementById('filter-count');
+        if (filtered.length !== issues.length) {
+            filterCountEl.textContent = `Showing ${filtered.length} of ${issues.length}`;
+        } else {
+            filterCountEl.textContent = filtered.length > 0 ? `${filtered.length} total` : '';
+        }
+
         if (filtered.length === 0) {
-            table.classList.add('d-none');
+            tableCard.classList.add('d-none');
             noIssuesMsg.classList.remove('d-none');
-            noIssuesMsg.querySelector('p').textContent = issues.length > 0 ? 'No matching issues found.' : 'No issues found.';
+            noIssuesMsg.querySelector('.empty-title').textContent = issues.length > 0 ? 'No matching issues found.' : 'No issues found.';
+            document.getElementById('issues-pagination').classList.add('d-none');
             return;
         }
 
-        table.classList.remove('d-none');
+        tableCard.classList.remove('d-none');
         noIssuesMsg.classList.add('d-none');
 
-        tbody.innerHTML = filtered.map(issue => `
-            <tr>
-                <td><span class="badge bg-${this.getSeverityColor(issue.severity)}">${issue.severity}</span></td>
-                <td><div class="text-truncate" style="max-width: 400px;" title="${this.escapeHtml(issue.message)}">${this.escapeHtml(issue.message)}</div></td>
-                <td><small class="text-muted text-truncate d-block" style="max-width: 200px;" title="${this.escapeHtml(issue.file || issue.url)}">${this.escapeHtml(issue.file || issue.url || '-')}:${issue.line || ''}</small></td>
-                <td class="text-end">
-                    <button class="btn btn-sm btn-outline-primary view-issue-btn" data-issue-id="${issue.id}">
-                        View
-                    </button>
-                </td>
-            </tr>
-        `).join('');
+        // Pagination
+        const totalPages = Math.ceil(filtered.length / this.pageSize);
+        if (this.currentPage > totalPages) this.currentPage = totalPages;
+        const startIdx = (this.currentPage - 1) * this.pageSize;
+        const endIdx = Math.min(startIdx + this.pageSize, filtered.length);
+        const pageItems = filtered.slice(startIdx, endIdx);
+
+        // Render rows
+        let html = '';
+        for (const issue of pageItems) {
+            const isExpanded = this.expandedIssueId === issue.id;
+            const badgeCls = this.getSeverityBadgeClass(issue.severity);
+            html += `
+            <tr class="issue-row${isExpanded ? ' expanded' : ''}" data-issue-id="${issue.id}">
+                <td><span class="badge ${badgeCls}">${this.escapeHtml(issue.severity)}</span></td>
+                <td><div class="text-truncate" style="max-width: 450px;" title="${this.escapeHtml(issue.message)}">${this.escapeHtml(issue.message)}</div></td>
+                <td><small class="text-muted font-monospace">${this.escapeHtml(this.formatLocation(issue))}</small></td>
+                <td class="text-center"><i class="fa-solid fa-chevron-down chevron-icon"></i></td>
+            </tr>`;
+            if (isExpanded) {
+                html += this.buildDetailRow(issue);
+            }
+        }
+        tbody.innerHTML = html;
+
+        // Pagination controls
+        this.renderPagination(filtered.length, totalPages);
+
+        // Update footer
+        this.updateFooterCount(issues.length, filtered.length);
+    }
+
+    renderPagination(totalFiltered, totalPages) {
+        const paginationContainer = document.getElementById('issues-pagination');
+        const paginationInfo = document.getElementById('pagination-info');
+        const paginationControls = document.getElementById('pagination-controls');
+
+        if (totalPages <= 1) {
+            paginationContainer.classList.add('d-none');
+            return;
+        }
+
+        paginationContainer.classList.remove('d-none');
+        const startIdx = (this.currentPage - 1) * this.pageSize + 1;
+        const endIdx = Math.min(this.currentPage * this.pageSize, totalFiltered);
+        paginationInfo.textContent = `Showing ${startIdx}–${endIdx} of ${totalFiltered} findings`;
+
+        let controlsHtml = '';
+        // Previous button
+        if (this.currentPage > 1) {
+            controlsHtml += `<li class="page-item"><button class="page-link" data-page="${this.currentPage - 1}" type="button">Previous</button></li>`;
+        }
+        // Page numbers with ellipsis
+        for (let p = 1; p <= totalPages; p++) {
+            if (p === this.currentPage) {
+                controlsHtml += `<li class="page-item active"><span class="page-link">${p}</span></li>`;
+            } else if (p === 1 || p === totalPages || (p >= this.currentPage - 2 && p <= this.currentPage + 2)) {
+                controlsHtml += `<li class="page-item"><button class="page-link" data-page="${p}" type="button">${p}</button></li>`;
+            } else if (p === this.currentPage - 3 || p === this.currentPage + 3) {
+                controlsHtml += `<li class="page-item disabled"><span class="page-link">…</span></li>`;
+            }
+        }
+        // Next button
+        if (this.currentPage < totalPages) {
+            controlsHtml += `<li class="page-item"><button class="page-link" data-page="${this.currentPage + 1}" type="button">Next</button></li>`;
+        }
+        paginationControls.innerHTML = controlsHtml;
+    }
+
+    toggleIssueDetail(issueId, rowElement) {
+        if (this.expandedIssueId === issueId) {
+            // Collapse
+            this.expandedIssueId = null;
+            rowElement.classList.remove('expanded');
+            const detailRow = rowElement.nextElementSibling;
+            if (detailRow && detailRow.classList.contains('issue-detail-row')) {
+                detailRow.remove();
+            }
+        } else {
+            // Collapse previous
+            const prevExpanded = this.modalElement.querySelector('.issue-row.expanded');
+            if (prevExpanded) {
+                prevExpanded.classList.remove('expanded');
+                const prevDetail = prevExpanded.nextElementSibling;
+                if (prevDetail && prevDetail.classList.contains('issue-detail-row')) {
+                    prevDetail.remove();
+                }
+            }
+            // Expand new
+            this.expandedIssueId = issueId;
+            rowElement.classList.add('expanded');
+
+            const issue = this.currentToolData.issues.find(i => i.id === issueId);
+            if (!issue) return;
+
+            const detailHtml = this.buildDetailRow(issue);
+            rowElement.insertAdjacentHTML('afterend', detailHtml);
+        }
+    }
+
+    buildDetailRow(issue) {
+        let detail = null;
+
+        // Try to get detail from parser first, then build from raw
+        if (this.currentParser && typeof this.currentParser.getDetail === 'function') {
+            detail = this.currentParser.getDetail(issue.id);
+        }
+        if (!detail) {
+            detail = {
+                title: issue.message,
+                severity: issue.severity,
+                description: issue.raw?.description || issue.raw?.issue_text || issue.message,
+                location: this.formatLocation(issue),
+                code: issue.raw?.code || issue.raw?.context || null,
+                remediation: issue.raw?.remediation || issue.raw?.solution || issue.raw?.fix || null,
+                evidence: issue.raw || issue
+            };
+        }
+
+        const badgeCls = this.getSeverityBadgeClass(detail.severity);
+
+        let contentHtml = `
+        <div class="issue-detail-content">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="badge ${badgeCls}">${this.escapeHtml(detail.severity)}</span>
+                <span class="text-muted font-monospace small">${this.escapeHtml(detail.location || '')}</span>
+            </div>
+            <div class="mb-2">
+                <div class="fw-bold small text-uppercase text-muted mb-1">Description</div>
+                <p class="mb-0 small">${this.escapeHtml(detail.description)}</p>
+            </div>`;
+
+        if (detail.code) {
+            const codeText = typeof detail.code === 'string' ? detail.code : JSON.stringify(detail.code, null, 2);
+            contentHtml += `
+            <div class="mb-2">
+                <div class="fw-bold small text-uppercase text-muted mb-1">Code / Context</div>
+                <pre class="bg-dark text-light p-2 rounded-2 small mb-0"><code>${this.escapeHtml(codeText)}</code></pre>
+            </div>`;
+        }
+
+        if (detail.remediation) {
+            contentHtml += `
+            <div class="mb-2">
+                <div class="fw-bold small text-uppercase text-muted text-success mb-1">Remediation</div>
+                <div class="alert alert-success bg-success-lt border-success py-1 px-2 mb-0 small">${this.escapeHtml(detail.remediation)}</div>
+            </div>`;
+        }
+
+        // Raw evidence as collapsible
+        const evidenceId = `evidence-${issue.id.replace(/[^a-zA-Z0-9-]/g, '_')}`;
+        contentHtml += `
+            <div>
+                <button class="btn btn-sm btn-ghost-secondary px-0" type="button" data-bs-toggle="collapse" data-bs-target="#${evidenceId}">
+                    <i class="fa-solid fa-code me-1"></i>Raw Evidence
+                </button>
+                <div class="collapse mt-1" id="${evidenceId}">
+                    <pre class="small mb-0 overflow-auto bg-dark text-light p-2 rounded-2" style="max-height: 200px;"><code>${this.escapeHtml(JSON.stringify(detail.evidence, null, 2))}</code></pre>
+                </div>
+            </div>
+        </div>`;
+
+        return `<tr class="issue-detail-row"><td colspan="4">${contentHtml}</td></tr>`;
+    }
+
+    formatLocation(issue) {
+        const file = issue.file || issue.url || '';
+        const line = issue.line || '';
+        if (!file && !line) return '—';
+        // Shorten long file paths to last 2 segments
+        let shortFile = file;
+        const parts = file.replace(/^file:\/\//, '').split('/');
+        if (parts.length > 2) {
+            shortFile = '…/' + parts.slice(-2).join('/');
+        }
+        return line ? `${shortFile}:${line}` : shortFile;
     }
 
     renderRawOutput(rawData) {
@@ -314,16 +494,44 @@ class ToolDetailController {
         if (!container) return;
 
         if (!rawData || Object.keys(rawData).length === 0) {
-            container.textContent = '// No raw data available for this tool';
+            container.innerHTML = '<span class="text-muted">// No raw data available for this tool</span>';
             return;
         }
 
         try {
-            // Pretty print the JSON with syntax highlighting
             const jsonString = JSON.stringify(rawData, null, 2);
-            container.textContent = jsonString;
+            container.innerHTML = this.highlightJson(jsonString);
         } catch (e) {
             container.textContent = `// Error formatting raw data: ${e.message}`;
+        }
+    }
+
+    highlightJson(jsonStr) {
+        return jsonStr.replace(
+            /("(?:\\.|[^"\\])*")\s*:/g,
+            '<span class="json-key">$1</span>:'
+        ).replace(
+            /:\s*("(?:\\.|[^"\\])*")/g,
+            ': <span class="json-string">$1</span>'
+        ).replace(
+            /:\s*(\d+(?:\.\d+)?)/g,
+            ': <span class="json-number">$1</span>'
+        ).replace(
+            /:\s*(true|false)/g,
+            ': <span class="json-boolean">$1</span>'
+        ).replace(
+            /:\s*(null)/g,
+            ': <span class="json-null">$1</span>'
+        );
+    }
+
+    updateFooterCount(total, filtered) {
+        const el = document.getElementById('modal-footer-count');
+        if (!el) return;
+        if (filtered !== undefined && filtered !== total) {
+            el.textContent = `${filtered} of ${total} findings shown`;
+        } else {
+            el.textContent = `${total} total findings`;
         }
     }
 
@@ -332,17 +540,16 @@ class ToolDetailController {
         if (!rawContent) return;
 
         navigator.clipboard.writeText(rawContent.textContent).then(() => {
-            // Show brief feedback
             const btn = document.getElementById('copy-raw-btn');
             const originalHtml = btn.innerHTML;
             btn.innerHTML = '<i class="fa-solid fa-check me-1"></i> Copied!';
             btn.classList.add('btn-success');
-            btn.classList.remove('btn-outline-primary');
+            btn.classList.remove('btn-ghost-primary');
             
             setTimeout(() => {
                 btn.innerHTML = originalHtml;
                 btn.classList.remove('btn-success');
-                btn.classList.add('btn-outline-primary');
+                btn.classList.add('btn-ghost-primary');
             }, 2000);
         }).catch(err => {
             console.error('Failed to copy:', err);
@@ -365,97 +572,39 @@ class ToolDetailController {
         URL.revokeObjectURL(url);
     }
 
-    showIssueDetail(issueId) {
-        // Try to find it in currentToolData first (for fetched issues)
-        const issue = this.currentToolData.issues.find(i => i.id === issueId);
-        
-        let detail = null;
-        if (issue) {
-            // Construct detail from the normalized issue we created
-            detail = {
-                title: issue.message,
-                subtitle: `${issue.tool} (Fetched)`,
-                severity: issue.severity,
-                description: issue.raw.description || issue.raw.issue_text || issue.message,
-                location: `${issue.file}:${issue.line}`,
-                code: issue.raw.code || issue.raw.context || null,
-                remediation: issue.raw.remediation || issue.raw.solution || issue.raw.fix || null,
-                evidence: issue.raw
-            };
-        } else {
-            // Fallback to parser (for pre-loaded issues)
-            detail = this.currentParser.getDetail(issueId);
-        }
-
-        if (!detail) return;
-
-        // Populate Detail View
-        document.getElementById('detail-title').textContent = detail.title;
-        document.getElementById('detail-severity').textContent = detail.severity;
-        document.getElementById('detail-severity').className = `badge bg-${this.getSeverityColor(detail.severity)}`;
-        document.getElementById('detail-location').textContent = detail.location;
-        document.getElementById('detail-description').textContent = detail.description;
-
-        // Code Block
-        const codeBlock = document.getElementById('detail-code');
-        const codeSection = document.getElementById('detail-code-section');
-        if (detail.code) {
-            codeBlock.textContent = typeof detail.code === 'string' ? detail.code : JSON.stringify(detail.code, null, 2);
-            codeSection.classList.remove('d-none');
-        } else {
-            codeSection.classList.add('d-none');
-        }
-
-        // Remediation
-        const remediationDiv = document.getElementById('detail-remediation');
-        const remediationSection = document.getElementById('detail-remediation-section');
-        if (detail.remediation) {
-            remediationDiv.textContent = detail.remediation;
-            remediationSection.classList.remove('d-none');
-        } else {
-            remediationSection.classList.add('d-none');
-        }
-
-        // Evidence / Raw Data
-        const evidenceBlock = document.getElementById('detail-evidence');
-        evidenceBlock.textContent = JSON.stringify(detail.evidence, null, 2);
-
-        // Switch Views
-        document.getElementById('issues-section').classList.add('d-none');
-        document.getElementById('detail-view').classList.remove('d-none');
-    }
-
     resetModal() {
         this.currentParser = null;
         this.currentToolData = null;
         this.currentToolName = null;
         this.currentFilter = 'all';
         this.currentSearch = '';
+        this.currentPage = 1;
+        this.expandedIssueId = null;
         
         document.getElementById('issues-table-body').innerHTML = '';
         document.getElementById('issue-search').value = '';
         document.getElementById('severity-filter').value = 'all';
         document.getElementById('raw-output-content').textContent = '';
-        
-        document.getElementById('detail-view').classList.add('d-none');
-        document.getElementById('issues-section').classList.remove('d-none');
+        document.getElementById('modal-footer-count').textContent = '';
+        document.getElementById('filter-count').textContent = '';
+        document.getElementById('issues-pagination').classList.add('d-none');
     }
 
-    getSeverityColor(severity) {
+    getSeverityBadgeClass(severity) {
         const map = {
-            critical: 'danger',
-            high: 'danger',
-            medium: 'warning',
-            low: 'info',
-            info: 'secondary',
-            success: 'success'
+            critical: 'bg-danger-lt text-danger',
+            high: 'bg-danger-lt text-danger',
+            medium: 'bg-warning-lt text-warning',
+            low: 'bg-info-lt text-info',
+            info: 'bg-secondary-lt text-secondary',
+            success: 'bg-success-lt text-success'
         };
-        return map[severity?.toLowerCase()] || 'secondary';
+        return map[severity?.toLowerCase()] || 'bg-secondary-lt text-secondary';
     }
 
     escapeHtml(text) {
         if (!text) return '';
-        return text
+        return String(text)
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")

@@ -2,7 +2,7 @@
 <div class="row g-2">
   {# Combined Identity & Lifecycle #}
   <div class="col-lg-6">
-    <div class="card card-sm h-100">
+    <div class="card card-sm h-100 shadow-sm">
       <div class="card-body py-2">
         <div class="row g-3">
           {# Identity Column #}
@@ -70,7 +70,7 @@
 
   {# Code Footprint - Compact #}
   <div class="col-lg-3 col-md-6">
-    <div class="card card-sm h-100">
+    <div class="card card-sm h-100 shadow-sm">
       <div class="card-body py-2">
         <div class="d-flex align-items-center mb-2">
           <i class="fa-solid fa-chart-bar text-info me-2" aria-hidden="true"></i>
@@ -101,7 +101,7 @@
   {% set total_fixes = (app_data.retry_fixes|default(0)) + (app_data.automatic_fixes|default(0)) +
   (app_data.llm_fixes|default(0)) + (app_data.manual_fixes|default(0)) %}
   <div class="col-lg-3 col-md-6">
-    <div class="card card-sm h-100">
+    <div class="card card-sm h-100 shadow-sm">
       <div class="card-body py-2">
         <div class="d-flex align-items-center mb-2">
           <i class="fa-solid fa-wrench text-orange me-2" aria-hidden="true"></i>
@@ -171,7 +171,7 @@
 
   {# Frameworks & Highlights - Inline #}
   <div class="col-12">
-    <div class="card card-sm">
+    <div class="card card-sm shadow-sm">
       <div class="card-body py-2">
         <div class="d-flex align-items-center flex-wrap gap-3">
           {# Frameworks #}
@@ -199,6 +199,52 @@
             {% endif %}
             <span class="badge bg-secondary-lt"><i class="fa-solid fa-clock me-1"></i>{{ app_data.updated_at.strftime('%m/%d
               %H:%M') if app_data.updated_at else '—' }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Generation Details (merged from metadata section) #}
+  <div class="col-12">
+    <div class="card card-sm shadow-sm">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center mb-2">
+          <i class="fa-solid fa-cogs text-success me-2" aria-hidden="true"></i>
+          <span class="text-muted small text-uppercase fw-bold">Generation Details</span>
+        </div>
+        <div class="row row-cols-2 row-cols-md-4 g-2 small">
+          <div class="col">
+            <span class="text-muted">Backend:</span>
+            {% if app_data.backend_framework %}<span class="badge bg-success-lt ms-1">{{ app_data.backend_framework }}</span>{% else %}<span class="text-muted ms-1">—</span>{% endif %}
+          </div>
+          <div class="col">
+            <span class="text-muted">Frontend:</span>
+            {% if app_data.frontend_framework %}<span class="badge bg-info-lt ms-1">{{ app_data.frontend_framework }}</span>{% else %}<span class="text-muted ms-1">—</span>{% endif %}
+          </div>
+          <div class="col">
+            <span class="text-muted">Database:</span>
+            {% if app_data.database_type %}<span class="badge bg-warning-lt ms-1">{{ app_data.database_type }}</span>{% else %}<span class="text-muted ms-1">—</span>{% endif %}
+          </div>
+          <div class="col">
+            <span class="text-muted">Duration:</span>
+            <span class="fw-medium ms-1">{% if app_data.generation_duration %}{{ app_data.generation_duration }}s{% else %}—{% endif %}</span>
+          </div>
+          <div class="col">
+            <span class="text-muted">Template:</span>
+            {% if app_data.prompt_template %}<code class="small ms-1">{{ app_data.prompt_template }}</code>{% else %}<span class="text-muted ms-1">—</span>{% endif %}
+          </div>
+          <div class="col">
+            <span class="text-muted">Tokens:</span>
+            <span class="fw-medium ms-1">{% if app_data.token_usage %}{{ app_data.token_usage }}{% else %}—{% endif %}</span>
+          </div>
+          <div class="col">
+            <span class="text-muted">Updated:</span>
+            <span class="fw-medium ms-1">{% if app_data.updated_at %}{{ app_data.updated_at.strftime('%m/%d %H:%M') }}{% else %}—{% endif %}</span>
+          </div>
+          <div class="col">
+            <span class="text-muted">Type:</span>
+            <span class="fw-medium ms-1">{{ app_data.app_type|default('unknown')|replace('_', ' ')|title }}</span>
           </div>
         </div>
       </div>

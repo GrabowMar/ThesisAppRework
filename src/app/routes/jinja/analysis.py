@@ -723,7 +723,6 @@ def analysis_result_detail(result_id: str):
     findings = results.security.get('findings', [])[:findings_limit] if findings_limit else results.security.get('findings', [])
     services = results.tools
     summary_block = results.summary
-    task_info = {'task_id': result_id, 'status': results.status}
     metadata_block = payload.get('metadata', {})
     
     # Transform service names and structure for template compatibility
@@ -815,17 +814,220 @@ def analysis_result_detail(result_id: str):
         'metadata': metadata_block
     })
 
-    return render_template(
-        'pages/analysis/analysis_result_detail.html',
+    # --- Enhancement: Timing data from AnalysisTask ---
+    timing_info: Dict[str, Any] = {}
+    task_obj = AnalysisTask.query.filter_by(task_id=result_id).first()
+    if task_obj:
+        timing_info = {
+            'actual_duration': task_obj.actual_duration,
+            'queue_time': task_obj.queue_time,
+            'started_at': task_obj.started_at,
+            'completed_at': task_obj.completed_at,
+            'created_at': task_obj.created_at,
+        }
+        # Enrich descriptor with DB fields when available
+        if task_obj.target_model:
+            descriptor['model_slug'] = task_obj.target_model
+        if task_obj.target_app_number:
+            descriptor['app_number'] = task_obj.target_app_number
+        if task_obj.task_name:
+            descriptor['task_name'] = task_obj.task_name
+
+    # --- Enhancement: Prev/Next task navigation (same model + app) ---
+    prev_task_id: Optional[str] = None
+    next_task_id: Optional[str] = None
+    model_slug = descriptor.get('model_slug')
+    app_number = descriptor.get('app_number')
+    if task_obj and model_slug and app_number:
+        prev_row = (
+            AnalysisTask.query
+            .filter(
+                AnalysisTask.target_model == model_slug,
+                AnalysisTask.target_app_number == app_number,
+                AnalysisTask.is_main_task.is_(True),
+                AnalysisTask.created_at < task_obj.created_at,
+                AnalysisTask.status.in_([AnalysisStatus.COMPLETED, AnalysisStatus.FAILED]),
+            )
+            .order_by(AnalysisTask.created_at.desc())
+            .with_entities(AnalysisTask.task_id)
+            .first()
+        )
+        next_row = (
+            AnalysisTask.query
+            .filter(
+                AnalysisTask.target_model == model_slug,
+                AnalysisTask.target_app_number == app_number,
+                AnalysisTask.is_main_task.is_(True),
+                AnalysisTask.created_at > task_obj.created_at,
+                AnalysisTask.status.in_([AnalysisStatus.COMPLETED, AnalysisStatus.FAILED]),
+            )
+            .order_by(AnalysisTask.created_at.asc())
+            .with_entities(AnalysisTask.task_id)
+            .first()
+        )
+        if prev_row:
+            prev_task_id = prev_row[0]
+        if next_row:
+            next_task_id = next_row[0]
+
+    from app.routes.jinja.detail_context import build_analysis_result_context
+    context = build_analysis_result_context(
+        result_id=result_id,
         descriptor=descriptor,
         payload=wrapped_payload,
-        findings=findings,
         services=transformed_services,
         summary=summary_block,
-        task_info=task_info,
         metadata=metadata_block,
+        timing_info=timing_info,
+        findings=findings,
         findings_limit=findings_limit,
+        prev_task_id=prev_task_id,
+        next_task_id=next_task_id,
     )
+
+    return render_template(
+        'pages/analysis/analysis_result_detail.html',
+        **context,
+    )
+
+
+def _build_analysis_section_context(result_id: str) -> dict:
+    """Build the full context needed to render any analysis section partial.
+
+    Re-uses the same loading & transformation logic from the main route.
+    """
+    service = _get_result_service()
+    results = service.load_analysis_results(result_id)
+    if not results:
+        abort(404, description=f"Result {result_id} not found")
+
+    payload = results.raw_data
+    findings = results.security.get('findings', [])
+    services_raw = results.tools
+    summary_block = results.summary
+    metadata_block = payload.get('metadata', {})
+
+    SERVICE_NAME_MAP = {
+        'static-analyzer': 'static',
+        'dynamic-analyzer': 'dynamic',
+        'performance-tester': 'performance',
+        'ai-analyzer': 'ai',
+    }
+
+    def transform_services(raw_services: dict) -> dict:
+        transformed = {}
+        for full_name, service_data in raw_services.items():
+            short_name = SERVICE_NAME_MAP.get(full_name, full_name)
+            if isinstance(service_data, dict):
+                analysis_data = service_data.get('analysis', {})
+                if not analysis_data:
+                    p = service_data.get('payload', {})
+                    if isinstance(p, dict) and 'analysis' in p:
+                        analysis_data = p.get('analysis', {})
+                    else:
+                        analysis_data = p
+                if full_name == 'ai-analyzer':
+                    transformed[short_name] = DescriptorDict({
+                        'status': service_data.get('status', 'unknown'),
+                        'service': full_name,
+                        'analysis': DescriptorDict({
+                            'tools': analysis_data.get('tools', {}),
+                            'summary': analysis_data.get('summary', {}),
+                            'metadata': analysis_data.get('metadata', {}),
+                            'results': analysis_data.get('results', {}),
+                        }),
+                    })
+                else:
+                    transformed[short_name] = DescriptorDict({
+                        'status': service_data.get('status', 'unknown'),
+                        'service': full_name,
+                        'analysis': DescriptorDict({
+                            'results': analysis_data.get('results', {}),
+                            'tools_used': analysis_data.get('tools_used', []),
+                            'tools': analysis_data.get('results', {}),
+                        }),
+                    })
+        return DescriptorDict(transformed)
+
+    transformed_services = transform_services(services_raw) if services_raw else {}
+
+    descriptor = DescriptorDict({
+        'identifier': result_id,
+        'task_id': result_id,
+        'source': 'filesystem',
+        'model_slug': getattr(results, 'model_slug', 'unknown'),
+        'app_number': getattr(results, 'app_number', 0),
+        'task_name': result_id[:16],
+        'status': results.status or 'unknown',
+        'tools_used': list(services_raw.keys()) if services_raw else [],
+        'total_findings': summary_block.get('total_findings', 0),
+        'severity_breakdown': summary_block.get('severity_breakdown', {}),
+        'tools_executed': len(services_raw) if services_raw else 0,
+        'tools_failed': 0,
+        'modified_at': getattr(results, 'modified_at', None),
+    })
+
+    wrapped_payload = DescriptorDict({
+        'results': DescriptorDict({
+            'services': transformed_services,
+            'summary': summary_block,
+        }),
+        'task': payload.get('task', {}),
+        'metadata': metadata_block,
+    })
+
+    timing_info: dict = {}
+    task_obj = AnalysisTask.query.filter_by(task_id=result_id).first()
+    if task_obj:
+        timing_info = {
+            'actual_duration': task_obj.actual_duration,
+            'queue_time': task_obj.queue_time,
+            'started_at': task_obj.started_at,
+            'completed_at': task_obj.completed_at,
+            'created_at': task_obj.created_at,
+        }
+        if task_obj.target_model:
+            descriptor['model_slug'] = task_obj.target_model
+        if task_obj.target_app_number:
+            descriptor['app_number'] = task_obj.target_app_number
+        if task_obj.task_name:
+            descriptor['task_name'] = task_obj.task_name
+
+    return {
+        'descriptor': descriptor,
+        'payload': wrapped_payload,
+        'findings': findings,
+        'services': transformed_services,
+        'summary': summary_block,
+        'metadata': metadata_block,
+        'timing_info': timing_info,
+        'task_info': {'task_id': result_id, 'status': results.status},
+        'result_id': result_id,
+    }
+
+
+@analysis_bp.route('/results/<string:result_id>/section/<string:section>')
+def analysis_result_section(result_id: str, section: str):
+    """HTMX endpoint to render a single analysis section partial."""
+    try:
+        ctx = _build_analysis_section_context(result_id)
+        section_templates = {
+            'summary': 'pages/analysis/partials/_section_summary.html',
+            'static': 'pages/analysis/partials/_section_static.html',
+            'dynamic': 'pages/analysis/partials/_section_dynamic.html',
+            'performance': 'pages/analysis/partials/_section_performance.html',
+            'ai': 'pages/analysis/partials/_section_ai.html',
+            'metadata': 'pages/analysis/partials/_section_metadata.html',
+        }
+        template = section_templates.get(section)
+        if not template:
+            return f'<div class="alert alert-warning">Unknown section: {section}</div>', 404
+        return render_template(template, **ctx)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        current_app.logger.error("Error rendering analysis section %s for %s: %s", section, result_id, exc, exc_info=True)
+        return f'<div class="alert alert-danger">Failed to load {section}: {exc}</div>', 500
 
 
 @analysis_bp.route('/results/<string:result_id>.json')

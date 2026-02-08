@@ -3,7 +3,7 @@
   {% if logs %}
   {# Controls Row - Compact Inline #}
   <div class="col-12">
-    <div class="card card-sm">
+    <div class="card card-sm shadow-sm">
       <div class="card-body py-2">
         <div class="d-flex align-items-center flex-wrap gap-2">
           <div class="btn-group btn-group-sm" role="group">
@@ -38,7 +38,7 @@
 
   {# Log Display - Compact #}
   <div class="col-12">
-    <div class="card card-sm">
+    <div class="card card-sm shadow-sm">
       <div class="card-header py-1 d-flex justify-content-between align-items-center">
         <span class="fw-bold small" id="current-container-label">Backend Logs</span>
         <div class="btn-group btn-group-sm">
@@ -56,7 +56,7 @@
 
   {# Stats Row - Compact Inline #}
   <div class="col-12">
-    <div class="card card-sm">
+    <div class="card card-sm shadow-sm">
       <div class="card-body py-2">
         <div class="d-flex align-items-center flex-wrap gap-3">
           <span class="text-muted small"><i class="fa-solid fa-chart-bar me-1"></i>Stats:</span>
@@ -74,15 +74,22 @@
   </div>
   {% else %}
   <div class="col-12">
-    <div class="card card-sm">
-      <div class="card-body py-4 text-center">
-        <i class="fa-solid fa-file-lines text-muted fa-2x mb-2"></i>
-        <p class="mb-2 text-muted">No logs available</p>
-        {% if app_data.container_status != 'running' %}
-        <button class="btn btn-primary btn-sm" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/start" hx-swap="none" onclick="setTimeout(() => htmx.ajax('GET', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/logs', {target: '#section-logs', swap: 'innerHTML'}), 3000)">
-          <i class="fa-solid fa-play me-1"></i>Start
-        </button>
-        {% endif %}
+    <div class="card card-sm shadow-sm">
+      <div class="card-body p-0">
+        <div class="research-empty-state">
+          <div class="research-empty-icon">
+            <i class="fa-solid fa-file-lines" aria-hidden="true"></i>
+          </div>
+          <div class="research-empty-title">No logs available</div>
+          <div class="research-empty-message">Start the application container to view logs.</div>
+          {% if app_data.container_status != 'running' %}
+          <div class="research-empty-action">
+            <button class="btn btn-primary btn-sm" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/start" hx-swap="none" onclick="setTimeout(() => htmx.ajax('GET', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/logs', {target: '#section-logs', swap: 'innerHTML'}), 3000)">
+              <i class="fa-solid fa-play me-1"></i>Start Container
+            </button>
+          </div>
+          {% endif %}
+        </div>
       </div>
     </div>
   </div>

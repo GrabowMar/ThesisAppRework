@@ -462,6 +462,34 @@ if (typeof window.AutomationWizard !== 'undefined') {
      */
     function updateSelectionSummary() {
         const wizard = AutomationWizard;
+        const isExisting = wizard.config.generationMode === 'existing';
+
+        if (isExisting) {
+            const appCount = wizard.config.existingApps.length;
+            // In existing mode, show app count in the sidebar summary elements
+            const sidebarJobEls = [
+                document.getElementById('sidebar-job-count'),
+                document.getElementById('sidebar-total-jobs')
+            ];
+            sidebarJobEls.forEach(el => { if (el) el.textContent = appCount; });
+
+            const sidebarEstEls = [
+                document.getElementById('selection-est-time'),
+                document.getElementById('sidebar-est-duration')
+            ];
+            sidebarEstEls.forEach(el => {
+                if (el) {
+                    if (appCount > 0) {
+                        const minutes = appCount * 1; // ~1 min per app (analysis only)
+                        el.textContent = `${minutes}m`;
+                    } else {
+                        el.textContent = '--';
+                    }
+                }
+            });
+            return;
+        }
+
         const templates = wizard.config.templates.length;
         const models = wizard.config.models.length;
         const total = templates * models;
@@ -524,6 +552,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
     function updateReviewSummary() {
         const wizard = AutomationWizard;
         const config = wizard.config;
+        const isExisting = config.generationMode === 'existing';
 
         // Helper function to safely set text content
         const setText = (id, text) => {
@@ -531,21 +560,36 @@ if (typeof window.AutomationWizard !== 'undefined') {
             if (el) el.textContent = text;
         };
 
-        // Generation summary
-        setText('summary-templates', config.templates.length);
-        setText('summary-models', config.models.length);
-        setText('summary-gen-jobs', config.templates.length * config.models.length);
+        // Toggle review cards based on mode
+        const genCard = document.getElementById('review-generate-card');
+        const existCard = document.getElementById('review-existing-card');
+        if (genCard) genCard.classList.toggle('d-none', isExisting);
+        if (existCard) existCard.classList.toggle('d-none', !isExisting);
+
+        // Determine total jobs based on mode
+        let totalJobs;
+        if (isExisting) {
+            totalJobs = config.existingApps.length;
+            setText('summary-existing-count', totalJobs);
+        } else {
+            totalJobs = config.templates.length * config.models.length;
+            setText('summary-templates', config.templates.length);
+            setText('summary-models', config.models.length);
+            setText('summary-gen-jobs', totalJobs);
+        }
 
         // Analysis summary
         setText('summary-tools-count', config.analysisTools.length || 'None selected');
 
-        // Generation options - show parallelism details
+        // Generation options
         const genParallelMode = config.generationOptions?.parallel ?? true;
         const genMaxConcurrent = config.generationOptions?.maxConcurrentTasks || 2;
-        const genOptionsText = genParallelMode ? `Parallel (max ${genMaxConcurrent})` : 'Sequential';
+        const genOptionsText = isExisting
+            ? 'Skipped (using existing)'
+            : (genParallelMode ? `Parallel (max ${genMaxConcurrent})` : 'Sequential');
         setText('summary-gen-options', genOptionsText);
 
-        // Analysis options - show parallelism details
+        // Analysis options
         const parallelMode = config.analysisOptions.parallel;
         const maxConcurrent = config.analysisOptions.maxConcurrentTasks || 2;
         const optionsText = parallelMode ? `Parallel (max ${maxConcurrent})` : 'Sequential';
@@ -554,8 +598,7 @@ if (typeof window.AutomationWizard !== 'undefined') {
         // Job queue preview
         updateJobQueuePreview();
 
-        // Estimated time - adjust for parallelism (both generation and analysis)
-        const totalJobs = config.templates.length * config.models.length;
+        // Estimated time
         if (totalJobs === 0) {
             setText('est-duration', '--');
             setText('total-operations', '0');
@@ -563,20 +606,29 @@ if (typeof window.AutomationWizard !== 'undefined') {
             setText('parallelism-mode', 'Sequential');
             return;
         }
-        const genConcurrency = genParallelMode ? Math.min(genMaxConcurrent, totalJobs) : 1;
-        const analysisConcurrency = parallelMode ? Math.min(maxConcurrent, totalJobs) : 1;
-        const genMinutes = Math.ceil(totalJobs / genConcurrency) * 2;  // ~2 min per batch for generation
-        const analysisMinutes = Math.ceil(totalJobs / analysisConcurrency) * 1;  // ~1 min per batch for analysis
-        const estMinutes = genMinutes + analysisMinutes;
-        setText('est-duration', formatDuration(estMinutes * 60));
-        setText('total-operations', totalJobs * 2); // gen + analysis
-        setText('total-jobs-badge', `${totalJobs} jobs`);
 
-        // Combined parallelism mode display
-        const combinedParallelism = genParallelMode || parallelMode ?
-            `Gen: ${genParallelMode ? genMaxConcurrent : 1}x / Analysis: ${parallelMode ? maxConcurrent : 1}x` :
-            'Sequential';
-        setText('parallelism-mode', combinedParallelism);
+        if (isExisting) {
+            // Analysis-only: no generation time
+            const analysisConcurrency = parallelMode ? Math.min(maxConcurrent, totalJobs) : 1;
+            const analysisMinutes = Math.ceil(totalJobs / analysisConcurrency) * 1;
+            setText('est-duration', formatDuration(analysisMinutes * 60));
+            setText('total-operations', totalJobs); // analysis only
+            setText('total-jobs-badge', `${totalJobs} apps`);
+            setText('parallelism-mode', `Analysis: ${parallelMode ? maxConcurrent : 1}x`);
+        } else {
+            const genConcurrency = genParallelMode ? Math.min(genMaxConcurrent, totalJobs) : 1;
+            const analysisConcurrency = parallelMode ? Math.min(maxConcurrent, totalJobs) : 1;
+            const genMinutes = Math.ceil(totalJobs / genConcurrency) * 2;
+            const analysisMinutes = Math.ceil(totalJobs / analysisConcurrency) * 1;
+            const estMinutes = genMinutes + analysisMinutes;
+            setText('est-duration', formatDuration(estMinutes * 60));
+            setText('total-operations', totalJobs * 2);
+            setText('total-jobs-badge', `${totalJobs} jobs`);
+            const combinedParallelism = genParallelMode || parallelMode ?
+                `Gen: ${genParallelMode ? genMaxConcurrent : 1}x / Analysis: ${parallelMode ? maxConcurrent : 1}x` :
+                'Sequential';
+            setText('parallelism-mode', combinedParallelism);
+        }
     }
 
     /**
@@ -591,32 +643,56 @@ if (typeof window.AutomationWizard !== 'undefined') {
 
         let html = '';
         let jobNum = 0;
+        const toolsCount = config.analysisTools.length || 0;
 
-        config.templates.forEach(template => {
-            config.models.forEach(model => {
+        if (config.generationMode === 'existing') {
+            config.existingApps.forEach(appRef => {
                 jobNum++;
-                const templateName = template.replace(/_/g, ' ').replace('.json', '');
-                const modelName = model.split('/').pop().replace(/_/g, ' ');
-                const toolsCount = config.analysisTools.length || 0;
+                // Format: "model_slug:app_number"
+                const lastColon = appRef.lastIndexOf(':');
+                const modelSlug = lastColon > 0 ? appRef.substring(0, lastColon) : appRef;
+                const appNum = lastColon > 0 ? appRef.substring(lastColon + 1) : '?';
+                const modelName = modelSlug.split('/').pop().replace(/_/g, ' ');
 
                 html += `
                 <tr>
                     <td>${jobNum}</td>
-                    <td><span class="badge bg-azure-lt text-azure">${templateName}</span></td>
+                    <td><span class="badge bg-azure-lt text-azure">App #${appNum}</span></td>
                     <td>${modelName}</td>
                     <td><span class="badge bg-green-lt text-green">${toolsCount} tools</span></td>
-                    <td class="text-end text-muted">~3 min</td>
+                    <td class="text-end text-muted">~1 min</td>
                 </tr>
             `;
             });
-        });
+        } else {
+            config.templates.forEach(template => {
+                config.models.forEach(model => {
+                    jobNum++;
+                    const templateName = template.replace(/_/g, ' ').replace('.json', '');
+                    const modelName = model.split('/').pop().replace(/_/g, ' ');
+
+                    html += `
+                    <tr>
+                        <td>${jobNum}</td>
+                        <td><span class="badge bg-azure-lt text-azure">${templateName}</span></td>
+                        <td>${modelName}</td>
+                        <td><span class="badge bg-green-lt text-green">${toolsCount} tools</span></td>
+                        <td class="text-end text-muted">~3 min</td>
+                    </tr>
+                `;
+                });
+            });
+        }
 
         if (html === '') {
+            const hint = config.generationMode === 'existing'
+                ? 'Select existing apps to preview analysis queue'
+                : 'Select templates and models to preview job queue';
             html = `
             <tr>
                 <td colspan="5" class="text-center text-muted py-3">
                     <i class="fa-solid fa-info-circle me-2"></i>
-                    Select templates and models to preview job queue
+                    ${hint}
                 </td>
             </tr>
         `;
@@ -1255,16 +1331,23 @@ if (typeof window.AutomationWizard !== 'undefined') {
     function toggleGenerationMode(mode) {
         const generateSection = document.getElementById('generate-new-section');
         const existingSection = document.getElementById('existing-apps-section');
+        const genSummaryCard = document.getElementById('generation-summary-card');
+        const existingSummaryCard = document.getElementById('existing-apps-summary-card');
 
         if (mode === 'generate') {
             if (generateSection) generateSection.classList.remove('d-none');
             if (existingSection) existingSection.classList.add('d-none');
+            if (genSummaryCard) genSummaryCard.classList.remove('d-none');
+            if (existingSummaryCard) existingSummaryCard.classList.add('d-none');
             AutomationWizard.config.generationMode = 'generate';
         } else {
             if (generateSection) generateSection.classList.add('d-none');
             if (existingSection) existingSection.classList.remove('d-none');
+            if (genSummaryCard) genSummaryCard.classList.add('d-none');
+            if (existingSummaryCard) existingSummaryCard.classList.remove('d-none');
             AutomationWizard.config.generationMode = 'existing';
         }
+        updateSelectionSummary();
     }
 
     /**

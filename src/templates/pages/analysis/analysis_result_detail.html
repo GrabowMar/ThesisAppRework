@@ -1,96 +1,30 @@
-{# Analysis Result Detail - Compact Report Design #}
+{# Analysis Result Detail - Research Dashboard Design #}
 {% extends 'layouts/base_smart.html' %}
+{% from 'shared/macros/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_scroll_spy_script %}
+{% from 'shared/macros/nav_macros.html' import breadcrumb %}
 {% set active_page = 'analysis' %}
-{% set page_title = descriptor.model_slug ~ ' · App #' ~ descriptor.app_number %}
-{% set page_icon = 'fa-solid fa-chart-bar' %}
+{% set page_title = view.title if view else 'Analysis Result' %}
 
-{% block title %}{{ page_title }} - Analysis Results{% endblock %}
-
-{% block head %}
+{% block head_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/detail-pages.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/analysis-report.css') }}">
 <style>
   @media print {
-    .btn, .navbar, .sidebar, footer { display: none !important; }
-    .report-container { max-width: 100% !important; margin: 0 !important; }
+    .btn, .navbar, .sidebar, footer, .research-section-nav-wrapper { display: none !important; }
+    .research-detail-shell { max-width: 100% !important; margin: 0 !important; }
     .card { break-inside: avoid; page-break-inside: avoid; }
   }
 </style>
 {% endblock %}
 
+{% block title %}{{ page_title }} - Analysis Results{% endblock %}
+
 {% block content %}
-{% set severity_order = ['critical', 'high', 'medium', 'low', 'info'] %}
-
-<div class="report-container py-2">
-  {# Compact Report Header #}
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-    <div class="d-flex align-items-center gap-2">
-      <a href="{{ url_for('analysis.analysis_list') }}" class="btn btn-sm btn-ghost-secondary btn-icon" title="Back to list">
-        <i class="fa-solid fa-arrow-left"></i>
-      </a>
-      <div>
-        <h1 class="h4 mb-0">{{ page_title }}</h1>
-        <div class="text-muted small">
-          {{ descriptor.task_name.replace('_', ' ').title() }} • <code>{{ descriptor.identifier[:20] }}…</code> • {{ descriptor.display_timestamp() }}
-        </div>
-      </div>
-    </div>
-    <div class="btn-list flex-nowrap d-print-none">
-      <a href="{{ url_for('analysis.analysis_result_json', result_id=descriptor.identifier) }}" 
-         target="_blank" class="btn btn-sm btn-ghost-info btn-icon" title="View JSON">
-        <i class="fa-solid fa-file-code"></i>
-      </a>
-      <a href="{{ url_for('analysis.export_task_sarif', task_id=descriptor.identifier) }}" 
-         class="btn btn-sm btn-ghost-success btn-icon" title="Download SARIF">
-        <i class="fa-solid fa-file-shield"></i>
-      </a>
-      <button onclick="window.print()" class="btn btn-sm btn-ghost-primary btn-icon" title="Print" type="button">
-        <i class="fa-solid fa-print"></i>
-      </button>
-      <a href="{{ url_for('analysis.analysis_result_download', result_id=descriptor.identifier) }}" 
-         class="btn btn-sm btn-primary" title="Download">
-        <i class="fa-solid fa-download me-1"></i>Download
-      </a>
-    </div>
-  </div>
-
-  {# Compact Executive Summary #}
-  <div class="card card-sm mb-3">
-    <div class="card-body py-2">
-      <div class="row g-2 align-items-center">
-        <div class="col-auto">
-          {% set status_color = 'success' if descriptor.status in ['completed', 'success'] else ('warning' if descriptor.status == 'partial_success' else ('danger' if descriptor.status in ['failed', 'error'] else 'secondary')) %}
-          <span class="badge bg-{{ status_color }}-lt text-{{ status_color }}">
-            <i class="fa-solid fa-circle-dot me-1"></i>{{ descriptor.status.replace('_', ' ').title() }}
-          </span>
-        </div>
-        <div class="col-auto border-start ps-3">
-          <span class="text-muted small">Findings:</span>
-          {# Always show the consolidated findings total to avoid mismatches with the execution summary #}
-          {% set total_value = summary.total_findings|default(descriptor.total_findings)|default(0) %}
-          <strong class="{% if total_value > 20 %}text-danger{% elif total_value > 10 %}text-warning{% else %}text-success{% endif %}">{{ total_value }}</strong>
-        </div>
-        <div class="col-auto border-start ps-3">
-          <span class="text-muted small">Tools:</span>
-          <strong>{{ summary.tools_executed|default(descriptor.tools_executed)|default(0) }}/{{ (descriptor.tools_used|length) if descriptor.tools_used else '?' }}</strong>
-          {% if descriptor.tools_failed %}<span class="badge bg-danger-lt text-danger ms-1">{{ descriptor.tools_failed }} failed</span>{% endif %}
-        </div>
-        <div class="col-auto border-start ps-3">
-          <span class="text-muted small">Services:</span>
-          <strong>{{ services|length }}</strong>
-          {% if (summary.services_degraded|default(0)) > 0 %}<span class="badge bg-warning-lt text-warning ms-1">{{ summary.services_degraded|default(0) }} degraded</span>{% endif %}
-        </div>
-        {% if descriptor.severity_breakdown %}
-        <div class="col-auto ms-auto d-flex gap-1">
-          {% for sev_name, sev_count in descriptor.severity_breakdown.items() %}
-            {% if sev_count and sev_count > 0 %}
-            <span class="badge {% if sev_name == 'critical' %}bg-danger{% elif sev_name == 'high' %}bg-danger-lt text-danger{% elif sev_name == 'medium' %}bg-warning-lt text-warning{% elif sev_name == 'low' %}bg-info-lt text-info{% else %}bg-secondary-lt{% endif %}">{{ sev_name[:1]|upper }}{{ sev_count }}</span>
-            {% endif %}
-          {% endfor %}
-        </div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
+<div class="research-detail-shell">
+  {# Breadcrumb navigation #}
+  {% if breadcrumb_items %}
+  {{ breadcrumb(breadcrumb_items, 'mb-2') }}
+  {% endif %}
 
   {# Degraded Services Warning #}
   {% if metadata.degraded_services and metadata.degraded_services|length > 0 %}
@@ -111,145 +45,168 @@
   </div>
   {% endif %}
 
-  {# Analysis Sections #}
-  <div class="accordion accordion-flush border rounded-2" id="analysisAccordion">
-    {# Static Analysis Section #}
-    {% set static_service = payload.results.services.static if payload.results.services and payload.results.services.static else none %}
-    <div class="accordion-item">
-      <h2 class="accordion-header">
-        <button class="accordion-button py-2" type="button" data-bs-toggle="collapse" 
-                data-bs-target="#staticSection" aria-expanded="true" aria-controls="staticSection">
-          <i class="fa-solid fa-code me-2 text-primary"></i>
-          <span>Static Analysis</span>
-          {% if static_service %}
-            {% set static_status = static_service.status|default('unknown') %}
-            <span class="ms-auto me-2 badge {% if static_status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif static_status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
-              {{ static_status|replace('_', ' ')|title }}
-            </span>
-          {% else %}
-            <span class="ms-auto me-3 badge bg-secondary-lt">N/A</span>
-          {% endif %}
-        </button>
-      </h2>
-      <div id="staticSection" class="accordion-collapse collapse show" data-bs-parent="#analysisAccordion">
-        <div class="accordion-body py-2">
-          {% include 'pages/analysis/partials/_tab_static.html' %}
-        </div>
-      </div>
-    </div>
+  {# Extract status badge from metrics #}
+  {% set status_metric = metrics|selectattr('label', 'equalto', 'Status')|first if metrics else None %}
+  {% set status_badge = {
+    'label': status_metric.value,
+    'color': status_metric.status_color or 'secondary',
+    'animated': status_metric.status_color == 'success'
+  } if status_metric else None %}
 
-    {# Dynamic Analysis Section #}
-    {% set dynamic_service = payload.results.services.dynamic if payload.results.services and payload.results.services.dynamic else none %}
-    <div class="accordion-item">
-      <h2 class="accordion-header">
-        <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" 
-                data-bs-target="#dynamicSection" aria-expanded="false" aria-controls="dynamicSection">
-          <i class="fa-solid fa-shield-halved me-2 text-success"></i>
-          <span>Dynamic Analysis</span>
-          {% if dynamic_service %}
-            {% set dynamic_status = dynamic_service.status|default('unknown') %}
-            <span class="ms-auto me-2 badge {% if dynamic_status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif dynamic_status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
-              {{ dynamic_status|replace('_', ' ')|title }}
-            </span>
-          {% else %}
-            <span class="ms-auto me-3 badge bg-secondary-lt">N/A</span>
-          {% endif %}
-        </button>
-      </h2>
-      <div id="dynamicSection" class="accordion-collapse collapse" data-bs-parent="#analysisAccordion">
-        <div class="accordion-body py-2">
-          {% include 'pages/analysis/partials/_tab_dynamic.html' %}
-        </div>
-      </div>
-    </div>
+  {# Compact header bar with inline metrics and all actions #}
+  {{ research_detail_header(view, metrics[1:4] if metrics and metrics|length > 1 else [], status_badge) }}
 
-    {# Performance Section #}
-    {% set performance_service = payload.results.services.performance if payload.results.services and payload.results.services.performance else none %}
-    <div class="accordion-item">
-      <h2 class="accordion-header">
-        <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" 
-                data-bs-target="#performanceSection" aria-expanded="false" aria-controls="performanceSection">
-          <i class="fa-solid fa-gauge-high me-2 text-info"></i>
-          <span>Performance</span>
-          {% if performance_service %}
-            {% set perf_status = performance_service.status|default('unknown') %}
-            <span class="ms-auto me-2 badge {% if perf_status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif perf_status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
-              {{ perf_status|replace('_', ' ')|title }}
-            </span>
-          {% else %}
-            <span class="ms-auto me-3 badge bg-secondary-lt">N/A</span>
-          {% endif %}
-        </button>
-      </h2>
-      <div id="performanceSection" class="accordion-collapse collapse" data-bs-parent="#analysisAccordion">
-        <div class="accordion-body py-2">
-          {% include 'pages/analysis/partials/_tab_performance.html' %}
-        </div>
-      </div>
-    </div>
+  {# Dense metric grid #}
+  {{ research_metric_grid(metrics) }}
 
-    {# AI Requirements Section #}
-    <div class="accordion-item">
-      <h2 class="accordion-header">
-        <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" 
-                data-bs-target="#aiSection" aria-expanded="false" aria-controls="aiSection">
-          <i class="fa-solid fa-robot me-2 text-warning"></i>
-          <span>AI Requirements</span>
-          {% set ai_analysis = payload.results.services.ai.analysis if payload.results.services.ai and payload.results.services.ai.analysis else {} %}
-          {% set has_ai_tools = ai_analysis.tools is defined and ai_analysis.tools is mapping %}
-          {% if has_ai_tools %}
-            {% set ai_summary = ai_analysis.summary if ai_analysis.summary else {} %}
-            {% set ai_compliance = (ai_summary.overall_compliance|default(0)) if ai_summary else 0 %}
-            <span class="ms-auto me-2 badge {% if ai_compliance >= 80 %}bg-success-lt text-success{% elif ai_compliance >= 60 %}bg-warning-lt text-warning{% else %}bg-danger-lt text-danger{% endif %}">
-              {{ ai_compliance|round(1) }}%
-            </span>
-            <span class="badge bg-secondary-lt me-3">
-              {{ ai_summary.tools_run|default(0) }} tools
-            </span>
-          {% else %}
-            <span class="ms-auto me-3 badge bg-secondary-lt">N/A</span>
-          {% endif %}
-        </button>
-      </h2>
-      <div id="aiSection" class="accordion-collapse collapse" data-bs-parent="#analysisAccordion">
-        <div class="accordion-body py-2">
-          {% include 'pages/analysis/partials/_tab_ai.html' %}
-        </div>
-      </div>
-    </div>
+  {# Sticky horizontal section navigation #}
+  {{ research_section_nav(sections) }}
 
-    {# Metadata Section #}
-    <div class="accordion-item">
-      <h2 class="accordion-header">
-        <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" 
-                data-bs-target="#metadataSection" aria-expanded="false" aria-controls="metadataSection">
-          <i class="fa-solid fa-info-circle me-2 text-secondary"></i>
-          <span>Metadata</span>
-        </button>
-      </h2>
-      <div id="metadataSection" class="accordion-collapse collapse" data-bs-parent="#analysisAccordion">
-        <div class="accordion-body py-2">
-          {% include 'pages/analysis/partials/_tab_metadata.html' %}
+  {# Vertical section layout with lazy loading #}
+  <div class="research-content">
+    {% for section in sections %}
+      <section id="section-{{ section.id }}"
+               class="research-section"
+               data-research-section="{{ section.id }}"
+               hx-get="{{ section.hx }}"
+               hx-trigger="{% if loop.first %}load{% else %}intersect once threshold:0.1{% endif %}"
+               hx-swap="innerHTML"
+               aria-labelledby="section-{{ section.id }}-title">
+
+        <div class="research-section-header">
+          <h2 class="research-section-title" id="section-{{ section.id }}-title">
+            <i class="{{ section.icon }}" aria-hidden="true"></i>
+            <span>{{ section.label }}</span>
+          </h2>
         </div>
-      </div>
+
+        {# Skeleton loader placeholder #}
+        <div class="research-skeleton" aria-live="polite" aria-busy="true">
+          <div class="research-skeleton-line h-lg"></div>
+          <div class="research-skeleton-line w-75"></div>
+          <div class="research-skeleton-line w-50"></div>
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+</div>
+
+{# Tool Detail Modal (global — must be outside sections for JS access) #}
+{% include 'pages/analysis/partials/_tool_detail_modal.html' %}
+
+{# Copy feedback toast #}
+<div class="position-fixed bottom-0 end-0 p-3 d-print-none" style="z-index: 1090;">
+  <div id="copyToast" class="toast align-items-center text-bg-dark border-0" role="alert" aria-atomic="true" data-bs-delay="1500">
+    <div class="d-flex">
+      <div class="toast-body"><i class="fa-solid fa-check me-1"></i>Copied to clipboard</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
     </div>
   </div>
 </div>
 
-{# Tool Detail Modal #}
-{% include 'pages/analysis/partials/_tool_detail_modal.html' %}
+<div id="modal-container"></div>
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
   // Inject full analysis payload for client-side parsing
   window.ANALYSIS_DATA = {{ payload|tojson|safe }};
-  // Ensure task_id is available even if not in payload
   if (!window.ANALYSIS_DATA.task_id) {
       window.ANALYSIS_DATA.task_id = "{{ descriptor.identifier }}";
   }
 </script>
 <script src="{{ url_for('static', filename='js/analysis-parsers.js') }}"></script>
 <script src="{{ url_for('static', filename='js/tool-detail.js') }}"></script>
+<script src="{{ url_for('static', filename='js/analysis-detail-enhancements.js') }}"></script>
+{{ research_scroll_spy_script() }}
+<script>
+// Toast notification helper
+function showToast(message, type = 'info') {
+  const toastContainer = document.getElementById('toast-container') || (() => {
+    const container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '1100';
+    document.body.appendChild(container);
+    return container;
+  })();
+  const toast = document.createElement('div');
+  toast.className = `alert alert-${type} alert-dismissible fade show`;
+  toast.role = 'alert';
+  toast.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
+  toastContainer.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+// Handle section loading states
+document.addEventListener('htmx:beforeRequest', evt => {
+  const section = evt.detail.elt;
+  if (section && section.matches('[data-research-section]')) {
+    section.classList.add('is-loading');
+  }
+});
+
+document.addEventListener('htmx:afterSwap', evt => {
+  const section = evt.detail.elt;
+  if (section && section.matches('[data-research-section]')) {
+    section.classList.remove('is-loading');
+  }
+});
+
+document.body.addEventListener('htmx:afterRequest', function(evt) {
+  if (evt.detail.successful) {
+    console.log('HTMX request successful:', evt.detail.pathInfo.requestPath);
+  } else {
+    console.error('HTMX request failed:', evt.detail.pathInfo.requestPath);
+  }
+});
+
+document.addEventListener('htmx:responseError', evt => {
+  const section = evt.detail.elt;
+  if (!section || !section.matches('[data-research-section]')) {
+    showToast('A server error occurred. Please try again.', 'danger');
+    return;
+  }
+  const sectionId = section.getAttribute('data-research-section');
+  const sectionTitle = section.querySelector('.research-section-title span')?.textContent || 'Section';
+  section.innerHTML = `
+    <div class="research-section-header">
+      <h2 class="research-section-title">
+        <i class="fa-solid fa-exclamation-triangle text-warning" aria-hidden="true"></i>
+        <span>Failed to load ${sectionTitle}</span>
+      </h2>
+    </div>
+    <div class="research-empty-state">
+      <div class="research-empty-icon">
+        <i class="fa-solid fa-exclamation-triangle" aria-hidden="true"></i>
+      </div>
+      <div class="research-empty-title">Content could not be loaded</div>
+      <div class="research-empty-message">There was an error loading this section. Please try again.</div>
+      <div class="research-empty-action">
+        <button class="btn btn-primary" onclick="htmx.ajax('GET', '${section.getAttribute('hx-get')}', { target: '[data-research-section=\\'${sectionId}\\']', swap: 'innerHTML' })">
+          <i class="fa-solid fa-refresh me-1"></i>Retry
+        </button>
+      </div>
+    </div>
+  `;
+  section.classList.remove('is-loading');
+});
+
+// Copy button handler (for task ID, link, etc.)
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.copy-btn');
+  if (!btn) return;
+  const text = btn.getAttribute('data-copy');
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const toast = document.getElementById('copyToast');
+    if (toast) {
+      const bsToast = bootstrap.Toast.getInstance(toast) || new bootstrap.Toast(toast);
+      bsToast.show();
+    }
+  });
+});
+</script>
 {% endblock %}
 

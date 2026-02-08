@@ -10,7 +10,7 @@
 <div class="row g-2">
   {# Source Legend #}
   <div class="col-12">
-    <div class="card card-sm">
+    <div class="card card-sm shadow-sm">
       <div class="card-body py-2">
         <div class="d-flex align-items-center flex-wrap gap-2">
           <span class="text-muted small fw-bold">Sources:</span>
@@ -25,7 +25,7 @@
 
   {# Explorer Window #}
   <div class="col-12">
-    <div class="card card-sm">
+    <div class="card card-sm shadow-sm">
       <div class="card-header py-2 d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center">
           <i class="fa-solid fa-file-lines text-primary me-2"></i>
@@ -122,10 +122,10 @@
 [data-bs-theme='dark'] .prompt-source-requirements { background-color: rgba(72, 187, 120, 0.2); color: #68d391; }
 [data-bs-theme='dark'] .prompt-source-scaffolding { background-color: rgba(237, 137, 54, 0.2); color: #f6ad55; }
 [data-bs-theme='dark'] .prompt-source-metadata { background-color: rgba(159, 122, 234, 0.2); color: #b794f4; }
-.prompt-preview-container { height: 350px; overflow: auto; background: #1e1e2e; }
-.prompt-preview-header { padding: 0.25rem 0.5rem; background: #2d2d3a; border-bottom: 1px solid #3d3d4a; color: #a0a0b0; font-size: 0.7rem; }
-.prompt-preview-content { margin: 0; padding: 0.5rem; font-family: 'Consolas', monospace; font-size: 0.75rem; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word; color: #cdd6f4; background: transparent; border: none; }
-.prompt-preview-container .text-muted { color: #6c7a8a !important; }
+.prompt-preview-container { height: 350px; overflow: auto; background: var(--tblr-bg-surface, #1e1e2e); }
+.prompt-preview-header { padding: 0.25rem 0.5rem; background: var(--tblr-bg-surface-secondary, #2d2d3a); border-bottom: 1px solid var(--tblr-border-color, #3d3d4a); color: var(--tblr-secondary-color, #a0a0b0); font-size: 0.7rem; }
+.prompt-preview-content { margin: 0; padding: 0.5rem; font-family: 'Consolas', monospace; font-size: 0.75rem; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word; color: var(--tblr-body-color, #cdd6f4); background: transparent; border: none; }
+.prompt-preview-container .text-muted { color: var(--tblr-secondary-color, #6c7a8a) !important; }
 /* Section colors for parsed prompts */
 .prompt-section { border-left: 3px solid; margin: 0; padding: 0.4rem 0.6rem; }
 .prompt-section-header { display: inline-flex; align-items: center; gap: 0.25rem; margin-bottom: 0.15rem; font-weight: 600; font-size: 0.6rem; text-transform: uppercase; padding: 0.1rem 0.3rem; border-radius: 2px; }
