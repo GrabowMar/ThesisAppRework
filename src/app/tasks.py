@@ -20,36 +20,84 @@ from app.utils.distributed_lock import database_write_lock
 logger = logging.getLogger(__name__)
 
 
-def _extract_total_issues(payload: Dict[str, Any]) -> int:
-    """Extract total issue count from various result payload formats.
+def _extract_issues_and_severity(payload: Dict[str, Any]) -> tuple:
+    """Extract total issue count and severity breakdown from result payload.
     
-    Handles multiple result structures:
-    1. Direct summary: {'summary': {'total_findings': N}}
-    2. Comprehensive nested: {'results': {'summary': {...}, 'services': {...}}}
-    3. Service-specific: {'services': {'static': {'analysis': {'results': {...}}}}}
+    Returns:
+        (total_issues: int, severity_breakdown: dict)
     
-    If the summary shows 0 but services contain actual findings, 
-    we compute the real count from service results.
+    Severity mapping matches the results page template:
+      critical/error → high, warning → medium, convention/refactor → info
     """
     total_issues = 0
+    severity = {}  # {high: N, medium: N, low: N, info: N}
     
-    # Try to get from summary first
-    summary_issues = 0
-    if 'summary' in payload:
-        summary_issues = payload['summary'].get('total_findings', 0)
-    elif 'results' in payload and isinstance(payload.get('results'), dict):
-        results = payload['results']
-        if 'summary' in results:
-            summary_issues = results['summary'].get('total_findings', 0)
+    METADATA_KEYS = {'tool_status', '_metadata', 'status', 'message', 'error', 
+                     '_project_metadata', 'file_counts', 'security_files', 'total_files'}
     
-    # If summary shows issues, trust it
-    if summary_issues > 0:
-        return summary_issues
+    def _add_severity(sev_name: str, count: int):
+        """Map severity names to canonical categories."""
+        s = sev_name.lower()
+        if s in ('high', 'critical', 'error'):
+            severity['high'] = severity.get('high', 0) + count
+        elif s in ('medium', 'warning'):
+            severity['medium'] = severity.get('medium', 0) + count
+        elif s == 'low':
+            severity['low'] = severity.get('low', 0) + count
+        else:  # info, convention, refactor, etc.
+            severity['info'] = severity.get('info', 0) + count
     
-    # Otherwise, compute from service results (summary might be buggy)
+    def _extract_from_analysis(svc_analysis: dict):
+        """Extract issues from a service's analysis data (tool-level)."""
+        nonlocal total_issues
+        svc_issues = 0
+        
+        # Check service-level summary for total
+        svc_summary = svc_analysis.get('summary', {})
+        if isinstance(svc_summary, dict):
+            svc_total = (svc_summary.get('total_issues_found', 0) 
+                       or svc_summary.get('total_findings', 0)
+                       or svc_summary.get('vulnerabilities_found', 0))
+            if svc_total and isinstance(svc_total, (int, float)):
+                svc_issues = int(svc_total)
+        
+        # Scan tool-level results for severity breakdown (more accurate)
+        tool_level_issues = 0
+        results_data = svc_analysis.get('results', {})
+        if isinstance(results_data, dict):
+            for lang, lang_tools in results_data.items():
+                if not isinstance(lang_tools, dict) or lang.lower() == 'structure':
+                    continue
+                for tool_name, tool_data in lang_tools.items():
+                    if tool_name.lower() in METADATA_KEYS or not isinstance(tool_data, dict):
+                        continue
+                    if not any(k in tool_data for k in ('tool', 'executed', 'status')):
+                        continue
+                    
+                    # Count issues from tool data
+                    ti = tool_data.get('issue_count', 0) or tool_data.get('total_issues', 0)
+                    if not ti and isinstance(tool_data.get('issues'), list):
+                        ti = len(tool_data['issues'])
+                    if isinstance(ti, (int, float)):
+                        tool_level_issues += int(ti)
+                    
+                    # Extract severity from tool-level breakdown
+                    sb = tool_data.get('severity_breakdown', {})
+                    if isinstance(sb, dict) and sb:
+                        for sev_name, count in sb.items():
+                            if isinstance(count, (int, float)) and count > 0:
+                                _add_severity(sev_name, int(count))
+                    elif isinstance(tool_data.get('issues'), list):
+                        for issue in tool_data['issues']:
+                            if isinstance(issue, dict):
+                                sev = (issue.get('severity') or issue.get('issue_severity') or 'medium').lower()
+                                _add_severity(sev, 1)
+        
+        # Use tool-level total if we computed it, otherwise service summary
+        total_issues += max(svc_issues, tool_level_issues)
+    
+    # Collect services to scan
     services_to_scan = {}
-    
-    # Check for services at different nesting levels
     if 'services' in payload:
         services_to_scan = payload['services']
     elif 'results' in payload and isinstance(payload.get('results'), dict):
@@ -57,53 +105,36 @@ def _extract_total_issues(payload: Dict[str, Any]) -> int:
         if 'services' in results:
             services_to_scan = results['services']
     
-    # Also check top-level service keys (static, dynamic, etc.)
-    for key in ('static', 'dynamic', 'performance', 'ai', 'security'):
-        if key in payload and isinstance(payload[key], dict):
-            services_to_scan[key] = payload[key]
-    
-    # Extract issues from each service
     for svc_name, svc_result in services_to_scan.items():
         if not isinstance(svc_result, dict):
             continue
-        
-        # Try to get from service-level summary first
         # Analysis data may be at svc_result.analysis OR svc_result.payload.analysis
         svc_analysis = svc_result.get('analysis', {})
         if not isinstance(svc_analysis, dict) or not svc_analysis:
-            payload_data = svc_result.get('payload', {})
-            if isinstance(payload_data, dict):
-                svc_analysis = payload_data.get('analysis', payload_data)
-        
-        if isinstance(svc_analysis, dict):
-            svc_summary = svc_analysis.get('summary', {})
-            if isinstance(svc_summary, dict):
-                svc_total = (svc_summary.get('total_issues_found', 0) 
-                           or svc_summary.get('total_findings', 0)
-                           or svc_summary.get('vulnerabilities_found', 0))
-                if svc_total > 0:
-                    total_issues += svc_total
-                    continue
-            
-            # Dive into tool results: analysis.results.{language}.{tool}.total_issues
-            results_data = svc_analysis.get('results', {})
-            if isinstance(results_data, dict):
-                for lang_results in results_data.values():
-                    if isinstance(lang_results, dict):
-                        for tool_result in lang_results.values():
-                            if isinstance(tool_result, dict):
-                                # Use total_issues OR issue_count, not both (they're the same)
-                                tool_issues = tool_result.get('total_issues', 0) or tool_result.get('issue_count', 0)
-                                total_issues += tool_issues
+            p = svc_result.get('payload', {})
+            if isinstance(p, dict):
+                svc_analysis = p.get('analysis', p)
+        if isinstance(svc_analysis, dict) and svc_analysis:
+            _extract_from_analysis(svc_analysis)
     
-    # Also check top-level tools dict (from aggregate_results unified payload)
-    tools_data = payload.get('tools', {})
-    if isinstance(tools_data, dict) and total_issues == 0:
-        for tool_result in tools_data.values():
-            if isinstance(tool_result, dict):
-                total_issues += tool_result.get('total_issues', 0)
+    # Fallback: check top-level tools dict
+    if total_issues == 0:
+        tools_data = payload.get('tools', {})
+        if isinstance(tools_data, dict):
+            for tool_result in tools_data.values():
+                if isinstance(tool_result, dict):
+                    total_issues += tool_result.get('total_issues', 0)
     
-    return total_issues
+    # Remove zero entries
+    severity = {k: v for k, v in severity.items() if v > 0}
+    
+    return total_issues, severity
+
+
+def _extract_total_issues(payload: Dict[str, Any]) -> int:
+    """Extract total issue count (backward-compatible wrapper)."""
+    total, _ = _extract_issues_and_severity(payload)
+    return total
 
 
 @celery.task(bind=True, acks_late=True)
@@ -534,8 +565,8 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
             final_db_status = AnalysisStatus.COMPLETED
 
         # Build unified payload
-        # Compute total findings from service-level data (not just flat findings list)
-        total_findings = _extract_total_issues({
+        # Compute total findings and severity from service-level tool data
+        total_findings, merged_severity = _extract_issues_and_severity({
             'services': all_services,
             'tools': combined_tool_results,
         })
@@ -579,23 +610,6 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
             main_task.completed_at = datetime.now(timezone.utc)
             main_task.progress_percentage = 100.0
             main_task.issues_found = total_findings
-
-            # Extract and merge severity breakdown from all services
-            merged_severity = {}
-            for svc_result in all_services.values():
-                if not isinstance(svc_result, dict):
-                    continue
-                svc_analysis = svc_result.get('analysis', {})
-                if not isinstance(svc_analysis, dict) or not svc_analysis:
-                    p = svc_result.get('payload', {})
-                    if isinstance(p, dict):
-                        svc_analysis = p.get('analysis', p)
-                if isinstance(svc_analysis, dict):
-                    sb = svc_analysis.get('summary', {}).get('severity_breakdown', {})
-                    if isinstance(sb, dict):
-                        for level, count in sb.items():
-                            if isinstance(count, (int, float)) and count > 0:
-                                merged_severity[level] = merged_severity.get(level, 0) + int(count)
             if merged_severity:
                 main_task.set_severity_breakdown(merged_severity)
 
