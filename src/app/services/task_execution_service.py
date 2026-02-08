@@ -410,6 +410,113 @@ class TaskExecutionService:
         self.executor.shutdown(wait=True, cancel_futures=False)
         self._log("TaskExecutionService stopped")
     
+    def _aggregate_subtask_results(
+        self, main_task: AnalysisTask, subtasks: list
+    ) -> None:
+        """Aggregate subtask results into the main task.
+        
+        Called during recovery when the Celery chord callback never fired.
+        Reads each subtask's result_summary from DB and builds a unified payload,
+        mirroring the logic in app.tasks.aggregate_results.
+        """
+        from app.tasks import _extract_issues_and_severity, _write_results_to_fs
+
+        all_services: Dict[str, Any] = {}
+        all_findings: list = []
+        combined_tool_results: Dict[str, Any] = {}
+        any_failed = False
+        any_succeeded = False
+
+        for st in subtasks:
+            svc_name = st.service_name or 'unknown'
+            payload = st.get_result_summary() if hasattr(st, 'get_result_summary') else {}
+            if not isinstance(payload, dict):
+                payload = {}
+
+            if st.status == AnalysisStatus.FAILED:
+                any_failed = True
+                svc_status = 'failed'
+            elif st.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS):
+                any_succeeded = True
+                svc_status = 'success' if st.status == AnalysisStatus.COMPLETED else 'partial'
+            else:
+                any_failed = True
+                svc_status = str(st.status.value) if st.status else 'unknown'
+
+            all_services[svc_name] = {
+                'status': svc_status,
+                'payload': payload,
+                'error': st.error_message,
+                'service_name': svc_name,
+                'subtask_id': st.id,
+            }
+
+            if isinstance(payload, dict):
+                analysis = payload.get('analysis', {}) if isinstance(payload.get('analysis'), dict) else {}
+                findings = payload.get('findings', []) or analysis.get('findings', [])
+                if isinstance(findings, list):
+                    all_findings.extend(findings)
+                tool_results = payload.get('tool_results', {}) or analysis.get('tool_results', {})
+                if isinstance(tool_results, dict):
+                    combined_tool_results.update(tool_results)
+
+        # Determine final status
+        if any_succeeded and any_failed:
+            final_status = 'partial'
+        elif any_failed:
+            final_status = 'failed'
+        else:
+            final_status = 'completed'
+
+        total_findings, merged_severity = _extract_issues_and_severity({
+            'services': all_services,
+            'tools': combined_tool_results,
+        })
+        if total_findings == 0 and all_findings:
+            total_findings = len(all_findings)
+
+        unified_payload: Dict[str, Any] = {
+            'task': {'task_id': main_task.task_id},
+            'summary': {
+                'total_findings': total_findings,
+                'services_executed': len(all_services),
+                'tools_executed': len(combined_tool_results),
+                'status': final_status,
+            },
+            'services': all_services,
+            'tools': combined_tool_results,
+            'findings': all_findings,
+            'metadata': {
+                'unified_analysis': True,
+                'orchestrator_version': '3.0.0',
+                'executor': 'recovery',
+                'generated_at': datetime.now(timezone.utc).isoformat(),
+            },
+        }
+
+        main_task.issues_found = total_findings
+        if merged_severity:
+            main_task.set_severity_breakdown(merged_severity)
+        main_task.set_result_summary(unified_payload)
+
+        if main_task.started_at:
+            started_at = main_task.started_at
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=timezone.utc)
+            completed = main_task.completed_at or datetime.now(timezone.utc)
+            if hasattr(completed, 'tzinfo') and completed.tzinfo is None:
+                completed = completed.replace(tzinfo=timezone.utc)
+            main_task.actual_duration = (completed - started_at).total_seconds()
+
+        # Write to filesystem
+        try:
+            _write_results_to_fs(main_task, unified_payload)
+        except Exception as e:
+            self._log(
+                "[RECOVERY] Failed to write results to filesystem for %s: %s",
+                main_task.task_id, e, level='warning'
+            )
+
     def _recover_stuck_tasks(self) -> int:
         """Recover tasks stuck in RUNNING state for too long.
         
@@ -441,7 +548,13 @@ class TaskExecutionService:
             # Skip chord-managed tasks unless they've been stuck for >15 min
             # The aggregate_results callback is responsible for finalizing these
             if main_task.assigned_worker == 'celery_chord':
-                task_age = (datetime.now(timezone.utc) - (main_task.started_at or main_task.created_at).replace(tzinfo=timezone.utc)) if main_task.started_at or main_task.created_at else timedelta(0)
+                ts = main_task.started_at or main_task.created_at
+                if ts:
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=timezone.utc)
+                    task_age = datetime.now(timezone.utc) - ts
+                else:
+                    task_age = timedelta(0)
                 if task_age < chord_age_threshold:
                     continue  # Let Celery chord handle it
                 self._log(
@@ -474,15 +587,74 @@ class TaskExecutionService:
                 main_task.completed_at = datetime.now(timezone.utc)
                 main_task.progress_percentage = 100.0
                 
+                # Aggregate subtask results (chord callback never fired)
+                self._aggregate_subtask_results(main_task, subtasks)
+                
                 self._log(
-                    "[RECOVERY] Fixed main task %s with completed subtasks: status=%s",
-                    main_task.task_id, main_task.status.value, level='warning'
+                    "[RECOVERY] Fixed main task %s with completed subtasks: status=%s, issues=%s",
+                    main_task.task_id, main_task.status.value,
+                    main_task.issues_found, level='warning'
                 )
                 recovered_count += 1
         
         if recovered_count > 0:
             db.session.commit()
             self._log("[RECOVERY] Fixed %d main task(s) with completed subtasks", recovered_count)
+        
+        # SECOND-A: Backfill results for main tasks already finalized by recovery
+        # but missing aggregated results (chord callback never fired).
+        # Also re-evaluate status: if recovery marked FAILED but subtasks actually
+        # have successes, upgrade to PARTIAL_SUCCESS/COMPLETED.
+        completed_no_results = AnalysisTask.query.filter(
+            AnalysisTask.status.in_([  # type: ignore[union-attr]
+                AnalysisStatus.COMPLETED,
+                AnalysisStatus.PARTIAL_SUCCESS,
+                AnalysisStatus.FAILED,
+            ]),
+            AnalysisTask.is_main_task == True,  # noqa: E712  # type: ignore[arg-type]
+            (AnalysisTask.result_summary == None) | (AnalysisTask.result_summary == ''),  # noqa: E711  # type: ignore[arg-type]
+        ).all()
+        
+        backfilled = 0
+        for main_task in completed_no_results:
+            subtasks = list(main_task.subtasks) if hasattr(main_task, 'subtasks') else []
+            if not subtasks:
+                continue
+            # Skip if subtasks are still running (wait for them to finish)
+            terminal = {AnalysisStatus.COMPLETED, AnalysisStatus.FAILED, 
+                        AnalysisStatus.PARTIAL_SUCCESS, AnalysisStatus.CANCELLED}
+            if not all(st.status in terminal for st in subtasks):
+                continue
+            # Only backfill if at least one subtask has results
+            has_any_results = any(
+                (st.get_result_summary() if hasattr(st, 'get_result_summary') else None)
+                for st in subtasks
+            )
+            if not has_any_results:
+                continue
+            self._aggregate_subtask_results(main_task, subtasks)
+            # Re-evaluate status based on actual subtask outcomes
+            any_failed = any(st.status == AnalysisStatus.FAILED for st in subtasks)
+            any_succeeded = any(
+                st.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS)
+                for st in subtasks
+            )
+            if any_succeeded and any_failed:
+                main_task.status = AnalysisStatus.PARTIAL_SUCCESS
+            elif any_succeeded:
+                main_task.status = AnalysisStatus.COMPLETED
+            # else: keep FAILED
+            self._log(
+                "[RECOVERY] Backfilled results for main task %s: status=%s issues=%s",
+                main_task.task_id, main_task.status.value, main_task.issues_found,
+                level='warning'
+            )
+            backfilled += 1
+        
+        if backfilled > 0:
+            db.session.commit()
+            self._log("[RECOVERY] Backfilled results for %d main task(s)", backfilled)
+            recovered_count += backfilled
         
         # SECOND: Recover tasks stuck in RUNNING with no assigned worker (dispatch race condition)
         # These tasks got marked RUNNING but no worker ever picked them up
@@ -544,6 +716,23 @@ class TaskExecutionService:
         
         stuck_recovered = 0
         for task in stuck_tasks:
+            # If this is a chord-managed main task with subtasks still in progress,
+            # do NOT recover it — the subtasks are still doing work and will trigger
+            # aggregation when they finish via _check_siblings_and_aggregate().
+            if task.assigned_worker == 'celery_chord' and task.is_main_task:
+                subtasks = list(task.subtasks) if hasattr(task, 'subtasks') else []
+                if subtasks:
+                    active_subs = [
+                        st for st in subtasks
+                        if st.status in (AnalysisStatus.RUNNING, AnalysisStatus.PENDING)
+                    ]
+                    if active_subs:
+                        self._log(
+                            "[RECOVERY] Skipping chord main task %s — %d/%d subtasks still active",
+                            task.task_id, len(active_subs), len(subtasks), level='debug'
+                        )
+                        continue
+
             # Check if this is a Celery task that's actually still running
             # by checking if it's in our active futures (ThreadPool) or has a Celery task ID
             meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
@@ -617,6 +806,116 @@ class TaskExecutionService:
             db.session.commit()
             self._log("[RECOVERY] Recovered %d stuck task(s)", stuck_recovered)
         
+        # THREE-B: Recover zombie Celery subtasks — subtasks marked RUNNING with
+        # assigned_worker='celery' but no actual Celery task processing them
+        # (happens when celery-worker restarts and loses its queue).
+        # Also recover PENDING subtasks with assigned_worker='celery' that were
+        # dispatched but never started (Celery lost the message).
+        celery_subtask_threshold = timedelta(minutes=20)
+        celery_subtask_cutoff = datetime.now(timezone.utc) - celery_subtask_threshold
+        celery_pending_threshold = timedelta(minutes=10)
+        celery_pending_cutoff = datetime.now(timezone.utc) - celery_pending_threshold
+        
+        # Running zombies: dispatched, started, but Celery lost them
+        zombie_subtasks = AnalysisTask.query.filter(
+            AnalysisTask.status == AnalysisStatus.RUNNING,  # type: ignore[arg-type]
+            AnalysisTask.is_main_task == False,  # noqa: E712  # type: ignore[arg-type]
+            AnalysisTask.assigned_worker == 'celery',  # type: ignore[arg-type]
+            AnalysisTask.parent_task_id != None,  # noqa: E711  # type: ignore[arg-type]
+            AnalysisTask.started_at != None,  # noqa: E711  # type: ignore[arg-type]
+            AnalysisTask.started_at < celery_subtask_cutoff,  # type: ignore[operator,arg-type]
+        ).all()
+        
+        # Pending zombies: dispatched to Celery but never started
+        pending_zombies = AnalysisTask.query.filter(
+            AnalysisTask.status == AnalysisStatus.PENDING,  # type: ignore[arg-type]
+            AnalysisTask.is_main_task == False,  # noqa: E712  # type: ignore[arg-type]
+            AnalysisTask.assigned_worker == 'celery',  # type: ignore[arg-type]
+            AnalysisTask.parent_task_id != None,  # noqa: E711  # type: ignore[arg-type]
+            AnalysisTask.updated_at != None,  # noqa: E711  # type: ignore[arg-type]
+            AnalysisTask.updated_at < celery_pending_cutoff,  # type: ignore[operator,arg-type]
+        ).all()
+        
+        all_zombies = zombie_subtasks + pending_zombies
+        
+        zombie_recovered = 0
+        for subtask in all_zombies:
+            ref_time = subtask.started_at or subtask.updated_at
+            if ref_time and ref_time.tzinfo is None:
+                ref_time = ref_time.replace(tzinfo=timezone.utc)
+            stuck_dur = datetime.now(timezone.utc) - ref_time if ref_time else timedelta(0)
+            
+            # Reset to PENDING so the parent task's next dispatch cycle
+            # will re-include it. Clear assigned_worker so it gets picked up.
+            subtask.status = AnalysisStatus.PENDING
+            subtask.started_at = None
+            subtask.assigned_worker = None
+            subtask.progress_percentage = 0.0
+            subtask.current_step = None
+            self._log(
+                "[RECOVERY] Reset zombie subtask %s (%s, %s/app%s) stuck for %s",
+                subtask.task_id, subtask.service_name,
+                subtask.target_model, subtask.target_app_number,
+                stuck_dur, level='warning'
+            )
+            zombie_recovered += 1
+        
+        if zombie_recovered > 0:
+            db.session.commit()
+            self._log("[RECOVERY] Reset %d zombie Celery subtask(s) to PENDING", zombie_recovered)
+            stuck_recovered += zombie_recovered
+            
+            # Also reset the parent main tasks so the daemon re-dispatches them.
+            # Reset both RUNNING and FAILED main tasks (FAILED may have been
+            # prematurely marked by a previous recovery cycle).
+            parent_ids = set(
+                st.parent_task_id for st in all_zombies if st.parent_task_id
+            )
+            for parent_id in parent_ids:
+                main_task = AnalysisTask.query.filter_by(task_id=parent_id).first()
+                if main_task and main_task.status in (
+                    AnalysisStatus.RUNNING, AnalysisStatus.FAILED
+                ):
+                    main_task.status = AnalysisStatus.PENDING
+                    main_task.assigned_worker = None
+                    main_task.progress_percentage = 0.0
+                    main_task.error_message = None
+                    self._log(
+                        "[RECOVERY] Reset main task %s (%s) to PENDING for re-dispatch",
+                        main_task.task_id, main_task.status.value, level='warning'
+                    )
+            db.session.commit()
+        
+        # THREE-C: Recover FAILED main tasks that have orphaned PENDING subtasks.
+        # This handles the case where recovery previously marked a main task as FAILED
+        # but zombie subtask recovery later reset its subtasks to PENDING.
+        failed_orphan_count = 0
+        failed_main_with_pending = AnalysisTask.query.filter(
+            AnalysisTask.status == AnalysisStatus.FAILED,  # type: ignore[arg-type]
+            AnalysisTask.is_main_task == True,  # noqa: E712  # type: ignore[arg-type]
+        ).all()
+        for main_task in failed_main_with_pending:
+            subtasks = list(main_task.subtasks) if hasattr(main_task, 'subtasks') else []
+            pending_subs = [
+                st for st in subtasks
+                if st.status == AnalysisStatus.PENDING and st.assigned_worker is None
+            ]
+            if pending_subs:
+                main_task.status = AnalysisStatus.PENDING
+                main_task.assigned_worker = None
+                main_task.error_message = None
+                main_task.progress_percentage = 0.0
+                failed_orphan_count += 1
+                self._log(
+                    "[RECOVERY] Reset FAILED main task %s to PENDING — "
+                    "%d subtask(s) still pending",
+                    main_task.task_id, len(pending_subs), level='warning'
+                )
+        if failed_orphan_count > 0:
+            db.session.commit()
+            self._log("[RECOVERY] Reset %d FAILED main task(s) with orphaned subtasks",
+                      failed_orphan_count)
+        
         # FOURTH: Recover FAILED tasks due to transient service unavailability
         # These tasks failed quickly with pre-flight errors and may be retryable
         failed_retry_count = self._recover_failed_transient_tasks()
@@ -624,7 +923,7 @@ class TaskExecutionService:
         # FIFTH: Recover PARTIAL_SUCCESS tasks with retryable failed subtasks
         partial_retry_count = self._recover_partial_success_tasks()
         
-        return recovered_count + stuck_recovered + failed_retry_count + partial_retry_count
+        return recovered_count + stuck_recovered + failed_orphan_count + failed_retry_count + partial_retry_count
     
     def _recover_failed_transient_tasks(self) -> int:
         """Recover FAILED tasks that failed due to transient service unavailability.
@@ -1795,15 +2094,15 @@ class TaskExecutionService:
         
         if use_celery and self._is_redis_available():
             try:
-                from celery import chord
-                from app.tasks import execute_subtask, aggregate_results
+                from app.tasks import execute_subtask
                 
                 header = []
                 subtask_info = []
                 
                 for subtask in subtasks:
-                    # Skip subtasks that are already in a terminal success state (partial recovery case)
-                    if subtask.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS):
+                    # Skip subtasks that are already in a terminal state (recovery/re-dispatch case)
+                    if subtask.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS,
+                                          AnalysisStatus.CANCELLED):
                         continue
                     
                     service_name = subtask.service_name
@@ -1832,33 +2131,53 @@ class TaskExecutionService:
                     subtask_info.append(service_name)
                 
                 if not header:
-                    # All subtasks were skipped (no tools) - check if they were successfully marked as completed
-                    all_skipped_completed = all(
-                        s.status == AnalysisStatus.COMPLETED 
+                    # All subtasks were skipped — check if main task should be finalized
+                    all_terminal = all(
+                        s.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS,
+                                     AnalysisStatus.FAILED, AnalysisStatus.CANCELLED)
                         for s in subtasks
                     )
-                    if all_skipped_completed:
-                        main_task.status = AnalysisStatus.COMPLETED
+                    if all_terminal:
+                        # Finalize the main task based on subtask outcomes
+                        any_completed = any(
+                            s.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS)
+                            for s in subtasks
+                        )
+                        all_failed_or_cancelled = all(
+                            s.status in (AnalysisStatus.FAILED, AnalysisStatus.CANCELLED)
+                            for s in subtasks
+                        )
+                        if all_failed_or_cancelled:
+                            main_task.status = AnalysisStatus.FAILED
+                            main_task.error_message = "All subtasks failed or were cancelled"
+                        elif any_completed:
+                            main_task.status = AnalysisStatus.PARTIAL_SUCCESS
+                        else:
+                            main_task.status = AnalysisStatus.COMPLETED
                         main_task.completed_at = datetime.now(timezone.utc)
                         main_task.progress_percentage = 100.0
-                        main_task.current_step = "All subtasks completed (no tools required)"
+                        # Aggregate results from completed subtasks
+                        all_subs = list(main_task.subtasks) if hasattr(main_task, 'subtasks') else []
+                        self._aggregate_subtask_results(main_task, all_subs)
                         db.session.commit()
-                        self._log(f"All Celery subtasks for {main_task_id} had no tools - marked main task as COMPLETED")
+                        self._log(
+                            f"All subtasks terminal for {main_task_id} — finalized as {main_task.status.value}"
+                        )
                         return {
-                            'status': 'completed',
+                            'status': main_task.status.value,
                             'engine': 'celery',
                             'model_slug': main_task.target_model,
                             'app_number': main_task.target_app_number,
-                            'payload': {'message': 'No tools to execute - all subtasks completed'}
+                            'payload': {'message': 'All subtasks already terminal'}
                         }
                     raise RuntimeError("No valid subtasks to submit")
                 
-                # Mark subtasks as Celery-managed BEFORE dispatching chord
+                # Mark subtasks as Celery-managed BEFORE dispatching
                 # This prevents orphan recovery from resetting them to PENDING
                 # Keep status PENDING — execute_subtask will transition to RUNNING
-                now = datetime.now(timezone.utc)
                 for subtask in subtasks:
-                    if subtask.status not in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS):
+                    if subtask.status not in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS,
+                                              AnalysisStatus.CANCELLED):
                         subtask.assigned_worker = 'celery'
                 
                 # Mark main task as RUNNING with worker assignment
@@ -1866,13 +2185,15 @@ class TaskExecutionService:
                 main_task.assigned_worker = main_task.assigned_worker or 'celery_chord'
                 main_task.progress_percentage = 30.0
                 db.session.commit()
-                    
-                # Create callback signature
-                callback = aggregate_results.s(main_task_id)
                 
-                # Execute chord
-                self._log(f"Dispatching Celery chord for task {main_task_id} with {len(header)} subtasks")
-                chord(header)(callback)
+                # Dispatch subtasks individually (NOT as a chord).
+                # Each execute_subtask will check if all siblings are done
+                # and trigger aggregation if so. This avoids the fragile
+                # Celery chord callback which silently fails under high
+                # concurrency with Redis backend.
+                self._log(f"Dispatching {len(header)} individual Celery subtasks for task {main_task_id}")
+                for sig in header:
+                    sig.apply_async()
                 
                 celery_dispatched = True
                 return {

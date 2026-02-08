@@ -137,6 +137,68 @@ def _extract_total_issues(payload: Dict[str, Any]) -> int:
     return total
 
 
+def _check_siblings_and_aggregate(subtask_id: int) -> None:
+    """Check if all sibling subtasks are complete and trigger aggregation.
+    
+    Called after each subtask finishes (success or failure). If all siblings
+    of the parent task are in a terminal state, dispatches aggregate_results
+    to finalize the main task. This replaces the fragile Celery chord callback.
+    """
+    try:
+        subtask = AnalysisTask.query.get(subtask_id)
+        if not subtask or not subtask.parent_task_id:
+            return
+        
+        main_task = AnalysisTask.query.filter_by(
+            task_id=subtask.parent_task_id
+        ).first()
+        if not main_task:
+            return
+        
+        # Skip only if genuinely cancelled — otherwise still aggregate
+        # (aggregate_results handles already-finalized tasks gracefully)
+        if main_task.status == AnalysisStatus.CANCELLED:
+            return
+        
+        siblings = list(main_task.subtasks)
+        terminal = {AnalysisStatus.COMPLETED, AnalysisStatus.FAILED, AnalysisStatus.PARTIAL_SUCCESS}
+        all_done = all(s.status in terminal for s in siblings)
+        
+        if not all_done:
+            done_count = sum(1 for s in siblings if s.status in terminal)
+            logger.info(
+                f"[CELERY] Subtask {subtask_id} done, {done_count}/{len(siblings)} "
+                f"siblings complete for main task {main_task.task_id}"
+            )
+            return
+        
+        logger.info(
+            f"[CELERY] All {len(siblings)} subtasks complete for main task "
+            f"{main_task.task_id} — triggering aggregation"
+        )
+        
+        # Build results list matching chord callback format
+        results = []
+        for s in siblings:
+            payload = s.get_result_summary() if hasattr(s, 'get_result_summary') else {}
+            svc_status = 'success' if s.status == AnalysisStatus.COMPLETED else (
+                'partial' if s.status == AnalysisStatus.PARTIAL_SUCCESS else 'error'
+            )
+            results.append({
+                'status': svc_status,
+                'payload': payload if isinstance(payload, dict) else {},
+                'error': s.error_message,
+                'service_name': s.service_name,
+                'subtask_id': s.id
+            })
+        
+        # Dispatch aggregation as a Celery task (not inline) for isolation
+        aggregate_results.delay(results, main_task.task_id)
+        
+    except Exception as e:
+        logger.error(f"[CELERY] Sibling check failed for subtask {subtask_id}: {e}", exc_info=True)
+
+
 @celery.task(bind=True, acks_late=True)
 def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, tools: List[str], service_name: str) -> Dict[str, Any]:
     """
@@ -193,49 +255,65 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
             subtask.progress_percentage = 30.0
             db.session.commit()
 
-        # For dynamic/performance analysis, ensure app containers are running
-        # This handles cases where the daemon dispatches without pipeline container startup
+        # For dynamic/performance analysis, ensure app containers are running.
+        # Uses a file-based lock so only one Celery worker per app starts containers
+        # (prevents race where two workers both build simultaneously, causing name
+        # conflicts and destructive cleanup).
         if service_name in ('dynamic-analyzer', 'performance-tester'):
             try:
                 from app.services.docker_manager import DockerManager
                 import time as _time
+                import fcntl
+                import os
                 
                 dm = DockerManager()
-                containers = dm.get_project_containers(model_slug, app_number)
-                containers_running = bool(containers) and all(
-                    c.get('status') == 'running' for c in containers
-                )
+                lock_dir = '/tmp/thesis_container_locks'
+                os.makedirs(lock_dir, exist_ok=True)
+                safe_key = f"{model_slug}__app{app_number}".replace('/', '_')
+                lock_path = os.path.join(lock_dir, f"{safe_key}.lock")
                 
-                if not containers_running:
-                    logger.info(f"[CELERY] App containers not running for {model_slug} app {app_number}, starting...")
-                    with database_write_lock(f"subtask_{subtask_id}_progress"):
-                        subtask.current_step = f"Starting app containers for {service_name}..."
-                        db.session.commit()
-                    
-                    if containers:
-                        start_result = dm.start_containers(model_slug, app_number)
-                    else:
-                        start_result = dm.build_containers(model_slug, app_number, no_cache=False, start_after=True)
-                    
-                    if start_result.get('success'):
-                        logger.info(f"[CELERY] Containers started for {model_slug} app {app_number}, waiting for readiness...")
-                        # Wait for containers to be healthy (up to 90s)
-                        deadline = _time.time() + 90
-                        while _time.time() < deadline:
-                            health = dm.get_container_health(model_slug, app_number)
-                            if health.get('all_healthy'):
-                                logger.info(f"[CELERY] Containers healthy for {model_slug} app {app_number}")
-                                break
-                            # Check for crash
-                            crash = dm._check_for_crash_loop(model_slug, app_number)
-                            if crash.get('has_crash_loop'):
-                                logger.warning(f"[CELERY] Container crash detected for {model_slug} app {app_number}")
-                                break
-                            _time.sleep(3)
-                    else:
-                        logger.warning(f"[CELERY] Failed to start containers for {model_slug} app {app_number}: {start_result.get('error')}")
-                else:
-                    logger.info(f"[CELERY] App containers already running for {model_slug} app {app_number}")
+                with open(lock_path, 'w') as lock_file:
+                    # Exclusive lock — other subtasks for same app wait here
+                    fcntl.flock(lock_file, fcntl.LOCK_EX)
+                    try:
+                        containers = dm.get_project_containers(model_slug, app_number)
+                        containers_running = bool(containers) and all(
+                            c.get('status') == 'running' for c in containers
+                        )
+                        
+                        if not containers_running:
+                            logger.info(f"[CELERY] App containers not running for {model_slug} app {app_number}, starting (lock held)...")
+                            with database_write_lock(f"subtask_{subtask_id}_progress"):
+                                subtask.current_step = f"Starting app containers for {service_name}..."
+                                db.session.commit()
+                            
+                            if containers:
+                                start_result = dm.start_containers(model_slug, app_number)
+                            else:
+                                start_result = dm.build_containers(model_slug, app_number, no_cache=False, start_after=True)
+                            
+                            if start_result.get('success'):
+                                logger.info(f"[CELERY] Containers started for {model_slug} app {app_number}, waiting for readiness...")
+                                deadline = _time.time() + 90
+                                while _time.time() < deadline:
+                                    health = dm.get_container_health(model_slug, app_number)
+                                    if health.get('all_healthy'):
+                                        logger.info(f"[CELERY] Containers healthy for {model_slug} app {app_number}")
+                                        break
+                                    crash = dm._check_for_crash_loop(model_slug, app_number)
+                                    if crash.get('has_crash_loop'):
+                                        logger.warning(f"[CELERY] Container crash detected for {model_slug} app {app_number}")
+                                        break
+                                    _time.sleep(3)
+                            else:
+                                # Do NOT run docker compose down here — another subtask or the
+                                # ConcurrentAnalysisRunner may have started containers that are
+                                # still in use. Just log and proceed without containers.
+                                logger.warning(f"[CELERY] Failed to start containers for {model_slug} app {app_number}: {start_result.get('error')}")
+                        else:
+                            logger.info(f"[CELERY] App containers already running for {model_slug} app {app_number}")
+                    finally:
+                        fcntl.flock(lock_file, fcntl.LOCK_UN)
             except Exception as container_err:
                 logger.warning(f"[CELERY] Container startup check failed for {model_slug} app {app_number}: {container_err}")
         
@@ -244,7 +322,20 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
         # Map service name to wrapper method
         result = {}
         if service_name == 'static-analyzer':
-            result = wrapper.run_static_analysis(model_slug, app_number, tools)
+            # Static analysis only needs source code (no containers), so retry
+            # on failure — timeouts are usually transient load issues.
+            max_retries = 2
+            for attempt in range(1, max_retries + 1):
+                result = wrapper.run_static_analysis(model_slug, app_number, tools)
+                if str(result.get('status', '')).lower() in ('success', 'completed', 'ok', 'partial'):
+                    break
+                if attempt < max_retries:
+                    logger.warning(
+                        f"[CELERY] Static analysis attempt {attempt}/{max_retries} failed for "
+                        f"{model_slug} app {app_number}: {result.get('error', 'unknown')}. Retrying..."
+                    )
+                    import time as _retry_time
+                    _retry_time.sleep(5)
         elif service_name == 'dynamic-analyzer':
              result = wrapper.run_dynamic_analysis(model_slug, app_number, tools=tools)
         elif service_name == 'performance-tester':
@@ -287,6 +378,9 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
 
             db.session.commit()
         
+        # Check if all sibling subtasks are now complete → trigger aggregation
+        _check_siblings_and_aggregate(subtask_id)
+        
         return {
             'status': result.get('status', 'success' if success else 'error'),
             'payload': payload,
@@ -305,6 +399,8 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
                     subtask.error_message = str(e)
                     subtask.completed_at = datetime.now(timezone.utc)
                     db.session.commit()
+            # Check siblings even on failure
+            _check_siblings_and_aggregate(subtask_id)
         except Exception as db_err:
             logger.warning(f"Failed to update subtask {subtask_id} status in DB: {db_err}", exc_info=True)
         return {'status': 'error', 'error': str(e), 'service_name': service_name}

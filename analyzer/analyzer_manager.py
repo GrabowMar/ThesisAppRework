@@ -1184,12 +1184,23 @@ class AnalyzerManager:
                     result_type = 'terminal' if terminal_frame else ('first' if first_frame else 'no_response')
                     logger.debug(f"Returning {result_type} frame from {service_name} ({url})")
                     
-                    # Store result and RETURN immediately on success (no retry needed)
-                    result = terminal_frame or first_frame or {'status': 'error', 'error': 'no_response'}
+                    # If we received a terminal frame, return it immediately (success)
+                    if terminal_frame:
+                        return terminal_frame
                     
-                    # If we got a valid response (even an error response from the service logic), consider it a success
-                    # connectivity-wise. Only network errors trigger failover.
-                    return result
+                    # No terminal frame: we timed out waiting for the result.
+                    # Do NOT return the first non-terminal frame (e.g. status_update)
+                    # as a valid result — that would store a progress message as the
+                    # analysis output. Instead, treat as a timeout and try next replica.
+                    logger.warning(
+                        f"Timed out waiting for terminal frame from {service_name} "
+                        f"at {url} after {timeout}s (got {result_type} frame only)"
+                    )
+                    last_error = TimeoutError(
+                        f"Analysis timed out after {timeout}s on {url} "
+                        f"(received {result_type} frame but no terminal result)"
+                    )
+                    continue
                     
             except (asyncio.TimeoutError, ConnectionClosed, OSError, IOError) as e:
                 last_error = e

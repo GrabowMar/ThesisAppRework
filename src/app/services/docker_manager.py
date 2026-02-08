@@ -6,6 +6,7 @@ Provides container lifecycle management, health monitoring, and log retrieval.
 """
 
 import logging
+import os
 import shutil
 import time
 import threading
@@ -771,31 +772,30 @@ class DockerManager:
         bring containers online so UI reflects a running state immediately.
         
         Includes automatic image cleanup before build to prevent conflicts.
-        Uses per-app locks to prevent race conditions during parallel builds.
+        Uses file-based lock for cross-process safety (Celery prefork workers).
         """
-        # Acquire per-app build lock to prevent parallel builds for same model/app
-        lock_key = f"{model}:app{app_num}"
-        with _build_locks_lock:
-            if lock_key not in _build_locks:
-                _build_locks[lock_key] = threading.Lock()
-            build_lock = _build_locks[lock_key]
+        import fcntl
         
-        # Try to acquire lock with timeout to avoid indefinite blocking
-        lock_acquired = build_lock.acquire(timeout=600)  # 10 minute timeout
-        if not lock_acquired:
-            self.logger.warning(
-                "Build lock timeout for %s/app%s - another build may be stuck",
-                model, app_num
-            )
-            return {
-                'success': False,
-                'error': f'Could not acquire build lock for {model}/app{app_num} (timeout after 600s)'
-            }
+        # File-based lock — works across forked Celery worker processes
+        lock_dir = '/tmp/thesis_container_locks'
+        os.makedirs(lock_dir, exist_ok=True)
+        safe_key = f"{model}__app{app_num}".replace('/', '_')
+        lock_path = os.path.join(lock_dir, f"{safe_key}_build.lock")
         
         try:
+            lock_file = open(lock_path, 'w')
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            try:
+                return self._build_containers_impl(model, app_num, no_cache, start_after)
+            finally:
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+                lock_file.close()
+        except OSError as e:
+            self.logger.warning(
+                "Build file lock failed for %s/app%s: %s", model, app_num, e
+            )
+            # Fall through without lock — better to try than to skip entirely
             return self._build_containers_impl(model, app_num, no_cache, start_after)
-        finally:
-            build_lock.release()
     
     def _build_containers_impl(self, model: str, app_num: int, no_cache: bool, start_after: bool) -> Dict[str, Any]:
         """Internal implementation of build_containers (called with lock held)."""
@@ -829,6 +829,12 @@ class DockerManager:
             return build_result
 
         # Start containers (docker compose up -d)
+        # First, remove any stale containers with the same project name to prevent
+        # "container name already in use" conflicts (can happen after interrupted builds)
+        self._execute_compose_command(
+            compose_path, ['down', '--remove-orphans'], model, app_num,
+            timeout=60, build_id=build_id
+        )
         up_result = self._execute_compose_command(
             compose_path, ['up', '-d'], model, app_num, timeout=300, build_id=build_id
         )
