@@ -6,7 +6,8 @@ Clean, reliable concurrent app analysis using asyncio.
 Key features:
 - asyncio.Semaphore for clean concurrency limiting
 - Pre-ensures analyzer containers are healthy
-- Batches app container builds (with concurrency limit)  
+- On-demand container lifecycle: build→analyze→destroy per job
+- Only max_concurrent_analysis containers run simultaneously
 - Pre-creates all tasks atomically before execution
 - Clean progress callbacks
 
@@ -122,6 +123,7 @@ class ConcurrentAnalysisRunner:
         self._total = 0
         self._lock = asyncio.Lock()
         self._started_containers: List[tuple[str, int]] = []  # (model_slug, app_number) pairs
+        self._auto_start_app_containers = True  # Set per-batch in analyze_batch()
         
         logger.info(
             f"ConcurrentAnalysisRunner initialized "
@@ -137,6 +139,10 @@ class ConcurrentAnalysisRunner:
         auto_start_app_containers: bool = True,
     ) -> List[AnalysisJobResult]:
         """Analyze multiple apps concurrently.
+        
+        Containers are built on-demand per job (inside the semaphore) and destroyed
+        immediately after each analysis completes. This ensures at most
+        max_concurrent_analysis sets of containers run simultaneously.
         
         Args:
             jobs: List of analysis job specifications
@@ -154,6 +160,7 @@ class ConcurrentAnalysisRunner:
         self._completed = 0
         self._total = len(jobs)
         self._started_containers = []
+        self._auto_start_app_containers = auto_start_app_containers and not skip_container_build
         
         # Assign pipeline_id and tools to jobs if not set
         for job in jobs:
@@ -171,20 +178,18 @@ class ConcurrentAnalysisRunner:
             if not analyzers_ready:
                 logger.warning("Analyzer containers not fully healthy, proceeding anyway (static analysis may work)")
             
-            # STEP 2: Pre-build app containers in parallel (if enabled)
-            # Note: Even for "existing" apps, we should check/build containers unless explicitly skipped
-            if auto_start_app_containers and not skip_container_build:
-                logger.info("[STEP 2] Pre-building app containers...")
-                await self._prebuild_app_containers(jobs)
-            else:
-                logger.info("[STEP 2] Skipping container builds (disabled or static-only)")
+            # STEP 2: Containers are now built on-demand per job (inside _run_single_analysis)
+            logger.info("[STEP 2] Container builds will happen on-demand per job (max %d concurrent)", self.max_concurrent_analysis)
             
             # STEP 3: Pre-create all analysis tasks atomically
+            # Note: tasks are created with containers_ready=False initially;
+            # tool filtering happens after per-job container build in _run_single_analysis
             logger.info("[STEP 3] Pre-creating analysis tasks...")
             await self._precreate_tasks(jobs)
             
             # STEP 4: Run analysis with semaphore limiting
-            logger.info("[STEP 4] Running analysis jobs...")
+            # Container build + analysis + container teardown all happen inside the semaphore
+            logger.info("[STEP 4] Running analysis jobs (build→analyze→destroy per job)...")
             semaphore = asyncio.Semaphore(self.max_concurrent_analysis)
             
             async def run_with_sem(idx: int, job: AnalysisJobSpec) -> AnalysisJobResult:
@@ -221,7 +226,7 @@ class ConcurrentAnalysisRunner:
             
             return results
         finally:
-            # STEP 5: Stop all app containers that were started during this batch
+            # Safety net: stop any containers that weren't cleaned up per-job
             await self._stop_started_containers()
     
     async def _ensure_analyzers_ready(self) -> bool:
@@ -413,50 +418,15 @@ class ConcurrentAnalysisRunner:
     async def _precreate_tasks(self, jobs: List[AnalysisJobSpec]) -> None:
         """Pre-create all analysis tasks atomically.
         
-        This prevents race conditions in task creation.
+        Tasks are created with all requested tools. If containers fail to build
+        later (per-job), the task will be downgraded to static-only tools.
         """
         from app.services.task_service import AnalysisTaskService
         from app.extensions import db
         
         for idx, job in enumerate(jobs):
             try:
-                # Check if containers are ready; if not, downgrade to static analysis only
                 final_tools = job.tools or []
-
-                if not job.containers_ready and final_tools:
-                    # Filter to only keep static tools
-                    original_count = len(final_tools)
-                    # Normalize tool names for robust comparison
-                    filtered_tools = [
-                        t for t in final_tools 
-                        if t.lower() in STATIC_ANALYSIS_TOOLS or 
-                           any(st in t.lower() for st in STATIC_ANALYSIS_TOOLS)
-                    ]
-
-                    # If we filtered out non-static tools, log it
-                    if original_count > len(filtered_tools):
-                        logger.warning(
-                            f"Containers not ready for {job.model_slug}/app{job.app_number} - "
-                            f"downgraded to static analysis only (kept {len(filtered_tools)}/{original_count} tools)"
-                        )
-                        final_tools = filtered_tools
-
-                    # If no tools remain after filtering, log warning but continue with empty list
-                    # The analyzer will use all available static tools as fallback
-                    if not final_tools:
-                        logger.warning(
-                            f"{job.model_slug}/app{job.app_number}: No static tools in selection, "
-                            f"will use all available static tools as fallback"
-                        )
-                        # Ensure we don't pass an empty list if we want fallback, 
-                        # OR if the downstream service handles empty list as "all static", then fine.
-                        # AnalysisTaskService.create_main_task_with_subtasks usually interprets empty as "all available for this category"
-                elif not job.containers_ready:
-                    # No tools specified but containers failed - use all static tools
-                    logger.info(
-                        f"{job.model_slug}/app{job.app_number}: No tools specified, "
-                        f"containers not ready - will use all available static tools"
-                    )
 
                 logger.debug(f"Creating task for {job.model_slug}/app{job.app_number}...")
                 
@@ -465,13 +435,12 @@ class ConcurrentAnalysisRunner:
                     'source': 'concurrent_analysis_runner',
                     'pipeline_id': job.pipeline_id,
                     'container_management': {
-                        'start_before_analysis': False,  # Already built (or failed)
+                        'start_before_analysis': False,  # Managed by runner
                         'build_if_missing': False,
-                        'stop_after_analysis': True,
+                        'stop_after_analysis': False,  # Managed by runner
                     }
                 }
                 
-                # Use the filtered tool list
                 if final_tools:
                     custom_options['selected_tool_names'] = final_tools
                 
@@ -497,13 +466,117 @@ class ConcurrentAnalysisRunner:
         created_count = sum(1 for job in jobs if job.task_id)
         logger.info(f"Tasks created: {created_count}/{len(jobs)}")
     
+    async def _build_job_container(self, job_index: int, job: AnalysisJobSpec) -> bool:
+        """Build and start containers for a single job.
+        
+        Called inside the semaphore so at most max_concurrent_analysis builds run at once.
+        Returns True if containers are ready.
+        """
+        from app.services.service_locator import ServiceLocator
+        
+        docker_mgr = ServiceLocator.get_docker_manager()
+        if not docker_mgr:
+            logger.warning(f"[Job {job_index}] Docker manager not available, skipping container build")
+            return False
+        
+        max_build_retries = 2
+        last_error = 'Unknown error'
+        
+        for attempt in range(max_build_retries + 1):
+            try:
+                if attempt > 0:
+                    logger.info(
+                        f"[Job {job_index}] Retrying container build for {job.model_slug}/app{job.app_number} "
+                        f"(attempt {attempt + 1}/{max_build_retries + 1})"
+                    )
+                else:
+                    logger.info(f"[Job {job_index}] Building containers for {job.model_slug}/app{job.app_number}...")
+                
+                loop = asyncio.get_event_loop()
+                build_result = await loop.run_in_executor(
+                    None,
+                    lambda: docker_mgr.build_containers(
+                        job.model_slug,
+                        job.app_number,
+                        no_cache=False,
+                        start_after=True
+                    )
+                )
+                
+                if build_result.get('success'):
+                    job.containers_ready = True
+                    async with self._lock:
+                        self._started_containers.append((job.model_slug, job.app_number))
+                    self._update_app_container_status(job.model_slug, job.app_number, 'running')
+                    logger.info(f"[Job {job_index}] Containers ready for {job.model_slug}/app{job.app_number}")
+                    return True
+                else:
+                    last_error = build_result.get('error', 'Unknown error')
+                    if attempt < max_build_retries:
+                        backoff = 5 * (attempt + 1)
+                        logger.warning(
+                            f"[Job {job_index}] Container build failed for {job.model_slug}/app{job.app_number}: "
+                            f"{last_error}. Retrying in {backoff}s..."
+                        )
+                        await asyncio.sleep(backoff)
+                        
+            except Exception as e:
+                last_error = str(e)
+                if attempt < max_build_retries:
+                    backoff = 5 * (attempt + 1)
+                    logger.warning(
+                        f"[Job {job_index}] Container build error for {job.model_slug}/app{job.app_number}: "
+                        f"{e}. Retrying in {backoff}s..."
+                    )
+                    await asyncio.sleep(backoff)
+        
+        self._update_app_container_status(job.model_slug, job.app_number, 'build_failed')
+        logger.error(
+            f"[Job {job_index}] Container build failed for {job.model_slug}/app{job.app_number} "
+            f"after {max_build_retries + 1} attempts: {last_error}"
+        )
+        return False
+
+    async def _stop_job_container(self, job_index: int, job: AnalysisJobSpec) -> None:
+        """Stop and remove containers for a single job after analysis completes."""
+        if not job.containers_ready:
+            return
+        
+        from app.services.service_locator import ServiceLocator
+        docker_mgr = ServiceLocator.get_docker_manager()
+        if not docker_mgr:
+            return
+        
+        try:
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                None,
+                lambda m=job.model_slug, a=job.app_number: docker_mgr.stop_containers(m, a)
+            )
+            if result.get('success'):
+                self._update_app_container_status(job.model_slug, job.app_number, 'stopped')
+                logger.info(f"[Job {job_index}] Stopped containers for {job.model_slug}/app{job.app_number}")
+            else:
+                logger.warning(f"[Job {job_index}] Failed to stop containers for {job.model_slug}/app{job.app_number}: {result.get('error')}")
+        except Exception as e:
+            logger.error(f"[Job {job_index}] Error stopping containers for {job.model_slug}/app{job.app_number}: {e}")
+        
+        # Remove from tracking list
+        async with self._lock:
+            try:
+                self._started_containers.remove((job.model_slug, job.app_number))
+            except ValueError:
+                pass
+
     async def _run_single_analysis(
         self, 
         job_index: int, 
         job: AnalysisJobSpec
     ) -> AnalysisJobResult:
-        """Execute a single analysis job.
+        """Execute a single analysis job with on-demand container lifecycle.
         
+        Called inside the semaphore. Builds containers before analysis and
+        stops them after analysis completes (or fails).
         Returns AnalysisJobResult (never raises - errors are captured in result).
         """
         start_time = time.time()
@@ -523,6 +596,13 @@ class ConcurrentAnalysisRunner:
             return result
         
         try:
+            # Build containers on-demand for this job
+            if self._auto_start_app_containers:
+                await self._build_job_container(job_index, job)
+                # Update the task's tool list if containers failed
+                if not job.containers_ready:
+                    await self._downgrade_task_to_static(job_index, job)
+
             logger.info(f"[Job {job_index}] Waiting for task completion: {job.model_slug}/app{job.app_number} (task={job.task_id})")
             
             # Import required modules
@@ -612,6 +692,10 @@ class ConcurrentAnalysisRunner:
             result.status = 'failed'
             result.duration_seconds = time.time() - start_time
             logger.error(f"[Job {job_index}] FAILED: {job.model_slug}/app{job.app_number}: {e}")
+        finally:
+            # Stop containers for this job immediately after analysis
+            if self._auto_start_app_containers:
+                await self._stop_job_container(job_index, job)
         
         # Update progress
         async with self._lock:
@@ -623,6 +707,53 @@ class ConcurrentAnalysisRunner:
                     logger.warning(f"Progress callback error: {e}")
         
         return result
+
+    async def _downgrade_task_to_static(self, job_index: int, job: AnalysisJobSpec) -> None:
+        """Cancel non-static subtasks when containers failed to build.
+        
+        Marks dynamic-analyzer, performance-tester subtasks as cancelled since
+        they require running containers. Static-analyzer and ai-analyzer subtasks
+        continue as they only need source code.
+        """
+        try:
+            from app.models import AnalysisTask
+            from app.constants import AnalysisStatus
+            from app.extensions import db
+            
+            task = AnalysisTask.query.filter_by(task_id=job.task_id).first()
+            if not task:
+                return
+            
+            # Cancel subtasks for services that require running containers
+            container_services = {'dynamic-analyzer', 'performance-tester'}
+            subtasks = list(task.subtasks) if hasattr(task, 'subtasks') else []
+            cancelled_count = 0
+            
+            for st in subtasks:
+                if st.service_name in container_services and st.status == AnalysisStatus.PENDING:
+                    st.status = AnalysisStatus.CANCELLED
+                    st.error_message = 'Container build failed — requires running app'
+                    cancelled_count += 1
+            
+            if cancelled_count > 0:
+                logger.warning(
+                    f"[Job {job_index}] Containers not ready for {job.model_slug}/app{job.app_number} - "
+                    f"cancelled {cancelled_count} container-dependent subtasks"
+                )
+            
+            # Update task metadata
+            import json
+            meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
+            if not isinstance(meta, dict):
+                meta = {}
+            meta['container_build_failed'] = True
+            meta['static_only'] = True
+            if hasattr(task, 'set_metadata'):
+                task.set_metadata(meta)
+            
+            db.session.commit()
+        except Exception as e:
+            logger.warning(f"[Job {job_index}] Failed to downgrade task to static: {e}")
 
 
 # Convenience function for simple usage

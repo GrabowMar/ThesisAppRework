@@ -479,15 +479,21 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
         if not main_task:
             return {'status': 'error', 'error': 'Main task not found'}
         
-        # Idempotency guard: Skip if main task already finalized
-        if main_task.status in (AnalysisStatus.COMPLETED, AnalysisStatus.FAILED, 
-                                 AnalysisStatus.PARTIAL_SUCCESS, AnalysisStatus.CANCELLED):
-            logger.info(f"[CELERY] Main task {main_task_id} already in state {main_task.status.value}, skipping aggregation")
+        # Check if main task was already finalized (e.g. by recovery system).
+        # If so, we still aggregate and store results — just skip the status update.
+        already_finalized = main_task.status in (
+            AnalysisStatus.COMPLETED, AnalysisStatus.FAILED,
+            AnalysisStatus.PARTIAL_SUCCESS, AnalysisStatus.CANCELLED
+        )
+        if main_task.status == AnalysisStatus.CANCELLED:
+            logger.info(f"[CELERY] Main task {main_task_id} was cancelled, skipping aggregation")
             return {
                 'status': 'skipped',
-                'reason': f'Main task already finalized: {main_task.status.value}',
+                'reason': f'Main task cancelled',
                 'main_task_id': main_task_id
             }
+        if already_finalized:
+            logger.info(f"[CELERY] Main task {main_task_id} already {main_task.status.value}, will still store results")
             
         all_services = {}
         all_findings = []
@@ -593,21 +599,31 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
             }
         }
         
-        # Update main task (with distributed lock + idempotency re-check)
+        # Update main task (with distributed lock)
         with database_write_lock(f"task_{main_task_id}_aggregate"):
-            # Re-check status inside lock to prevent TOCTOU race
             db.session.refresh(main_task)
-            if main_task.status in (AnalysisStatus.COMPLETED, AnalysisStatus.FAILED, 
-                                     AnalysisStatus.PARTIAL_SUCCESS, AnalysisStatus.CANCELLED):
-                logger.info(f"[CELERY] Main task {main_task_id} already finalized inside lock ({main_task.status.value}), skipping")
+            
+            # If already finalized (by recovery), still store results but
+            # only update status if we have a better one (e.g. recovery set
+            # PARTIAL_SUCCESS but we computed COMPLETED)
+            was_finalized = main_task.status in (
+                AnalysisStatus.COMPLETED, AnalysisStatus.FAILED,
+                AnalysisStatus.PARTIAL_SUCCESS, AnalysisStatus.CANCELLED
+            )
+            
+            if main_task.status == AnalysisStatus.CANCELLED:
+                logger.info(f"[CELERY] Main task {main_task_id} cancelled inside lock, skipping")
                 return {
                     'status': 'skipped',
-                    'reason': f'Main task already finalized: {main_task.status.value}',
+                    'reason': 'Main task cancelled',
                     'main_task_id': main_task_id
                 }
             
+            if was_finalized:
+                logger.info(f"[CELERY] Main task {main_task_id} was {main_task.status.value}, storing results anyway")
+            
             main_task.status = final_db_status
-            main_task.completed_at = datetime.now(timezone.utc)
+            main_task.completed_at = main_task.completed_at or datetime.now(timezone.utc)
             main_task.progress_percentage = 100.0
             main_task.issues_found = total_findings
             if merged_severity:

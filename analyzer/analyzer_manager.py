@@ -742,7 +742,7 @@ class AnalyzerManager:
 
             # PRIORITY 3: Attempt to inspect running Docker containers to discover internal ports
             try:
-                safe_slug = model_slug.replace('_', '-').replace('.', '-')
+                safe_slug = model_slug.replace('/', '-').replace('_', '-').replace('.', '-')
                 backend_container = f"{safe_slug}-app{app_number}_backend"
                 frontend_container = f"{safe_slug}-app{app_number}_frontend"
 
@@ -808,7 +808,7 @@ class AnalyzerManager:
         """
         try:
             # Try to find running containers via docker CLI
-            safe_slug = model_slug.replace('_', '-').replace('.', '-')
+            safe_slug = model_slug.replace('/', '-').replace('_', '-').replace('.', '-')
             base_prefix = f"{safe_slug}-app{app_number}"
             
             # Query docker for running containers matching the pattern
@@ -1432,7 +1432,7 @@ class AnalyzerManager:
             # Container names follow pattern: {model_slug}-app{N}[-{build_id}]_backend/frontend
             # The containers are on thesis-apps-network, same as analyzers
             # Note: Docker Compose converts underscores to hyphens in container names
-            safe_slug = normalized_slug.replace('_', '-').replace('.', '-')
+            safe_slug = normalized_slug.replace('/', '-').replace('_', '-').replace('.', '-')
             
             # Get the build_id of running containers for correct naming
             build_id = self._get_running_build_id(normalized_slug, app_number)
@@ -1499,7 +1499,7 @@ class AnalyzerManager:
             # Container names follow pattern: {model_slug}-app{N}[-{build_id}]_backend/frontend
             # The containers are on thesis-apps-network, same as analyzers
             # Note: Docker Compose converts underscores AND dots to hyphens in container names
-            safe_slug = normalized_slug.replace('_', '-').replace('.', '-')
+            safe_slug = normalized_slug.replace('/', '-').replace('_', '-').replace('.', '-')
             
             # Get the build_id of running containers for correct naming
             build_id = self._get_running_build_id(normalized_slug, app_number)
@@ -1837,6 +1837,20 @@ class AnalyzerManager:
                 'message': 'Application ports could not be determined. App may not be generated correctly.'
             }
         
+        # Resolve target_urls with build_id for container-to-container communication
+        safe_slug = model_slug.replace('/', '-').replace('_', '-').replace('.', '-')
+        build_id = self._get_running_build_id(model_slug, app_number)
+        if build_id:
+            container_prefix = f"{safe_slug}-app{app_number}-{build_id}"
+        else:
+            container_prefix = f"{safe_slug}-app{app_number}"
+        
+        target_urls = [
+            f"http://{container_prefix}_backend:{backend_port}",
+            f"http://{container_prefix}_frontend:80"
+        ]
+        logger.info(f"Target URLs for AI analysis (build_id={build_id}): {target_urls}")
+        
         request = AnalysisRequest(
             model_slug=model_slug,
             app_number=app_number,
@@ -1853,6 +1867,7 @@ class AnalyzerManager:
             "app_number": app_number,
             "source_path": request.source_path,
             "tools": tools,
+            "target_urls": target_urls,
             "config": {
                 "template_slug": template_slug,
                 "backend_port": backend_port,
@@ -1928,7 +1943,7 @@ class AnalyzerManager:
             # Container names follow pattern: {model_slug}-app{N}[-{build_id}]_backend/frontend
             # The containers are on thesis-apps-network, same as analyzers
             # Note: Docker Compose converts underscores to hyphens in container names
-            safe_slug = normalized_slug.replace('_', '-').replace('.', '-')
+            safe_slug = normalized_slug.replace('/', '-').replace('_', '-').replace('.', '-')
             
             # Get the build_id of running containers for correct naming
             build_id = self._get_running_build_id(normalized_slug, app_number)
@@ -1998,7 +2013,7 @@ class AnalyzerManager:
             
             backend_port, frontend_port = ports
             # Use Docker container names for container-to-container communication
-            safe_slug = normalized_slug.replace('_', '-').replace('.', '-')
+            safe_slug = normalized_slug.replace('/', '-').replace('_', '-').replace('.', '-')
             
             # Get the build_id of running containers for correct naming
             build_id = self._get_running_build_id(normalized_slug, app_number)

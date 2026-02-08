@@ -223,7 +223,7 @@ class DockerManager:
         
         import re
         # Construct the expected project name prefix (without build_id)
-        safe_model = model.replace('_', '-').replace('.', '-')
+        safe_model = model.replace('/', '-').replace('_', '-').replace('.', '-')
         prefix_pattern = f"{safe_model}-app{app_num}"
         
         try:
@@ -333,7 +333,7 @@ class DockerManager:
 
             # 3) Heuristic prefix scan - matches containers with any build_id
             # Pattern: {model-slug}-app{num}[-{build_id}]_{backend|frontend}
-            safe_model = model.replace('_', '-').replace('.', '-')
+            safe_model = model.replace('/', '-').replace('_', '-').replace('.', '-')
             prefix_pattern = re.compile(
                 rf'^{re.escape(safe_model)}-app{app_num}(-[a-f0-9]+)?_(backend|frontend)$'
             )
@@ -370,11 +370,12 @@ class DockerManager:
                 'error': f'Docker compose file not found: {compose_path}'
             }
         
-        # If no build_id provided, try to get from database
+        # If no build_id provided, try running containers first, then database
+        if not build_id:
+            build_id = self.get_running_build_id(model, app_num)
         if not build_id:
             build_id = self._get_or_create_build_id(model, app_num, force_new=False)
         
-        # Execute docker compose up -d
         result = self._execute_compose_command(
             compose_path, ['up', '-d'], model, app_num, build_id=build_id
         )
@@ -424,7 +425,9 @@ class DockerManager:
                 'error': f'Docker compose file not found: {compose_path}'
             }
         
-        # If no build_id provided, try to get from database
+        # If no build_id provided, try to get from running containers first (no app context needed)
+        if not build_id:
+            build_id = self.get_running_build_id(model, app_num)
         if not build_id:
             build_id = self._get_or_create_build_id(model, app_num, force_new=False)
         
@@ -440,7 +443,9 @@ class DockerManager:
             app_num: Application number
             build_id: Optional short UUID for unique container naming
         """
-        # If no build_id provided, try to get from database
+        # If no build_id provided, try running containers first, then database
+        if not build_id:
+            build_id = self.get_running_build_id(model, app_num)
         if not build_id:
             build_id = self._get_or_create_build_id(model, app_num, force_new=False)
         
@@ -986,7 +991,7 @@ class DockerManager:
             Project name like 'model-name-app1-a3f2c1b9' or 'model-name-app1' if no build_id
         """
         # Replace underscores and dots with hyphens for Docker compatibility
-        safe_model = model.replace('_', '-').replace('.', '-')
+        safe_model = model.replace('/', '-').replace('_', '-').replace('.', '-')
         if build_id:
             return f"{safe_model}-app{app_num}-{build_id}"
         return f"{safe_model}-app{app_num}"

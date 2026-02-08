@@ -427,13 +427,28 @@ class TaskExecutionService:
         recovered_count = 0
         
         # FIRST: Recover main tasks with completed subtasks (highest priority)
-        # This handles the case where server restarted mid-analysis
+        # This handles the case where server restarted mid-analysis.
+        # IMPORTANT: Skip tasks managed by Celery chord — those should be
+        # finalized only by the aggregate_results callback, not by recovery.
         main_tasks_stuck = AnalysisTask.query.filter(
             AnalysisTask.status == AnalysisStatus.RUNNING,  # type: ignore[arg-type]
             AnalysisTask.is_main_task == True  # noqa: E712  # type: ignore[arg-type]
         ).all()
         
+        chord_age_threshold = timedelta(minutes=15)
+        
         for main_task in main_tasks_stuck:
+            # Skip chord-managed tasks unless they've been stuck for >15 min
+            # The aggregate_results callback is responsible for finalizing these
+            if main_task.assigned_worker == 'celery_chord':
+                task_age = (datetime.now(timezone.utc) - (main_task.started_at or main_task.created_at).replace(tzinfo=timezone.utc)) if main_task.started_at or main_task.created_at else timedelta(0)
+                if task_age < chord_age_threshold:
+                    continue  # Let Celery chord handle it
+                self._log(
+                    "[RECOVERY] Chord-managed task %s stuck for %s, taking over",
+                    main_task.task_id, task_age, level='warning'
+                )
+            
             subtasks = list(main_task.subtasks) if hasattr(main_task, 'subtasks') else []
             if not subtasks:
                 continue
@@ -3313,7 +3328,7 @@ class TaskExecutionService:
                             except Exception as e:
                                 self._log(f"[WebSocket] Could not lookup build_id from database: {e}", level='debug')
                         
-                        safe_slug = model_slug.replace('_', '-').replace('.', '-')
+                        safe_slug = model_slug.replace('/', '-').replace('_', '-').replace('.', '-')
                         if build_id:
                             container_prefix = f"{safe_slug}-app{app_number}-{build_id}"
                         else:
