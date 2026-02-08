@@ -564,14 +564,21 @@ def create_app(config_name: str = 'default') -> Flask:
         # Initialize lightweight in-process task execution to advance AnalysisTask
         # objects from pending -> running -> completed for development and tests.
         # NOTE: This runs AFTER maintenance service to avoid picking up stale PENDING tasks from previous sessions
-        try:  # pragma: no cover - wiring
-            from app.services.task_execution_service import init_task_execution_service
-            svc = init_task_execution_service(app=app)
-            logger.info(f"Task execution service initialized and started (daemon thread running, poll_interval={svc.poll_interval}s)")
-            logger.info("Web app analyses will now generate result files in results/{model}/app{N}/task_{task_id}/")
-        except Exception as _exec_err:  # pragma: no cover
-            logger.warning(f"Task execution service not started: {_exec_err}")
-            logger.warning("Web app analyses will NOT generate result files until service is started")
+        # NOTE: Skip in celery worker — the web container's daemon handles task execution.
+        #       Running it in celery MainProcess causes dual execution races.
+        import sys
+        in_celery_worker = 'celery' in ' '.join(sys.argv).lower()
+        if not in_celery_worker:
+            try:  # pragma: no cover - wiring
+                from app.services.task_execution_service import init_task_execution_service
+                svc = init_task_execution_service(app=app)
+                logger.info(f"Task execution service initialized and started (daemon thread running, poll_interval={svc.poll_interval}s)")
+                logger.info("Web app analyses will now generate result files in results/{model}/app{N}/task_{task_id}/")
+            except Exception as _exec_err:  # pragma: no cover
+                logger.warning(f"Task execution service not started: {_exec_err}")
+                logger.warning("Web app analyses will NOT generate result files until service is started")
+        else:
+            logger.info("Task execution service deferred to web container (celery worker skips to avoid dual execution)")
         
         # Initialize pipeline execution service for automation pipelines
         # CRITICAL: Only ONE process should run this service to prevent race conditions

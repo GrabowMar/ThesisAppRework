@@ -38,7 +38,7 @@
           {% set progress = [pipeline.overall_progress|default(0), 100]|min %}
           <tr class="pipeline-item" data-pipeline-id="{{ pipeline.id }}" data-status="{{ pipeline.status }}"
               data-name="{{ (pipeline.name or '')|lower }}" style="cursor: pointer;"
-              onclick="togglePipelineDetails('{{ pipeline.id }}')">
+              onclick="openPipelineProgressModal('{{ pipeline.id }}')">
             <td>
               {% if pipeline.status == 'running' %}
               <span class="status-dot status-dot-animated bg-{{ sc }}"></span>
@@ -72,77 +72,12 @@
             </td>
             <td>
               <div class="d-flex align-items-center gap-1">
-                <button class="btn btn-sm btn-ghost-secondary expand-toggle py-0 px-1" data-pipeline-id="{{ pipeline.id }}"
-                  onclick="event.stopPropagation(); togglePipelineDetails('{{ pipeline.id }}')" title="Details">
-                  <i class="fa-solid fa-chevron-down" style="font-size: 0.65em;"></i>
-                </button>
                 {% if pipeline.status == 'running' %}
                 <button class="btn btn-sm btn-ghost-danger py-0 px-1"
                   onclick="event.stopPropagation(); cancelPipelineById('{{ pipeline.id }}')" title="Cancel">
                   <i class="fa-solid fa-stop" style="font-size: 0.65em;"></i>
                 </button>
                 {% endif %}
-              </div>
-            </td>
-          </tr>
-          {# Expandable Details Row #}
-          <tr class="pipeline-details-row" style="display: none;" data-pipeline-id="{{ pipeline.id }}">
-            <td colspan="6" class="p-0">
-              <div class="collapse" id="pipeline-details-{{ pipeline.id }}">
-                <div class="bg-body-secondary">
-                  {# Compact tab bar #}
-                  <div class="d-flex align-items-center gap-1 px-2 py-1 border-bottom" style="font-size: 0.8rem;">
-                    <button class="btn btn-sm btn-ghost-primary active py-0 px-2 detail-tab" data-bs-toggle="tab"
-                      data-bs-target="#gen-tab-{{ pipeline.id }}" type="button">
-                      Gen <span class="badge bg-secondary-lt ms-1 gen-count" data-pipeline="{{ pipeline.id }}" style="font-size: 0.65em;">--</span>
-                    </button>
-                    <button class="btn btn-sm btn-ghost-success py-0 px-2 detail-tab" data-bs-toggle="tab"
-                      data-bs-target="#analysis-tab-{{ pipeline.id }}" type="button">
-                      Analysis <span class="badge bg-secondary-lt ms-1 analysis-count" data-pipeline="{{ pipeline.id }}" style="font-size: 0.65em;">--</span>
-                    </button>
-                    <button class="btn btn-sm btn-ghost-info py-0 px-2 detail-tab" data-bs-toggle="tab"
-                      data-bs-target="#activity-tab-{{ pipeline.id }}" type="button">
-                      Log <span class="badge bg-secondary-lt ms-1 activity-count" data-pipeline="{{ pipeline.id }}" style="font-size: 0.65em;">--</span>
-                    </button>
-                    <div class="ms-auto d-flex gap-1">
-                      {% if pipeline.status in ['completed', 'partial_success'] %}
-                      <a href="{{ url_for('analysis.analysis_index') }}" class="btn btn-sm btn-ghost-success py-0 px-2"
-                         onclick="event.stopPropagation();" style="font-size: 0.8rem;">
-                        <i class="fa-solid fa-chart-bar me-1"></i>Results
-                      </a>
-                      {% endif %}
-                      {% if pipeline.status == 'running' %}
-                      <span class="badge bg-primary-lt align-self-center" style="font-size: 0.65em;">
-                        <i class="fa-solid fa-sync-alt fa-spin me-1"></i>Live
-                      </span>
-                      <button class="btn btn-sm btn-ghost-primary py-0 px-1"
-                        onclick="event.stopPropagation(); openPipelineProgressModal('{{ pipeline.id }}')" title="Full View">
-                        <i class="fa-solid fa-expand-alt" style="font-size: 0.75em;"></i>
-                      </button>
-                      {% endif %}
-                    </div>
-                  </div>
-
-                  {# Tab content #}
-                  <div class="tab-content p-2" style="max-height: 260px; overflow-y: auto;">
-                    <div class="tab-pane fade show active" id="gen-tab-{{ pipeline.id }}">
-                      <div class="generation-jobs-container" data-pipeline="{{ pipeline.id }}">
-                        <div class="text-center py-2 text-muted small"><div class="spinner-border spinner-border-sm me-1"></div>Loading...</div>
-                      </div>
-                    </div>
-                    <div class="tab-pane fade" id="analysis-tab-{{ pipeline.id }}">
-                      <div class="analysis-tasks-container" data-pipeline="{{ pipeline.id }}">
-                        <div class="text-center py-2 text-muted small"><div class="spinner-border spinner-border-sm me-1"></div>Loading...</div>
-                      </div>
-                    </div>
-                    <div class="tab-pane fade" id="activity-tab-{{ pipeline.id }}">
-                      <div class="activity-container" data-pipeline="{{ pipeline.id }}"
-                        style="font-family: var(--tblr-font-monospace); font-size: 11px;">
-                        <div class="text-center py-2 text-muted small"><div class="spinner-border spinner-border-sm me-1"></div>Loading...</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </td>
           </tr>
@@ -175,13 +110,6 @@
 
 <style>
   .pipeline-item:hover { background-color: rgba(var(--tblr-primary-rgb), 0.03); }
-  .expand-toggle { transition: transform 0.2s ease; }
-  .expand-toggle.expanded { transform: rotate(180deg); }
-  .detail-tab.active { font-weight: 600; }
-  .event-row { padding: 0.15rem 0.5rem; border-bottom: 1px solid var(--tblr-border-color-light); line-height: 1.3; }
-  .event-row:last-child { border-bottom: none; }
-  .event-row.level-error { background-color: rgba(var(--tblr-danger-rgb), 0.05); }
-  .pipeline-item[style*="display: none"] + .pipeline-details-row { display: none !important; }
   #pipeline-table-scroll::-webkit-scrollbar { width: 4px; }
   #pipeline-table-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); border-radius: 2px; }
 </style>
@@ -202,7 +130,7 @@
   // Client-side pagination
   const PIPELINES_PER_PAGE = 5;
   let currentPipelinePage = 1;
-  let filteredPipelineIds = null; // null = no filter
+  let filteredPipelineIds = null;
 
   function getAllPipelineRows() {
     return Array.from(document.querySelectorAll('#pipeline-tbody > tr.pipeline-item'));
@@ -222,26 +150,11 @@
     const start = (currentPipelinePage - 1) * PIPELINES_PER_PAGE;
     const end = start + PIPELINES_PER_PAGE;
 
-    // Hide all rows first
-    getAllPipelineRows().forEach(r => {
-      r.style.display = 'none';
-      const dr = r.nextElementSibling;
-      if (dr && dr.classList.contains('pipeline-details-row')) dr.style.display = 'none';
-    });
-
-    // Show current page rows
+    getAllPipelineRows().forEach(r => { r.style.display = 'none'; });
     rows.forEach((r, i) => {
-      if (i >= start && i < end) {
-        r.style.display = '';
-        // Show details row only if it was expanded
-        const dr = r.nextElementSibling;
-        if (dr && dr.classList.contains('pipeline-details-row') && expandedPipelines.has(r.dataset.pipelineId)) {
-          dr.style.display = '';
-        }
-      }
+      if (i >= start && i < end) r.style.display = '';
     });
 
-    // Update controls
     const pageInfo = document.getElementById('pipeline-page-info');
     const pageNum = document.getElementById('pipeline-page-num');
     const prevBtn = document.getElementById('pipeline-prev-page');
@@ -254,20 +167,12 @@
     if (nextBtn) nextBtn.disabled = currentPipelinePage >= totalPages;
     if (totalBadge) totalBadge.textContent = rows.length;
 
-    // Hide pagination if only 1 page
     const pag = document.getElementById('pipeline-pagination');
     if (pag) pag.style.display = rows.length <= PIPELINES_PER_PAGE ? 'none' : '';
   }
 
-  function pipelineNextPage() {
-    currentPipelinePage++;
-    updatePipelinePagination();
-  }
-
-  function pipelinePrevPage() {
-    currentPipelinePage--;
-    updatePipelinePagination();
-  }
+  function pipelineNextPage() { currentPipelinePage++; updatePipelinePagination(); }
+  function pipelinePrevPage() { currentPipelinePage--; updatePipelinePagination(); }
 
   function filterPipelines(query) {
     const q = query.trim().toLowerCase();
@@ -278,7 +183,8 @@
       getAllPipelineRows().forEach(r => {
         const name = r.dataset.name || '';
         const status = r.dataset.status || '';
-        if (name.includes(q) || status.includes(q)) {
+        const pid = r.dataset.pipelineId || '';
+        if (name.includes(q) || status.includes(q) || pid.includes(q)) {
           filteredPipelineIds.add(r.dataset.pipelineId);
         }
       });
@@ -290,141 +196,7 @@
   // Initialize pagination
   document.addEventListener('DOMContentLoaded', () => {
     updatePipelinePagination();
-    // Auto-expand first running pipeline
-    const firstRunning = document.querySelector('.pipeline-item[data-status="running"]');
-    if (firstRunning) {
-      const pid = firstRunning.dataset.pipelineId;
-      setTimeout(() => togglePipelineDetails(pid), 300);
-    }
   });
-
-  // Expand/collapse + polling
-  const pipelinePollingIntervals = {};
-  const expandedPipelines = new Set();
-
-  function togglePipelineDetails(pipelineId) {
-    const detailsEl = document.getElementById(`pipeline-details-${pipelineId}`);
-    const toggleBtn = document.querySelector(`.expand-toggle[data-pipeline-id="${pipelineId}"]`);
-    const detailsRow = detailsEl?.closest('tr.pipeline-details-row');
-    if (!detailsEl) return;
-
-    const bsCollapse = bootstrap.Collapse.getOrCreateInstance(detailsEl, { toggle: false });
-
-    if (expandedPipelines.has(pipelineId)) {
-      bsCollapse.hide();
-      expandedPipelines.delete(pipelineId);
-      toggleBtn?.classList.remove('expanded');
-      stopPipelinePolling(pipelineId);
-      detailsEl.addEventListener('hidden.bs.collapse', () => {
-        if (detailsRow) detailsRow.style.display = 'none';
-      }, { once: true });
-    } else {
-      if (detailsRow) detailsRow.style.display = '';
-      bsCollapse.show();
-      expandedPipelines.add(pipelineId);
-      toggleBtn?.classList.add('expanded');
-      loadPipelineDetails(pipelineId);
-    }
-  }
-
-  async function loadPipelineDetails(pipelineId) {
-    try {
-      const response = await fetch(`/automation/api/pipeline/${pipelineId}/detailed-status`, {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-      });
-      if (!response.ok) throw new Error('Failed to fetch');
-      const result = await response.json();
-      if (result.success) {
-        renderPipelineDetails(pipelineId, result.data);
-        if (result.data.status === 'running') startPipelinePolling(pipelineId);
-      }
-    } catch (error) {
-      console.error('Error loading pipeline:', error);
-    }
-  }
-
-  function startPipelinePolling(pipelineId) {
-    stopPipelinePolling(pipelineId);
-    pipelinePollingIntervals[pipelineId] = setInterval(() => {
-      if (expandedPipelines.has(pipelineId)) loadPipelineDetails(pipelineId);
-      else stopPipelinePolling(pipelineId);
-    }, 2000);
-  }
-
-  function stopPipelinePolling(pipelineId) {
-    if (pipelinePollingIntervals[pipelineId]) {
-      clearInterval(pipelinePollingIntervals[pipelineId]);
-      delete pipelinePollingIntervals[pipelineId];
-    }
-  }
-
-  function renderPipelineDetails(pipelineId, data) {
-    const genJobs = data.generation_jobs || [];
-    const analysisTasks = data.analysis_tasks || [];
-    const events = data.events || [];
-
-    const gc = document.querySelector(`.gen-count[data-pipeline="${pipelineId}"]`);
-    const ac = document.querySelector(`.analysis-count[data-pipeline="${pipelineId}"]`);
-    const lc = document.querySelector(`.activity-count[data-pipeline="${pipelineId}"]`);
-    if (gc) gc.textContent = `${genJobs.filter(j => j.success).length}/${genJobs.length}`;
-    if (ac) ac.textContent = `${analysisTasks.filter(t => t.status === 'completed').length}/${analysisTasks.length}`;
-    if (lc) lc.textContent = events.length;
-
-    renderGenerationJobs(pipelineId, genJobs);
-    renderAnalysisTasks(pipelineId, analysisTasks);
-    renderActivity(pipelineId, events);
-
-    const progressBar = document.querySelector(`.pipeline-item[data-pipeline-id="${pipelineId}"] .progress-bar`);
-    if (progressBar) progressBar.style.width = `${Math.min(data.overall_progress || 0, 100)}%`;
-
-    if (['completed', 'failed', 'cancelled', 'partial_success'].includes(data.status)) stopPipelinePolling(pipelineId);
-  }
-
-  function renderGenerationJobs(pipelineId, jobs) {
-    const c = document.querySelector(`.generation-jobs-container[data-pipeline="${pipelineId}"]`);
-    if (!c) return;
-    if (!jobs || !jobs.length) { c.innerHTML = `<div class="text-center py-2 text-muted small">No generation jobs</div>`; return; }
-    c.innerHTML = `<table class="table table-sm table-vcenter mb-0" style="font-size: 0.8rem;">
-      <tbody>${jobs.map(j => {
-        const ic = j.success ? 'fa-check text-success' : (j.error ? 'fa-times text-danger' : 'fa-spinner fa-spin text-primary');
-        return `<tr>
-          <td class="w-1"><i class="fa-solid ${ic}"></i></td>
-          <td class="text-truncate" style="max-width: 180px;">${j.model_slug || 'Unknown'}</td>
-          <td class="text-muted">${j.template_slug || '-'}${j.app_number ? ' #' + j.app_number : ''}</td>
-          <td class="text-end text-muted">${j.duration ? j.duration.toFixed(1) + 's' : (j.error ? `<span class="text-danger text-truncate d-inline-block" style="max-width:80px;" title="${j.error}">${j.error}</span>` : '')}</td>
-        </tr>`}).join('')}</tbody></table>`;
-  }
-
-  function renderAnalysisTasks(pipelineId, tasks) {
-    const c = document.querySelector(`.analysis-tasks-container[data-pipeline="${pipelineId}"]`);
-    if (!c) return;
-    if (!tasks || !tasks.length) { c.innerHTML = `<div class="text-center py-2 text-muted small">No analysis tasks</div>`; return; }
-    const si = {'pending':'fa-clock text-muted','running':'fa-spinner fa-spin text-primary','completed':'fa-check text-success','failed':'fa-times text-danger','cancelled':'fa-ban text-warning'};
-    c.innerHTML = `<table class="table table-sm table-vcenter mb-0" style="font-size: 0.8rem;">
-      <tbody>${tasks.map(t => {
-        const s = (t.status||'pending').toLowerCase(), ic = si[s]||'fa-question text-muted', p = t.progress_percentage||0;
-        return `<tr>
-          <td class="w-1"><i class="fa-solid ${ic}"></i></td>
-          <td class="text-truncate" style="max-width: 180px;">${t.target_model||'Unknown'}</td>
-          <td>#${t.target_app_number||'?'}</td>
-          <td class="text-end">${s==='running' ? `<div class="d-inline-flex align-items-center gap-1"><div class="progress" style="width:50px;height:3px;"><div class="progress-bar" style="width:${p}%"></div></div><span class="text-muted" style="font-size:0.75em;">${p}%</span></div>` : (t.error_message ? `<span class="text-danger" style="font-size:0.75em;">${t.error_message.substring(0,25)}</span>` : `<span class="badge bg-${s==='completed'?'success':s==='failed'?'danger':'secondary'}-lt" style="font-size:0.7em;">${s}</span>`)}</td>
-        </tr>`}).join('')}</tbody></table>`;
-  }
-
-  function renderActivity(pipelineId, events) {
-    const c = document.querySelector(`.activity-container[data-pipeline="${pipelineId}"]`);
-    if (!c) return;
-    if (!events || !events.length) { c.innerHTML = `<div class="text-center py-2 text-muted small">No activity</div>`; return; }
-    const cl = {'info':'text-primary','success':'text-success','warning':'text-warning','error':'text-danger'};
-    const ic = {'info':'fa-info-circle','success':'fa-check-circle','warning':'fa-exclamation-triangle','error':'fa-times-circle'};
-    c.innerHTML = events.map(e => {
-      const l = e.level||'info', ts = e.timestamp ? new Date(e.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '';
-      return `<div class="event-row level-${l} d-flex gap-2">
-        <span class="text-muted" style="min-width:50px;">${ts}</span>
-        <i class="fa-solid ${ic[l]||'fa-circle'} ${cl[l]||'text-muted'}" style="font-size:0.65em;margin-top:3px;"></i>
-        <span class="flex-fill">${e.stage?`<span class="badge bg-secondary-lt me-1" style="font-size:0.6em;">${e.stage}</span>`:''}${e.message}</span>
-      </div>`}).join('');
-  }
 
   function cancelPipelineById(pipelineId) {
     if (!confirm('Cancel this pipeline?')) return;
@@ -434,8 +206,4 @@
       .then(d => { if (d.success) location.reload(); else alert(d.error || 'Failed'); })
       .catch(() => alert('Error cancelling'));
   }
-
-  window.addEventListener('beforeunload', () => {
-    Object.keys(pipelinePollingIntervals).forEach(stopPipelinePolling);
-  });
 </script>

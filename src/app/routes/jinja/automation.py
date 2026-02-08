@@ -611,6 +611,7 @@ def api_pipeline_detailed_status(pipeline_id: str):
             'analysis_tasks': analysis_tasks,
             'all_tasks': all_tasks,
             'task_summary': task_summary,
+            'events': progress.get('events', []),
         }
         
         return jsonify({

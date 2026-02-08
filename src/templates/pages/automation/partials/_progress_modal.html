@@ -1,5 +1,5 @@
 {# Pipeline Progress Detail Modal #}
-<div class="modal fade" id="pipelineProgressModal" tabindex="-1" data-bs-backdrop="static">
+<div class="modal fade" id="pipelineProgressModal" tabindex="-1">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
@@ -55,17 +55,10 @@
               </button>
             </li>
             <li class="nav-item">
-              <button class="nav-link fw-bold py-2" data-bs-toggle="tab" data-bs-target="#tab-tasks" type="button"
-                id="btn-tab-tasks">
-                <i class="fa-solid fa-list-check me-1"></i>All Tasks
-                <span class="badge bg-secondary-lt ms-1" id="tab-tasks-count">0</span>
-              </button>
-            </li>
-            <li class="nav-item">
               <button class="nav-link fw-bold py-2" data-bs-toggle="tab" data-bs-target="#tab-activity" type="button"
                 id="btn-tab-activity">
                 <i class="fa-solid fa-stream me-1"></i>Activity
-                <span class="badge bg-primary-lt ms-1" id="tab-activity-count">0</span>
+                <span class="badge bg-secondary-lt ms-1" id="tab-activity-count">0</span>
               </button>
             </li>
           </ul>
@@ -111,68 +104,20 @@
             </div>
           </div>
 
-          {# All Tasks Tab #}
-          <div class="tab-pane fade" id="tab-tasks">
-            <div class="p-3">
-              {# Filter Bar #}
-              <div class="d-flex gap-2 mb-3">
-                <div class="btn-group btn-group-sm w-100" role="group">
-                  <input type="radio" class="btn-check" name="task-filter" id="filter-all" value="all" checked>
-                  <label class="btn btn-outline-secondary" for="filter-all">All</label>
-
-                  <input type="radio" class="btn-check" name="task-filter" id="filter-running" value="running">
-                  <label class="btn btn-outline-primary" for="filter-running">Running</label>
-
-                  <input type="radio" class="btn-check" name="task-filter" id="filter-completed" value="completed">
-                  <label class="btn btn-outline-success" for="filter-completed">Completed</label>
-
-                  <input type="radio" class="btn-check" name="task-filter" id="filter-failed" value="failed">
-                  <label class="btn btn-outline-danger" for="filter-failed">Failed</label>
-                </div>
-              </div>
-
-              {# Tasks Table #}
-              <div class="table-responsive bg-body border rounded" style="max-height: 500px; overflow-y: auto;">
-                <table class="table table-sm table-hover align-middle mb-0">
-                  <thead class="sticky-top bg-body-secondary text-muted small text-uppercase">
-                    <tr>
-                      <th style="width: 40px;"></th>
-                      <th>Task</th>
-                      <th>Target</th>
-                      <th style="width: 100px;">Status</th>
-                      <th style="width: 80px;">Progress</th>
-                      <th style="width: 80px;">Duration</th>
-                      <th style="width: 60px;"></th>
-                    </tr>
-                  </thead>
-                  <tbody id="all-tasks-table">
-                    <tr>
-                      <td colspan="7" class="text-center py-4 text-muted">
-                        <i class="fa-solid fa-spinner fa-spin me-2"></i>Loading tasks...
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {# Activity/Live Log Tab #}
+          {# Activity Tab #}
           <div class="tab-pane fade" id="tab-activity">
             <div class="p-0">
               <div class="px-3 py-2 bg-body border-bottom d-flex justify-content-between align-items-center">
                 <div class="small text-muted">
-                  <i class="fa-solid fa-stream me-1"></i>Live activity feed - newest events first
+                  <i class="fa-solid fa-stream me-1"></i>Live activity feed — newest first
                 </div>
-                <div class="small">
-                  <span class="badge bg-info-lt me-2" id="activity-auto-refresh">
+                <div class="small" id="activity-auto-refresh-badge">
+                  <span class="badge bg-info-lt">
                     <i class="fa-solid fa-sync-alt fa-spin me-1"></i>Auto-refresh
                   </span>
                 </div>
               </div>
-
-              {# Activity Feed #}
-              <div class="activity-feed" id="activity-feed"
+              <div class="activity-feed" id="modal-activity-feed"
                 style="max-height: 500px; overflow-y: auto; font-family: var(--tblr-font-monospace); font-size: 12px;">
                 <div class="text-center py-5 text-muted">
                   <i class="fa-solid fa-stream fa-2x mb-2"></i>
@@ -181,6 +126,8 @@
               </div>
             </div>
           </div>
+
+        
         </div>
       </div>
 
@@ -253,33 +200,6 @@
     border-left-color: var(--tblr-success);
   }
 
-  /* Activity feed styling */
-  .activity-feed {
-    background-color: var(--tblr-bg-surface);
-  }
-
-  .event-item {
-    font-size: 12px;
-    line-height: 1.4;
-  }
-
-  .event-item:hover {
-    background-color: var(--tblr-bg-surface-secondary);
-  }
-
-  .event-item:first-child {
-    animation: highlightNew 2s ease-out;
-  }
-
-  @keyframes highlightNew {
-    0% {
-      background-color: rgba(var(--tblr-primary-rgb), 0.15);
-    }
-
-    100% {
-      background-color: transparent;
-    }
-  }
 
   .job-item.job-failed {
     border-left-color: var(--tblr-danger);
@@ -318,8 +238,9 @@
         this.currentStage = null;
         this.userInteractedTab = false;
 
-        // Show modal
-        const modal = new bootstrap.Modal(document.getElementById('pipelineProgressModal'));
+        // Show modal (use getOrCreateInstance to avoid duplicate backdrops)
+        const modalEl = document.getElementById('pipelineProgressModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
         modal.show();
 
         // Track user tab clicks to disable auto-switching
@@ -475,18 +396,17 @@
         // Update stages
         this.updateGenerationStage(data.progress?.generation, data.generation_jobs);
         this.updateAnalysisStage(data.progress?.analysis, data.analysis_tasks);
-        this.updateAllTasksTable(data.all_tasks);
         this.updateActivityFeed(data.events);
 
         // Tab counts
         const genProgress = data.progress?.generation || {};
         const analysisProgress = data.progress?.analysis || {};
+        const events = data.events || [];
         document.getElementById('tab-gen-count').textContent =
           `${(genProgress.completed || 0) + (genProgress.failed || 0)}/${genProgress.total || 0}`;
         document.getElementById('tab-analysis-count').textContent =
           `${(analysisProgress.completed || 0) + (analysisProgress.failed || 0)}/${analysisProgress.total || 0}`;
-        document.getElementById('tab-tasks-count').textContent = (data.all_tasks || []).length;
-        document.getElementById('tab-activity-count').textContent = (data.events || []).length;
+        document.getElementById('tab-activity-count').textContent = events.length;
 
         // Update control buttons
         this.currentStatus = data.status;
@@ -559,6 +479,49 @@
         }
 
         listEl.innerHTML = tasks.map((task, idx) => this.renderTaskItem(task, idx)).join('');
+      },
+
+      /**
+       * Update activity feed
+       */
+      updateActivityFeed(events) {
+        const feedEl = document.getElementById('modal-activity-feed');
+        if (!feedEl) return;
+
+        if (!events || events.length === 0) {
+          feedEl.innerHTML = `
+        <div class="text-center py-5 text-muted">
+          <i class="fa-solid fa-stream fa-2x mb-2"></i>
+          <div>No activity yet</div>
+        </div>`;
+          return;
+        }
+
+        const levelColors = {
+          'info': 'text-primary', 'success': 'text-success',
+          'warning': 'text-warning', 'error': 'text-danger'
+        };
+        const levelIcons = {
+          'info': 'fa-info-circle', 'success': 'fa-check-circle',
+          'warning': 'fa-exclamation-triangle', 'error': 'fa-times-circle'
+        };
+
+        feedEl.innerHTML = events.map(e => {
+          const level = e.level || 'info';
+          const ts = e.timestamp ? new Date(e.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '';
+          const bgClass = level === 'error' ? 'background-color: rgba(var(--tblr-danger-rgb), 0.05);' : '';
+          return `<div class="d-flex gap-2 px-3 py-1 border-bottom" style="line-height: 1.4; ${bgClass}">
+            <span class="text-muted" style="min-width: 55px;">${ts}</span>
+            <i class="fa-solid ${levelIcons[level] || 'fa-circle'} ${levelColors[level] || 'text-muted'}" style="font-size: 0.7em; margin-top: 4px;"></i>
+            <span class="flex-fill">${e.stage ? `<span class="badge bg-secondary-lt me-1" style="font-size: 0.65em;">${e.stage}</span>` : ''}${e.message || ''}</span>
+          </div>`;
+        }).join('');
+
+        // Hide auto-refresh badge if pipeline is done
+        const badge = document.getElementById('activity-auto-refresh-badge');
+        if (badge && ['completed', 'failed', 'cancelled'].includes(this.currentStatus)) {
+          badge.style.display = 'none';
+        }
       },
 
       /**
@@ -650,133 +613,8 @@
         ` : ''}
       </div>`;
       },
-
-      /**
-       * Update all tasks table
-       */
-      updateAllTasksTable(tasks) {
-        // ... (Keep existing implementation or simplify)
-        // For brevity, reusing basic table update logic but ensuring it matches new style if needed
-
-        const tableEl = document.getElementById('all-tasks-table');
-        if (!tasks || tasks.length === 0) {
-          tableEl.innerHTML = `<tr><td colspan="7" class="text-center">No tasks</td></tr>`;
-          return;
-        }
-
-        // Reuse logic from previous implementation for table rendering
-        // We can just copy the innerHTML generation logic here if we wanted to be exhaustive
-        // But to save tokens, I'll assume the previous logic for table is fine, just making sure it's present.
-        // Re-implementing simplified version:
-
-        tableEl.innerHTML = tasks.map(task => {
-          const s = (task.status || 'pending').toLowerCase();
-          return `
-         <tr>
-             <td><span class="status-indicator status-${s}"></span></td>
-             <td>${task.task_id.slice(0, 8)}</td>
-             <td>${task.target_model}</td>
-             <td><span class="badge bg-secondary-lt">${s}</span></td>
-             <td>${task.progress_percentage}%</td>
-             <td>${Math.round(task.actual_duration || 0)}s</td>
-             <td></td>
-         </tr>
-        `;
-        }).join('');
-      },
-
-      /**
-       * Update activity feed with live events
-       */
-      updateActivityFeed(events) {
-        const feedEl = document.getElementById('activity-feed');
-        if (!feedEl) return;
-
-        if (!events || events.length === 0) {
-          feedEl.innerHTML = `
-        <div class="text-center py-5 text-muted">
-          <i class="fa-solid fa-stream fa-2x mb-2"></i>
-          <div>Waiting for activity...</div>
-        </div>`;
-          return;
-        }
-
-        feedEl.innerHTML = events.map(event => this.renderEventItem(event)).join('');
-      },
-
-      /**
-       * Render a single event item
-       */
-      renderEventItem(event) {
-        const levelColors = {
-          'info': 'text-primary',
-          'success': 'text-success',
-          'warning': 'text-warning',
-          'error': 'text-danger'
-        };
-
-        const levelIcons = {
-          'info': 'fa-info-circle',
-          'success': 'fa-check-circle',
-          'warning': 'fa-exclamation-triangle',
-          'error': 'fa-times-circle'
-        };
-
-        const stageIcons = {
-          'generation': 'fa-code',
-          'analysis': 'fa-search-plus',
-          'done': 'fa-flag-checkered'
-        };
-
-        const level = event.level || 'info';
-        const colorClass = levelColors[level] || 'text-muted';
-        const iconClass = levelIcons[level] || 'fa-circle';
-        const stageIcon = stageIcons[event.stage] || 'fa-cog';
-
-        // Format timestamp
-        const timestamp = event.timestamp ? new Date(event.timestamp) : new Date();
-        const timeStr = timestamp.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false
-        });
-
-        return `
-      <div class="event-item px-3 py-2 border-bottom d-flex align-items-start gap-2 ${level === 'error' ? 'bg-danger-lt' : ''}">
-        <div class="text-muted small" style="min-width: 65px;">${timeStr}</div>
-        <div class="${colorClass}" style="min-width: 20px;">
-          <i class="fa-solid ${iconClass}"></i>
-        </div>
-        <div class="flex-fill">
-          <div class="d-flex align-items-center gap-2">
-            ${event.stage ? `<span class="badge bg-secondary-lt small"><i class="fa-solid ${stageIcon} me-1"></i>${event.stage}</span>` : ''}
-            ${event.target ? `<span class="badge bg-azure-lt small">${event.target}</span>` : ''}
-          </div>
-          <div class="mt-1 ${colorClass}">${event.message}</div>
-          ${event.details && Object.keys(event.details).length > 0 ? `
-            <div class="mt-1 text-muted small">
-              ${Object.entries(event.details)
-              .filter(([k, v]) => v !== null && v !== undefined && !Array.isArray(v))
-              .slice(0, 3)
-              .map(([k, v]) => `<span class="me-2">${k}: <strong>${v}</strong></span>`)
-              .join('')}
-            </div>
-          ` : ''}
-        </div>
-      </div>
-    `;
-      }
     };
   } // End guard pattern
-
-  // ... (Keep event listeners)
-  // Filter change handler
-  document.querySelectorAll('input[name="task-filter"]').forEach(radio => {
-    radio.addEventListener('change', () => {
-      PipelineProgressModal.fetchDetailedStatus();
-    });
-  });
 
   // Modal close event
   document.getElementById('pipelineProgressModal')?.addEventListener('hidden.bs.modal', () => {

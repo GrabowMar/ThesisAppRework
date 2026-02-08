@@ -518,10 +518,13 @@ class TaskExecutionService:
         cutoff_time = datetime.now(timezone.utc) - stuck_threshold
         
         # Find tasks stuck in RUNNING state past the threshold
+        # Exclude subtasks with parent_task_id (managed by Celery chord, not daemon)
+        # Exclude tasks with assigned_worker set (already dispatched, not orphaned)
         stuck_tasks = AnalysisTask.query.filter(
             AnalysisTask.status == AnalysisStatus.RUNNING,  # type: ignore[arg-type]
             AnalysisTask.started_at != None,  # noqa: E711  # type: ignore[arg-type]
-            AnalysisTask.started_at < cutoff_time  # type: ignore[operator,arg-type]
+            AnalysisTask.started_at < cutoff_time,  # type: ignore[operator,arg-type]
+            AnalysisTask.parent_task_id == None,  # noqa: E711 — skip Celery-managed subtasks
         ).all()
         
         stuck_recovered = 0
@@ -812,7 +815,7 @@ class TaskExecutionService:
             'event loop is closed', 'Temporary failure in name resolution',
             'Name or service not known', 'Connection reset', 'Connection closed unexpectedly',
             'Connection refused', 'Pre-flight check failed', 'not accessible',
-            'service unavailable', 'circuit breaker',
+            'service unavailable', 'circuit breaker', 'no_response',
         ]
         
         recovered_count = 0
@@ -860,6 +863,7 @@ class TaskExecutionService:
             main_task.started_at = None
             main_task.completed_at = None
             main_task.error_message = None
+            main_task.assigned_worker = None  # Clear so chord guard doesn't block
             
             # Reset failed subtasks to PENDING
             for st in subtasks_to_retry:
@@ -868,6 +872,7 @@ class TaskExecutionService:
                 st.completed_at = None
                 st.progress_percentage = 0.0
                 st.error_message = None
+                st.assigned_worker = None  # Clear celery assignment for re-dispatch
                 recovered_count += 1
                 self._log(
                     "[RECOVERY] Reset failed subtask %s (%s) to PENDING for partial recovery",
@@ -1016,7 +1021,7 @@ class TaskExecutionService:
                                 result = self._execute_real_analysis(task_db)
                             
                             # Handle parallel execution (status='running' means Celery took over)
-                            if result.get('status') == 'running':
+                            if result.get('status') in ('running', 'already_dispatched'):
                                 self._log(f"Task {task_db.task_id} delegated to Celery workers, will poll for completion")
                                 # Don't mark as completed yet - let polling handle it
                                 continue
@@ -1749,6 +1754,26 @@ class TaskExecutionService:
                     f"{', '.join(required_services)}"
                 )
             
+        # GUARD: Check if subtasks are currently being executed in Celery (prevents double-dispatch)
+        # Only block if subtasks are actively assigned to celery and not yet terminal
+        already_dispatched = any(
+            s.assigned_worker == 'celery'
+            for s in subtasks
+            if s.status not in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS, AnalysisStatus.FAILED, AnalysisStatus.CANCELLED)
+        )
+        if already_dispatched:
+            self._log(
+                f"[GUARD] Subtasks for {main_task_id} already running in Celery, skipping re-dispatch",
+                level='warning'
+            )
+            return {
+                'status': 'already_dispatched',
+                'engine': 'celery',
+                'model_slug': main_task.target_model,
+                'app_number': main_task.target_app_number,
+                'payload': {'message': 'Subtasks already running in Celery'}
+            }
+        
         # Try to use Celery first
         use_celery = os.environ.get('USE_CELERY_ANALYSIS', 'false').lower() == 'true'
         celery_dispatched = False
@@ -1812,6 +1837,20 @@ class TaskExecutionService:
                             'payload': {'message': 'No tools to execute - all subtasks completed'}
                         }
                     raise RuntimeError("No valid subtasks to submit")
+                
+                # Mark subtasks as Celery-managed BEFORE dispatching chord
+                # This prevents orphan recovery from resetting them to PENDING
+                # Keep status PENDING — execute_subtask will transition to RUNNING
+                now = datetime.now(timezone.utc)
+                for subtask in subtasks:
+                    if subtask.status not in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS):
+                        subtask.assigned_worker = 'celery'
+                
+                # Mark main task as RUNNING with worker assignment
+                main_task.status = AnalysisStatus.RUNNING
+                main_task.assigned_worker = main_task.assigned_worker or 'celery_chord'
+                main_task.progress_percentage = 30.0
+                db.session.commit()
                     
                 # Create callback signature
                 callback = aggregate_results.s(main_task_id)
@@ -1819,11 +1858,6 @@ class TaskExecutionService:
                 # Execute chord
                 self._log(f"Dispatching Celery chord for task {main_task_id} with {len(header)} subtasks")
                 chord(header)(callback)
-                
-                # Mark main task as RUNNING
-                main_task.status = AnalysisStatus.RUNNING
-                main_task.progress_percentage = 30.0
-                db.session.commit()
                 
                 celery_dispatched = True
                 return {

@@ -168,7 +168,11 @@ def init_worker_process(**kwargs):
             except:
                 return  # Something went wrong, don't start
             
-            # Start the pipeline service
+            # Start the pipeline service only (NOT TaskExecutionService).
+            # TaskExecutionService daemon must NOT run here because it races with
+            # the web container's daemon — both poll the same DB for PENDING tasks,
+            # causing dual execution and premature finalization of main tasks.
+            # Pipeline subtasks are dispatched via Celery chord instead.
             with flask_app.app_context():
                 from app.services.pipeline_execution_service import init_pipeline_execution_service
                 from app.utils.logging_config import get_logger

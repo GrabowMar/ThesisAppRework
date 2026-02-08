@@ -311,7 +311,7 @@ class AnalyzerManagerWrapper:
                 self.manager.run_performance_test(
                     model_slug=model_slug,
                     app_number=app_number,
-                    config=test_config,
+                    test_config=test_config,
                     tools=tools
                 )
             )
@@ -348,8 +348,7 @@ class AnalyzerManagerWrapper:
                 self.manager.run_ai_analysis(
                     model_slug=model_slug,
                     app_number=app_number,
-                    tools=tools,
-                    config=options
+                    tools=tools
                 )
             )
             

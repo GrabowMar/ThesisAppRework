@@ -91,7 +91,7 @@ def _extract_total_issues(payload: Dict[str, Any]) -> int:
     return total_issues
 
 
-@celery.task(bind=True)
+@celery.task(bind=True, acks_late=True)
 def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, tools: List[str], service_name: str) -> Dict[str, Any]:
     """
     Execute a single analysis subtask via WebSocket.
@@ -147,12 +147,51 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
             subtask.progress_percentage = 30.0
             db.session.commit()
 
-        # Build message payload typically expected by the manager
-        # The manager specific methods (run_static_analysis etc) handle message construction,
-        # but here we have a generic service_name. 
-        # We can use the lower-level send_websocket_message if we want generic support,
-        # OR switch based on service name to use the typed methods. 
-        # Using typed methods is safer as they handle service-specific fields (like target_urls).
+        # For dynamic/performance analysis, ensure app containers are running
+        # This handles cases where the daemon dispatches without pipeline container startup
+        if service_name in ('dynamic-analyzer', 'performance-tester'):
+            try:
+                from app.services.docker_manager import DockerManager
+                import time as _time
+                
+                dm = DockerManager()
+                containers = dm.get_project_containers(model_slug, app_number)
+                containers_running = bool(containers) and all(
+                    c.get('status') == 'running' for c in containers
+                )
+                
+                if not containers_running:
+                    logger.info(f"[CELERY] App containers not running for {model_slug} app {app_number}, starting...")
+                    with database_write_lock(f"subtask_{subtask_id}_progress"):
+                        subtask.current_step = f"Starting app containers for {service_name}..."
+                        db.session.commit()
+                    
+                    if containers:
+                        start_result = dm.start_containers(model_slug, app_number)
+                    else:
+                        start_result = dm.build_containers(model_slug, app_number, no_cache=False, start_after=True)
+                    
+                    if start_result.get('success'):
+                        logger.info(f"[CELERY] Containers started for {model_slug} app {app_number}, waiting for readiness...")
+                        # Wait for containers to be healthy (up to 90s)
+                        deadline = _time.time() + 90
+                        while _time.time() < deadline:
+                            health = dm.get_container_health(model_slug, app_number)
+                            if health.get('all_healthy'):
+                                logger.info(f"[CELERY] Containers healthy for {model_slug} app {app_number}")
+                                break
+                            # Check for crash
+                            crash = dm._check_for_crash_loop(model_slug, app_number)
+                            if crash.get('has_crash_loop'):
+                                logger.warning(f"[CELERY] Container crash detected for {model_slug} app {app_number}")
+                                break
+                            _time.sleep(3)
+                    else:
+                        logger.warning(f"[CELERY] Failed to start containers for {model_slug} app {app_number}: {start_result.get('error')}")
+                else:
+                    logger.info(f"[CELERY] App containers already running for {model_slug} app {app_number}")
+            except Exception as container_err:
+                logger.warning(f"[CELERY] Container startup check failed for {model_slug} app {app_number}: {container_err}")
         
         wrapper = get_analyzer_wrapper()
         
@@ -161,8 +200,6 @@ def execute_subtask(self, subtask_id: int, model_slug: str, app_number: int, too
         if service_name == 'static-analyzer':
             result = wrapper.run_static_analysis(model_slug, app_number, tools)
         elif service_name == 'dynamic-analyzer':
-             # For dynamic/performance, we might need options/config. 
-             # Assuming standard defaults or extracting from subtask options if needed.
              result = wrapper.run_dynamic_analysis(model_slug, app_number, tools=tools)
         elif service_name == 'performance-tester':
              result = wrapper.run_performance_test(model_slug, app_number, tools=tools)
@@ -410,6 +447,10 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
         all_findings = []
         combined_tool_results = {}
         any_failed = False
+        any_succeeded = False
+        
+        # Track which services were in this chord's results
+        chord_services = set()
         
         for result in results:
             # Handle potential upstream failures (Celery errors)
@@ -420,19 +461,62 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
                 
             service_name = result.get('service_name', 'unknown')
             all_services[service_name] = result
+            chord_services.add(service_name)
             
             if result.get('status') not in ('success', 'completed', 'partial'):
                 any_failed = True
+            else:
+                any_succeeded = True
             
             payload = result.get('payload', {})
             if isinstance(payload, dict):
-                findings = payload.get('findings', [])
+                # Data may be at payload level or nested under payload.analysis
+                analysis = payload.get('analysis', {}) if isinstance(payload.get('analysis'), dict) else {}
+                
+                findings = payload.get('findings', []) or analysis.get('findings', [])
                 if isinstance(findings, list):
                     all_findings.extend(findings)
                 
-                tool_results = payload.get('tool_results', {})
+                tool_results = payload.get('tool_results', {}) or analysis.get('tool_results', {})
                 if isinstance(tool_results, dict):
                     combined_tool_results.update(tool_results)
+
+        # Merge results from already-completed subtasks not in this chord (partial retry case)
+        all_subtasks = list(main_task.subtasks) if hasattr(main_task, 'subtasks') else []
+        for st in all_subtasks:
+            if st.service_name in chord_services:
+                continue  # Already included from chord results
+            if st.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS):
+                prev = st.get_result_summary() if hasattr(st, 'get_result_summary') else {}
+                if prev and isinstance(prev, dict):
+                    svc_status = 'success' if st.status == AnalysisStatus.COMPLETED else 'partial'
+                    all_services[st.service_name] = {
+                        'status': svc_status,
+                        'payload': prev,
+                        'error': None,
+                        'service_name': st.service_name,
+                        'subtask_id': st.id
+                    }
+                    any_succeeded = True
+                    # Merge tool results from previous run
+                    if isinstance(prev, dict):
+                        analysis_data = prev.get('analysis', prev)
+                        if isinstance(analysis_data, dict):
+                            prev_tools = analysis_data.get('tool_results', {})
+                            if isinstance(prev_tools, dict):
+                                combined_tool_results.update(prev_tools)
+                    logger.info(f"[CELERY] Merged prior result for {st.service_name} (subtask {st.id})")
+
+        # Determine status: ALL failed → FAILED; ALL succeeded → COMPLETED; mixed → PARTIAL_SUCCESS
+        if any_succeeded and any_failed:
+            final_status = 'partial'
+            final_db_status = AnalysisStatus.PARTIAL_SUCCESS
+        elif any_failed:
+            final_status = 'failed'
+            final_db_status = AnalysisStatus.FAILED
+        else:
+            final_status = 'completed'
+            final_db_status = AnalysisStatus.COMPLETED
 
         # Build unified payload
         unified_payload = {
@@ -441,7 +525,7 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
                 'total_findings': len(all_findings),
                 'services_executed': len(all_services),
                 'tools_executed': len(combined_tool_results),
-                'status': 'completed' if not any_failed else 'partial'
+                'status': final_status
             },
             'services': all_services,
             'tools': combined_tool_results,
@@ -454,9 +538,20 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
             }
         }
         
-        # Update main task (with distributed lock)
+        # Update main task (with distributed lock + idempotency re-check)
         with database_write_lock(f"task_{main_task_id}_aggregate"):
-            main_task.status = AnalysisStatus.COMPLETED if not any_failed else AnalysisStatus.FAILED
+            # Re-check status inside lock to prevent TOCTOU race
+            db.session.refresh(main_task)
+            if main_task.status in (AnalysisStatus.COMPLETED, AnalysisStatus.FAILED, 
+                                     AnalysisStatus.PARTIAL_SUCCESS, AnalysisStatus.CANCELLED):
+                logger.info(f"[CELERY] Main task {main_task_id} already finalized inside lock ({main_task.status.value}), skipping")
+                return {
+                    'status': 'skipped',
+                    'reason': f'Main task already finalized: {main_task.status.value}',
+                    'main_task_id': main_task_id
+                }
+            
+            main_task.status = final_db_status
             main_task.completed_at = datetime.now(timezone.utc)
             main_task.progress_percentage = 100.0
 

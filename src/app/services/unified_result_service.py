@@ -481,9 +481,12 @@ class UnifiedResultService:
             # File reference entries — always prefer filesystem
             if 'file' in svc_data and set(svc_data.keys()) <= {'status', 'file', 'error'}:
                 return True
-            # Old DB format uses 'payload' key — not compatible with report pipeline
+            # Old DB format uses 'payload' key — check if it wraps valid analysis data
             if 'payload' in svc_data and 'analysis' not in svc_data:
-                continue  # Treat as non-standard, prefer filesystem
+                inner_payload = svc_data.get('payload')
+                if isinstance(inner_payload, dict) and 'analysis' in inner_payload:
+                    has_real_data = True
+                continue  # Treat as non-standard, but we can normalize it
             elif 'analysis' in svc_data:
                 analysis = svc_data.get('analysis')
                 if analysis and isinstance(analysis, dict) and len(analysis) > 0:
@@ -949,6 +952,18 @@ class UnifiedResultService:
             # Already has 'analysis' at top level — keep as-is
             if 'analysis' in data:
                 normalized[name] = data
+                continue
+            
+            # Celery subtask format: {status, payload: {type, status, service, analysis: {...}}, ...}
+            inner_payload = data.get('payload')
+            if isinstance(inner_payload, dict) and 'analysis' in inner_payload:
+                normalized[name] = {
+                    'status': inner_payload.get('status', data.get('status', 'unknown')),
+                    'service': inner_payload.get('service', name),
+                    'analysis': inner_payload.get('analysis', {}),
+                    'type': inner_payload.get('type'),
+                    'timestamp': inner_payload.get('timestamp'),
+                }
                 continue
             
             # Check for {metadata, results: {analysis: ...}} pattern

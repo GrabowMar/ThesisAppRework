@@ -22,6 +22,7 @@ from flask import (
     url_for,
 )
 from flask_login import current_user
+from werkzeug.exceptions import HTTPException
 
 from flask import render_template
 from app.services.task_service import AnalysisTaskService
@@ -712,6 +713,8 @@ def analysis_result_detail(result_id: str):
             abort(404, description=f"Result {result_id} not found")
             
         payload = results.raw_data
+    except HTTPException:
+        raise  # Let abort() propagate without catching
     except Exception as exc:  # pragma: no cover - defensive logging
         current_app.logger.exception("Failed to load analysis result %s: %s", result_id, exc)
         abort(500, description="Unable to load analysis result")

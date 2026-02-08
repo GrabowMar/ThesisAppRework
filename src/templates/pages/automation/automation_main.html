@@ -75,20 +75,6 @@
           </div>
         </div>
 
-        {# Execution Progress #}
-        <div class="col-12 wizard-panel" data-panel="4">
-          <div class="card card-table-compact">
-            <div class="card-header d-flex flex-wrap align-items-center gap-2 py-2">
-              <span class="badge bg-success text-uppercase rounded-pill px-2">
-                <i class="fa-solid fa-cog fa-spin"></i>
-              </span>
-              <h3 class="card-title mb-0">Pipeline Execution</h3>
-            </div>
-            <div class="card-body border-top" id="execution-panel">
-              {% include 'pages/automation/partials/_execution_progress.html' %}
-            </div>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -172,29 +158,8 @@
         </div>
 
         {# Hidden elements for JS compat #}
-        <span id="sidebar-est-duration" style="display:none;">--</span>
-        <span id="sidebar-total-jobs" style="display:none;">0</span>
-        <span id="sidebar-analysis-summary" style="display:none;">Profile: Comprehensive</span>
-        <span id="current-step" style="display:none;">1</span>
-        <span id="progress-percentage" style="display:none;">0%</span>
-
-        {# Hidden elements for Pipeline Status JS compat #}
-        <span id="status-dot" style="display:none;"></span>
-        <span id="metrics-status-badge" style="display:none;"><span id="metrics-status-text">Idle</span></span>
-        <span id="metrics-status-icon" style="display:none;"></span>
-        <span id="metrics-completed" style="display:none;">0</span>
-        <span id="metrics-total" style="display:none;">0</span>
-        <div id="metrics-progress-bar" style="display:none;"></div>
-        <span id="metrics-success-rate-value" style="display:none;">-</span>
-        <span id="metrics-failures" style="display:none;">0</span>
-        <span id="metrics-elapsed" style="display:none;">00:00:00</span>
-        <span id="metrics-eta" style="display:none;">--:--:--</span>
-        <span id="metrics-current-stage" style="display:none;">-</span>
-        <div id="current-stage-row" style="display:none;"></div>
-        <div id="quick-actions-panel" style="display:none;"></div>
-        <div id="final-results-panel" style="display:none;">
-          <span id="final-summary"></span>
-        </div>
+        <input type="hidden" id="current-step" value="1">
+        <input type="hidden" id="progress-percentage" value="0">
 
       </div>
     </div>

@@ -686,8 +686,12 @@ class TaskQueueService:
             limit = self.queue_config['max_concurrent_tasks']
         
         # Get currently running tasks to check concurrency limits
+        # Only count main tasks — subtasks run in Celery workers, not in the daemon thread pool
         running_tasks = AnalysisTaskService.get_active_tasks()
-        running_count = len([t for t in running_tasks if t.status == AnalysisStatus.RUNNING])
+        running_count = len([
+            t for t in running_tasks 
+            if t.status == AnalysisStatus.RUNNING and (t.is_main_task is True or t.is_main_task is None)
+        ])
         
         # Calculate available slots based on global concurrency limit
         available_slots = max(0, self.queue_config['max_concurrent_tasks'] - running_count)
@@ -733,7 +737,7 @@ class TaskQueueService:
         # Also track running apps (model_slug, app_number) to enforce per-app limit
         running_apps: set = set()
         for task in running_tasks:
-            if task.status == AnalysisStatus.RUNNING:
+            if task.status == AnalysisStatus.RUNNING and (task.is_main_task is True or task.is_main_task is None):
                 running_by_type[task.analysis_type] = running_by_type.get(task.analysis_type, 0) + 1
                 # Track running apps to prevent duplicate analyses
                 if task.target_model and task.target_app_number:

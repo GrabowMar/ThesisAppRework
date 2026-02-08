@@ -606,7 +606,7 @@ class PipelineExecutionService:
                     # Process each running pipeline
                     for pipeline in pipelines:
                         # Re-entry guard: skip if already being processed
-                        with self._pipeline_state_lock:
+                        with _pipeline_state_lock:
                             if pipeline.id in self._processing_pipelines:
                                 self._log("MAIN", f"Pipeline {pipeline.pipeline_id} already in-flight, skipping", level='debug')
                                 continue
@@ -642,7 +642,7 @@ class PipelineExecutionService:
                                     pass
                         finally:
                             self._current_pipeline_id = None
-                            with self._pipeline_state_lock:
+                            with _pipeline_state_lock:
                                 self._processing_pipelines.discard(pipeline.id)
 
                 except Exception as e:
@@ -812,15 +812,10 @@ class PipelineExecutionService:
             }
 
             # Submit analysis task using existing method
+            # Note: _submit_analysis_task calls pipeline.add_analysis_task_id()
+            # which already records task_ids and submitted_apps — no need to
+            # duplicate that tracking here.
             task_id = self._submit_analysis_task(pipeline, job)
-
-            # Track in pipeline progress
-            progress = pipeline.progress
-            analysis_progress = progress.setdefault('analysis', {})
-            analysis_progress.setdefault('task_ids', []).append(task_id)
-            analysis_progress.setdefault('submitted_apps', []).append(f"{model_slug}:{app_number}")
-            pipeline.progress = progress
-            db.session.commit()
 
             self._log("ANAL", f"✓ Immediate analysis task created: {task_id} for {model_slug}/app{app_number}")
 
@@ -1483,6 +1478,10 @@ class PipelineExecutionService:
         In streaming mode, tasks are already submitted via generation callbacks.
         This method just monitors their progress and transitions when done.
         """
+        import time as _time
+
+        STREAMING_ANALYSIS_TIMEOUT = 1800  # 30 min max wait for analysis stage
+
         pipeline_id = pipeline.pipeline_id
         progress = pipeline.progress
 
@@ -1492,23 +1491,28 @@ class PipelineExecutionService:
 
         # Get current analysis progress
         analysis_progress = progress.get('analysis', {})
-        task_ids = analysis_progress.get('task_ids', [])
+        # Use main_task_ids (authoritative) instead of deprecated task_ids
+        task_ids = analysis_progress.get('main_task_ids', [])
         submitted_apps = analysis_progress.get('submitted_apps', [])
 
-        # Count completed/failed tasks
+        # Count completed/failed/terminal tasks
         completed = 0
         failed = 0
+        terminal = 0  # Total tasks in any terminal state
         for task_id in task_ids:
             if task_id.startswith('skipped:') or task_id.startswith('error:'):
                 failed += 1
+                terminal += 1
                 continue
 
             task = AnalysisTask.query.filter_by(task_id=task_id).first()
             if task:
                 if task.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS):
                     completed += 1
-                elif task.status == AnalysisStatus.FAILED:
+                    terminal += 1
+                elif task.status in (AnalysisStatus.FAILED, AnalysisStatus.CANCELLED):
                     failed += 1
+                    terminal += 1
 
         # Update progress
         analysis_progress['completed'] = completed
@@ -1526,14 +1530,55 @@ class PipelineExecutionService:
             level='debug'
         )
 
-        # Check if all done
-        if (completed + failed) >= expected_count and len(submitted_apps) >= expected_count:
+        # Check if all done: all tracked tasks terminal AND enough submitted
+        unique_submitted = len(set(submitted_apps))
+        all_tracked_terminal = len(task_ids) > 0 and terminal >= len(task_ids)
+
+        if (completed + failed) >= expected_count and unique_submitted >= expected_count:
             self._log("ANAL", f"Streaming analysis complete: {completed} succeeded, {failed} failed")
             analysis_progress['status'] = 'completed'
             progress['analysis'] = analysis_progress
             pipeline.progress = progress
             db.session.commit()
             self._transition_to_done(pipeline)
+            return
+
+        # Fallback: if all tracked tasks are terminal but counts don't match expected
+        # (e.g., some apps were never submitted due to errors), complete anyway
+        if all_tracked_terminal and unique_submitted > 0:
+            self._log("ANAL",
+                       f"All {len(task_ids)} tracked tasks terminal ({completed} ok, {failed} fail) "
+                       f"but only {unique_submitted}/{expected_count} submitted — completing anyway",
+                       level='warning')
+            analysis_progress['status'] = 'completed'
+            progress['analysis'] = analysis_progress
+            pipeline.progress = progress
+            db.session.commit()
+            self._transition_to_done(pipeline)
+            return
+
+        # Timeout: prevent infinite polling if tasks are stuck
+        analysis_started = analysis_progress.get('started_at')
+        if not analysis_started:
+            analysis_progress['started_at'] = _time.time()
+            progress['analysis'] = analysis_progress
+            pipeline.progress = progress
+            db.session.commit()
+        else:
+            elapsed = _time.time() - analysis_started
+            if elapsed > STREAMING_ANALYSIS_TIMEOUT:
+                self._log("ANAL",
+                           f"Streaming analysis TIMEOUT after {int(elapsed)}s — "
+                           f"{completed} completed, {failed} failed, {unique_submitted}/{expected_count} submitted. "
+                           f"Forcing completion.",
+                           level='error')
+                analysis_progress['status'] = 'timeout'
+                analysis_progress['timeout_at'] = _time.time()
+                progress['analysis'] = analysis_progress
+                pipeline.progress = progress
+                db.session.commit()
+                self._transition_to_done(pipeline)
+                return
 
     def _process_batch_analysis(self, pipeline: PipelineExecution):
         """Process batch analysis (legacy mode).
@@ -2174,16 +2219,17 @@ class PipelineExecutionService:
             # executed as soon as they're created.
             if subtask_ids:
                 try:
-                    # Mark main task as RUNNING before dispatch
-                    task.status = AnalysisStatus.RUNNING
-                    task.started_at = datetime.now(timezone.utc)
-                    db.session.commit()
-                    
                     # Get TaskExecutionService and dispatch subtasks
                     from app.services.service_locator import ServiceLocator
                     task_exec_service = ServiceLocator.get_task_execution_service()
                     
                     if task_exec_service:
+                        # Mark main task as RUNNING before dispatch
+                        task.status = AnalysisStatus.RUNNING
+                        task.started_at = datetime.now(timezone.utc)
+                        task.assigned_worker = 'pipeline_direct'
+                        db.session.commit()
+                        
                         self._log(
                             "ANAL", f"Dispatching {len(subtask_ids)} subtasks for {task.task_id} immediately"
                         )
@@ -2195,15 +2241,20 @@ class PipelineExecutionService:
                             "ANAL", f"Subtask dispatch for {task.task_id}: status={dispatch_status}"
                         )
                     else:
+                        # Leave task in PENDING so the web daemon can pick it up
                         self._log(
-                            "ANAL", f"TaskExecutionService not available - task {task.task_id} will be picked up by daemon",
+                            "ANAL", f"TaskExecutionService not available - task {task.task_id} left PENDING for daemon",
                             level='warning'
                         )
                 except Exception as dispatch_err:
-                    # Log but don't fail - daemon can still pick up the task
+                    # Reset to PENDING so daemon can pick it up
+                    task.status = AnalysisStatus.PENDING
+                    task.started_at = None
+                    task.assigned_worker = None
+                    db.session.commit()
                     self._log(
                         "ANAL", f"Failed to dispatch subtasks for {task.task_id}: {dispatch_err}. "
-                        "Task will be picked up by daemon.",
+                        "Task reset to PENDING for daemon.",
                         level='warning'
                     )
             # ========== END FIX ==========
