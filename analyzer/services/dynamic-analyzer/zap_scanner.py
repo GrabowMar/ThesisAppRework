@@ -73,7 +73,7 @@ class ZAPScanner:
                 'spider': {
                     'max_depth': 10,  # Enhanced from 5
                     'thread_count': 5,
-                    'max_duration': 300,
+                    'max_duration': 240,
                     'max_children': 0,  # Unlimited
                 },
                 'passive_scan': {
@@ -81,7 +81,7 @@ class ZAPScanner:
                 },
                 'active_scan': {
                     'enabled': False,  # Off by default for safety
-                    'max_duration': 300,
+                    'max_duration': 240,
                 },
                 'ajax_spider': {
                     'enabled': False,  # Disabled by default (avoids browser/Selenium dependency)

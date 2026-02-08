@@ -1136,8 +1136,8 @@ class AnalyzerManager:
                     url,
                     open_timeout=10,
                     close_timeout=10,
-                    ping_interval=None,
-                    ping_timeout=None,
+                    ping_interval=30,
+                    ping_timeout=10,
                     max_size=100 * 1024 * 1024  # 100 MB for large SARIF responses
                 ) as websocket:
                     # Send request
@@ -1458,7 +1458,7 @@ class AnalyzerManager:
             "id": str(uuid.uuid4())
         }
 
-        return await self.send_websocket_message('dynamic-analyzer', message, timeout=300)
+        return await self.send_websocket_message('dynamic-analyzer', message, timeout=600)
     
     async def run_performance_test(self, model_slug: str, app_number: int,
                                  target_url: Optional[str] = None, users: int = 10, 
@@ -1947,7 +1947,7 @@ class AnalyzerManager:
         }
         
         # Dynamic analysis can be long
-        dynamic_timeout = int(os.environ.get('DYNAMIC_ANALYSIS_TIMEOUT', '300'))
+        dynamic_timeout = int(os.environ.get('DYNAMIC_ANALYSIS_TIMEOUT', '600'))
         return await self.send_websocket_message('dynamic-analyzer', message, timeout=dynamic_timeout)
     
     async def run_performance_test(self, model_slug: str, app_number: int,

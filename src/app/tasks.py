@@ -738,8 +738,8 @@ def _run_websocket_sync(service_name: str, model_slug: str, app_number: int, too
                 uri,
                 open_timeout=10,
                 close_timeout=10,
-                ping_interval=None,
-                ping_timeout=None,
+                ping_interval=30,
+                ping_timeout=10,
                 max_size=100 * 1024 * 1024,  # 100MB to match server
             ) as ws:
                 await ws.send(json.dumps(req))
