@@ -265,6 +265,9 @@ yarn.lock
 batch_*.json
 batch_*.log
 
+# Ruff cache
+.ruff_cache/
+
 # Large model artifacts (do not version control generated model folders)
 # NOTE: Don't use 'models/' as it conflicts with src/app/models/
 /models/

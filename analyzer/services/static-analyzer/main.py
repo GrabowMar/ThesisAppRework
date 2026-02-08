@@ -12,6 +12,7 @@ Configuration files are loaded from analyzer/configs/ folder.
 import asyncio
 import json
 import os
+import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -615,7 +616,6 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 cmd.extend(['--skip', ','.join(skips)])
 
             # Run and read SARIF output
-            # Run and read SARIF output
             result = await self._run_tool(cmd, 'bandit', config=bandit_config, success_exit_codes=[0, 1], skip_parser=True, timeout=60)
             if result.get('status') != 'error':
                 try:
@@ -827,8 +827,6 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             files_to_check = python_files[:max_files]
             cmd.extend([str(f) for f in files_to_check])
 
-            # MyPy with JSON format (exit codes: 0=no issues, 1=issues found, 2=fatal error)
-            # Parser now handles newline-delimited JSON natively
             # MyPy with JSON format (exit codes: 0=no issues, 1=issues found, 2=fatal error)
             # Parser now handles newline-delimited JSON natively
             mypy_result = await self._run_tool(cmd, 'mypy', config=mypy_config, success_exit_codes=[0, 1], timeout=60)
@@ -1062,7 +1060,6 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 }
                 # Map confidence to severity: 90%+ → medium, else → low
                 if dead_code_findings:
-                    import re
                     vulture_sev = {'medium': 0, 'low': 0}
                     for f in dead_code_findings:
                         conf_match = re.search(r'(\d+)%\s*confidence', f.get('message', ''))
