@@ -68,11 +68,19 @@ def _extract_total_issues(payload: Dict[str, Any]) -> int:
             continue
         
         # Try to get from service-level summary first
+        # Analysis data may be at svc_result.analysis OR svc_result.payload.analysis
         svc_analysis = svc_result.get('analysis', {})
+        if not isinstance(svc_analysis, dict) or not svc_analysis:
+            payload_data = svc_result.get('payload', {})
+            if isinstance(payload_data, dict):
+                svc_analysis = payload_data.get('analysis', payload_data)
+        
         if isinstance(svc_analysis, dict):
             svc_summary = svc_analysis.get('summary', {})
             if isinstance(svc_summary, dict):
-                svc_total = svc_summary.get('total_issues_found', 0) or svc_summary.get('total_findings', 0)
+                svc_total = (svc_summary.get('total_issues_found', 0) 
+                           or svc_summary.get('total_findings', 0)
+                           or svc_summary.get('vulnerabilities_found', 0))
                 if svc_total > 0:
                     total_issues += svc_total
                     continue
@@ -87,6 +95,13 @@ def _extract_total_issues(payload: Dict[str, Any]) -> int:
                                 # Use total_issues OR issue_count, not both (they're the same)
                                 tool_issues = tool_result.get('total_issues', 0) or tool_result.get('issue_count', 0)
                                 total_issues += tool_issues
+    
+    # Also check top-level tools dict (from aggregate_results unified payload)
+    tools_data = payload.get('tools', {})
+    if isinstance(tools_data, dict) and total_issues == 0:
+        for tool_result in tools_data.values():
+            if isinstance(tool_result, dict):
+                total_issues += tool_result.get('total_issues', 0)
     
     return total_issues
 
@@ -519,10 +534,19 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
             final_db_status = AnalysisStatus.COMPLETED
 
         # Build unified payload
+        # Compute total findings from service-level data (not just flat findings list)
+        total_findings = _extract_total_issues({
+            'services': all_services,
+            'tools': combined_tool_results,
+        })
+        # Fall back to flat findings list if service extraction found nothing
+        if total_findings == 0 and all_findings:
+            total_findings = len(all_findings)
+
         unified_payload = {
             'task': {'task_id': main_task_id},
             'summary': {
-                'total_findings': len(all_findings),
+                'total_findings': total_findings,
                 'services_executed': len(all_services),
                 'tools_executed': len(combined_tool_results),
                 'status': final_status
@@ -554,6 +578,26 @@ def aggregate_results(self, results: List[Dict[str, Any]], main_task_id: str) ->
             main_task.status = final_db_status
             main_task.completed_at = datetime.now(timezone.utc)
             main_task.progress_percentage = 100.0
+            main_task.issues_found = total_findings
+
+            # Extract and merge severity breakdown from all services
+            merged_severity = {}
+            for svc_result in all_services.values():
+                if not isinstance(svc_result, dict):
+                    continue
+                svc_analysis = svc_result.get('analysis', {})
+                if not isinstance(svc_analysis, dict) or not svc_analysis:
+                    p = svc_result.get('payload', {})
+                    if isinstance(p, dict):
+                        svc_analysis = p.get('analysis', p)
+                if isinstance(svc_analysis, dict):
+                    sb = svc_analysis.get('summary', {}).get('severity_breakdown', {})
+                    if isinstance(sb, dict):
+                        for level, count in sb.items():
+                            if isinstance(count, (int, float)) and count > 0:
+                                merged_severity[level] = merged_severity.get(level, 0) + int(count)
+            if merged_severity:
+                main_task.set_severity_breakdown(merged_severity)
 
             if main_task.started_at:
                  # Ensure started_at is timezone-aware
