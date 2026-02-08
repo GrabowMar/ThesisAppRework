@@ -1458,6 +1458,14 @@ class AnalyzerManager:
             "id": str(uuid.uuid4())
         }
 
+        # Resolve template_slug for curl-endpoint-tester
+        try:
+            ai_config = self.resolve_ai_config(normalized_slug, app_number)
+            if ai_config and ai_config.get('template_slug'):
+                message["config"] = {"template_slug": ai_config["template_slug"]}
+        except Exception as e:
+            logger.debug(f"Could not resolve template_slug for dynamic analysis: {e}")
+
         return await self.send_websocket_message('dynamic-analyzer', message, timeout=600)
     
     async def run_performance_test(self, model_slug: str, app_number: int,
@@ -1946,6 +1954,14 @@ class AnalyzerManager:
             "id": str(uuid.uuid4())
         }
         
+        # Resolve template_slug for curl-endpoint-tester
+        try:
+            ai_config = self.resolve_ai_config(normalized_slug, app_number)
+            if ai_config and ai_config.get('template_slug'):
+                message["config"] = {"template_slug": ai_config["template_slug"]}
+        except Exception as e:
+            logger.debug(f"Could not resolve template_slug for dynamic analysis: {e}")
+
         # Dynamic analysis can be long
         dynamic_timeout = int(os.environ.get('DYNAMIC_ANALYSIS_TIMEOUT', '600'))
         return await self.send_websocket_message('dynamic-analyzer', message, timeout=dynamic_timeout)

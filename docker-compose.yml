@@ -266,6 +266,7 @@ services:
     volumes:
       - ./generated/apps:/app/sources:ro
       - ./results:/app/results
+      - ./misc/requirements:/app/misc/requirements:ro
       - /var/run/docker.sock:/var/run/docker.sock:rw
     healthcheck:
       test: [ "CMD", "python", "health_check.py" ]
@@ -471,6 +472,7 @@ services:
     volumes:
       - ./generated/apps:/app/sources:ro
       - ./results:/app/results
+      - ./misc/requirements:/app/misc/requirements:ro
       - /var/run/docker.sock:/var/run/docker.sock:rw
     healthcheck:
       test: [ "CMD", "python", "health_check.py" ]
@@ -505,6 +507,7 @@ services:
     volumes:
       - ./generated/apps:/app/sources:ro
       - ./results:/app/results
+      - ./misc/requirements:/app/misc/requirements:ro
       - /var/run/docker.sock:/var/run/docker.sock:rw
     healthcheck:
       test: [ "CMD", "python", "health_check.py" ]

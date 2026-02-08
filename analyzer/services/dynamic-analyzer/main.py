@@ -306,19 +306,36 @@ class DynamicAnalyzer(BaseWSService):
         return {'vulnerabilities': vulnerabilities}
     
     async def _check_common_vulnerabilities(self, url: str) -> Dict[str, Any]:
-        """Check for common web vulnerabilities."""
+        """Check for common web vulnerabilities with SPA awareness."""
         vulnerabilities = []
         
         try:
-            # Check for common admin paths
-            admin_paths = ['/admin', '/administrator', '/wp-admin', '/login', '/phpmyadmin']
+            # Paths relevant to Flask/Node apps
+            admin_paths = ['/admin', '/administrator', '/login']
+            
+            # SPA detection: check if a nonexistent path returns 200
+            is_spa = False
+            baseline_status = None
+            try:
+                test_url = url.rstrip('/') + '/_spa_check_nonexistent_xyz'
+                cmd = ['curl', '-s', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', test_url]
+                result = self._exec('curl', cmd, timeout=10)
+                if result.returncode == 0 and result.stdout.strip() == '200':
+                    is_spa = True
+                    self.log.info(f"SPA detected at {url} (nonexistent path returns 200)")
+            except Exception:
+                pass
             
             for path in admin_paths:
                 test_url = url.rstrip('/') + path
                 cmd = ['curl', '-s', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', test_url]
                 result = self._exec('curl', cmd, timeout=10)
                 
-                if result.returncode == 0 and result.stdout.strip() in ['200', '301', '302']:
+                status = result.stdout.strip() if result.returncode == 0 else ''
+                if status in ['200', '301', '302']:
+                    # Skip if SPA and status is 200 (it's the SPA shell, not a real admin page)
+                    if is_spa and status == '200':
+                        continue
                     vulnerabilities.append({
                         'type': f'Exposed Admin Path: {path}',
                         'severity': 'low',
@@ -450,39 +467,65 @@ class DynamicAnalyzer(BaseWSService):
             return {'status': 'error', 'error': str(e)}
     
     async def scan_common_vulnerabilities(self, url: str) -> Dict[str, Any]:
-        """Scan for common web vulnerabilities."""
+        """Scan for common web vulnerabilities with SPA-aware detection."""
         try:
             vulnerabilities = []
             
-            # Test for common paths
+            # Paths relevant to Flask/Node apps (removed wp-admin, phpmyadmin — not applicable)
             common_paths = [
-                '/admin', '/login', '/wp-admin', '/phpmyadmin',
-                '/.git', '/.env', '/config', '/backup'
+                '/admin', '/login', '/.git', '/.env', '/config', '/backup'
             ]
             
             accessible_paths = []
             
             if 'curl' in self.available_tools:
+                # SPA detection: fetch a known-nonexistent path to get baseline response
+                baseline_length = None
+                try:
+                    baseline_url = url.rstrip('/') + '/_spa_detection_nonexistent_path_xyz'
+                    cmd = ['curl', '-s', '-o', '/dev/null', '-w', '%{http_code}:%{size_download}',
+                           '--connect-timeout', '5', '--max-time', '10', baseline_url]
+                    result = await asyncio.to_thread(
+                        subprocess.run, cmd, capture_output=True, text=True, timeout=15
+                    )
+                    if result.returncode == 0 and result.stdout:
+                        parts = result.stdout.strip().split(':')
+                        if len(parts) == 2 and parts[0] == '200':
+                            baseline_length = int(parts[1])
+                            self.log.info(f"SPA detected at {url}: baseline 200 response, length={baseline_length}")
+                except Exception:
+                    pass
+                
                 for path in common_paths:
                     test_url = url.rstrip('/') + path
                     try:
-                        cmd = ['curl', '-I', '--connect-timeout', '5', '--max-time', '10', test_url]
+                        cmd = ['curl', '-s', '-o', '/dev/null',
+                               '-w', '%{http_code}:%{size_download}',
+                               '--connect-timeout', '5', '--max-time', '10', test_url]
                         result = await asyncio.to_thread(
                             subprocess.run, cmd, capture_output=True, text=True, timeout=15
                         )
                         
                         if result.returncode == 0 and result.stdout:
-                            status_line = result.stdout.split('\n')[0]
-                            if '200' in status_line or '301' in status_line or '302' in status_line:
-                                accessible_paths.append({
-                                    'path': path,
-                                    'url': test_url,
-                                    'status': status_line.strip()
-                                })
+                            parts = result.stdout.strip().split(':')
+                            if len(parts) == 2:
+                                status_code = parts[0]
+                                resp_length = int(parts[1]) if parts[1].isdigit() else 0
+                                
+                                if status_code in ('200', '301', '302'):
+                                    # SPA filter: if response matches baseline, it's the SPA shell
+                                    if baseline_length is not None and status_code == '200':
+                                        if abs(resp_length - baseline_length) < 50:
+                                            continue  # Skip — SPA fallback, not a real endpoint
+                                    
+                                    accessible_paths.append({
+                                        'path': path,
+                                        'url': test_url,
+                                        'status': f'HTTP {status_code}'
+                                    })
                     except Exception:
                         continue
             
-            # Check for exposed files
             if accessible_paths:
                 vulnerabilities.append({
                     'type': 'exposed_paths',

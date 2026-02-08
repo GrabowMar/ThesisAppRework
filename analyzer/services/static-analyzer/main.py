@@ -33,6 +33,42 @@ except ImportError:
     CONFIG_LOADER_AVAILABLE = False
 
 
+def _extract_sarif_severity(sarif_data: Dict[str, Any]) -> Dict[str, int]:
+    """Extract severity breakdown from SARIF data.
+    
+    Maps SARIF levels: error→high, warning→medium, note→low, none/missing→info.
+    Also checks rule-level defaultConfiguration as fallback.
+    """
+    severity = {'high': 0, 'medium': 0, 'low': 0, 'info': 0}
+    
+    # Build rule-level severity lookup from tool.driver.rules
+    rule_levels = {}
+    for run in sarif_data.get('runs', []):
+        driver = run.get('tool', {}).get('driver', {})
+        for rule in driver.get('rules', []):
+            rule_id = rule.get('id', '')
+            default_level = rule.get('defaultConfiguration', {}).get('level', '')
+            if rule_id and default_level:
+                rule_levels[rule_id] = default_level
+        
+        for result in run.get('results', []):
+            level = result.get('level', '')
+            if not level:
+                # Fallback to rule-level default
+                level = rule_levels.get(result.get('ruleId', ''), 'note')
+            
+            if level in ('error',):
+                severity['high'] += 1
+            elif level in ('warning',):
+                severity['medium'] += 1
+            elif level in ('note',):
+                severity['low'] += 1
+            else:
+                severity['info'] += 1
+    
+    return {k: v for k, v in severity.items() if v > 0}
+
+
 class StaticAnalyzer(BaseWSService):
     """Comprehensive static analyzer for multiple languages."""
 
@@ -596,6 +632,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                             result['total_issues'] = total_issues
                             result['issue_count'] = total_issues
                             result['issues'] = []
+                            result['severity_breakdown'] = _extract_sarif_severity(sarif_data)
                         
                         # Clean up temp file
                         try:
@@ -672,6 +709,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         
                         result['sarif'] = sarif_data
                         result['format'] = 'sarif'
+                        result['severity_breakdown'] = _extract_sarif_severity(sarif_data)
                     except Exception as e:
                         self.log.warning(f"Could not convert pylint output to SARIF: {e}")
                 
@@ -736,6 +774,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     result['issue_count'] = total_issues  # Match total_issues for consistent display
                     # NOTE: issues[] array intentionally empty - data is in SARIF file
                     result['issues'] = []  # Explicit - full details in SARIF
+                    result['severity_breakdown'] = _extract_sarif_severity(sarif_data)
+                    # Semgrep: if no severity extracted (levels stripped), treat all as medium (security findings)
+                    if not result['severity_breakdown'] and total_issues > 0:
+                        result['severity_breakdown'] = {'medium': total_issues}
                 except Exception as e:
                     self.log.warning(f"Could not parse semgrep SARIF output: {e}")
             results['semgrep'] = result
@@ -865,6 +907,22 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                                     'issue_count': len(vulnerabilities),
                                     'format': 'json'
                                 }
+                                # Safety: security vulns, map analyzed_version severity or default to high
+                                if vulnerabilities:
+                                    safety_sev = {'high': 0, 'medium': 0, 'low': 0}
+                                    for v in vulnerabilities:
+                                        sev = v.get('severity', {})
+                                        if isinstance(sev, dict):
+                                            cvss_score = sev.get('cvssv3', {}).get('base_score', 0) if isinstance(sev.get('cvssv3'), dict) else 0
+                                            if cvss_score >= 7.0:
+                                                safety_sev['high'] += 1
+                                            elif cvss_score >= 4.0:
+                                                safety_sev['medium'] += 1
+                                            else:
+                                                safety_sev['low'] += 1
+                                        else:
+                                            safety_sev['high'] += 1  # default for security vulns
+                                    results['safety']['severity_breakdown'] = {k: v for k, v in safety_sev.items() if v > 0}
                                 self.log.info(f"Safety found {len(vulnerabilities)} vulnerabilities in {len(affected_packages)} packages")
                             else:
                                 self.log.warning("Could not find JSON in Safety output")
@@ -930,6 +988,9 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                                 'issue_count': len(all_vulnerabilities),
                                 'format': 'json'
                             }
+                            # pip-audit: all are security vulns, default to high
+                            if all_vulnerabilities:
+                                results['pip-audit']['severity_breakdown'] = {'high': len(all_vulnerabilities)}
                             self.log.info(f"pip-audit found {len(all_vulnerabilities)} CVEs")
                         except Exception as e:
                             self.log.warning(f"Could not parse pip-audit output: {e}")
@@ -999,6 +1060,18 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     'issue_count': len(dead_code_findings),
                     'config_used': vulture_config
                 }
+                # Map confidence to severity: 90%+ → medium, else → low
+                if dead_code_findings:
+                    import re
+                    vulture_sev = {'medium': 0, 'low': 0}
+                    for f in dead_code_findings:
+                        conf_match = re.search(r'(\d+)%\s*confidence', f.get('message', ''))
+                        conf = int(conf_match.group(1)) if conf_match else 60
+                        if conf >= 90:
+                            vulture_sev['medium'] += 1
+                        else:
+                            vulture_sev['low'] += 1
+                    results['vulture']['severity_breakdown'] = {k: v for k, v in vulture_sev.items() if v > 0}
             else:
                 # No output case
                 results['vulture'] = {
@@ -1065,6 +1138,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     result['issue_count'] = total_issues  # Match total_issues for consistent display
                     # NOTE: issues[] array intentionally empty - data is in SARIF file
                     result['issues'] = []  # Explicit - full details in SARIF
+                    result['severity_breakdown'] = _extract_sarif_severity(sarif_data)
                 except Exception as e:
                     self.log.warning(f"Could not parse ruff SARIF output: {e}")
             results['ruff'] = result
@@ -1222,6 +1296,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         result['issue_count'] = total_issues  # Match total_issues for consistent display
                         # NOTE: issues[] array intentionally left empty - data is in SARIF file
                         result['issues'] = []  # Explicit - full details in SARIF
+                        result['severity_breakdown'] = _extract_sarif_severity(sarif_data)
                     except Exception as e:
                         self.log.warning(f"Could not parse eslint SARIF output: {e}")
                 results['eslint'] = result
@@ -1333,6 +1408,20 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                                         'format': 'json',
                                         'source_dir': str(package_json.parent)
                                     }
+                                    # Extract severity from vulnerability objects
+                                    npm_severity = {'high': 0, 'medium': 0, 'low': 0, 'info': 0}
+                                    for v in vulnerabilities.values():
+                                        if isinstance(v, dict):
+                                            sev = v.get('severity', 'info').lower()
+                                            if sev in ('critical', 'high'):
+                                                npm_severity['high'] += 1
+                                            elif sev in ('moderate', 'medium'):
+                                                npm_severity['medium'] += 1
+                                            elif sev == 'low':
+                                                npm_severity['low'] += 1
+                                            else:
+                                                npm_severity['info'] += 1
+                                    results['npm-audit']['severity_breakdown'] = {k: v for k, v in npm_severity.items() if v > 0}
                                     self.log.info(f"npm audit found {total_cves} CVEs")
                             except Exception as e:
                                 self.log.warning(f"Could not parse npm audit output: {e}")

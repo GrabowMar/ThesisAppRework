@@ -145,14 +145,12 @@ class CurlScanner:
             
             template_slug = config.get('template_slug', 'crud_todo_list') if config else 'crud_todo_list'
             
-            # Try to find template file
-            # Path logic depends on container structure. 
-            # Assuming /app/misc/requirements_templates or similar
-            template_path = Path("/app/misc/requirements_templates") / f"{template_slug}.json"
+            # Try to find template file (volume-mounted from repo misc/requirements/)
+            template_path = Path("/app/misc/requirements") / f"{template_slug}.json"
             
             if not template_path.exists():
-                # Fallback path (dev environment)
-                template_path = Path("/app/src/data/requirements_templates") / f"{template_slug}.json"
+                # Fallback: relative to this file (dev environment)
+                template_path = Path(__file__).parent.parent.parent.parent / "misc" / "requirements" / f"{template_slug}.json"
             
             if not template_path.exists():
                 return {
