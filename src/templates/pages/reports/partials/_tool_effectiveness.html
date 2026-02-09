@@ -143,7 +143,7 @@
                                 </div>
                             </td>
                             <td><strong>{{ stats.total_findings }}</strong></td>
-                            <td class="text-muted">{{ "%.1f"|format(stats.avg_findings_per_run) }}</td>
+                            <td class="text-muted">{{ "%.1f"|format(stats.findings_per_run) }}</td>
                             <td class="text-muted">{{ "%.2f"|format(stats.avg_duration) }}s</td>
                         </tr>
                         {% endfor %}
@@ -234,12 +234,12 @@
                     <div class="card-body">
                         {% if data.tools %}
                         <ol class="mb-0">
-                            {% for tool_name, stats in data.tools.items()|sort(attribute='1.total_findings', reverse=True)|list[:5] %}
+                            {% for tool_name, stats in (data.tools.items()|sort(attribute='1.total_findings', reverse=True)|list)[:5] %}
                             <li class="mb-2">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
                                         <code class="fw-bold">{{ tool_name }}</code>
-                                        <span class="text-muted small ms-2">({{ "%.1f"|format(stats.avg_findings_per_run) }}/run)</span>
+                                        <span class="text-muted small ms-2">({{ "%.1f"|format(stats.findings_per_run) }}/run)</span>
                                     </div>
                                     <span class="badge bg-{{ 'danger' if stats.total_findings > 100 else 'warning' if stats.total_findings > 50 else 'info' }}">
                                         {{ stats.total_findings }}
@@ -264,12 +264,12 @@
                     <div class="card-body">
                         {% if data.tools %}
                         <ol class="mb-0">
-                            {% for tool_name, stats in data.tools.items()|sort(attribute='1.success_rate', reverse=True)|list[:5] %}
+                            {% for tool_name, stats in (data.tools.items()|sort(attribute='1.success_rate', reverse=True)|list)[:5] %}
                             <li class="mb-2">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
                                         <code class="fw-bold">{{ tool_name }}</code>
-                                        <span class="text-muted small ms-2">({{ stats.successful_runs }}/{{ stats.total_runs }} runs)</span>
+                                        <span class="text-muted small ms-2">({{ stats.successful }}/{{ stats.total_runs }} runs)</span>
                                     </div>
                                     <span class="badge bg-{{ 'success' if stats.success_rate >= 90 else 'warning' if stats.success_rate >= 70 else 'danger' }}">
                                         {{ "%.1f"|format(stats.success_rate) }}%

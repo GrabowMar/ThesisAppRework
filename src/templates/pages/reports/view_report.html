@@ -332,7 +332,7 @@
           <div class="row g-1 mb-2">
             <div class="col"><div class="card mc"><div class="mv text-success">{{ gen.get('successful_generations', gen_qm.get('successful_apps', 0)) }}</div><div class="ml">Successful</div></div></div>
             <div class="col"><div class="card mc"><div class="mv text-danger">{{ gen.get('failed_generations', gen_qm.get('failed_apps', 0)) }}</div><div class="ml">Failed</div></div></div>
-            <div class="col"><div class="card mc"><div class="mv">{{ "%.0f"|format(gen_qm.get('success_rate', 100 if gen.get('failed_generations', 0) == 0 else 0)) }}%</div><div class="ml">Success Rate</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ "%.0f"|format(gen_qm.get('success_rate', 0)) }}%</div><div class="ml">Success Rate</div></div></div>
             <div class="col"><div class="card mc"><div class="mv">{{ "%.1f"|format(gen_qm.get('avg_attempts_per_app', 1)) }}</div><div class="ml">Avg Attempts</div></div></div>
             <div class="col"><div class="card mc"><div class="mv">{{ gen.get('total_scripted_fixes', 0) + gen.get('total_llm_fixes', 0) }}</div><div class="ml">Total Fixes</div></div></div>
           </div>
@@ -340,7 +340,13 @@
           {% if fw %}
           <h6 class="mb-1 text-muted" style="font-size:0.75rem">FRAMEWORKS</h6>
           <div class="d-flex flex-wrap gap-1 mb-1">
-            {% for fn, fc in fw.items() %}<span class="badge bg-secondary-lt">{{ fn }}: {{ fc }}</span>{% endfor %}
+            {% for category, frameworks in fw.items() %}
+              {% if frameworks is mapping %}
+                {% for name, count in frameworks.items() %}<span class="badge bg-secondary-lt">{{ name }}: {{ count }}</span>{% endfor %}
+              {% else %}
+                <span class="badge bg-secondary-lt">{{ category }}: {{ frameworks }}</span>
+              {% endif %}
+            {% endfor %}
           </div>
           {% endif %}
         </div>
@@ -437,11 +443,11 @@
       <div id="c-rankings" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
         <div class="accordion-body p-2">
           {% for category, ranked in rankings.items() %}
-          {% if ranked is iterable and ranked is not string and ranked|length > 0 %}
+          {% if ranked is iterable and ranked is not string and ranked is not mapping and ranked|length > 0 %}
           <h6 class="text-muted mb-1" style="font-size:0.75rem">{{ category|replace('_',' ')|upper }}</h6>
           <table class="table table-sm compact-table table-striped mb-2">
             <thead><tr><th style="width:30px">#</th><th>Model</th><th class="text-end">Value</th></tr></thead>
-            <tbody>{% for rm in ranked[:10] %}<tr><td>{{ loop.index }}</td><td><span class="badge bg-azure-lt text-azure">{{ rm.get('model_slug', rm.get('model', '')) }}</span></td><td class="text-end">{{ rm.get('value', rm.get('score', rm.get('findings_count', ''))) }}</td></tr>{% endfor %}</tbody>
+            <tbody>{% for rm in ranked|list|batch(10)|first %}<tr><td>{{ loop.index }}</td><td><span class="badge bg-azure-lt text-azure">{{ rm.get('model_slug', rm.get('model', '')) }}</span></td><td class="text-end">{{ rm.get('value', rm.get('score', rm.get('findings_count', ''))) }}</td></tr>{% endfor %}</tbody>
           </table>
           {% endif %}
           {% endfor %}
