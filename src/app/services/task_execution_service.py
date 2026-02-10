@@ -3286,12 +3286,16 @@ class TaskExecutionService:
                 main_task.completed_at = datetime.now(timezone.utc)
                 main_task.progress_percentage = 100.0
                 if main_task.started_at:
-                    # Ensure started_at is timezone-aware before subtraction
+                    # Ensure both timestamps are timezone-aware before subtraction
                     started_at = main_task.started_at
                     if started_at.tzinfo is None:
                         started_at = started_at.replace(tzinfo=timezone.utc)
-                    duration = (main_task.completed_at - started_at).total_seconds()
-                    main_task.actual_duration = duration
+                    completed_at = main_task.completed_at
+                    if completed_at and completed_at.tzinfo is None:
+                        completed_at = completed_at.replace(tzinfo=timezone.utc)
+                    if completed_at:
+                        duration = (completed_at - started_at).total_seconds()
+                        main_task.actual_duration = duration
                 
                 # Commit status changes immediately so frontend sees completed status
                 db.session.commit()

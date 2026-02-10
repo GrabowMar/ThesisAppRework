@@ -90,8 +90,7 @@ services:
   # Redis for Celery
   redis:
     image: redis:7.2-alpine
-    ports:
-      - "6379:6379"
+    # No port exposure - only accessible via thesis-network
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 30s
@@ -139,6 +138,8 @@ services:
       - AI_ANALYZER_URLS=ws://ai-analyzer:2004,ws://ai-analyzer-2:2004
       # Enable pipeline service in celery-worker - this is the ONLY container that should process pipelines
       - ENABLE_PIPELINE_SERVICE=true
+      # Use Celery for analysis task dispatch (not ThreadPool fallback)
+      - USE_CELERY_ANALYSIS=true
       # Queue concurrency - increased for scaled analyzers
       - QUEUE_MAX_CONCURRENT_TASKS=20
     volumes:
@@ -170,8 +171,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: '1.0'
+          memory: 4G
+          cpus: '2.0'
 
   # Analyzer services (WebSocket Gateway)
   analyzer-gateway:
