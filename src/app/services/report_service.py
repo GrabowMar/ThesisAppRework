@@ -1488,12 +1488,16 @@ class ReportService:
         filter_model = config.get('filter_model')
         filter_app = config.get('filter_app')
         
-        # Query completed tasks (main tasks only)
+        # Query completed main tasks only (subtask results are included in main task's consolidated result)
         query = AnalysisTask.query.filter(
             AnalysisTask.status.in_([  # type: ignore[union-attr]
                 AnalysisStatus.COMPLETED,
                 AnalysisStatus.PARTIAL_SUCCESS
-            ])
+            ]),
+            db.or_(
+                AnalysisTask.is_main_task.is_(True),
+                AnalysisTask.parent_task_id.is_(None)
+            )
         )
         
         if filter_model:
@@ -1501,7 +1505,7 @@ class ReportService:
         if filter_app:
             query = query.filter(AnalysisTask.target_app_number == filter_app)
         
-        tasks = query.order_by(AnalysisTask.completed_at.desc()).limit(300).all()  # type: ignore[union-attr]
+        tasks = query.order_by(AnalysisTask.completed_at.desc()).all()  # type: ignore[union-attr]
         
         report.update_progress(15)
         db.session.commit()

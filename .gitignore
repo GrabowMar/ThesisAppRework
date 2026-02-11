@@ -273,3 +273,5 @@ batch_*.log
 /models/
 nul
 .claude/
+backups/
+07_results_v*.tex

@@ -519,9 +519,9 @@
             <div class="col"><div class="card mc"><div class="mv">{{ summary.get('total_findings', 0) }}</div><div class="ml">Findings</div></div></div>
             <div class="col"><div class="card mc"><div class="mv text-success">{{ summary.get('avg_success_rate', 0)|round(1) }}%</div><div class="ml">Avg Success</div></div></div>
           </div>
-          {% set cats = report_data.get('analyzer_summary', report_data.get('categories', {})) %}
+          {% set cats = report_data.get('categories', {}) %}
           {% if cats is mapping and cats %}
-          <div class="row g-1">{% for cn, cd in cats.items() %}<div class="col"><div class="card mc"><div class="mv text-teal">{{ cd.get('total_tools', cd.get('tools_count', 0)) }}</div><div class="ml">{{ cn|replace('_',' ')|title }}</div><div class="mh">{{ cd.get('total_executions', 0) }} runs</div></div></div>{% endfor %}</div>
+          <div class="row g-1">{% for cn, cd in cats.items() %}{% if cd is mapping %}<div class="col"><div class="card mc"><div class="mv text-teal">{{ cd.get('total_tools', cd.get('tools_count', 0)) }}</div><div class="ml">{{ cn|replace('_',' ')|title }}</div><div class="mh">{{ cd.get('total_runs', cd.get('total_executions', 0)) }} runs</div></div></div>{% endif %}{% endfor %}</div>
           {% endif %}
         </div>
       </div>

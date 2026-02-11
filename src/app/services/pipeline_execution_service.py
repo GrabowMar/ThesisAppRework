@@ -702,7 +702,11 @@ class PipelineExecutionService:
             return False
 
         # Check for explicit streaming mode flag (default: True for immediate analysis)
-        streaming_mode = analysis_config.get('options', {}).get('streamingAnalysis', True)
+        # Support both top-level and nested under 'options' for backwards compatibility
+        if 'streamingAnalysis' in analysis_config:
+            streaming_mode = analysis_config.get('streamingAnalysis', True)
+        else:
+            streaming_mode = analysis_config.get('options', {}).get('streamingAnalysis', True)
         
         # Disable streaming for existing mode (must use batch to submit tasks)
         gen_config = config.get('generation', {})
