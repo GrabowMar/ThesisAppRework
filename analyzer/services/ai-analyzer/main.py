@@ -209,7 +209,7 @@ class AIAnalyzer(BaseWSService):
             # Max tokens for responses - lower = cheaper
             self.max_response_tokens = int(os.getenv('AI_MAX_RESPONSE_TOKENS', '300'))
             # Batch max tokens - larger for batch mode since it contains multiple results
-            self.batch_max_response_tokens = int(os.getenv('AI_BATCH_MAX_TOKENS', '1500'))
+            self.batch_max_response_tokens = int(os.getenv('AI_BATCH_MAX_TOKENS', '2500'))
             # Enable/disable code quality analyzer tool (8 extra API calls when granular)
             # Default: true - enabled by default as it's a core AI analyzer feature
             self.quality_analyzer_enabled = os.getenv('AI_QUALITY_ANALYZER_ENABLED', 'true').lower() == 'true'
@@ -783,7 +783,6 @@ Focus on whether the functionality described in the requirement is actually impl
                             actual_status = response.status
                             passed = (
                                 actual_status == expected_status or
-                                (200 <= actual_status < 300) or
                                 (requires_auth and not auth_token and actual_status in [401, 403])
                             )
                             
@@ -926,9 +925,9 @@ Focus on whether the functionality described in the requirement is actually impl
                         })
             
             # Calculate compliance breakdown
-            met_backend = sum(1 for r in backend_results if r['met'])
-            met_frontend = sum(1 for r in frontend_results if r['met'])
-            met_admin = sum(1 for r in admin_results if r['met'])
+            met_backend = sum(1 for r in backend_results if r['met'] and r.get('confidence', 'MEDIUM') != 'LOW')
+            met_frontend = sum(1 for r in frontend_results if r['met'] and r.get('confidence', 'MEDIUM') != 'LOW')
+            met_admin = sum(1 for r in admin_results if r['met'] and r.get('confidence', 'MEDIUM') != 'LOW')
             
             total_endpoints = len(endpoint_results)
             passed_endpoints = sum(1 for e in endpoint_results if e['passed'])
@@ -1371,12 +1370,19 @@ Focus on whether the functionality described in the requirement is actually impl
                 payload = {
                     "model": model,
                     "messages": [
+                        {"role": "system", "content": (
+                            "You are a strict code quality auditor. Score each metric honestly based "
+                            "on concrete evidence in the code. Do not give generous scores for missing "
+                            "or minimal implementations. A score of 0-30 means poor/absent, 40-60 means "
+                            "basic/partial, 70-85 means solid, 86-100 means exceptional with clear evidence. "
+                            "When you cannot find evidence of a quality attribute, score it low, not mid-range."
+                        )},
                         {"role": "user", "content": prompt}
                     ],
                     "max_tokens": self.batch_max_response_tokens,
                     "temperature": 0.1
                 }
-                
+
                 # Retry loop for quality batch analysis
                 last_error = None
                 for attempt in range(1, self.max_retries + 1):
@@ -1553,9 +1559,9 @@ XX should be a number 0-100. PASS:YES if score >= 60."""
                     finding = simple_match.group(2).strip() or f"Score {score}/100 (parsed from batch)"
                     confidence = 'MEDIUM'
                 else:
-                    # Default to mid-range score if can't parse
+                    # Default to zero — absence of evidence is not evidence of quality
                     self.log.warning(f"Could not parse quality result for {metric_id}")
-                    score = 50
+                    score = 0
                     passed = False
                     finding = "Could not parse from batch response"
                     confidence = 'LOW'
@@ -2140,12 +2146,24 @@ Focus on practical, real-world code quality concerns. Be specific about what you
                 payload = {
                     "model": model,
                     "messages": [
+                        {"role": "system", "content": (
+                            "You are a strict software requirements auditor. Your job is to determine "
+                            "whether each requirement is FULLY and CORRECTLY implemented in the provided code. "
+                            "Apply a high bar: only mark a requirement as MET (YES) when you can point to "
+                            "specific code that implements the EXACT functionality described. "
+                            "Partial implementations, approximate solutions, or different approaches than "
+                            "what was specified must be marked NO. When in doubt, mark NO. "
+                            "A requirement like 'Tab switch between Login and Register' means actual tab "
+                            "components switching views within the same page — separate pages with links "
+                            "between them do NOT satisfy this. Apply this level of literal strictness to "
+                            "every requirement."
+                        )},
                         {"role": "user", "content": prompt}
                     ],
                     "max_tokens": self.batch_max_response_tokens,
                     "temperature": 0.1  # Lower temperature for more consistent parsing
                 }
-                
+
                 # Retry loop for batch analysis
                 last_error = None
                 for attempt in range(1, self.max_retries + 1):
@@ -2265,9 +2283,21 @@ Scaffolding/boilerplate files are excluded - they are identical across all apps.
             'admin': "Focus on: Admin dashboard components, statistics/metrics display, data management tables, bulk operations, authentication for admin routes."
         }
         
-        return f"""Analyze the following LLM-generated web application code and determine if each requirement is MET or NOT MET.
+        return f"""Analyze the following LLM-generated web application code and determine if each requirement is FULLY MET or NOT MET.
 {context_section}{code_note}
 {focus_guidance.get(focus, '')}
+
+STRICT EVALUATION CRITERIA:
+- YES = The EXACT functionality described is fully implemented. You can point to specific code.
+- NO = Missing, only partially implemented, or implemented with a different approach than specified.
+- When a requirement specifies a UI pattern (tabs, modal, drag-and-drop, accordion, etc.), the code MUST use that exact pattern. Alternative approaches do NOT count.
+- When a requirement says "X and Y", BOTH must be present. If only X exists, mark NO.
+- When in doubt, mark NO.
+
+EXAMPLES OF STRICT EVALUATION:
+- Requirement: "Tab switch between Login and Register" → Code has separate /login and /register pages with <a> links → MET:NO (requires tab components switching views on same page, not separate pages)
+- Requirement: "Form validation with inline error messages" → Code has alert() on submit but no inline errors next to fields → MET:NO (inline means next to the field, not a popup)
+- Requirement: "REST API endpoint GET /api/items returns JSON list" → Code has @app.route('/api/items') returning jsonify(items) → MET:YES | EVIDENCE: app.py line with @app.route('/api/items') and jsonify return
 
 REQUIREMENTS TO CHECK:
 {requirements_list}
@@ -2276,8 +2306,8 @@ CODE:
 {code_content}
 
 Respond with EXACTLY this format for EACH requirement (one per line):
-[REQ1] MET:YES/NO | CONF:HIGH/MEDIUM/LOW
-[REQ2] MET:YES/NO | CONF:HIGH/MEDIUM/LOW
+[REQ1] MET:YES/NO | CONF:HIGH/MEDIUM/LOW | EVIDENCE: <specific code reference or "not found">
+[REQ2] MET:YES/NO | CONF:HIGH/MEDIUM/LOW | EVIDENCE: <specific code reference or "not found">
 ...and so on for all {len(requirements)} requirements.
 """
     
@@ -2324,10 +2354,10 @@ Respond with EXACTLY this format for EACH requirement (one per line):
             confidence = 'MEDIUM'
             explanation = ''
             
-            # Pattern 1: Standard format with optional markdown, flexible spacing, OPTIONAL confidence
-            # [REQ1] MET:YES | CONF:HIGH | explanation  OR  **[REQ1]** MET: YES
+            # Pattern 1: Standard format with optional markdown, flexible spacing, OPTIONAL confidence, OPTIONAL evidence
+            # [REQ1] MET:YES | CONF:HIGH | EVIDENCE: ... | explanation  OR  **[REQ1]** MET: YES
             # Also handles MET:PARTIAL, MET:PARTIALLY
-            pattern1 = rf'\*?\*?\[REQ{req_num}\]\*?\*?\s*MET:\s*([A-Z]+)\s*\|?\s*(?:CONF:\s*(HIGH|MEDIUM|LOW)\s*\|?)?\s*(.+?)(?=\s*\*?\*?\[REQ|\Z)'
+            pattern1 = rf'\*?\*?\[REQ{req_num}\]\*?\*?\s*MET:\s*([A-Z]+)\s*\|?\s*(?:CONF:\s*(HIGH|MEDIUM|LOW)\s*\|?)?\s*(?:EVIDENCE:\s*)?(.+?)(?=\s*\*?\*?\[REQ|\Z)'
             match = re.search(pattern1, response, re.IGNORECASE | re.DOTALL)
             
             if match:
@@ -2336,8 +2366,8 @@ Respond with EXACTLY this format for EACH requirement (one per line):
                     confidence = match.group(2).upper()
                 explanation = (match.group(3) or '').strip()
             else:
-                # Pattern 2: Numbered list format (1. MET:YES ...)
-                pattern2 = rf'^{req_num}\.\s*MET:\s*([A-Z]+)\s*\|?\s*(?:CONF:\s*(HIGH|MEDIUM|LOW)\s*\|?)?\s*(.+?)(?=^\d+\.|\Z)'
+                # Pattern 2: Numbered list format (1. MET:YES ...), with optional EVIDENCE label
+                pattern2 = rf'^{req_num}\.\s*MET:\s*([A-Z]+)\s*\|?\s*(?:CONF:\s*(HIGH|MEDIUM|LOW)\s*\|?)?\s*(?:EVIDENCE:\s*)?(.+?)(?=^\d+\.|\Z)'
                 match = re.search(pattern2, response, re.IGNORECASE | re.MULTILINE | re.DOTALL)
                 
                 if match:
@@ -2346,8 +2376,8 @@ Respond with EXACTLY this format for EACH requirement (one per line):
                         confidence = match.group(2).upper()
                     explanation = match.group(3).strip() if match.group(3) else ''
                 else:
-                    # Pattern 3: REQ format without brackets
-                    pattern3 = rf'REQ\s*{req_num}[:\s]+(?:MET[:\s]*)?([A-Z]+)(?:\s*\|?\s*CONF[:\s]*(HIGH|MEDIUM|LOW))?(?:\s*\|?\s*(.+?))?(?=REQ\s*\d|\Z)'
+                    # Pattern 3: REQ format without brackets, with optional EVIDENCE label
+                    pattern3 = rf'REQ\s*{req_num}[:\s]+(?:MET[:\s]*)?([A-Z]+)(?:\s*\|?\s*CONF[:\s]*(HIGH|MEDIUM|LOW))?(?:\s*\|?\s*(?:EVIDENCE:\s*)?(.+?))?(?=REQ\s*\d|\Z)'
                     match = re.search(pattern3, response, re.IGNORECASE | re.DOTALL)
                     
                     if match:
@@ -2458,6 +2488,12 @@ Respond with EXACTLY this format for EACH requirement (one per line):
                 payload = {
                     "model": model,
                     "messages": [
+                        {"role": "system", "content": (
+                            "You are a strict software requirements auditor. Only mark a requirement "
+                            "as MET when the code fully and exactly implements what was specified. "
+                            "Partial implementations or different approaches must be marked NO. "
+                            "When in doubt, mark NO."
+                        )},
                         {"role": "user", "content": prompt}
                     ],
                     "max_tokens": self.max_response_tokens,
