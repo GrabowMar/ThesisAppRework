@@ -56,7 +56,7 @@ def generate_report():
     
     Request body:
     {
-        "report_type": "model_analysis|template_comparison|tool_analysis",
+        "report_type": "model_analysis|template_comparison|tool_analysis|generation_analytics|comprehensive",
         "config": {
             // For model_analysis:
             "model_slug": "openai_gpt-4",
@@ -93,7 +93,7 @@ def generate_report():
         if report_type == 'app_analysis':
             report_type = 'template_comparison'
         
-        valid_types = ['model_analysis', 'template_comparison', 'tool_analysis', 'generation_analytics']
+        valid_types = ['model_analysis', 'template_comparison', 'tool_analysis', 'generation_analytics', 'comprehensive']
         if report_type not in valid_types:
             return jsonify({
                 'success': False,
@@ -105,7 +105,7 @@ def generate_report():
             return jsonify({'success': False, 'error': 'model_slug required'}), 400
         if report_type == 'template_comparison' and not config.get('template_slug'):
             return jsonify({'success': False, 'error': 'template_slug required'}), 400
-        # generation_analytics has no required config - analyzes all models
+        # generation_analytics and comprehensive have no required config
         
         # Parse filter_mode
         filter_mode_str = data.get('filter_mode', 'all')

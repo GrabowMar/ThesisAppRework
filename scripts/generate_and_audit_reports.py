@@ -353,10 +353,13 @@ def audit_model_analysis(data: Dict[str, Any], audit: ReportAudit, config: Dict[
     sev_sum = sum(sev_breakdown.get(k, 0) for k in SEVERITY_KEYS)
     # severity_breakdown sum should >= total_findings (severity counts come from DB, findings_count also from DB)
     # They should be consistent
+    unclassified = summary.get("unclassified_findings", 0) or 0
     if sev_sum >= total_findings or close_enough(sev_sum, total_findings, 1):
         audit.pass_("severity_sum", f"sev_sum={sev_sum}, total_findings={total_findings}")
+    elif sev_sum + unclassified == total_findings:
+        audit.pass_("severity_sum", f"sev_sum={sev_sum} + unclassified={unclassified} == total_findings={total_findings}")
     else:
-        audit.warn("severity_sum", f"sev_sum={sev_sum} < total_findings={total_findings}")
+        audit.warn("severity_sum", f"sev_sum={sev_sum} < total_findings={total_findings} (unclassified={unclassified})")
 
     # Scientific metrics: mean between min/max, stddev >= 0
     sci = data.get("scientific_metrics", {})

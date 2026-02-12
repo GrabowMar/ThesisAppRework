@@ -1,0 +1,127 @@
+{
+  "description": "Ground truth for AI analyzer calibration. Each app has manually verified requirement verdicts.",
+  "version": "1.0",
+  "last_updated": "2026-02-12",
+  "apps": [
+    {
+      "model_slug": "anthropic_claude-4.5-sonnet-20250929",
+      "app_number": 1,
+      "template_slug": "api_url_shortener",
+      "notes": "Claude Sonnet generates clean Flask API. URL shortener with basic CRUD.",
+      "requirements": {
+        "backend": [
+          {"requirement": "1. POST /api/shorten - accept long URL, generate 6-character random code", "met": true, "notes": "Route exists, generates short code"},
+          {"requirement": "2. URL model: id, original_url, short_code (unique), created_at, click_count", "met": true, "notes": "SQLAlchemy model has all fields"},
+          {"requirement": "3. GET /api/r/:code - lookup and redirect to original URL, increment counter", "met": true, "notes": "Redirect route exists with counter increment"},
+          {"requirement": "4. Validate URL format before shortening", "met": true, "notes": "URL validation present"},
+          {"requirement": "5. GET /api/urls - return list of recently shortened URLs with click counts", "met": true, "notes": "List endpoint returns URLs with counts"},
+          {"requirement": "Access control: allow public read-only short URL redirect and public list; require auth for management", "met": true, "notes": "Auth decorator on management routes"}
+        ],
+        "frontend": [
+          {"requirement": "1. Input field for long URL with 'Shorten' button", "met": true, "notes": "Input and button present in App.jsx"},
+          {"requirement": "2. Display shortened URL with copy-to-clipboard button", "met": false, "notes": "Shows shortened URL but no copy-to-clipboard functionality"},
+          {"requirement": "3. Show click count for generated URLs", "met": true, "notes": "Click count displayed in list"},
+          {"requirement": "4. List of recently shortened URLs", "met": true, "notes": "URL list component present"},
+          {"requirement": "5. Validation error for invalid URLs", "met": true, "notes": "Error messages shown for invalid input"},
+          {"requirement": "Public guest view for shortening URLs with CTA to sign in for management", "met": true, "notes": "Public view with login CTA"}
+        ]
+      }
+    },
+    {
+      "model_slug": "anthropic_claude-4.5-sonnet-20250929",
+      "app_number": 3,
+      "template_slug": "auth_user_login",
+      "notes": "Claude Sonnet auth app. Good implementation overall but tab switch needs verification.",
+      "requirements": {
+        "backend": [
+          {"requirement": "Access control: public registration/login; require auth for profile access", "met": true, "notes": "Auth middleware on profile route"},
+          {"requirement": "1. User model: id, email (required, unique), password_hash, is_admin, created_at", "met": true, "notes": "All fields present in model"},
+          {"requirement": "2. POST /api/auth/register - create user account", "met": true, "notes": "Registration route exists"},
+          {"requirement": "3. POST /api/auth/login - return JWT token", "met": true, "notes": "Login returns JWT"},
+          {"requirement": "4. GET /api/auth/me - return current user profile", "met": true, "notes": "Profile route with auth required"},
+          {"requirement": "5. Validate: strong password (min 8 chars) and email format", "met": true, "notes": "Validation logic present"}
+        ],
+        "frontend": [
+          {"requirement": "Public login/register view with CTA to sign in", "met": true, "notes": "Public landing with auth forms"},
+          {"requirement": "1. Tab switch between Login and Register", "met": false, "notes": "NEEDS MANUAL CHECK: May use separate pages instead of tabs"},
+          {"requirement": "2. Inline form validation and error messages", "met": false, "notes": "NEEDS MANUAL CHECK: May use alerts instead of inline errors"},
+          {"requirement": "3. Show authenticated banner with user email", "met": true, "notes": "Welcome banner shows email after login"},
+          {"requirement": "4. Logout button clears token", "met": true, "notes": "Logout removes token from localStorage"},
+          {"requirement": "5. Protected area message only visible when logged in", "met": true, "notes": "Conditional rendering based on auth state"}
+        ]
+      }
+    },
+    {
+      "model_slug": "google_gemini-3-flash-preview-20251217",
+      "app_number": 5,
+      "template_slug": "collaboration_simple_poll",
+      "notes": "Gemini Flash poll app. Good backend, frontend chart may be missing.",
+      "requirements": {
+        "backend": [
+          {"requirement": "Access control: allow public poll voting and viewing; require auth for poll creation/deletion", "met": true, "notes": "Auth on create/delete, public on vote/list"},
+          {"requirement": "1. Poll model: id, question (required), created_at", "met": true, "notes": "Model has required fields"},
+          {"requirement": "2. PollOption model: id, poll_id, text, votes", "met": true, "notes": "Option model with vote counter"},
+          {"requirement": "3. GET /api/polls - list polls with options", "met": true, "notes": "Endpoint returns polls with nested options"},
+          {"requirement": "4. POST /api/polls - create poll with 2-6 options", "met": true, "notes": "Creation with option count validation"},
+          {"requirement": "5. POST /api/polls/:id/vote - increment option votes", "met": true, "notes": "Vote endpoint increments counter"}
+        ],
+        "frontend": [
+          {"requirement": "Public guest view of polls with CTA to sign in for creating polls", "met": true, "notes": "Guest can view and vote"},
+          {"requirement": "1. Poll list with question and options", "met": true, "notes": "Poll listing component present"},
+          {"requirement": "2. Vote buttons with immediate count update", "met": true, "notes": "Optimistic update on vote click"},
+          {"requirement": "3. Results bar chart per poll", "met": false, "notes": "No bar chart implementation, just text counts"},
+          {"requirement": "4. Create poll form with dynamic options", "met": true, "notes": "Add/remove option fields present"},
+          {"requirement": "5. Loading and empty states", "met": true, "notes": "Loading spinner and empty message"}
+        ]
+      }
+    },
+    {
+      "model_slug": "deepseek_deepseek-r1-0528",
+      "app_number": 10,
+      "template_slug": "dataviz_sales_table",
+      "notes": "DeepSeek sales dashboard. Backend solid, chart.js requirement often missed.",
+      "requirements": {
+        "backend": [
+          {"requirement": "Access control: allow public read-only sales view; require auth for create/update/delete", "met": true, "notes": "Public GET, auth on mutations"},
+          {"requirement": "1. Sale model: id, product (required), amount (decimal), quantity (integer), date (default today)", "met": true, "notes": "All fields present with defaults"},
+          {"requirement": "2. GET /api/sales - return all sales, support date range filter (?start_date=, ?end_date=)", "met": true, "notes": "Date range filtering implemented"},
+          {"requirement": "3. GET /api/sales/summary - return totals (total_sales, total_transactions, average_sale)", "met": true, "notes": "Summary endpoint with aggregations"},
+          {"requirement": "4. Seed with sample data if database is empty", "met": true, "notes": "Seeding logic on startup"},
+          {"requirement": "5. POST /api/sales - create new sale with validation (amount > 0, quantity >= 1)", "met": true, "notes": "Validation on create endpoint"}
+        ],
+        "frontend": [
+          {"requirement": "Public guest view of sales with CTA to sign in for full analytics", "met": true, "notes": "Public read view present"},
+          {"requirement": "1. Sales table with date, product, amount, quantity columns", "met": true, "notes": "Table component with all columns"},
+          {"requirement": "2. Total sales and transaction count displayed prominently at top", "met": true, "notes": "Summary cards at top of page"},
+          {"requirement": "3. Simple bar chart showing sales over time (Chart.js or similar)", "met": false, "notes": "No chart library imported, no chart component"},
+          {"requirement": "4. Date range filter (this month, last month, custom)", "met": true, "notes": "Filter controls present"},
+          {"requirement": "5. Add new sale form with product, amount, quantity, date", "met": true, "notes": "Form with all required fields"}
+        ]
+      }
+    },
+    {
+      "model_slug": "openai_gpt-5.2-codex-20260114",
+      "app_number": 3,
+      "template_slug": "auth_user_login",
+      "notes": "GPT-5.2 Codex auth app. Compare with Claude's implementation of same template.",
+      "requirements": {
+        "backend": [
+          {"requirement": "Access control: public registration/login; require auth for profile access", "met": true, "notes": "NEEDS MANUAL CHECK"},
+          {"requirement": "1. User model: id, email (required, unique), password_hash, is_admin, created_at", "met": true, "notes": "NEEDS MANUAL CHECK"},
+          {"requirement": "2. POST /api/auth/register - create user account", "met": true, "notes": "NEEDS MANUAL CHECK"},
+          {"requirement": "3. POST /api/auth/login - return JWT token", "met": true, "notes": "NEEDS MANUAL CHECK"},
+          {"requirement": "4. GET /api/auth/me - return current user profile", "met": true, "notes": "NEEDS MANUAL CHECK"},
+          {"requirement": "5. Validate: strong password (min 8 chars) and email format", "met": true, "notes": "NEEDS MANUAL CHECK"}
+        ],
+        "frontend": [
+          {"requirement": "Public login/register view with CTA to sign in", "met": true, "notes": "NEEDS MANUAL CHECK"},
+          {"requirement": "1. Tab switch between Login and Register", "met": false, "notes": "NEEDS MANUAL CHECK: Common false positive"},
+          {"requirement": "2. Inline form validation and error messages", "met": false, "notes": "NEEDS MANUAL CHECK: Often uses alerts instead"},
+          {"requirement": "3. Show authenticated banner with user email", "met": true, "notes": "NEEDS MANUAL CHECK"},
+          {"requirement": "4. Logout button clears token", "met": true, "notes": "NEEDS MANUAL CHECK"},
+          {"requirement": "5. Protected area message only visible when logged in", "met": true, "notes": "NEEDS MANUAL CHECK"}
+        ]
+      }
+    }
+  ]
+}

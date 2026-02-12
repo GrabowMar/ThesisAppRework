@@ -95,12 +95,25 @@ def extract_all_data(results_dir: Path, gen_dir: Path) -> dict:
                                        'tests': 0})
     ai_model = defaultdict(lambda: {'overall': [], 'backend': [], 'frontend': [],
                                      'admin': [], 'apps': 0})
-    zap_model = defaultdict(lambda: {'alerts': 0, 'scans': 0,
-                                      'by_risk': defaultdict(int),
-                                      'cwes': defaultdict(int),
-                                      'alert_types': defaultdict(int)})
+    zap_model = defaultdict(lambda: {'alerts': 0, 'scans': 0, 'attempted_scans': 0, 'scans_with_alerts': 0,
+                                       'by_risk': defaultdict(int),
+                                       'cwes': defaultdict(int),
+                                       'alert_types': defaultdict(int)})
+    dyn_diag_model = defaultdict(lambda: {
+        'apps_with_any_output': 0,
+        'port_scan_attempted': 0,
+        'port_scan_success': 0,
+        'open_ports_total': 0,
+        'apps_with_open_ports': 0,
+        'open_port_counts': defaultdict(int),
+        'curl_attempted': 0,
+        'curl_success': 0,
+        'endpoints_total': 0,
+        'endpoints_passed': 0,
+    })
     service_completion = defaultdict(lambda: {'success': 0, 'total': 0})
     app_count = 0
+    processed_app_count = 0
 
     for model_dir in sorted(results_dir.iterdir()):
         if not model_dir.is_dir():
@@ -111,27 +124,65 @@ def extract_all_data(results_dir: Path, gen_dir: Path) -> dict:
                 continue
             app_n = app_dir.name
             app_count += 1
+
+            # Each app can contain multiple task runs and multiple JSON snapshots per task.
+            # For thesis aggregation we count *one consolidated result per app* to avoid double-counting.
+            task_candidates = []
             for task_dir in app_dir.iterdir():
                 if not task_dir.is_dir():
                     continue
-                for f in task_dir.iterdir():
-                    if f.name == 'manifest.json' or not f.name.endswith('.json'):
-                        continue
+                manifest = task_dir / 'manifest.json'
+                ts = ''
+                main_path = None
+                if manifest.exists():
                     try:
-                        data = json.loads(f.read_text())
+                        m = json.loads(manifest.read_text())
+                        ts = m.get('timestamp') or ''
+                        main_file = m.get('main_result_file')
+                        if main_file:
+                            p = task_dir / main_file
+                            if p.exists():
+                                main_path = p
                     except Exception:
+                        # fall back to selecting the latest JSON snapshot below
+                        pass
+
+                # Fallback: some manifests can be stale/wrong; pick the latest JSON snapshot in the task dir.
+                if main_path is None:
+                    json_candidates = [
+                        p for p in task_dir.iterdir()
+                        if p.is_file() and p.name.endswith('.json') and p.name != 'manifest.json'
+                    ]
+                    if not json_candidates:
                         continue
-                    services = data.get('services', {})
-                    _process_static(services, model_slug, app_n, tool_model,
-                                    model_app_findings, model_app_severity, service_completion)
-                    _process_dynamic(services, model_slug, zap_model, service_completion)
-                    _process_performance(services, model_slug, perf_model, service_completion)
-                    _process_ai(services, model_slug, ai_model, service_completion)
+                    json_candidates.sort(key=lambda p: p.name)
+                    main_path = json_candidates[-1]
+
+                task_candidates.append((ts, main_path))
+
+            # Prefer the latest task (by manifest timestamp).
+            if not task_candidates:
+                continue
+            task_candidates.sort(key=lambda x: x[0])
+            _, main_result_path = task_candidates[-1]
+
+            try:
+                data = json.loads(main_result_path.read_text())
+            except Exception:
+                continue
+            processed_app_count += 1
+
+            services = data.get('services', {})
+            _process_static(services, model_slug, app_n, tool_model,
+                             model_app_findings, model_app_severity, service_completion)
+            _process_dynamic(services, model_slug, zap_model, dyn_diag_model, service_completion)
+            _process_performance(services, model_slug, perf_model, service_completion)
+            _process_ai(services, model_slug, ai_model, service_completion)
 
     loc_data = count_loc(gen_dir) if gen_dir.exists() else {}
     return _build_output(tool_model, model_app_findings, model_app_severity,
-                         perf_model, ai_model, zap_model, service_completion,
-                         loc_data, app_count)
+                         perf_model, ai_model, zap_model, dyn_diag_model, service_completion,
+                         loc_data, app_count, processed_app_count)
 
 
 def _process_static(services: dict, model_slug: str, app_n: str,
@@ -165,21 +216,39 @@ def _process_static(services: dict, model_slug: str, app_n: str,
 
 
 def _process_dynamic(services: dict, model_slug: str,
-                      zap_model: dict, service_completion: dict) -> None:
+                      zap_model: dict, dyn_diag_model: dict,
+                      service_completion: dict) -> None:
     dyn = services.get('dynamic-analyzer', {})
     service_completion['dynamic']['total'] += 1
-    if dyn.get('status') != 'success':
-        return
-    service_completion['dynamic']['success'] += 1
+    if dyn.get('status') == 'success':
+        service_completion['dynamic']['success'] += 1
     analysis = dyn.get('payload', {}).get('analysis', {})
     results = analysis.get('results', {})
+    if not isinstance(results, dict) or not results:
+        return
+
+    any_output = False
+
+    connectivity = results.get('connectivity')
+    if (isinstance(connectivity, list) and connectivity) or (isinstance(connectivity, dict) and connectivity):
+        any_output = True
+
     zap = results.get('zap_security_scan')
     scans = zap if isinstance(zap, list) else ([zap] if isinstance(zap, dict) else [])
     for scan in scans:
-        if not isinstance(scan, dict) or scan.get('total_alerts', 0) == 0:
+        if not isinstance(scan, dict):
+            continue
+        any_output = True
+        zap_model[model_slug]['attempted_scans'] += 1
+        status = str(scan.get('status') or 'success').lower()
+        if status != 'success':
             continue
         zap_model[model_slug]['scans'] += 1
-        zap_model[model_slug]['alerts'] += scan['total_alerts']
+        total_alerts = int(scan.get('total_alerts', 0) or 0)
+        if total_alerts <= 0:
+            continue
+        zap_model[model_slug]['scans_with_alerts'] += 1
+        zap_model[model_slug]['alerts'] += total_alerts
         for risk, alerts in scan.get('alerts_by_risk', {}).items():
             if isinstance(alerts, list):
                 zap_model[model_slug]['by_risk'][risk.lower()] += len(alerts)
@@ -190,9 +259,70 @@ def _process_dynamic(services: dict, model_slug: str,
                     alert_name = a.get('alert', a.get('name', 'Unknown'))
                     zap_model[model_slug]['alert_types'][alert_name] += 1
 
+    # Additional dynamic diagnostics (port scan + endpoint probing)
+    port_scan = results.get('port_scan')
+    if isinstance(port_scan, dict):
+        any_output = True
+        dyn_diag_model[model_slug]['port_scan_attempted'] += 1
+        if port_scan.get('status') == 'success':
+            dyn_diag_model[model_slug]['port_scan_success'] += 1
+            open_ports = port_scan.get('open_ports') or []
+            # Prefer explicit total_open if present.
+            try:
+                total_open = int(port_scan.get('total_open'))
+            except Exception:
+                total_open = None
+            if total_open is None:
+                total_open = len(open_ports) if isinstance(open_ports, list) else 0
+            dyn_diag_model[model_slug]['open_ports_total'] += total_open
+            if total_open > 0:
+                dyn_diag_model[model_slug]['apps_with_open_ports'] += 1
+            if isinstance(open_ports, list):
+                for p in set(open_ports):
+                    try:
+                        dyn_diag_model[model_slug]['open_port_counts'][str(int(p))] += 1
+                    except Exception:
+                        continue
+
+    curl = results.get('curl-endpoint-tester')
+    if isinstance(curl, dict):
+        # Extract counts even if endpoints failed (pass rate is still meaningful).
+        endpoint_tests = curl.get('endpoint_tests')
+        total = passed = None
+        if isinstance(endpoint_tests, dict):
+            try:
+                total = int(endpoint_tests.get('total', 0) or 0)
+                passed = int(endpoint_tests.get('passed', 0) or 0)
+            except Exception:
+                total = passed = None
+        elif isinstance(endpoint_tests, list):
+            total = len(endpoint_tests)
+            passed = sum(1 for t in endpoint_tests if isinstance(t, dict) and t.get('passed') is True)
+        else:
+            # Fallback variants (older schemas).
+            for tk, pk in (('total_endpoints', 'passed_endpoints'), ('total', 'passed')):
+                if tk in curl and pk in curl:
+                    try:
+                        total = int(curl.get(tk, 0) or 0)
+                        passed = int(curl.get(pk, 0) or 0)
+                    except Exception:
+                        total = passed = None
+                    break
+
+        if total is not None and total > 0 and passed is not None:
+            any_output = True
+            dyn_diag_model[model_slug]['curl_attempted'] += 1
+            if curl.get('status') == 'success':
+                dyn_diag_model[model_slug]['curl_success'] += 1
+            dyn_diag_model[model_slug]['endpoints_total'] += total
+            dyn_diag_model[model_slug]['endpoints_passed'] += passed
+
+    if any_output:
+        dyn_diag_model[model_slug]['apps_with_any_output'] += 1
+
 
 def _process_performance(services: dict, model_slug: str,
-                          perf_model: dict, service_completion: dict) -> None:
+                           perf_model: dict, service_completion: dict) -> None:
     perf = services.get('performance-tester', {})
     service_completion['performance']['total'] += 1
     if perf.get('status') != 'success':
@@ -261,8 +391,8 @@ def _safe_stats(values: list) -> dict:
 
 
 def _build_output(tool_model, model_app_findings, model_app_severity,
-                   perf_model, ai_model, zap_model, service_completion,
-                   loc_data, app_count) -> dict:
+                    perf_model, ai_model, zap_model, dyn_diag_model, service_completion,
+                    loc_data, app_count, processed_app_count) -> dict:
     output = {}
 
     # Overview
@@ -273,6 +403,7 @@ def _build_output(tool_model, model_app_findings, model_app_severity,
     total_zap = sum(z['alerts'] for z in zap_model.values())
     output['overview'] = {
         'total_apps': app_count,
+        'apps_with_results': processed_app_count,
         'total_models': len(MODEL_SHORT_NAMES),
         'total_static_findings': total_static,
         'total_zap_alerts': total_zap,
@@ -312,9 +443,12 @@ def _build_output(tool_model, model_app_findings, model_app_severity,
     all_alert_types = defaultdict(int)
     zap_output = {}
     for ms in MODEL_SHORT_NAMES:
-        z = zap_model.get(ms, {'alerts': 0, 'scans': 0, 'by_risk': {}, 'cwes': {}, 'alert_types': {}})
+        z = zap_model.get(ms, {'alerts': 0, 'scans': 0, 'attempted_scans': 0, 'scans_with_alerts': 0, 'by_risk': {}, 'cwes': {}, 'alert_types': {}})
         zap_output[ms] = {
-            'scans': z['scans'], 'alerts': z['alerts'],
+            'scans': z['scans'],
+            'attempted_scans': z.get('attempted_scans', 0),
+            'alerts': z['alerts'],
+            'scans_with_alerts': z.get('scans_with_alerts', 0),
             'high': z['by_risk'].get('high', 0),
             'medium': z['by_risk'].get('medium', 0),
             'low': z['by_risk'].get('low', 0),
@@ -330,6 +464,46 @@ def _build_output(tool_model, model_app_findings, model_app_severity,
         'top_alert_types': dict(sorted(all_alert_types.items(), key=lambda x: -x[1])[:15]),
         'total_alerts': total_zap,
         'total_scans': sum(z['scans'] for z in zap_model.values()),
+        'total_attempted_scans': sum(z.get('attempted_scans', 0) for z in zap_model.values()),
+        'total_scans_with_alerts': sum(z.get('scans_with_alerts', 0) for z in zap_model.values()),
+    }
+
+    # Dynamic diagnostics (beyond ZAP)
+    all_open_ports = defaultdict(int)
+    diag_per_model = {}
+    for ms in MODEL_SHORT_NAMES:
+        d = dyn_diag_model.get(ms, {})
+        attempted = int(d.get('port_scan_attempted', 0) or 0)
+        ps_success = int(d.get('port_scan_success', 0) or 0)
+        open_ports_total = int(d.get('open_ports_total', 0) or 0)
+        endpoints_total = int(d.get('endpoints_total', 0) or 0)
+        endpoints_passed = int(d.get('endpoints_passed', 0) or 0)
+
+        for port, cnt in (d.get('open_port_counts') or {}).items():
+            all_open_ports[port] += cnt
+
+        diag_per_model[ms] = {
+            'apps_with_any_output': int(d.get('apps_with_any_output', 0) or 0),
+            'port_scan_attempted': attempted,
+            'port_scan_success': ps_success,
+            'apps_with_open_ports': int(d.get('apps_with_open_ports', 0) or 0),
+            'avg_open_ports_per_app': (open_ports_total / ps_success) if ps_success > 0 else 0,
+            'curl_attempted': int(d.get('curl_attempted', 0) or 0),
+            'curl_success': int(d.get('curl_success', 0) or 0),
+            'endpoints_total': endpoints_total,
+            'endpoints_passed': endpoints_passed,
+            'endpoint_pass_rate': (endpoints_passed / endpoints_total * 100) if endpoints_total > 0 else 0,
+        }
+
+    output['dynamic_diagnostics'] = {
+        'per_model': diag_per_model,
+        'top_open_ports': dict(sorted(all_open_ports.items(), key=lambda x: -x[1])[:15]),
+        'total_port_scan_attempted': sum(int(d.get('port_scan_attempted', 0) or 0) for d in dyn_diag_model.values()),
+        'total_port_scan_success': sum(int(d.get('port_scan_success', 0) or 0) for d in dyn_diag_model.values()),
+        'total_open_ports': sum(int(d.get('open_ports_total', 0) or 0) for d in dyn_diag_model.values()),
+        'total_curl_attempted': sum(int(d.get('curl_attempted', 0) or 0) for d in dyn_diag_model.values()),
+        'total_endpoints': sum(int(d.get('endpoints_total', 0) or 0) for d in dyn_diag_model.values()),
+        'total_endpoints_passed': sum(int(d.get('endpoints_passed', 0) or 0) for d in dyn_diag_model.values()),
     }
 
     # Performance
@@ -392,7 +566,10 @@ def print_summary(output: dict) -> None:
     """Print human-readable summary to stdout."""
     ov = output['overview']
     print(f"\n{'='*80}")
-    print(f"THESIS DATA EXTRACTION — {ov['total_apps']} apps, {ov['total_models']} models")
+    print(
+        f"THESIS DATA EXTRACTION — {ov['total_apps']} apps on disk "
+        f"({ov.get('apps_with_results', 0)} with results), {ov['total_models']} models"
+    )
     print(f"{'='*80}")
     print(f"Static findings: {ov['total_static_findings']:,}")
     print(f"ZAP alerts:      {ov['total_zap_alerts']}")

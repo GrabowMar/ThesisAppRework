@@ -30,6 +30,7 @@ KNOWN_TOOLS: Dict[str, Dict[str, str]] = {
     'jshint': {'category': 'quality', 'language': 'javascript'},
     'npm-audit': {'category': 'security', 'language': 'javascript'},
     'stylelint': {'category': 'quality', 'language': 'css'},
+    'html-validator': {'category': 'quality', 'language': 'html'},
 
     # Dynamic/Security
     'zap': {'category': 'security', 'language': 'web'},
@@ -39,6 +40,8 @@ KNOWN_TOOLS: Dict[str, Dict[str, str]] = {
     'owasp-zap': {'category': 'security', 'language': 'web'},
     'nmap': {'category': 'security', 'language': 'network'},
     'curl': {'category': 'probe', 'language': 'http'},
+    'port_scan': {'category': 'security', 'language': 'network'},
+    'structure': {'category': 'meta', 'language': 'multi'},
 
     # Performance
     'ab': {'category': 'performance', 'language': 'http'},

@@ -150,6 +150,22 @@
                 </div>
               </div>
             </div>
+            {# Comprehensive Report #}
+            <div class="col-12">
+              <div class="card report-type-card h-100" data-type="comprehensive" onclick="selectReportType(this)">
+                <div class="card-body">
+                  <div class="d-flex align-items-start gap-3">
+                    <div class="type-icon bg-red-lt text-red">
+                      <i class="fa-solid fa-layer-group"></i>
+                    </div>
+                    <div>
+                      <h4 class="mb-1">Comprehensive Report</h4>
+                      <p class="text-muted small mb-0">Complete platform-wide analysis combining all models, all templates, tool effectiveness, and generation analytics.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -308,7 +324,8 @@
     model_analysis:       { label: 'Model Analysis',       icon: 'fa-brain',        color: 'azure' },
     template_comparison:  { label: 'Template Comparison',   icon: 'fa-code-compare', color: 'purple' },
     tool_analysis:        { label: 'Tool Analysis',         icon: 'fa-wrench',       color: 'teal' },
-    generation_analytics: { label: 'Generation Analytics',  icon: 'fa-chart-line',   color: 'orange' }
+    generation_analytics: { label: 'Generation Analytics',  icon: 'fa-chart-line',   color: 'orange' },
+    comprehensive:        { label: 'Comprehensive Report',  icon: 'fa-layer-group',  color: 'red' }
   };
 
   let currentStep = 1;
@@ -484,6 +501,17 @@
             </select>
           </div>
         </div>`;
+    } else if (selectedType === 'comprehensive') {
+      html = `
+        <div class="alert alert-red mb-0">
+          <div class="d-flex gap-2">
+            <i class="fa-solid fa-layer-group mt-1"></i>
+            <div>
+              <div class="fw-medium">This report includes all available data across models, templates, tools, and generation analytics.</div>
+              <div class="small text-muted">It can take significantly longer than other report types due to broad aggregation scope.</div>
+            </div>
+          </div>
+        </div>`;
     }
     container.innerHTML = html;
   }
@@ -497,7 +525,7 @@
       const sel = document.getElementById('cfg-template-slug');
       return sel && sel.value !== '';
     }
-    return true; // tool_analysis and generation_analytics have no required fields
+    return true; // tool_analysis, generation_analytics, comprehensive have no required fields
   }
 
   // ─── Selection summary (sidebar) ───
@@ -537,6 +565,9 @@
       if (modelSel?.value) html += `<div class="text-muted mb-1"><strong>Model:</strong> ${modelSel.options[modelSel.selectedIndex]?.text}</div>`;
       if (templateSel?.value) html += `<div class="text-muted mb-1"><strong>Template:</strong> ${templateSel.options[templateSel.selectedIndex]?.text}</div>`;
     }
+    if (selectedType === 'comprehensive') {
+      html += `<div class="text-muted mb-1"><strong>Scope:</strong> All models & templates</div>`;
+    }
 
     const title = document.getElementById('report-title');
     if (title?.value) html += `<div class="text-muted mb-1"><strong>Title:</strong> ${title.value}</div>`;
@@ -575,6 +606,8 @@
       items.push({ label: 'Template', value: tSel?.value ? (tSel.options[tSel.selectedIndex]?.text || tSel.value) : 'All templates' });
       const dSel = document.getElementById('cfg-days-back');
       items.push({ label: 'Time Period', value: dSel?.options[dSel.selectedIndex]?.text || 'Last 30 days' });
+    } else if (selectedType === 'comprehensive') {
+      items.push({ label: 'Scope', value: 'All models & templates' });
     }
 
     const fm = document.getElementById('filter-mode');
@@ -626,6 +659,8 @@
       if (ts) payload.config.template_slug = ts;
       const db = document.getElementById('cfg-days-back')?.value;
       if (db) payload.config.days_back = parseInt(db, 10);
+    } else if (selectedType === 'comprehensive') {
+      // No additional config required.
     }
 
     try {

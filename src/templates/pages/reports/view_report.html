@@ -8,7 +8,8 @@
   'model_analysis':       ('Model Analysis',       'azure',  'fa-brain'),
   'template_comparison':  ('Template Comparison',   'purple', 'fa-code-compare'),
   'tool_analysis':        ('Tool Analysis',         'teal',   'fa-wrench'),
-  'generation_analytics': ('Generation Analytics',  'orange', 'fa-chart-line')
+  'generation_analytics': ('Generation Analytics',  'orange', 'fa-chart-line'),
+  'comprehensive':        ('Comprehensive Report',  'red',    'fa-layer-group')
 } %}
 {% set rt = report.report_type %}
 {% set tm = type_meta.get(rt, (rt|replace('_',' ')|title, 'secondary', 'fa-file')) %}
@@ -107,6 +108,14 @@
         <a href="#s-models" class="section-nav-link">By Model</a>
         <a href="#s-templates" class="section-nav-link">By Template</a>
         <a href="#s-fixes" class="section-nav-link">Fixes</a>
+      {% elif rt == 'comprehensive' %}
+        <a href="#s-overview" class="section-nav-link active">Platform Overview</a>
+        <a href="#s-rankings" class="section-nav-link">Model Leaderboard</a>
+        <a href="#s-models" class="section-nav-link">Per-Model</a>
+        <a href="#s-templates" class="section-nav-link">Templates</a>
+        <a href="#s-tools" class="section-nav-link">Tools</a>
+        <a href="#s-generation" class="section-nav-link">Generation</a>
+        <a href="#s-security" class="section-nav-link">Security</a>
       {% endif %}
       <span class="ms-auto"></span>
       <button class="btn btn-sm btn-ghost-secondary py-0 px-1" onclick="toggleAll(true)" title="Expand All"><i class="fa-solid fa-expand fa-xs"></i></button>
@@ -633,6 +642,226 @@
       </div>
     </div>
     {% endif %}
+
+  {% elif rt == 'comprehensive' %}
+  {# ════════════════════════ COMPREHENSIVE ════════════════════════ #}
+    {% set comp_summary = report_data.get('summary', {}) %}
+    {% set comp_rankings = report_data.get('model_rankings', []) %}
+    {% set comp_models = report_data.get('model_reports', {}) %}
+    {% set comp_templates = report_data.get('template_reports', {}) %}
+    {% set comp_tool = report_data.get('tool_report', {}) %}
+    {% set comp_tools = comp_tool.get('tools', []) %}
+    {% set comp_gen = report_data.get('generation_report', {}) %}
+    {% set comp_gen_summary = comp_gen.get('summary', {}) %}
+    {% set comp_gen_models = comp_gen.get('by_model', []) %}
+    {% set comp_metrics = report_data.get('platform_metrics', {}) %}
+
+    <div class="accordion-item" id="s-overview">
+      <h2 class="accordion-header"><button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#c-overview"><i class="fa-solid fa-chart-pie me-2 text-red"></i>Platform Overview</button></h2>
+      <div id="c-overview" class="accordion-collapse collapse show" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <div class="row g-1 mb-2">
+            <div class="col"><div class="card mc"><div class="mv text-red">{{ comp_summary.get('total_models', 0) }}</div><div class="ml">Models</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ comp_summary.get('total_templates', 0) }}</div><div class="ml">Templates</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ comp_summary.get('total_apps', 0) }}</div><div class="ml">Apps</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ comp_summary.get('total_findings', 0) }}</div><div class="ml">Findings</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ comp_summary.get('templates_compared', 0) }}</div><div class="ml">Compared Templates</div></div></div>
+          </div>
+          <div class="row g-2">
+            <div class="col-md-8">
+              <table class="table table-sm compact-table mb-0">
+                <thead><tr><th>Severity</th><th class="text-end">Count</th><th class="text-end">%</th><th style="width:40%">Distribution</th></tr></thead>
+                <tbody>
+                  {% set total_f = comp_summary.get('total_findings', 0) %}
+                  {% for sl in ['critical', 'high', 'medium', 'low', 'info'] %}
+                  {% set sc = sev.get(sl, 0) %}
+                  {% set pct = (sc / total_f * 100) if total_f else 0 %}
+                  <tr>
+                    <td><span class="badge bg-{{ sev_colors[sl] }}-lt" style="min-width:55px">{{ sl|title }}</span></td>
+                    <td class="text-end fw-medium">{{ sc }}</td>
+                    <td class="text-end text-muted">{{ "%.1f"|format(pct) }}%</td>
+                    <td><div class="sev-bar bg-{{ sev_colors[sl] }}" style="width:{{ [pct, 100]|min }}%">&nbsp;</div></td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="col-md-4">
+              <div class="chart-box"><canvas id="chart-sev-donut"></canvas></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item" id="s-rankings">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-rankings"><i class="fa-solid fa-trophy me-2 text-warning"></i>Model Leaderboard</button></h2>
+      <div id="c-rankings" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          {% if comp_rankings %}
+          <table class="table table-sm compact-table table-striped table-hover mb-0">
+            <thead><tr><th class="text-center">#</th><th>Model</th><th class="text-center">Apps</th><th class="text-center">Findings</th><th class="text-center">C/H/M/L</th><th class="text-end">Score</th></tr></thead>
+            <tbody>
+              {% for row in comp_rankings %}
+              <tr>
+                <td class="text-center fw-bold">{{ row.get('rank', loop.index) }}</td>
+                <td><span class="badge bg-azure-lt text-azure">{{ row.get('model_slug', 'unknown') }}</span></td>
+                <td class="text-center">{{ row.get('apps_count', 0) }}</td>
+                <td class="text-center">{{ row.get('total_findings', 0) }}</td>
+                <td class="text-center small">{{ row.get('critical', 0) }}/{{ row.get('high', 0) }}/{{ row.get('medium', 0) }}/{{ row.get('low', 0) }}</td>
+                <td class="text-end fw-medium">{{ row.get('severity_score', 0) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="text-muted fst-italic">No model leaderboard data available.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item" id="s-models">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-models"><i class="fa-solid fa-brain me-2 text-red"></i>Per-Model Summaries</button></h2>
+      <div id="c-models" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          {% if comp_rankings %}
+          <div class="accordion" id="compModelAcc">
+            {% for row in comp_rankings %}
+            {% set model_slug = row.get('model_slug') %}
+            {% set model_data = comp_models.get(model_slug, {}) %}
+            {% set model_summary = model_data.get('summary', {}) %}
+            {% set model_sev = model_data.get('findings_breakdown', model_summary.get('severity_breakdown', {})) %}
+            {% set sec_id = (model_slug or 'model')|replace('/','-')|replace('.','-')|replace('_','-') %}
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#comp-model-{{ sec_id }}">
+                  <span class="badge bg-azure-lt text-azure me-2">{{ model_slug }}</span>
+                  <span class="small text-muted">{{ model_summary.get('total_findings', 0) }} findings across {{ model_data.get('apps_count', 0) }} apps</span>
+                </button>
+              </h2>
+              <div id="comp-model-{{ sec_id }}" class="accordion-collapse collapse" data-bs-parent="#compModelAcc">
+                <div class="accordion-body p-2">
+                  <div class="row g-1">
+                    <div class="col"><div class="card mc"><div class="mv">{{ model_data.get('apps_count', 0) }}</div><div class="ml">Apps</div></div></div>
+                    <div class="col"><div class="card mc"><div class="mv">{{ model_summary.get('total_findings', 0) }}</div><div class="ml">Findings</div></div></div>
+                    <div class="col"><div class="card mc"><div class="mv text-danger">{{ model_sev.get('critical', 0) }}</div><div class="ml">Critical</div></div></div>
+                    <div class="col"><div class="card mc"><div class="mv" style="color:var(--tblr-orange)">{{ model_sev.get('high', 0) }}</div><div class="ml">High</div></div></div>
+                    <div class="col"><div class="card mc"><div class="mv text-warning">{{ model_sev.get('medium', 0) }}</div><div class="ml">Medium</div></div></div>
+                    <div class="col"><div class="card mc"><div class="mv text-success">{{ model_sev.get('low', 0) }}</div><div class="ml">Low</div></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-muted fst-italic">No per-model summary data available.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item" id="s-templates">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-templates"><i class="fa-solid fa-code-compare me-2 text-purple"></i>Template Comparisons</button></h2>
+      <div id="c-templates" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          {% if comp_templates %}
+          <table class="table table-sm compact-table table-striped table-hover mb-0">
+            <thead><tr><th>Template</th><th class="text-center">Models</th><th class="text-center">Findings</th><th class="text-center">Critical/High</th><th class="text-center">Status</th></tr></thead>
+            <tbody>
+              {% for template_slug, template_data in comp_templates.items() %}
+              {% set ts = template_data.get('summary', {}) %}
+              {% set tsev = template_data.get('findings_breakdown', ts.get('severity_breakdown', {})) %}
+              <tr>
+                <td><span class="badge bg-purple-lt text-purple">{{ template_slug }}</span></td>
+                <td class="text-center">{{ ts.get('models_compared', template_data.get('models_count', 0)) }}</td>
+                <td class="text-center">{{ ts.get('total_findings', 0) }}</td>
+                <td class="text-center">{{ tsev.get('critical', 0) }}/{{ tsev.get('high', 0) }}</td>
+                <td class="text-center"><span class="badge bg-success-lt text-success">Completed</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="text-muted fst-italic">No template comparisons available (requires templates with at least two models).</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item" id="s-tools">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-tools"><i class="fa-solid fa-wrench me-2 text-teal"></i>Tool Effectiveness</button></h2>
+      <div id="c-tools" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          {% if comp_tools %}
+          <table class="table table-sm compact-table table-striped table-hover mb-0">
+            <thead><tr><th>Tool</th><th class="text-center">Runs</th><th class="text-center">Success</th><th class="text-center">Findings</th><th class="text-end">Avg Duration</th></tr></thead>
+            <tbody>
+              {% for t in comp_tools %}
+              <tr>
+                <td><span class="badge bg-teal-lt text-teal">{{ t.get('display_name', t.get('name', 'unknown')) }}</span></td>
+                <td class="text-center">{{ t.get('total_runs', t.get('executions', 0)) }}</td>
+                <td class="text-center">{{ "%.1f"|format(t.get('success_rate', 0)) }}%</td>
+                <td class="text-center">{{ t.get('total_findings', 0) }}</td>
+                <td class="text-end">{{ "%.2f"|format(t.get('avg_duration', 0)) }}s</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="text-muted fst-italic">No tool effectiveness data available.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item" id="s-generation">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-generation"><i class="fa-solid fa-chart-line me-2 text-orange"></i>Generation Analytics</button></h2>
+      <div id="c-generation" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <div class="row g-1 mb-2">
+            <div class="col"><div class="card mc"><div class="mv">{{ comp_gen_summary.get('total_apps', 0) }}</div><div class="ml">Total Apps</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv text-success">{{ comp_gen_summary.get('successful', 0) }}</div><div class="ml">Successful</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv text-danger">{{ comp_gen_summary.get('failed', 0) }}</div><div class="ml">Failed</div></div></div>
+            <div class="col"><div class="card mc"><div class="mv">{{ comp_gen_summary.get('success_rate', 0)|round(1) }}%</div><div class="ml">Success Rate</div></div></div>
+          </div>
+          {% if comp_gen_models %}
+          <table class="table table-sm compact-table table-striped table-hover mb-0">
+            <thead><tr><th>Model</th><th class="text-center">Total</th><th class="text-center">Success</th><th class="text-center">Failed</th><th class="text-center">Rate</th></tr></thead>
+            <tbody>
+              {% for m in comp_gen_models if m is mapping %}
+              <tr>
+                <td><span class="badge bg-azure-lt text-azure">{{ m.get('model', m.get('model_slug', '')) }}</span></td>
+                <td class="text-center">{{ m.get('total', 0) }}</td>
+                <td class="text-center text-success">{{ m.get('success', m.get('successful', 0)) }}</td>
+                <td class="text-center text-danger">{{ m.get('failed', 0) }}</td>
+                <td class="text-center">{{ "%.1f"|format(m.get('success_rate', 0)) }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item" id="s-security">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c-security"><i class="fa-solid fa-shield-halved me-2 text-danger"></i>Security Overview</button></h2>
+      <div id="c-security" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
+        <div class="accordion-body p-2">
+          <table class="table table-sm compact-table mb-0">
+            <tbody>
+              <tr><td class="text-muted">Total Findings</td><td class="text-end fw-medium">{{ comp_summary.get('total_findings', 0) }}</td></tr>
+              <tr><td class="text-muted">Critical Findings</td><td class="text-end text-danger fw-medium">{{ sev.get('critical', 0) }}</td></tr>
+              <tr><td class="text-muted">High Findings</td><td class="text-end" style="color:var(--tblr-orange)">{{ sev.get('high', 0) }}</td></tr>
+              <tr><td class="text-muted">Average Findings / Model</td><td class="text-end">{{ "%.2f"|format(comp_metrics.get('avg_findings_per_model', 0)) }}</td></tr>
+              <tr><td class="text-muted">Average Findings / App</td><td class="text-end">{{ "%.2f"|format(comp_metrics.get('avg_findings_per_app', 0)) }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
   {% else %}
     <div class="accordion-item" id="s-overview">

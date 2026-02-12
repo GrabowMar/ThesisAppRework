@@ -32,7 +32,13 @@ from .reports import count_loc_from_generated_files, collect_finding_analytics
 
 logger = logging.getLogger(__name__)
 
-ReportType = Literal['model_analysis', 'template_comparison', 'tool_analysis']
+ReportType = Literal[
+    'model_analysis',
+    'template_comparison',
+    'tool_analysis',
+    'generation_analytics',
+    'comprehensive'
+]
 
 
 # =============================================================================
@@ -232,6 +238,8 @@ class ReportService:
                 data = self._generate_tool_report(config, report)
             elif report_type == 'generation_analytics':
                 data = self._generate_generation_analytics(config, report)
+            elif report_type == 'comprehensive':
+                data = self._generate_comprehensive_report(config, report)
 
             # Store the generated data in the database
             report.set_report_data(data)
@@ -331,6 +339,8 @@ class ReportService:
                 new_data = self._generate_tool_report(config, report)
             elif report.report_type == 'generation_analytics':
                 new_data = self._generate_generation_analytics(config, report)
+            elif report.report_type == 'comprehensive':
+                new_data = self._generate_comprehensive_report(config, report)
             else:
                 logger.error(f"Unknown report type: {report.report_type}")
                 raise ValueError(f"Unknown report type: {report.report_type}")
@@ -621,6 +631,8 @@ class ReportService:
                 'total_analyses': len(tasks),
                 'total_findings': correct_total_findings,
                 'severity_breakdown': severity_counts,
+                # Some tools do not provide a standardized severity mapping.
+                'unclassified_findings': max(0, correct_total_findings - sum(severity_counts.values())),
                 'avg_findings_per_app': correct_total_findings / len(apps_data) if apps_data else 0,
                 # Extended metrics
                 'avg_duration_seconds': avg_duration,
@@ -809,6 +821,28 @@ class ReportService:
             )
         
         apps = apps_query.all()
+        apps_total = len(apps)
+
+        # This report is defined as *cross-model* comparison for a template.
+        # Some templates can have multiple runs per model (e.g., reproducibility replications).
+        # To keep the report semantically correct (one row per model), select the lowest
+        # app_number per model and record how many extra runs were excluded.
+        selected_by_model: Dict[str, GeneratedApplication] = {}
+        replications_excluded = 0
+        for app in apps:
+            slug = app.model_slug or 'unknown'
+            cur = selected_by_model.get(slug)
+            if cur is None:
+                selected_by_model[slug] = app
+                continue
+            # Keep the earliest app_number as the representative for cross-model comparison.
+            if (app.app_number or 1_000_000) < (cur.app_number or 1_000_000):
+                selected_by_model[slug] = app
+                replications_excluded += 1
+            else:
+                replications_excluded += 1
+
+        apps = list(selected_by_model.values())
         
         report.update_progress(15)
         db.session.commit()
@@ -944,6 +978,8 @@ class ReportService:
             # Models data with embedded quantitative metrics
             'models': models_data,
             'models_count': len(models_data),
+            'apps_found': apps_total,
+            'replications_excluded': replications_excluded,
             
             # Summary statistics
             'summary': {
@@ -1643,7 +1679,13 @@ class ReportService:
                         tool_loc_tracking[t_name][app_key] = app_loc
                     
                     # Count findings by severity
-                    for finding in t_data.get('issues', []):
+                    issues_list = t_data.get('issues', [])
+                    if isinstance(issues_list, list) and isinstance(findings_count, int) and findings_count >= 0:
+                        # Clamp to total_issues to keep severity heatmaps consistent with total_findings.
+                        # This also prevents counting auxiliary entries (e.g., per-function metrics) as findings.
+                        issues_list = issues_list[:findings_count]
+
+                    for finding in issues_list if isinstance(issues_list, list) else []:
                         sev = finding.get('severity', 'info').lower()
                         if sev in agg['findings_by_severity']:
                             agg['findings_by_severity'][sev] += 1
@@ -2299,6 +2341,8 @@ class ReportService:
                 timing_distribution[slug].append(round(duration, 2))
 
         return {
+            'report_type': 'generation_analytics',
+            'generated_at': utc_now().isoformat(),
             'summary': {
                 'total_apps': total_apps,
                 'successful': len(successful_apps),
@@ -2389,6 +2433,186 @@ class ReportService:
         pattern = re.sub(r'"[\w_]+"', '"VAR"', pattern)
         
         return pattern.strip()
+
+    def _generate_comprehensive_report(self, config: Dict[str, Any], report: Report) -> Dict[str, Any]:
+        """Generate a platform-wide report by composing all existing report generators."""
+        report.update_progress(10)
+        db.session.commit()
+
+        filter_mode = config.get('filter_mode', 'all')
+
+        app_pairs = db.session.query(
+            GeneratedApplication.model_slug,
+            GeneratedApplication.template_slug
+        ).all()
+        total_apps = len(app_pairs)
+
+        models_set: set[str] = set()
+        templates_set: set[str] = set()
+        template_models: Dict[str, set[str]] = {}
+        for model_slug, template_slug in app_pairs:
+            if model_slug:
+                models_set.add(model_slug)
+            if template_slug:
+                templates_set.add(template_slug)
+                if template_slug not in template_models:
+                    template_models[template_slug] = set()
+                if model_slug:
+                    template_models[template_slug].add(model_slug)
+
+        model_slugs = sorted(models_set)
+        template_slugs = sorted(templates_set)
+        comparable_templates = [
+            template_slug
+            for template_slug in template_slugs
+            if len(template_models.get(template_slug, set())) >= 2
+        ]
+
+        class _NoOpReport:
+            def update_progress(self, _percent: int) -> None:
+                return None
+
+        sub_report = _NoOpReport()
+
+        model_reports: Dict[str, Dict[str, Any]] = {}
+        template_reports: Dict[str, Dict[str, Any]] = {}
+        tool_report: Dict[str, Any] = {}
+        generation_report: Dict[str, Any] = {}
+        subreport_errors: Dict[str, Dict[str, str]] = {
+            'model_reports': {},
+            'template_reports': {},
+            'tool_report': {},
+            'generation_report': {},
+        }
+
+        for model_slug in model_slugs:
+            try:
+                model_reports[model_slug] = self._generate_model_report(
+                    {'model_slug': model_slug, 'filter_mode': filter_mode},
+                    sub_report,  # type: ignore[arg-type]
+                )
+            except Exception as exc:
+                logger.warning("Comprehensive model report failed for %s: %s", model_slug, exc, exc_info=True)
+                subreport_errors['model_reports'][model_slug] = str(exc)
+
+        report.update_progress(40)
+        db.session.commit()
+
+        for template_slug in comparable_templates:
+            try:
+                template_reports[template_slug] = self._generate_template_comparison(
+                    {'template_slug': template_slug, 'filter_mode': filter_mode},
+                    sub_report,  # type: ignore[arg-type]
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Comprehensive template comparison failed for %s: %s",
+                    template_slug,
+                    exc,
+                    exc_info=True
+                )
+                subreport_errors['template_reports'][template_slug] = str(exc)
+
+        report.update_progress(60)
+        db.session.commit()
+
+        try:
+            tool_report = self._generate_tool_report(
+                {'filter_mode': filter_mode},
+                sub_report,  # type: ignore[arg-type]
+            )
+        except Exception as exc:
+            logger.warning("Comprehensive tool report failed: %s", exc, exc_info=True)
+            subreport_errors['tool_report']['error'] = str(exc)
+
+        report.update_progress(75)
+        db.session.commit()
+
+        try:
+            generation_report = self._generate_generation_analytics(
+                {'days_back': None, 'filter_mode': filter_mode},
+                sub_report,  # type: ignore[arg-type]
+            )
+        except Exception as exc:
+            logger.warning("Comprehensive generation report failed: %s", exc, exc_info=True)
+            subreport_errors['generation_report']['error'] = str(exc)
+
+        report.update_progress(85)
+        db.session.commit()
+
+        findings_breakdown = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
+        total_findings = 0
+        for model_data in model_reports.values():
+            model_summary = model_data.get('summary', {})
+            total_findings += model_summary.get('total_findings', 0) or 0
+            sev = model_data.get('findings_breakdown') or model_summary.get('severity_breakdown', {})
+            for key in findings_breakdown:
+                findings_breakdown[key] += sev.get(key, 0) or 0
+
+        model_rankings = self._build_comprehensive_rankings(model_reports)
+
+        report.update_progress(95)
+        db.session.commit()
+
+        models_with_findings = len(model_reports)
+        return {
+            'report_type': 'comprehensive',
+            'generated_at': utc_now().isoformat(),
+            'summary': {
+                'total_models': len(model_slugs),
+                'total_templates': len(template_slugs),
+                'total_apps': total_apps,
+                'total_findings': total_findings,
+                'templates_compared': len(template_reports),
+            },
+            'findings_breakdown': findings_breakdown,
+            'model_reports': model_reports,
+            'template_reports': template_reports,
+            'tool_report': tool_report,
+            'generation_report': generation_report,
+            'model_rankings': model_rankings,
+            'platform_metrics': {
+                'avg_findings_per_model': (
+                    total_findings / models_with_findings if models_with_findings else 0
+                ),
+                'avg_findings_per_app': (total_findings / total_apps if total_apps else 0),
+            },
+            'subreport_errors': subreport_errors,
+        }
+
+    def _build_comprehensive_rankings(self, model_reports: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Build model leaderboard for comprehensive reports."""
+        rankings: List[Dict[str, Any]] = []
+
+        for model_slug, model_data in model_reports.items():
+            summary = model_data.get('summary', {})
+            severity = model_data.get('findings_breakdown') or summary.get('severity_breakdown', {})
+            critical = severity.get('critical', 0) or 0
+            high = severity.get('high', 0) or 0
+            medium = severity.get('medium', 0) or 0
+            low = severity.get('low', 0) or 0
+            info = severity.get('info', 0) or 0
+            total_findings = summary.get('total_findings', 0) or 0
+            apps_count = model_data.get('apps_count', summary.get('total_apps', 0))
+
+            severity_score = (critical * 100) + (high * 10) + (medium * 3) + low
+            rankings.append({
+                'model_slug': model_slug,
+                'apps_count': apps_count,
+                'total_findings': total_findings,
+                'critical': critical,
+                'high': high,
+                'medium': medium,
+                'low': low,
+                'info': info,
+                'severity_score': severity_score,
+            })
+
+        rankings.sort(key=lambda row: (row['severity_score'], row['total_findings'], row['model_slug']))
+        for idx, row in enumerate(rankings, start=1):
+            row['rank'] = idx
+
+        return rankings
     
     # ==========================================================================
     # HELPERS
@@ -2406,6 +2630,8 @@ class ReportService:
             pass  # All fields optional
         elif report_type == 'generation_analytics':
             pass  # All fields optional - model_slug, template_slug, days_back
+        elif report_type == 'comprehensive':
+            pass  # All fields optional
         else:
             raise ValueError(f"Unknown report type: {report_type}")
     
@@ -2428,6 +2654,8 @@ class ReportService:
             elif template:
                 return f"Generation Analytics: Template {template}"
             return "Generation Analytics: All Models & Templates"
+        elif report_type == 'comprehensive':
+            return "Comprehensive Platform Report"
         return "Analysis Report"
     
     def _process_task_for_report(
@@ -2824,6 +3052,14 @@ class ReportService:
                 'success_rate': summary.get('success_rate', 0),
                 'models_analyzed': summary.get('models_analyzed', 0),
                 'templates_analyzed': summary.get('templates_analyzed', 0)
+            }
+        elif report_type == 'comprehensive':
+            return {
+                'total_models': summary.get('total_models', 0),
+                'total_templates': summary.get('total_templates', 0),
+                'total_apps': summary.get('total_apps', 0),
+                'total_findings': summary.get('total_findings', 0),
+                'templates_compared': summary.get('templates_compared', 0),
             }
         
         return summary

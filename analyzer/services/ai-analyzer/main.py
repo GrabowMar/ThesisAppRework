@@ -239,6 +239,9 @@ class AIAnalyzer(BaseWSService):
             self.api_timeout_batch = int(os.getenv('AI_TIMEOUT_BATCH', '300'))   # Batch analysis
             self.api_timeout_quality = int(os.getenv('AI_TIMEOUT_QUALITY', '90'))  # Quality analysis
 
+            # Two-pass verification: re-examine MET results to catch false positives
+            self.two_pass_enabled = os.getenv('AI_TWO_PASS_ENABLED', 'true').lower() == 'true'
+
             self.log.info("AI Analyzer initialized (template-based requirements system)")
             self.log.info(f"Using model: {self.default_openrouter_model}, batch_mode={self.batch_mode}, optimized_mode={self.optimized_mode}, code_limit={self.code_truncation_limit}")
             self.log.info("AIAnalyzer initialization complete")
@@ -887,65 +890,77 @@ Focus on whether the functionality described in the requirement is actually impl
                             'met': result.met,
                             'confidence': result.confidence,
                             'explanation': result.explanation,
-                            'category': 'backend'
+                            'category': 'backend',
+                            'weight': self._classify_requirement_difficulty(req)
                         })
-                
+
                 # ===== FRONTEND REQUIREMENTS ANALYSIS =====
                 frontend_results = []
                 if frontend_requirements:
                     await self.send_progress('analyzing_frontend', f"Analyzing {len(frontend_requirements)} frontend requirements (granular mode)", analysis_id=analysis_id)
-                    
+
                     for i, req in enumerate(frontend_requirements, 1):
                         await self.send_progress('checking_requirement', f"Checking frontend requirement {i}/{len(frontend_requirements)}", analysis_id=analysis_id)
-                        
+
                         result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='frontend', template_context=template_context)
                         frontend_results.append({
                             'requirement': req,
                             'met': result.met,
                             'confidence': result.confidence,
                             'explanation': result.explanation,
-                            'category': 'frontend'
+                            'category': 'frontend',
+                            'weight': self._classify_requirement_difficulty(req)
                         })
-                
+
                 # ===== ADMIN REQUIREMENTS ANALYSIS =====
                 admin_results = []
                 if admin_requirements:
                     await self.send_progress('analyzing_admin', f"Analyzing {len(admin_requirements)} admin requirements (granular mode)", analysis_id=analysis_id)
-                    
+
                     for i, req in enumerate(admin_requirements, 1):
                         await self.send_progress('checking_requirement', f"Checking admin requirement {i}/{len(admin_requirements)}", analysis_id=analysis_id)
-                        
+
                         result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='admin', template_context=template_context)
                         admin_results.append({
                             'requirement': req,
                             'met': result.met,
                             'confidence': result.confidence,
                             'explanation': result.explanation,
-                            'category': 'admin'
+                            'category': 'admin',
+                            'weight': self._classify_requirement_difficulty(req)
                         })
             
-            # Calculate compliance breakdown
+            # Calculate compliance breakdown (unweighted - backward compat)
             met_backend = sum(1 for r in backend_results if r['met'] and r.get('confidence', 'MEDIUM') != 'LOW')
             met_frontend = sum(1 for r in frontend_results if r['met'] and r.get('confidence', 'MEDIUM') != 'LOW')
             met_admin = sum(1 for r in admin_results if r['met'] and r.get('confidence', 'MEDIUM') != 'LOW')
-            
+
             total_endpoints = len(endpoint_results)
             passed_endpoints = sum(1 for e in endpoint_results if e['passed'])
-            
+
             public_endpoints = [e for e in endpoint_results if not e.get('requires_auth', False)]
             admin_endpoint_results = [e for e in endpoint_results if e.get('requires_auth', False)]
             passed_public = sum(1 for e in public_endpoints if e['passed'])
             passed_admin = sum(1 for e in admin_endpoint_results if e['passed'])
-            
-            # Combine all requirements for overall compliance
+
+            # Combine all requirements for overall compliance (unweighted)
             total_reqs = len(backend_requirements) + len(frontend_requirements) + len(admin_requirements)
             total_met = met_backend + met_frontend + met_admin
-            
+
             overall_compliance = (
                 (total_met + passed_endpoints) / (total_reqs + total_endpoints) * 100
                 if (total_reqs + total_endpoints) > 0 else 0
             )
-            
+
+            # Weighted compliance calculation (difficulty-adjusted)
+            all_results = backend_results + frontend_results + admin_results
+            met_weighted = sum(r.get('weight', 1.0) for r in all_results if r['met'] and r.get('confidence', 'MEDIUM') != 'LOW')
+            total_weighted = sum(r.get('weight', 1.0) for r in all_results)
+            # Add endpoints with weight 1.0 each
+            met_weighted += passed_endpoints
+            total_weighted += total_endpoints
+            weighted_compliance = (met_weighted / total_weighted * 100) if total_weighted > 0 else 0
+
             # Functional compliance (backend + endpoints only, for backwards compatibility)
             functional_total = len(backend_requirements) + total_endpoints
             functional_met = met_backend + passed_endpoints
@@ -959,8 +974,17 @@ Focus on whether the functionality described in the requirement is actually impl
                 analysis_id=analysis_id
             )
             
-            # Calculate API calls made
-            api_calls_made = 3 if use_batch_mode else (len(backend_requirements) + len(frontend_requirements) + len(admin_requirements))
+            # Calculate API calls made (batch: 3 base + up to 3 verification passes)
+            if use_batch_mode:
+                api_calls_made = 3  # One per category
+                if self.two_pass_enabled:
+                    # Each category with >2 MET results gets a verification call
+                    for cat_results in [backend_results, frontend_results, admin_results]:
+                        met_count = sum(1 for r in cat_results if r.get('met') and r.get('confidence', 'LOW') in ('HIGH', 'MEDIUM'))
+                        if met_count > 2:
+                            api_calls_made += 1
+            else:
+                api_calls_made = len(backend_requirements) + len(frontend_requirements) + len(admin_requirements)
             
             return {
                 'status': 'success',
@@ -970,6 +994,7 @@ Focus on whether the functionality described in the requirement is actually impl
                     'app_number': app_number,
                     'ai_model_used': gemini_model,
                     'batch_mode': use_batch_mode,
+                    'two_pass_verification': self.two_pass_enabled,
                     'optimized_mode': use_optimized_mode,
                     'code_chars_analyzed': len(code_content),
                     'api_calls_made': api_calls_made,
@@ -1016,7 +1041,10 @@ Focus on whether the functionality described in the requirement is actually impl
                         'total_requirements': total_reqs,
                         'requirements_met': total_met,
                         'compliance_percentage': overall_compliance,
-                        
+
+                        # Weighted compliance (difficulty-adjusted, primary metric)
+                        'weighted_compliance': weighted_compliance,
+
                         # Backwards compatibility fields
                         'total_functional_requirements': len(backend_requirements),
                         'functional_requirements_met': met_backend,
@@ -2156,12 +2184,13 @@ Focus on practical, real-world code quality concerns. Be specific about what you
                             "A requirement like 'Tab switch between Login and Register' means actual tab "
                             "components switching views within the same page — separate pages with links "
                             "between them do NOT satisfy this. Apply this level of literal strictness to "
-                            "every requirement."
+                            "every requirement. Always respond with valid JSON."
                         )},
                         {"role": "user", "content": prompt}
                     ],
                     "max_tokens": self.batch_max_response_tokens,
-                    "temperature": 0.1  # Lower temperature for more consistent parsing
+                    "temperature": 0.1,  # Lower temperature for more consistent parsing
+                    "response_format": {"type": "json_object"}
                 }
 
                 # Retry loop for batch analysis
@@ -2179,9 +2208,27 @@ Focus on practical, real-world code quality concerns. Be specific about what you
                                 ai_response = data['choices'][0]['message']['content']
                                 self.log.debug(f"Batch response ({len(ai_response)} chars): {ai_response[:200]}...")
 
-                                # Parse batch response
-                                results = self._parse_batch_requirements_response(ai_response, requirements, focus)
-                                self.log.info(f"Parsed {len(results)} results from batch response")
+                                # Parse batch response - try JSON first, fall back to regex
+                                try:
+                                    results = self._parse_batch_requirements_json(ai_response, requirements, focus)
+                                    self.log.info(f"Parsed {len(results)} results from JSON batch response")
+                                except (json.JSONDecodeError, KeyError, TypeError, ValueError) as parse_err:
+                                    self.log.warning(f"JSON parse failed ({parse_err}), falling back to regex parser")
+                                    results = self._parse_batch_requirements_response(ai_response, requirements, focus)
+                                    self.log.info(f"Parsed {len(results)} results from regex batch response")
+
+                                # Two-pass verification: challenge MET results
+                                if self.two_pass_enabled:
+                                    results = await self._verify_met_results(results, code_content, model, focus)
+
+                                # Static route cross-check for backend
+                                if focus == 'backend':
+                                    results = self._static_route_check(results, code_content)
+
+                                # Attach difficulty weights
+                                for r in results:
+                                    r['weight'] = self._classify_requirement_difficulty(r['requirement'])
+
                                 return results
                             elif response.status == 429 or response.status >= 500:
                                 # Retry on rate limit or server error
@@ -2305,16 +2352,433 @@ REQUIREMENTS TO CHECK:
 CODE:
 {code_content}
 
-Respond with EXACTLY this format for EACH requirement (one per line):
-[REQ1] MET:YES/NO | CONF:HIGH/MEDIUM/LOW | EVIDENCE: <specific code reference or "not found">
-[REQ2] MET:YES/NO | CONF:HIGH/MEDIUM/LOW | EVIDENCE: <specific code reference or "not found">
-...and so on for all {len(requirements)} requirements.
+Respond with a JSON object containing all requirement evaluations. Use EXACTLY this format:
+{{"requirements": [{{"req": 1, "met": true, "confidence": "HIGH", "evidence": "specific code reference"}}, {{"req": 2, "met": false, "confidence": "MEDIUM", "evidence": "not found"}}]}}
+
+Rules for the JSON response:
+- "req" is the requirement number (1-based integer)
+- "met" is a boolean (true/false)
+- "confidence" is "HIGH", "MEDIUM", or "LOW"
+- "evidence" is a brief string citing specific code or "not found"
+- Include ALL {len(requirements)} requirements in order
+- Output ONLY the JSON object, no other text
 """
     
+    def _parse_batch_requirements_json(
+        self,
+        response: str,
+        requirements: List[str],
+        focus: str
+    ) -> List[Dict[str, Any]]:
+        """Parse JSON-formatted batch AI response into individual requirement results.
+
+        Expected format:
+        {"requirements": [{"req": 1, "met": true/false, "confidence": "HIGH/MEDIUM/LOW", "evidence": "..."}]}
+
+        Raises json.JSONDecodeError, KeyError, TypeError, or ValueError on parse failure.
+        """
+        # Log raw response for debugging
+        self.log.info(f"Parsing JSON batch response ({len(response)} chars). Preview: {response[:500]}...")
+        print(f"[ai-analyzer] RAW BATCH RESPONSE START\n{response}\n[ai-analyzer] RAW BATCH RESPONSE END")
+
+        data = json.loads(response)
+        req_list = data['requirements']
+
+        if not isinstance(req_list, list):
+            raise TypeError(f"Expected list for 'requirements', got {type(req_list)}")
+
+        # Build a lookup by requirement number
+        req_lookup: Dict[int, Dict] = {}
+        for item in req_list:
+            req_num = item.get('req')
+            if req_num is not None:
+                req_lookup[int(req_num)] = item
+
+        results = []
+        for i, req in enumerate(requirements):
+            req_num = i + 1
+            item = req_lookup.get(req_num, {})
+
+            # Parse met status
+            met_val = item.get('met', False)
+            if isinstance(met_val, str):
+                met = met_val.upper() in ('TRUE', 'YES', 'MET')
+            else:
+                met = bool(met_val)
+
+            # Parse confidence
+            confidence = str(item.get('confidence', 'MEDIUM')).upper()
+            if confidence not in ('HIGH', 'MEDIUM', 'LOW'):
+                confidence = 'MEDIUM'
+
+            # Parse evidence/explanation
+            evidence = str(item.get('evidence', ''))
+            if not evidence or evidence == 'None':
+                evidence = f"Requirement {req_num} {'met' if met else 'not met'}"
+
+            # Detect partial from evidence text
+            is_partial = 'partial' in evidence.lower()
+            if is_partial:
+                met = False
+                if not evidence.lower().startswith('[partial]'):
+                    evidence = f"[PARTIAL] {evidence}"
+
+            results.append({
+                'requirement': req,
+                'met': met,
+                'confidence': confidence,
+                'explanation': evidence[:500],
+                'category': focus,
+                'partial': is_partial
+            })
+
+        if not results:
+            raise ValueError("No results parsed from JSON response")
+
+        return results
+
+    async def _verify_met_results(
+        self,
+        results: List[Dict[str, Any]],
+        code_content: str,
+        model: str,
+        focus: str
+    ) -> List[Dict[str, Any]]:
+        """Two-pass verification: re-examine MET results to catch false positives.
+
+        Collects all MET:YES results with HIGH or MEDIUM confidence, then sends
+        a focused adversarial challenge prompt asking the AI to re-examine each claim.
+        Results that fail verification are flipped to NOT MET.
+
+        Args:
+            results: List of requirement results from initial batch parse
+            code_content: The application code being analyzed
+            model: OpenRouter model to use
+            focus: 'backend', 'frontend', or 'admin'
+
+        Returns:
+            Updated results list with verification_pass field added
+        """
+        # Collect MET results worth verifying (HIGH/MEDIUM confidence only)
+        met_claims = []
+        met_indices = []
+        for idx, r in enumerate(results):
+            if r['met'] and r.get('confidence', 'LOW') in ('HIGH', 'MEDIUM'):
+                met_claims.append(r)
+                met_indices.append(idx)
+
+        # Skip verification if too few MET results (not worth an extra API call)
+        if len(met_claims) <= 2:
+            self.log.info(f"Skipping verification pass for {focus}: only {len(met_claims)} MET results")
+            for r in results:
+                r['verification_pass'] = 'skipped'
+            return results
+
+        self.log.info(f"Running verification pass on {len(met_claims)} MET results for {focus}")
+
+        # Build challenge prompt
+        claims_text = "\n".join([
+            f"[CLAIM{i+1}] Requirement: \"{c['requirement']}\" → Previously: MET:YES | Evidence: \"{c.get('explanation', 'none')}\""
+            for i, c in enumerate(met_claims)
+        ])
+
+        # Truncate code for verification (same limit as batch)
+        truncated_code = code_content
+        if len(truncated_code) > self.code_truncation_limit:
+            truncated_code = truncated_code[:self.code_truncation_limit] + "\n[...truncated...]"
+
+        verification_prompt = f"""You previously evaluated these {focus} requirements as MET. For each claim, critically re-examine the code:
+
+1. Does the code implement the EXACT pattern described (not an approximation)?
+2. Can you cite a specific function/route/component? If not, change to false.
+3. Is the implementation complete, or just scaffolding/placeholder code?
+4. If the requirement specifies a UI pattern (tabs, modal, accordion), does the code use THAT pattern?
+
+CLAIMS TO VERIFY:
+{claims_text}
+
+CODE:
+{truncated_code}
+
+Respond with JSON: {{"verifications": [{{"claim": 1, "verified": true, "reason": "..."}}, {{"claim": 2, "verified": false, "reason": "..."}}]}}
+Output ONLY the JSON object."""
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    "Authorization": f"Bearer {self.openrouter_api_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": (
+                            "You are a strict software requirements auditor performing a verification pass. "
+                            "Your job is to CHALLENGE previous MET assessments. Be skeptical — only confirm "
+                            "a requirement as verified if you can point to specific, complete code implementing "
+                            "the EXACT functionality described. Partial implementations, placeholder code, "
+                            "or different approaches than specified must be marked as NOT verified. "
+                            "Always respond with valid JSON."
+                        )},
+                        {"role": "user", "content": verification_prompt}
+                    ],
+                    "max_tokens": self.batch_max_response_tokens,
+                    "temperature": 0.1,
+                    "response_format": {"type": "json_object"}
+                }
+
+                async with session.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=self.api_timeout_batch)
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        self.log.warning(f"Verification API error {response.status}: {error_text[:200]}")
+                        for r in results:
+                            r['verification_pass'] = 'api_error'
+                        return results
+
+                    data = await response.json()
+                    ai_response = data['choices'][0]['message']['content']
+                    self.log.debug(f"Verification response ({len(ai_response)} chars): {ai_response[:300]}...")
+                    print(f"[ai-analyzer] VERIFICATION RESPONSE START\n{ai_response}\n[ai-analyzer] VERIFICATION RESPONSE END")
+
+            # Parse verification response
+            verification_data = json.loads(ai_response)
+            verifications = verification_data.get('verifications', [])
+
+            # Build lookup by claim number
+            ver_lookup: Dict[int, Dict] = {}
+            for v in verifications:
+                claim_num = v.get('claim')
+                if claim_num is not None:
+                    ver_lookup[int(claim_num)] = v
+
+            # Apply verification results
+            flipped_count = 0
+            for claim_idx, (result_idx, claim) in enumerate(zip(met_indices, met_claims)):
+                claim_num = claim_idx + 1
+                ver = ver_lookup.get(claim_num, {})
+
+                verified = ver.get('verified', True)
+                if isinstance(verified, str):
+                    verified = verified.lower() in ('true', 'yes')
+
+                reason = str(ver.get('reason', ''))
+
+                if not verified:
+                    # Flip MET to NOT MET
+                    results[result_idx]['met'] = False
+                    results[result_idx]['confidence'] = 'MEDIUM'
+                    results[result_idx]['explanation'] = f"[VERIFICATION FAILED] {reason} | Original: {results[result_idx]['explanation']}"[:500]
+                    results[result_idx]['verification_pass'] = 'failed'
+                    flipped_count += 1
+                else:
+                    results[result_idx]['verification_pass'] = 'confirmed'
+
+            # Mark non-MET results as not applicable for verification
+            for idx, r in enumerate(results):
+                if 'verification_pass' not in r:
+                    r['verification_pass'] = 'not_applicable'
+
+            self.log.info(f"Verification complete for {focus}: {flipped_count}/{len(met_claims)} claims flipped to NOT MET")
+
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            self.log.warning(f"Verification JSON parse failed for {focus}: {e}")
+            for r in results:
+                if 'verification_pass' not in r:
+                    r['verification_pass'] = 'parse_error'
+        except asyncio.TimeoutError:
+            self.log.warning(f"Verification timed out for {focus}")
+            for r in results:
+                if 'verification_pass' not in r:
+                    r['verification_pass'] = 'timeout'
+        except Exception as e:
+            self.log.warning(f"Verification failed for {focus}: {e}")
+            for r in results:
+                if 'verification_pass' not in r:
+                    r['verification_pass'] = 'error'
+
+        return results
+
+    def _extract_backend_routes(self, code_content: str) -> set:
+        """Extract route definitions from backend code (Flask/FastAPI).
+
+        Parses the backend section of the combined code content to find
+        route decorators and returns a set of (METHOD, PATH) tuples.
+
+        Args:
+            code_content: Combined code content with === backend/app.py === headers
+
+        Returns:
+            Set of (method, path) tuples, e.g. {('POST', '/api/auth/register')}
+        """
+        routes = set()
+
+        # Extract backend code section
+        backend_match = re.search(
+            r'=== backend/app\.py ===\n(.*?)(?:=== frontend/|$)',
+            code_content, re.DOTALL
+        )
+        if not backend_match:
+            # Try without header (non-optimized mode)
+            backend_code = code_content
+        else:
+            backend_code = backend_match.group(1)
+
+        # Flask: @app.route('/path', methods=['GET', 'POST'])
+        flask_patterns = re.finditer(
+            r'@app\.route\(\s*[\'"]([^\'"]+)[\'"]\s*(?:,\s*methods\s*=\s*\[([^\]]+)\])?\s*\)',
+            backend_code
+        )
+        for m in flask_patterns:
+            path = m.group(1)
+            if m.group(2):
+                methods = re.findall(r'[\'"](\w+)[\'"]', m.group(2))
+            else:
+                methods = ['GET']
+            for method in methods:
+                routes.add((method.upper(), path))
+
+        # FastAPI: @app.get('/path'), @app.post('/path'), etc.
+        fastapi_patterns = re.finditer(
+            r'@app\.(get|post|put|delete|patch)\(\s*[\'"]([^\'"]+)[\'"]',
+            backend_code, re.IGNORECASE
+        )
+        for m in fastapi_patterns:
+            routes.add((m.group(1).upper(), m.group(2)))
+
+        # Also match blueprint routes: @bp.route, @blueprint.route
+        bp_patterns = re.finditer(
+            r'@\w+\.route\(\s*[\'"]([^\'"]+)[\'"]\s*(?:,\s*methods\s*=\s*\[([^\]]+)\])?\s*\)',
+            backend_code
+        )
+        for m in bp_patterns:
+            path = m.group(1)
+            if m.group(2):
+                methods = re.findall(r'[\'"](\w+)[\'"]', m.group(2))
+            else:
+                methods = ['GET']
+            for method in methods:
+                routes.add((method.upper(), path))
+
+        return routes
+
+    def _static_route_check(
+        self,
+        results: List[Dict[str, Any]],
+        code_content: str
+    ) -> List[Dict[str, Any]]:
+        """Cross-check backend requirements that mention specific endpoints.
+
+        For requirements mentioning explicit HTTP methods and paths (e.g.,
+        "POST /api/auth/register"), deterministically checks if the route
+        exists in the code. Only flips MET→NO, never NO→YES.
+
+        Args:
+            results: Backend requirement results from batch analysis
+            code_content: Combined application code
+
+        Returns:
+            Updated results with route check annotations
+        """
+        routes = self._extract_backend_routes(code_content)
+
+        if not routes:
+            self.log.debug("No routes extracted from backend code, skipping route cross-check")
+            return results
+
+        self.log.info(f"Extracted {len(routes)} backend routes for cross-check: {routes}")
+
+        # Pattern to extract method + path from requirement text
+        # Matches: "POST /api/auth/register", "GET /api/items", etc.
+        route_pattern = re.compile(
+            r'\b(GET|POST|PUT|DELETE|PATCH)\s+(/[\w/\-{}<>]+)',
+            re.IGNORECASE
+        )
+
+        flipped_count = 0
+        for r in results:
+            match = route_pattern.search(r['requirement'])
+            if not match:
+                continue
+
+            req_method = match.group(1).upper()
+            req_path = match.group(2)
+
+            # Check if route exists (exact match or path-parameter match)
+            route_found = False
+            for method, path in routes:
+                if method == req_method and (
+                    path == req_path or
+                    # Normalize path params: /api/items/<id> matches /api/items/{id}
+                    re.sub(r'[<{]\w+[>}]', '*', path) == re.sub(r'[<{]\w+[>}]', '*', req_path)
+                ):
+                    route_found = True
+                    break
+
+            if not route_found and r['met']:
+                # Override: route mentioned in requirement but not found in code
+                r['met'] = False
+                r['confidence'] = 'HIGH'
+                r['explanation'] = f"[ROUTE NOT FOUND] {req_method} {req_path} not found in backend code. | Original: {r['explanation']}"[:500]
+                r['route_check'] = 'not_found'
+                flipped_count += 1
+                self.log.info(f"Route cross-check: flipped MET→NO for {req_method} {req_path}")
+            elif route_found:
+                r['route_check'] = 'confirmed'
+            else:
+                r['route_check'] = 'not_found_already_no'
+
+        if flipped_count > 0:
+            self.log.info(f"Route cross-check: flipped {flipped_count} results to NOT MET")
+
+        return results
+
+    # Difficulty classification patterns for requirement weighting
+    HARD_PATTERNS = [
+        r'tab\s*switch', r'drag.?and.?drop', r'real.?time', r'websocket',
+        r'inline.*validation', r'modal.*dialog', r'accordion', r'pagination',
+        r'infinite\s*scroll', r'file\s*upload', r'sort.*column', r'filter.*by',
+        r'drag.*reorder', r'live\s*preview', r'auto.?complete', r'multi.?step',
+    ]
+    MEDIUM_PATTERNS = [
+        r'form.*validation', r'error.*message', r'protected.*area', r'access.*control',
+        r'search', r'toggle', r'status.*update', r'loading\s*(state|indicator|spinner)',
+        r'confirmation', r'notification', r'password.*hash', r'jwt|token.*auth',
+    ]
+
+    def _classify_requirement_difficulty(self, requirement: str) -> float:
+        """Classify requirement difficulty and return a weight.
+
+        Hard requirements (complex UI patterns, real-time features) get weight 1.5.
+        Medium requirements (validation, auth, search) get weight 1.0.
+        Easy/generic requirements (basic CRUD, simple display) get weight 0.7.
+
+        Args:
+            requirement: The requirement text
+
+        Returns:
+            Float weight (0.7, 1.0, or 1.5)
+        """
+        req_lower = requirement.lower()
+
+        for pattern in self.HARD_PATTERNS:
+            if re.search(pattern, req_lower):
+                return 1.5
+
+        for pattern in self.MEDIUM_PATTERNS:
+            if re.search(pattern, req_lower):
+                return 1.0
+
+        return 0.7
+
     def _parse_batch_requirements_response(
-        self, 
-        response: str, 
-        requirements: List[str], 
+        self,
+        response: str,
+        requirements: List[str],
         focus: str
     ) -> List[Dict[str, Any]]:
         """Parse batch AI response into individual requirement results.

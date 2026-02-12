@@ -3,7 +3,8 @@
   'model_analysis': ('Model Analysis', 'bg-azure-lt text-azure', 'fa-brain'),
   'template_comparison': ('Template Comparison', 'bg-purple-lt text-purple', 'fa-code-compare'),
   'tool_analysis': ('Tool Analysis', 'bg-teal-lt text-teal', 'fa-wrench'),
-  'generation_analytics': ('Generation Analytics', 'bg-orange-lt text-orange', 'fa-chart-line')
+  'generation_analytics': ('Generation Analytics', 'bg-orange-lt text-orange', 'fa-chart-line'),
+  'comprehensive': ('Comprehensive', 'bg-red-lt text-red', 'fa-layer-group')
 } %}
 
 <div id="main-reports-table-wrapper">
@@ -143,6 +144,8 @@
                 {% else %}
                   <span class="text-muted fst-italic">All data</span>
                 {% endif %}
+              {% elif r.report_type == 'comprehensive' %}
+                <span class="text-muted fst-italic">All models & templates</span>
               {% else %}
                 <span class="text-muted fst-italic">—</span>
               {% endif %}

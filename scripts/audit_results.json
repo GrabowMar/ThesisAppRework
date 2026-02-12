@@ -1,28 +1,28 @@
 {
-  "generated_at": "2026-02-11T08:19:33.789702",
+  "generated_at": "2026-02-12T08:31:59.122454",
   "reports_audited": 32,
   "totals": {
-    "pass": 529,
-    "warn": 22,
+    "pass": 551,
+    "warn": 0,
     "fail": 0
   },
   "reports": [
     {
-      "report_id": "report_5e71ed004b6e",
+      "report_id": "report_9dfce31a657a",
       "report_type": "model_analysis",
       "title": "Model Analysis: anthropic_claude-4.5-sonnet-20250929",
-      "generation_time": 2.44,
+      "generation_time": 5.32,
       "generation_error": null,
       "totals": {
-        "pass": 23,
-        "warn": 1,
+        "pass": 24,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "5,647,342 bytes"
+          "detail": "2,214,607 bytes"
         },
         {
           "name": "report_type",
@@ -32,7 +32,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:07.832472+00:00"
+          "detail": "2026-02-12T08:31:28.594252+00:00"
         },
         {
           "name": "severity_keys",
@@ -67,7 +67,7 @@
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "9564"
+          "detail": "18553"
         },
         {
           "name": "findings_cap",
@@ -77,7 +77,7 @@
         {
           "name": "severity_sum",
           "status": "PASS",
-          "detail": "sev_sum=9564, total_findings=9564"
+          "detail": "sev_sum=17583 + unclassified=970 == total_findings=18553"
         },
         {
           "name": "scientific_metrics",
@@ -91,8 +91,8 @@
         },
         {
           "name": "known_tools",
-          "status": "WARN",
-          "detail": "unknown tools: {'html-validator', 'port_scan', 'structure'}"
+          "status": "PASS",
+          "detail": "all 27 tools known"
         },
         {
           "name": "qm_structure",
@@ -142,21 +142,21 @@
       ]
     },
     {
-      "report_id": "report_7ef464adf413",
+      "report_id": "report_582f7349394d",
       "report_type": "model_analysis",
       "title": "Model Analysis: deepseek_deepseek-r1-0528",
-      "generation_time": 0.73,
+      "generation_time": 2.11,
       "generation_error": null,
       "totals": {
-        "pass": 23,
-        "warn": 1,
+        "pass": 24,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,577,405 bytes"
+          "detail": "498,248 bytes"
         },
         {
           "name": "report_type",
@@ -166,7 +166,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:08.662017+00:00"
+          "detail": "2026-02-12T08:31:30.737027+00:00"
         },
         {
           "name": "severity_keys",
@@ -201,7 +201,7 @@
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "2396"
+          "detail": "4723"
         },
         {
           "name": "findings_cap",
@@ -211,7 +211,7 @@
         {
           "name": "severity_sum",
           "status": "PASS",
-          "detail": "sev_sum=2396, total_findings=2396"
+          "detail": "sev_sum=4363 + unclassified=360 == total_findings=4723"
         },
         {
           "name": "scientific_metrics",
@@ -225,8 +225,8 @@
         },
         {
           "name": "known_tools",
-          "status": "WARN",
-          "detail": "unknown tools: {'html-validator', 'port_scan', 'structure'}"
+          "status": "PASS",
+          "detail": "all 27 tools known"
         },
         {
           "name": "qm_structure",
@@ -276,21 +276,21 @@
       ]
     },
     {
-      "report_id": "report_1184ba906d90",
+      "report_id": "report_8611bd8b53f1",
       "report_type": "model_analysis",
       "title": "Model Analysis: google_gemini-3-flash-preview-20251217",
-      "generation_time": 0.66,
+      "generation_time": 1.81,
       "generation_error": null,
       "totals": {
-        "pass": 23,
-        "warn": 1,
+        "pass": 24,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,466,945 bytes"
+          "detail": "452,776 bytes"
         },
         {
           "name": "report_type",
@@ -300,7 +300,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:09.322202+00:00"
+          "detail": "2026-02-12T08:31:32.549693+00:00"
         },
         {
           "name": "severity_keys",
@@ -335,7 +335,7 @@
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "2025"
+          "detail": "4234"
         },
         {
           "name": "findings_cap",
@@ -345,7 +345,7 @@
         {
           "name": "severity_sum",
           "status": "PASS",
-          "detail": "sev_sum=2025, total_findings=2025"
+          "detail": "sev_sum=3710 + unclassified=524 == total_findings=4234"
         },
         {
           "name": "scientific_metrics",
@@ -359,8 +359,8 @@
         },
         {
           "name": "known_tools",
-          "status": "WARN",
-          "detail": "unknown tools: {'html-validator', 'port_scan', 'structure'}"
+          "status": "PASS",
+          "detail": "all 27 tools known"
         },
         {
           "name": "qm_structure",
@@ -410,21 +410,21 @@
       ]
     },
     {
-      "report_id": "report_19a77411431a",
+      "report_id": "report_a974b700fbe6",
       "report_type": "model_analysis",
       "title": "Model Analysis: google_gemini-3-pro-preview-20251117",
-      "generation_time": 0.73,
+      "generation_time": 1.96,
       "generation_error": null,
       "totals": {
-        "pass": 23,
-        "warn": 1,
+        "pass": 24,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,456,153 bytes"
+          "detail": "496,312 bytes"
         },
         {
           "name": "report_type",
@@ -434,7 +434,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:10.030497+00:00"
+          "detail": "2026-02-12T08:31:34.505853+00:00"
         },
         {
           "name": "severity_keys",
@@ -469,7 +469,7 @@
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "1993"
+          "detail": "4233"
         },
         {
           "name": "findings_cap",
@@ -479,7 +479,7 @@
         {
           "name": "severity_sum",
           "status": "PASS",
-          "detail": "sev_sum=1993, total_findings=1993"
+          "detail": "sev_sum=3822 + unclassified=411 == total_findings=4233"
         },
         {
           "name": "scientific_metrics",
@@ -493,8 +493,8 @@
         },
         {
           "name": "known_tools",
-          "status": "WARN",
-          "detail": "unknown tools: {'html-validator', 'port_scan', 'structure'}"
+          "status": "PASS",
+          "detail": "all 27 tools known"
         },
         {
           "name": "qm_structure",
@@ -544,21 +544,21 @@
       ]
     },
     {
-      "report_id": "report_336633cf40cd",
+      "report_id": "report_2b8c6133ca7a",
       "report_type": "model_analysis",
       "title": "Model Analysis: meta-llama_llama-3.1-405b-instruct",
-      "generation_time": 0.58,
+      "generation_time": 1.68,
       "generation_error": null,
       "totals": {
-        "pass": 23,
-        "warn": 1,
+        "pass": 24,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "954,260 bytes"
+          "detail": "217,933 bytes"
         },
         {
           "name": "report_type",
@@ -568,7 +568,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:10.643264+00:00"
+          "detail": "2026-02-12T08:31:36.194840+00:00"
         },
         {
           "name": "severity_keys",
@@ -603,7 +603,7 @@
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "1039"
+          "detail": "1915"
         },
         {
           "name": "findings_cap",
@@ -613,7 +613,7 @@
         {
           "name": "severity_sum",
           "status": "PASS",
-          "detail": "sev_sum=1039, total_findings=1039"
+          "detail": "sev_sum=1860 + unclassified=55 == total_findings=1915"
         },
         {
           "name": "scientific_metrics",
@@ -627,8 +627,8 @@
         },
         {
           "name": "known_tools",
-          "status": "WARN",
-          "detail": "unknown tools: {'html-validator', 'port_scan', 'structure'}"
+          "status": "PASS",
+          "detail": "all 24 tools known"
         },
         {
           "name": "qm_structure",
@@ -678,21 +678,21 @@
       ]
     },
     {
-      "report_id": "report_39841738a2e2",
+      "report_id": "report_acd103bf71a3",
       "report_type": "model_analysis",
       "title": "Model Analysis: mistralai_mistral-small-3.1-24b-instruct-2503",
-      "generation_time": 0.64,
+      "generation_time": 1.61,
       "generation_error": null,
       "totals": {
-        "pass": 23,
-        "warn": 1,
+        "pass": 24,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,270,250 bytes"
+          "detail": "283,263 bytes"
         },
         {
           "name": "report_type",
@@ -702,7 +702,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:11.277634+00:00"
+          "detail": "2026-02-12T08:31:37.803621+00:00"
         },
         {
           "name": "severity_keys",
@@ -737,7 +737,7 @@
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "1802"
+          "detail": "2939"
         },
         {
           "name": "findings_cap",
@@ -747,7 +747,7 @@
         {
           "name": "severity_sum",
           "status": "PASS",
-          "detail": "sev_sum=1802, total_findings=1802"
+          "detail": "sev_sum=2856 + unclassified=83 == total_findings=2939"
         },
         {
           "name": "scientific_metrics",
@@ -761,8 +761,8 @@
         },
         {
           "name": "known_tools",
-          "status": "WARN",
-          "detail": "unknown tools: {'html-validator', 'port_scan', 'structure'}"
+          "status": "PASS",
+          "detail": "all 24 tools known"
         },
         {
           "name": "qm_structure",
@@ -812,21 +812,21 @@
       ]
     },
     {
-      "report_id": "report_f79c709b4b70",
+      "report_id": "report_80a16b3dca06",
       "report_type": "model_analysis",
       "title": "Model Analysis: openai_gpt-4o-mini",
-      "generation_time": 0.56,
+      "generation_time": 1.7,
       "generation_error": null,
       "totals": {
-        "pass": 23,
-        "warn": 1,
+        "pass": 24,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "850,980 bytes"
+          "detail": "228,203 bytes"
         },
         {
           "name": "report_type",
@@ -836,7 +836,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:11.839826+00:00"
+          "detail": "2026-02-12T08:31:39.507169+00:00"
         },
         {
           "name": "severity_keys",
@@ -871,7 +871,7 @@
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "906"
+          "detail": "1933"
         },
         {
           "name": "findings_cap",
@@ -881,7 +881,7 @@
         {
           "name": "severity_sum",
           "status": "PASS",
-          "detail": "sev_sum=906, total_findings=906"
+          "detail": "sev_sum=1758 + unclassified=175 == total_findings=1933"
         },
         {
           "name": "scientific_metrics",
@@ -895,8 +895,8 @@
         },
         {
           "name": "known_tools",
-          "status": "WARN",
-          "detail": "unknown tools: {'html-validator', 'port_scan', 'structure'}"
+          "status": "PASS",
+          "detail": "all 27 tools known"
         },
         {
           "name": "qm_structure",
@@ -946,21 +946,21 @@
       ]
     },
     {
-      "report_id": "report_ebf3c9c555b5",
+      "report_id": "report_5e04fe77e8a7",
       "report_type": "model_analysis",
       "title": "Model Analysis: openai_gpt-5.2-codex-20260114",
-      "generation_time": 0.67,
+      "generation_time": 1.86,
       "generation_error": null,
       "totals": {
-        "pass": 23,
-        "warn": 1,
+        "pass": 24,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,515,997 bytes"
+          "detail": "556,031 bytes"
         },
         {
           "name": "report_type",
@@ -970,7 +970,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:12.470827+00:00"
+          "detail": "2026-02-12T08:31:41.362335+00:00"
         },
         {
           "name": "severity_keys",
@@ -1005,7 +1005,7 @@
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "1760"
+          "detail": "4543"
         },
         {
           "name": "findings_cap",
@@ -1015,7 +1015,7 @@
         {
           "name": "severity_sum",
           "status": "PASS",
-          "detail": "sev_sum=1760, total_findings=1760"
+          "detail": "sev_sum=4020 + unclassified=523 == total_findings=4543"
         },
         {
           "name": "scientific_metrics",
@@ -1029,8 +1029,8 @@
         },
         {
           "name": "known_tools",
-          "status": "WARN",
-          "detail": "unknown tools: {'html-validator', 'port_scan', 'structure'}"
+          "status": "PASS",
+          "detail": "all 27 tools known"
         },
         {
           "name": "qm_structure",
@@ -1080,21 +1080,21 @@
       ]
     },
     {
-      "report_id": "report_c0f5de7f38ad",
+      "report_id": "report_f6e37ac43663",
       "report_type": "model_analysis",
       "title": "Model Analysis: qwen_qwen3-coder-plus",
-      "generation_time": 0.69,
+      "generation_time": 2.08,
       "generation_error": null,
       "totals": {
-        "pass": 23,
-        "warn": 1,
+        "pass": 24,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,450,974 bytes"
+          "detail": "403,012 bytes"
         },
         {
           "name": "report_type",
@@ -1104,7 +1104,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:13.191315+00:00"
+          "detail": "2026-02-12T08:31:43.444762+00:00"
         },
         {
           "name": "severity_keys",
@@ -1139,7 +1139,7 @@
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "2556"
+          "detail": "4411"
         },
         {
           "name": "findings_cap",
@@ -1149,7 +1149,7 @@
         {
           "name": "severity_sum",
           "status": "PASS",
-          "detail": "sev_sum=2556, total_findings=2556"
+          "detail": "sev_sum=4042 + unclassified=369 == total_findings=4411"
         },
         {
           "name": "scientific_metrics",
@@ -1163,8 +1163,8 @@
         },
         {
           "name": "known_tools",
-          "status": "WARN",
-          "detail": "unknown tools: {'html-validator', 'port_scan', 'structure'}"
+          "status": "PASS",
+          "detail": "all 27 tools known"
         },
         {
           "name": "qm_structure",
@@ -1214,21 +1214,21 @@
       ]
     },
     {
-      "report_id": "report_292535803549",
+      "report_id": "report_79a34061e4ef",
       "report_type": "model_analysis",
       "title": "Model Analysis: z-ai_glm-4.7-20251222",
-      "generation_time": 0.67,
+      "generation_time": 1.9,
       "generation_error": null,
       "totals": {
-        "pass": 23,
-        "warn": 1,
+        "pass": 24,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,546,379 bytes"
+          "detail": "500,498 bytes"
         },
         {
           "name": "report_type",
@@ -1238,7 +1238,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:13.859627+00:00"
+          "detail": "2026-02-12T08:31:45.345221+00:00"
         },
         {
           "name": "severity_keys",
@@ -1273,7 +1273,7 @@
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "2423"
+          "detail": "4737"
         },
         {
           "name": "findings_cap",
@@ -1283,7 +1283,7 @@
         {
           "name": "severity_sum",
           "status": "PASS",
-          "detail": "sev_sum=2423, total_findings=2423"
+          "detail": "sev_sum=4371 + unclassified=366 == total_findings=4737"
         },
         {
           "name": "scientific_metrics",
@@ -1297,8 +1297,8 @@
         },
         {
           "name": "known_tools",
-          "status": "WARN",
-          "detail": "unknown tools: {'html-validator', 'port_scan', 'structure'}"
+          "status": "PASS",
+          "detail": "all 27 tools known"
         },
         {
           "name": "qm_structure",
@@ -1348,10 +1348,10 @@
       ]
     },
     {
-      "report_id": "report_801f1539a65a",
+      "report_id": "report_9e0b204f8dfd",
       "report_type": "template_comparison",
       "title": "Template Comparison: api_url_shortener",
-      "generation_time": 0.29,
+      "generation_time": 0.3,
       "generation_error": null,
       "totals": {
         "pass": 14,
@@ -1362,7 +1362,7 @@
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "734,001 bytes"
+          "detail": "734,052 bytes"
         },
         {
           "name": "report_type",
@@ -1372,7 +1372,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:14.161559+00:00"
+          "detail": "2026-02-12T08:31:45.615754+00:00"
         },
         {
           "name": "severity_keys",
@@ -1432,10 +1432,10 @@
       ]
     },
     {
-      "report_id": "report_eea21b6a7805",
+      "report_id": "report_7fa10199e069",
       "report_type": "template_comparison",
       "title": "Template Comparison: api_weather_display",
-      "generation_time": 0.31,
+      "generation_time": 0.27,
       "generation_error": null,
       "totals": {
         "pass": 14,
@@ -1446,7 +1446,7 @@
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "770,770 bytes"
+          "detail": "770,826 bytes"
         },
         {
           "name": "report_type",
@@ -1456,7 +1456,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:14.448270+00:00"
+          "detail": "2026-02-12T08:31:45.917924+00:00"
         },
         {
           "name": "severity_keys",
@@ -1516,10 +1516,10 @@
       ]
     },
     {
-      "report_id": "report_79135de77827",
+      "report_id": "report_3adad6f018de",
       "report_type": "template_comparison",
       "title": "Template Comparison: auth_user_login",
-      "generation_time": 0.29,
+      "generation_time": 0.27,
       "generation_error": null,
       "totals": {
         "pass": 14,
@@ -1530,7 +1530,7 @@
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "751,642 bytes"
+          "detail": "751,694 bytes"
         },
         {
           "name": "report_type",
@@ -1540,7 +1540,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:14.760118+00:00"
+          "detail": "2026-02-12T08:31:46.185357+00:00"
         },
         {
           "name": "severity_keys",
@@ -1600,10 +1600,10 @@
       ]
     },
     {
-      "report_id": "report_90606d63b34e",
+      "report_id": "report_10b4cc689abd",
       "report_type": "template_comparison",
       "title": "Template Comparison: booking_reservations",
-      "generation_time": 0.28,
+      "generation_time": 0.33,
       "generation_error": null,
       "totals": {
         "pass": 14,
@@ -1614,7 +1614,7 @@
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "862,553 bytes"
+          "detail": "862,604 bytes"
         },
         {
           "name": "report_type",
@@ -1624,7 +1624,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:15.041212+00:00"
+          "detail": "2026-02-12T08:31:46.519051+00:00"
         },
         {
           "name": "severity_keys",
@@ -1684,10 +1684,10 @@
       ]
     },
     {
-      "report_id": "report_1d403ade3c4a",
+      "report_id": "report_92cfdde26424",
       "report_type": "template_comparison",
       "title": "Template Comparison: collaboration_simple_poll",
-      "generation_time": 0.3,
+      "generation_time": 0.28,
       "generation_error": null,
       "totals": {
         "pass": 14,
@@ -1698,7 +1698,7 @@
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "793,092 bytes"
+          "detail": "793,148 bytes"
         },
         {
           "name": "report_type",
@@ -1708,7 +1708,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:15.340309+00:00"
+          "detail": "2026-02-12T08:31:46.795803+00:00"
         },
         {
           "name": "severity_keys",
@@ -1768,10 +1768,10 @@
       ]
     },
     {
-      "report_id": "report_7807d52a4085",
+      "report_id": "report_b228a65060e0",
       "report_type": "template_comparison",
       "title": "Template Comparison: content_recipe_list",
-      "generation_time": 0.36,
+      "generation_time": 0.3,
       "generation_error": null,
       "totals": {
         "pass": 14,
@@ -1782,7 +1782,7 @@
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "865,441 bytes"
+          "detail": "865,495 bytes"
         },
         {
           "name": "report_type",
@@ -1792,7 +1792,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:15.695673+00:00"
+          "detail": "2026-02-12T08:31:47.074642+00:00"
         },
         {
           "name": "severity_keys",
@@ -1852,10 +1852,10 @@
       ]
     },
     {
-      "report_id": "report_26f349320943",
+      "report_id": "report_eacb1a757d5b",
       "report_type": "template_comparison",
       "title": "Template Comparison: crm_customer_list",
-      "generation_time": 0.32,
+      "generation_time": 0.29,
       "generation_error": null,
       "totals": {
         "pass": 14,
@@ -1866,7 +1866,7 @@
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "866,267 bytes"
+          "detail": "866,327 bytes"
         },
         {
           "name": "report_type",
@@ -1876,7 +1876,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:15.992341+00:00"
+          "detail": "2026-02-12T08:31:47.386037+00:00"
         },
         {
           "name": "severity_keys",
@@ -1936,10 +1936,10 @@
       ]
     },
     {
-      "report_id": "report_76755000dd27",
+      "report_id": "report_08ce51c11a41",
       "report_type": "template_comparison",
       "title": "Template Comparison: crud_book_library",
-      "generation_time": 0.27,
+      "generation_time": 0.26,
       "generation_error": null,
       "totals": {
         "pass": 14,
@@ -1950,7 +1950,7 @@
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "869,877 bytes"
+          "detail": "869,929 bytes"
         },
         {
           "name": "report_type",
@@ -1960,7 +1960,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:16.287257+00:00"
+          "detail": "2026-02-12T08:31:47.645245+00:00"
         },
         {
           "name": "severity_keys",
@@ -2020,10 +2020,10 @@
       ]
     },
     {
-      "report_id": "report_1539713dc696",
+      "report_id": "report_33059a9097e0",
       "report_type": "template_comparison",
       "title": "Template Comparison: crud_todo_list",
-      "generation_time": 0.31,
+      "generation_time": 0.29,
       "generation_error": null,
       "totals": {
         "pass": 14,
@@ -2034,7 +2034,7 @@
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "947,350 bytes"
+          "detail": "947,406 bytes"
         },
         {
           "name": "report_type",
@@ -2044,7 +2044,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:16.596239+00:00"
+          "detail": "2026-02-12T08:31:47.930933+00:00"
         },
         {
           "name": "severity_keys",
@@ -2104,10 +2104,10 @@
       ]
     },
     {
-      "report_id": "report_92b97fe8545e",
+      "report_id": "report_81517243a5d3",
       "report_type": "template_comparison",
       "title": "Template Comparison: dataviz_sales_table",
-      "generation_time": 0.28,
+      "generation_time": 0.25,
       "generation_error": null,
       "totals": {
         "pass": 14,
@@ -2118,7 +2118,7 @@
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "856,845 bytes"
+          "detail": "856,899 bytes"
         },
         {
           "name": "report_type",
@@ -2128,7 +2128,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:16.875882+00:00"
+          "detail": "2026-02-12T08:31:48.178925+00:00"
         },
         {
           "name": "severity_keys",
@@ -2188,21 +2188,21 @@
       ]
     },
     {
-      "report_id": "report_9c82765caeb4",
+      "report_id": "report_c6085a9d0f59",
       "report_type": "template_comparison",
       "title": "Template Comparison: ecommerce_cart",
-      "generation_time": 0.33,
+      "generation_time": 0.26,
       "generation_error": null,
       "totals": {
-        "pass": 13,
-        "warn": 1,
+        "pass": 14,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,115,254 bytes"
+          "detail": "843,254 bytes"
         },
         {
           "name": "report_type",
@@ -2212,7 +2212,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:17.198858+00:00"
+          "detail": "2026-02-12T08:31:48.416521+00:00"
         },
         {
           "name": "severity_keys",
@@ -2237,12 +2237,12 @@
         {
           "name": "models_count",
           "status": "PASS",
-          "detail": "13"
+          "detail": "10"
         },
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "1586"
+          "detail": "1040"
         },
         {
           "name": "rankings_sequential",
@@ -2262,31 +2262,31 @@
         {
           "name": "radar_values",
           "status": "PASS",
-          "detail": "13 datasets valid"
+          "detail": "10 datasets valid"
         },
         {
           "name": "xref_model_count",
-          "status": "WARN",
-          "detail": "report=13 > db=10"
+          "status": "PASS",
+          "detail": "report=10, db_distinct=10"
         }
       ]
     },
     {
-      "report_id": "report_a27c094b786b",
+      "report_id": "report_1cf1511c0ae8",
       "report_type": "template_comparison",
       "title": "Template Comparison: education_quiz_app",
-      "generation_time": 0.38,
+      "generation_time": 0.25,
       "generation_error": null,
       "totals": {
-        "pass": 13,
-        "warn": 1,
+        "pass": 14,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,101,421 bytes"
+          "detail": "780,641 bytes"
         },
         {
           "name": "report_type",
@@ -2296,7 +2296,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:17.574960+00:00"
+          "detail": "2026-02-12T08:31:48.696325+00:00"
         },
         {
           "name": "severity_keys",
@@ -2321,12 +2321,12 @@
         {
           "name": "models_count",
           "status": "PASS",
-          "detail": "13"
+          "detail": "10"
         },
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "1613"
+          "detail": "971"
         },
         {
           "name": "rankings_sequential",
@@ -2346,31 +2346,31 @@
         {
           "name": "radar_values",
           "status": "PASS",
-          "detail": "13 datasets valid"
+          "detail": "10 datasets valid"
         },
         {
           "name": "xref_model_count",
-          "status": "WARN",
-          "detail": "report=13 > db=10"
+          "status": "PASS",
+          "detail": "report=10, db_distinct=10"
         }
       ]
     },
     {
-      "report_id": "report_4a4e1861d06c",
+      "report_id": "report_d4f808148ec8",
       "report_type": "template_comparison",
       "title": "Template Comparison: fileproc_image_upload",
-      "generation_time": 0.38,
+      "generation_time": 0.26,
       "generation_error": null,
       "totals": {
-        "pass": 13,
-        "warn": 1,
+        "pass": 14,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,256,446 bytes"
+          "detail": "898,520 bytes"
         },
         {
           "name": "report_type",
@@ -2380,7 +2380,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:17.953604+00:00"
+          "detail": "2026-02-12T08:31:48.957424+00:00"
         },
         {
           "name": "severity_keys",
@@ -2405,12 +2405,12 @@
         {
           "name": "models_count",
           "status": "PASS",
-          "detail": "13"
+          "detail": "10"
         },
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "1617"
+          "detail": "1051"
         },
         {
           "name": "rankings_sequential",
@@ -2430,31 +2430,31 @@
         {
           "name": "radar_values",
           "status": "PASS",
-          "detail": "13 datasets valid"
+          "detail": "10 datasets valid"
         },
         {
           "name": "xref_model_count",
-          "status": "WARN",
-          "detail": "report=13 > db=10"
+          "status": "PASS",
+          "detail": "report=10, db_distinct=10"
         }
       ]
     },
     {
-      "report_id": "report_86b763336546",
+      "report_id": "report_8b14ad66377c",
       "report_type": "template_comparison",
       "title": "Template Comparison: finance_expense_list",
-      "generation_time": 0.38,
+      "generation_time": 0.28,
       "generation_error": null,
       "totals": {
-        "pass": 13,
-        "warn": 1,
+        "pass": 14,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,207,531 bytes"
+          "detail": "933,780 bytes"
         },
         {
           "name": "report_type",
@@ -2464,7 +2464,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:18.333950+00:00"
+          "detail": "2026-02-12T08:31:49.234957+00:00"
         },
         {
           "name": "severity_keys",
@@ -2489,12 +2489,12 @@
         {
           "name": "models_count",
           "status": "PASS",
-          "detail": "13"
+          "detail": "10"
         },
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "1666"
+          "detail": "1124"
         },
         {
           "name": "rankings_sequential",
@@ -2514,31 +2514,31 @@
         {
           "name": "radar_values",
           "status": "PASS",
-          "detail": "13 datasets valid"
+          "detail": "10 datasets valid"
         },
         {
           "name": "xref_model_count",
-          "status": "WARN",
-          "detail": "report=13 > db=10"
+          "status": "PASS",
+          "detail": "report=10, db_distinct=10"
         }
       ]
     },
     {
-      "report_id": "report_5426148cf6d2",
+      "report_id": "report_aeeaf270a99f",
       "report_type": "template_comparison",
       "title": "Template Comparison: gaming_leaderboard",
-      "generation_time": 0.42,
+      "generation_time": 0.26,
       "generation_error": null,
       "totals": {
-        "pass": 13,
-        "warn": 1,
+        "pass": 14,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,214,877 bytes"
+          "detail": "831,745 bytes"
         },
         {
           "name": "report_type",
@@ -2548,7 +2548,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:18.723341+00:00"
+          "detail": "2026-02-12T08:31:49.498679+00:00"
         },
         {
           "name": "severity_keys",
@@ -2573,12 +2573,12 @@
         {
           "name": "models_count",
           "status": "PASS",
-          "detail": "13"
+          "detail": "10"
         },
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "1611"
+          "detail": "1024"
         },
         {
           "name": "rankings_sequential",
@@ -2598,31 +2598,31 @@
         {
           "name": "radar_values",
           "status": "PASS",
-          "detail": "13 datasets valid"
+          "detail": "10 datasets valid"
         },
         {
           "name": "xref_model_count",
-          "status": "WARN",
-          "detail": "report=13 > db=10"
+          "status": "PASS",
+          "detail": "report=10, db_distinct=10"
         }
       ]
     },
     {
-      "report_id": "report_57bdb6e82815",
+      "report_id": "report_688a84049203",
       "report_type": "template_comparison",
       "title": "Template Comparison: healthcare_appointments",
-      "generation_time": 0.45,
+      "generation_time": 0.28,
       "generation_error": null,
       "totals": {
-        "pass": 13,
-        "warn": 1,
+        "pass": 14,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,197,532 bytes"
+          "detail": "816,166 bytes"
         },
         {
           "name": "report_type",
@@ -2632,7 +2632,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:19.207560+00:00"
+          "detail": "2026-02-12T08:31:49.753495+00:00"
         },
         {
           "name": "severity_keys",
@@ -2657,12 +2657,12 @@
         {
           "name": "models_count",
           "status": "PASS",
-          "detail": "13"
+          "detail": "10"
         },
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "1670"
+          "detail": "1106"
         },
         {
           "name": "rankings_sequential",
@@ -2682,31 +2682,31 @@
         {
           "name": "radar_values",
           "status": "PASS",
-          "detail": "13 datasets valid"
+          "detail": "10 datasets valid"
         },
         {
           "name": "xref_model_count",
-          "status": "WARN",
-          "detail": "report=13 > db=10"
+          "status": "PASS",
+          "detail": "report=10, db_distinct=10"
         }
       ]
     },
     {
-      "report_id": "report_32fdadf9329d",
+      "report_id": "report_9eed3745ee28",
       "report_type": "template_comparison",
       "title": "Template Comparison: inventory_stock_list",
-      "generation_time": 0.4,
+      "generation_time": 0.28,
       "generation_error": null,
       "totals": {
-        "pass": 13,
-        "warn": 1,
+        "pass": 14,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,263,523 bytes"
+          "detail": "928,771 bytes"
         },
         {
           "name": "report_type",
@@ -2716,7 +2716,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:19.606437+00:00"
+          "detail": "2026-02-12T08:31:50.053597+00:00"
         },
         {
           "name": "severity_keys",
@@ -2741,12 +2741,12 @@
         {
           "name": "models_count",
           "status": "PASS",
-          "detail": "13"
+          "detail": "10"
         },
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "1600"
+          "detail": "1053"
         },
         {
           "name": "rankings_sequential",
@@ -2766,31 +2766,31 @@
         {
           "name": "radar_values",
           "status": "PASS",
-          "detail": "13 datasets valid"
+          "detail": "10 datasets valid"
         },
         {
           "name": "xref_model_count",
-          "status": "WARN",
-          "detail": "report=13 > db=10"
+          "status": "PASS",
+          "detail": "report=10, db_distinct=10"
         }
       ]
     },
     {
-      "report_id": "report_8885cbd6eeb8",
+      "report_id": "report_2118a68339c5",
       "report_type": "template_comparison",
       "title": "Template Comparison: iot_sensor_display",
-      "generation_time": 0.38,
+      "generation_time": 0.32,
       "generation_error": null,
       "totals": {
-        "pass": 13,
-        "warn": 1,
+        "pass": 14,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,183,443 bytes"
+          "detail": "851,097 bytes"
         },
         {
           "name": "report_type",
@@ -2800,7 +2800,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:19.993515+00:00"
+          "detail": "2026-02-12T08:31:50.373199+00:00"
         },
         {
           "name": "severity_keys",
@@ -2825,12 +2825,12 @@
         {
           "name": "models_count",
           "status": "PASS",
-          "detail": "13"
+          "detail": "10"
         },
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "1774"
+          "detail": "1203"
         },
         {
           "name": "rankings_sequential",
@@ -2850,31 +2850,31 @@
         {
           "name": "radar_values",
           "status": "PASS",
-          "detail": "13 datasets valid"
+          "detail": "10 datasets valid"
         },
         {
           "name": "xref_model_count",
-          "status": "WARN",
-          "detail": "report=13 > db=10"
+          "status": "PASS",
+          "detail": "report=10, db_distinct=10"
         }
       ]
     },
     {
-      "report_id": "report_89ee8e67f389",
+      "report_id": "report_81a2ef82ebdc",
       "report_type": "template_comparison",
       "title": "Template Comparison: learning_flashcards",
-      "generation_time": 0.4,
+      "generation_time": 0.26,
       "generation_error": null,
       "totals": {
-        "pass": 13,
-        "warn": 1,
+        "pass": 14,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,142,415 bytes"
+          "detail": "798,804 bytes"
         },
         {
           "name": "report_type",
@@ -2884,7 +2884,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:20.365699+00:00"
+          "detail": "2026-02-12T08:31:50.638025+00:00"
         },
         {
           "name": "severity_keys",
@@ -2909,12 +2909,12 @@
         {
           "name": "models_count",
           "status": "PASS",
-          "detail": "13"
+          "detail": "10"
         },
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "1602"
+          "detail": "1014"
         },
         {
           "name": "rankings_sequential",
@@ -2934,31 +2934,31 @@
         {
           "name": "radar_values",
           "status": "PASS",
-          "detail": "13 datasets valid"
+          "detail": "10 datasets valid"
         },
         {
           "name": "xref_model_count",
-          "status": "WARN",
-          "detail": "report=13 > db=10"
+          "status": "PASS",
+          "detail": "report=10, db_distinct=10"
         }
       ]
     },
     {
-      "report_id": "report_0329f86abc9c",
+      "report_id": "report_31a4a56016f6",
       "report_type": "template_comparison",
       "title": "Template Comparison: media_audio_player",
-      "generation_time": 0.38,
+      "generation_time": 0.25,
       "generation_error": null,
       "totals": {
-        "pass": 13,
-        "warn": 1,
+        "pass": 14,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "1,236,172 bytes"
+          "detail": "888,448 bytes"
         },
         {
           "name": "report_type",
@@ -2968,7 +2968,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:20.779313+00:00"
+          "detail": "2026-02-12T08:31:50.890708+00:00"
         },
         {
           "name": "severity_keys",
@@ -2993,12 +2993,12 @@
         {
           "name": "models_count",
           "status": "PASS",
-          "detail": "13"
+          "detail": "10"
         },
         {
           "name": "total_findings_sum",
           "status": "PASS",
-          "detail": "1736"
+          "detail": "1147"
         },
         {
           "name": "rankings_sequential",
@@ -3018,31 +3018,31 @@
         {
           "name": "radar_values",
           "status": "PASS",
-          "detail": "13 datasets valid"
+          "detail": "10 datasets valid"
         },
         {
           "name": "xref_model_count",
-          "status": "WARN",
-          "detail": "report=13 > db=10"
+          "status": "PASS",
+          "detail": "report=10, db_distinct=10"
         }
       ]
     },
     {
-      "report_id": "report_b4c1f8530e7d",
+      "report_id": "report_20f1b881b8f1",
       "report_type": "tool_analysis",
       "title": "Tool Analysis: All Tools",
-      "generation_time": 11.39,
+      "generation_time": 7.16,
       "generation_error": null,
       "totals": {
-        "pass": 15,
-        "warn": 1,
+        "pass": 16,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "240,762 bytes"
+          "detail": "259,156 bytes"
         },
         {
           "name": "report_type",
@@ -3052,7 +3052,7 @@
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "2026-02-11T08:19:31.870881+00:00"
+          "detail": "2026-02-12T08:31:57.670152+00:00"
         },
         {
           "name": "severity_keys",
@@ -3087,12 +3087,12 @@
         {
           "name": "summary_total_runs",
           "status": "PASS",
-          "detail": "1865"
+          "detail": "5818"
         },
         {
           "name": "summary_total_findings",
           "status": "PASS",
-          "detail": "15032"
+          "detail": "52521"
         },
         {
           "name": "heatmap_rows",
@@ -3111,8 +3111,8 @@
         },
         {
           "name": "heatmap_sums",
-          "status": "WARN",
-          "detail": "radon: heatmap_sum=49, total_findings=5"
+          "status": "PASS",
+          "detail": "row sums consistent with tool findings"
         },
         {
           "name": "analyzer_categories",
@@ -3122,31 +3122,31 @@
       ]
     },
     {
-      "report_id": "report_726cf0d14cae",
+      "report_id": "report_a4c2bf2902b5",
       "report_type": "generation_analytics",
       "title": "Generation Analytics: All Models & Templates",
-      "generation_time": 0.19,
+      "generation_time": 0.2,
       "generation_error": null,
       "totals": {
-        "pass": 14,
-        "warn": 1,
+        "pass": 15,
+        "warn": 0,
         "fail": 0
       },
       "checks": [
         {
           "name": "data_present",
           "status": "PASS",
-          "detail": "13,589 bytes"
+          "detail": "13,680 bytes"
         },
         {
           "name": "report_type",
-          "status": "WARN",
-          "detail": "key missing (generation_analytics may omit it)"
+          "status": "PASS",
+          "detail": "matches: generation_analytics"
         },
         {
           "name": "generated_at",
           "status": "PASS",
-          "detail": "not required for generation_analytics"
+          "detail": "2026-02-12T08:31:58.242907+00:00"
         },
         {
           "name": "percentage_bounds",
