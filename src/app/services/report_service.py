@@ -2898,6 +2898,16 @@ class ReportService:
         _PERF_TOOLS = ['ab', 'locust', 'artillery', 'aiohttp']
         _AI_TOOLS = ['requirements-scanner', 'code-quality-analyzer']
 
+        # Tool category mapping for customised table rendering
+        _TOOL_CATEGORIES: Dict[str, str] = {
+            'bandit': 'security', 'semgrep': 'security', 'detect-secrets': 'security',
+            'safety': 'dependency', 'pip-audit': 'dependency', 'npm-audit': 'dependency',
+            'pylint': 'quality', 'ruff': 'quality', 'eslint': 'quality',
+            'mypy': 'quality', 'stylelint': 'quality', 'html-validator': 'quality',
+            'vulture': 'quality',
+            'radon': 'complexity',
+        }
+
         def _per_model_findings(tool_name: str) -> List[Dict[str, Any]]:
             """Build per-model breakdown for a findings-based tool."""
             rows = []
@@ -2911,12 +2921,17 @@ class ReportService:
                 loc = model_reports[slug].get('loc_metrics', {}).get('total_loc', 0)
                 avg_run = findings / ok if ok > 0 else 0
                 f_kloc = (findings / loc * 1000) if loc > 0 else 0
+                sev = mt.get('severity', {})
                 rows.append({
                     'model_slug': slug,
                     'short_name': self._SHORT_NAMES.get(slug, slug),
                     'runs': runs, 'ok': ok, 'findings': findings,
                     'avg_per_run': round(avg_run, 2),
                     'f_kloc': round(f_kloc, 2),
+                    'high': sev.get('high', 0),
+                    'medium': sev.get('medium', 0),
+                    'low': sev.get('low', 0),
+                    'info': sev.get('info', 0),
                 })
             return rows
 
@@ -2932,6 +2947,7 @@ class ReportService:
                 'total_findings': agg.get('total_findings', 0),
                 'total_runs': agg.get('executions', 0),
                 'severity': agg.get('findings_by_severity', {}),
+                'category': _TOOL_CATEGORIES.get(tn, 'quality'),
                 'per_model': _per_model_findings(tn),
             }
 

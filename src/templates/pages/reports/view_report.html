@@ -786,14 +786,13 @@
           <h6 class="mt-3 mb-1">Findings by Severity per Model</h6>
           <div class="table-responsive">
           <table class="table table-sm compact-table table-striped mb-0">
-            <thead><tr><th>Model</th><th class="text-end">Apps</th><th class="text-end">Total</th><th class="text-end text-danger">Crit.</th><th class="text-end" style="color:var(--tblr-orange)">High</th><th class="text-end text-warning">Med.</th><th class="text-end text-success">Low</th><th class="text-end">D/kLOC</th><th class="text-end">Avg/App</th></tr></thead>
+            <thead><tr><th>Model</th><th class="text-end">Apps</th><th class="text-end">Total</th><th class="text-end" style="color:var(--tblr-orange)">High</th><th class="text-end text-warning">Med.</th><th class="text-end text-success">Low</th><th class="text-end">D/kLOC</th><th class="text-end">Avg/App</th></tr></thead>
             <tbody>
               {% for r in sbm %}
               <tr>
                 <td>{{ r.short_name }}</td>
                 <td class="text-end">{{ r.apps }}</td>
                 <td class="text-end fw-medium">{{ "{:,}".format(r.total) }}</td>
-                <td class="text-end text-danger">{{ r.critical }}</td>
                 <td class="text-end" style="color:var(--tblr-orange)">{{ r.high }}</td>
                 <td class="text-end text-warning">{{ r.medium }}</td>
                 <td class="text-end text-success">{{ r.low }}</td>
@@ -815,25 +814,73 @@
       <div id="c-static" class="accordion-collapse collapse" data-bs-parent="#rptAcc">
         <div class="accordion-body p-2">
           {% for tool_name, tool_data in ta.get('static_tools', {}).items() %}
+          {% set cat = tool_data.get('category', 'quality') %}
           <h6 class="{% if not loop.first %}mt-3{% endif %} mb-1">
             <span class="badge bg-teal-lt text-teal me-1">{{ tool_data.display_name }}</span>
             <span class="text-muted small">{{ "{:,}".format(tool_data.total_findings) }} findings across {{ tool_data.total_runs }} runs</span>
           </h6>
           <div class="table-responsive">
           <table class="table table-sm compact-table table-striped mb-1">
-            <thead><tr><th>Model</th><th class="text-end">Runs</th><th class="text-end">OK</th><th class="text-end">Findings</th><th class="text-end">Avg/Run</th><th class="text-end">F/kLOC</th></tr></thead>
+            {% if cat == 'security' %}
+            <thead><tr><th>Model</th><th class="text-end">Runs</th><th class="text-end">Findings</th><th class="text-end" style="color:var(--tblr-orange)">High</th><th class="text-end text-warning">Med.</th><th class="text-end text-success">Low</th><th class="text-end">F/kLOC</th></tr></thead>
             <tbody>
               {% for r in tool_data.per_model %}
               <tr>
                 <td>{{ r.short_name }}</td>
                 <td class="text-end">{{ r.runs }}</td>
-                <td class="text-end">{{ r.ok }}</td>
                 <td class="text-end">{{ "{:,}".format(r.findings) }}</td>
-                <td class="text-end">{{ "%.2f"|format(r.avg_per_run) }}</td>
+                <td class="text-end" style="color:var(--tblr-orange)">{{ r.high }}</td>
+                <td class="text-end text-warning">{{ r.medium }}</td>
+                <td class="text-end text-success">{{ r.low }}</td>
                 <td class="text-end">{{ "%.2f"|format(r.f_kloc) }}</td>
               </tr>
               {% endfor %}
             </tbody>
+            {% elif cat == 'dependency' %}
+            <thead><tr><th>Model</th><th class="text-end">Runs</th><th class="text-end">Vulns</th><th class="text-end" style="color:var(--tblr-orange)">High</th><th class="text-end text-warning">Med.</th><th class="text-end text-success">Low</th></tr></thead>
+            <tbody>
+              {% for r in tool_data.per_model %}
+              <tr>
+                <td>{{ r.short_name }}</td>
+                <td class="text-end">{{ r.runs }}</td>
+                <td class="text-end">{{ "{:,}".format(r.findings) }}</td>
+                <td class="text-end" style="color:var(--tblr-orange)">{{ r.high }}</td>
+                <td class="text-end text-warning">{{ r.medium }}</td>
+                <td class="text-end text-success">{{ r.low }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            {% elif cat == 'complexity' %}
+            <thead><tr><th>Model</th><th class="text-end">Runs</th><th class="text-end">Violations</th><th class="text-end" style="color:var(--tblr-orange)">High <small class="fw-normal">(E–F)</small></th><th class="text-end text-warning">Med. <small class="fw-normal">(C–D)</small></th><th class="text-end text-success">Low <small class="fw-normal">(A–B)</small></th><th class="text-end">F/kLOC</th></tr></thead>
+            <tbody>
+              {% for r in tool_data.per_model %}
+              <tr>
+                <td>{{ r.short_name }}</td>
+                <td class="text-end">{{ r.runs }}</td>
+                <td class="text-end">{{ "{:,}".format(r.findings) }}</td>
+                <td class="text-end" style="color:var(--tblr-orange)">{{ r.high }}</td>
+                <td class="text-end text-warning">{{ r.medium }}</td>
+                <td class="text-end text-success">{{ r.low }}</td>
+                <td class="text-end">{{ "%.2f"|format(r.f_kloc) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            {% else %}{# quality (pylint, ruff, eslint, mypy, stylelint, html-validator, vulture) #}
+            <thead><tr><th>Model</th><th class="text-end">Runs</th><th class="text-end">Findings</th><th class="text-end" style="color:var(--tblr-orange)">Errors</th><th class="text-end text-warning">Warnings</th><th class="text-end text-success">Style</th><th class="text-end">F/kLOC</th></tr></thead>
+            <tbody>
+              {% for r in tool_data.per_model %}
+              <tr>
+                <td>{{ r.short_name }}</td>
+                <td class="text-end">{{ r.runs }}</td>
+                <td class="text-end">{{ "{:,}".format(r.findings) }}</td>
+                <td class="text-end" style="color:var(--tblr-orange)">{{ r.high }}</td>
+                <td class="text-end text-warning">{{ r.medium }}</td>
+                <td class="text-end text-success">{{ r.low }}</td>
+                <td class="text-end">{{ "%.2f"|format(r.f_kloc) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            {% endif %}
           </table>
           </div>
           {% else %}
