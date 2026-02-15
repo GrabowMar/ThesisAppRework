@@ -1,0 +1,1063 @@
+\chapter{Results of Study}
+\label{ch:results}
+
+This chapter presents the quantitative findings from the \textit{ThesisAppRework} platform described in Chapters~\ref{ch:methodology} and~\ref{ch:platform}. The study evaluated 10 large language models across 20 requirement templates, generating 200 full-stack web applications subjected to automated analysis by 21 tools across four containerized services. Results are organized across eight dimensions: pipeline execution, code volume and deployment success, static analysis (12 tools), dynamic analysis (3 tools), performance testing (4 tools), AI-based analysis (2 tools), tool findings heatmap, and operational research rankings.
+
+%=============================================================================
+\section{Data Overview and Pipeline Execution}
+\label{sec:data_overview}
+%=============================================================================
+
+The study evaluated 10 models from seven providers, each generating 20 applications (one per requirement template) using the GUARDED generation mode (Section~\ref{sec:sample_generator_page}). Table~\ref{tab:model_params} summarizes model parameters relevant to cost and capability comparisons.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Model Parameters: Context Window, Pricing, and Capabilities (FC = Function Calling, Vis = Vision)}
+    \label{tab:model_params}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \renewcommand{\arraystretch}{1.1}
+    \begin{tabular}{@{} l l r r r r c c @{}}
+        \toprule
+        \textbf{Model} & \textbf{Provider} & \textbf{Ctx (k)} & \textbf{Max Out (k)} & \textbf{In \$/Mt} & \textbf{Out \$/Mt} & \textbf{FC} & \textbf{Vis} \\
+        \midrule
+        GPT-4o Mini & OpenAI & 128 & 16 & 0.15 & 0.60 & Y & Y \\
+        GPT-5.2 Codex & OpenAI & 400 & 128 & 1.75 & 14.00 & Y & Y \\
+        Gemini 3 Pro & Google & 1{,}048 & 65 & 2.00 & 12.00 & Y & Y \\
+        DeepSeek R1 & DeepSeek & 163 & 65 & 0.40 & 1.75 & Y & N \\
+        Qwen3 Coder+ & Qwen & 128 & 65 & 1.00 & 5.00 & Y & N \\
+        GLM-4.7 & Z-AI & 202 & 65 & 0.40 & 1.50 & Y & N \\
+        Mistral Small 3.1 & Mistral & 131 & 131 & 0.03 & 0.11 & Y & Y \\
+        Gemini 3 Flash & Google & 1{,}048 & 65 & 0.50 & 3.00 & Y & Y \\
+        Llama 3.1 405B & Meta & 10 & --- & 4.00 & 4.00 & Y & N \\
+        Claude 4.5 Sonnet & Anthropic & 1{,}000 & 64 & 3.00 & 15.00 & Y & Y \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+All 200 generations succeeded on the first attempt; no retries were required. Claude 4.5 Sonnet additionally generated 30 supplementary applications (totalling 50) for reproducibility analysis (Section~\ref{sec:reproducibility}); the main study uses only the first 20.
+
+\subsection{Service Completion Rates}
+
+The analysis pipeline comprises four containerized services. Table~\ref{tab:service_completion} shows aggregate completion rates.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Service Completion Rates Across All Applications}
+    \label{tab:service_completion}
+    \small
+    \begin{tabular}{@{} l r r r r @{}}
+        \toprule
+        \textbf{Service} & \textbf{Success} & \textbf{Failed} & \textbf{Total} & \textbf{Rate (\%)} \\
+        \midrule
+        Static Analyzer & 200 & 0 & 200 & 100.0 \\
+        Dynamic Analyzer & 200 & 0 & 200 & 100.0 \\
+        Performance Analyzer & 200 & 0 & 200 & 100.0 \\
+        AI Analyzer & 200 & 0 & 200 & 100.0 \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+All four analysis services achieved 100\% completion across all 200 applications. Static analysis and AI-based analysis operate directly on source code files, while dynamic and performance testing required running application containers. Container build success varied by model (Section~\ref{sec:code_volume}), but the analysis services themselves processed all applications without failure.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Per-Model Service Completion (Successful / Total Attempted)}
+    \label{tab:model_service}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Stat.} & \textbf{/ Tot} & \textbf{Dyn.} & \textbf{/ Tot} & \textbf{Perf.} & \textbf{/ Tot} & \textbf{AI} & \textbf{/ Tot} \\
+        \midrule
+        Claude 4.5 Sonnet & 20 & 20 & 20 & 20 & 20 & 20 & 20 & 20 \\
+        DeepSeek R1 & 20 & 20 & 20 & 20 & 20 & 20 & 20 & 20 \\
+        GLM-4.7 & 20 & 20 & 20 & 20 & 20 & 20 & 20 & 20 \\
+        GPT-4o Mini & 20 & 20 & 20 & 20 & 20 & 20 & 20 & 20 \\
+        GPT-5.2 Codex & 20 & 20 & 20 & 20 & 20 & 20 & 20 & 20 \\
+        Gemini 3 Flash & 20 & 20 & 20 & 20 & 20 & 20 & 20 & 20 \\
+        Gemini 3 Pro & 20 & 20 & 20 & 20 & 20 & 20 & 20 & 20 \\
+        Llama 3.1 405B & 20 & 20 & 20 & 20 & 20 & 20 & 20 & 20 \\
+        Mistral Small 3.1 & 20 & 20 & 20 & 20 & 20 & 20 & 20 & 20 \\
+        Qwen3 Coder+ & 20 & 20 & 20 & 20 & 20 & 20 & 20 & 20 \\
+        \bottomrule
+    \end{tabular}%
+    }
+    \source{Own elaboration}
+\end{table}
+
+%=============================================================================
+\section{Code Volume, Deployment Success, and Defect Density}
+\label{sec:code_volume}
+%=============================================================================
+
+Table~\ref{tab:code_composition} presents code volume and deployment metrics. Models varied substantially in output: GPT-5.2 Codex produced the most code per application (1{,}945 LOC/app), while Llama 3.1 405B produced the least (364 LOC/app)---a 5.3$\times$ difference. The Deploy\% column indicates the proportion of applications that were successfully built, deployed as Docker containers, and responded to HTTP probes.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Code Composition and Deployment Success by Model (Sorted by LOC/App)}
+    \label{tab:code_composition}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{@{} l r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Apps} & \textbf{Total LOC} & \textbf{Python} & \textbf{JS} & \textbf{LOC/App} & \textbf{I/100LOC} & \textbf{Deploy\%} \\
+        \midrule
+        GPT-5.2 Codex & 20 & 38{,}906 & 12{,}372 & 26{,}534 & 1{,}945 & 4.55 & 100 \\
+        DeepSeek R1 & 20 & 34{,}971 & 7{,}686 & 27{,}285 & 1{,}749 & 6.85 & 70 \\
+        Claude 4.5 Sonnet & 20 & 34{,}709 & 12{,}898 & 21{,}811 & 1{,}735 & 11.04 & 85 \\
+        Qwen3 Coder+ & 20 & 25{,}999 & 8{,}418 & 17{,}581 & 1{,}300 & 9.81 & 65 \\
+        GLM-4.7 & 20 & 23{,}512 & 8{,}145 & 15{,}367 & 1{,}176 & 10.20 & 65 \\
+        Gemini 3 Flash & 20 & 22{,}080 & 6{,}413 & 15{,}667 & 1{,}104 & 9.25 & 100 \\
+        Gemini 3 Pro & 20 & 19{,}714 & 6{,}288 & 13{,}426 & 986 & 10.02 & 80 \\
+        Mistral Small 3.1 & 20 & 15{,}674 & 4{,}156 & 11{,}518 & 784 & 11.57 & 0 \\
+        GPT-4o Mini & 20 & 7{,}410 & 2{,}973 & 4{,}437 & 370 & 11.86 & 20 \\
+        Llama 3.1 405B & 20 & 7{,}283 & 2{,}777 & 4{,}506 & 364 & 14.36 & 0 \\
+        \bottomrule
+    \end{tabular}%
+    }
+    \source{Own elaboration}
+\end{table}
+
+Deployment success varied dramatically across models. GPT-5.2 Codex and Gemini 3 Flash achieved 100\% deployment rates (20/20 applications reachable), while Mistral Small 3.1 and Llama 3.1 405B failed to produce any reachable containers (0\% deployment). Models that produced more code generally exhibited lower defect density and higher deployment success rates, suggesting that larger output capacity correlates with more complete, self-consistent implementations.
+
+\subsection{Findings by Severity}
+
+Table~\ref{tab:severity_by_model} presents the total static analysis findings broken down by severity level. No critical-severity findings were detected across any model or tool.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Findings by Severity per Model (D/kLOC = Defects per 1{,}000 Lines of Code; sorted by D/kLOC desc.)}
+    \label{tab:severity_by_model}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Apps} & \textbf{Total} & \textbf{Crit.} & \textbf{High} & \textbf{Med.} & \textbf{Low} & \textbf{D/kLOC} & \textbf{Avg/App} \\
+        \midrule
+        Llama 3.1 405B & 20 & 1{,}046 & 0 & 69 & 887 & 90 & 143.6 & 52.3 \\
+        GPT-4o Mini & 20 & 879 & 0 & 32 & 792 & 55 & 118.6 & 44.0 \\
+        Mistral Small 3.1 & 20 & 1{,}813 & 0 & 139 & 1{,}543 & 131 & 115.7 & 90.7 \\
+        Claude 4.5 Sonnet & 20 & 3{,}833 & 0 & 133 & 1{,}584 & 2{,}116 & 110.4 & 191.7 \\
+        GLM-4.7 & 20 & 2{,}399 & 0 & 148 & 1{,}159 & 1{,}092 & 102.0 & 120.0 \\
+        Gemini 3 Pro & 20 & 1{,}975 & 0 & 74 & 1{,}114 & 787 & 100.2 & 98.8 \\
+        Qwen3 Coder+ & 20 & 2{,}550 & 0 & 95 & 1{,}266 & 1{,}189 & 98.1 & 127.5 \\
+        Gemini 3 Flash & 20 & 2{,}042 & 0 & 62 & 1{,}387 & 593 & 92.5 & 102.1 \\
+        DeepSeek R1 & 20 & 2{,}396 & 0 & 103 & 1{,}350 & 943 & 68.5 & 119.8 \\
+        GPT-5.2 Codex & 20 & 1{,}769 & 0 & 105 & 1{,}570 & 94 & 45.5 & 88.5 \\
+        \midrule
+        \textbf{Total} & \textbf{200} & \textbf{20{,}702} & \textbf{0} & \textbf{960} & \textbf{12{,}652} & \textbf{7{,}090} & --- & --- \\
+        \bottomrule
+    \end{tabular}%
+    }
+    \source{Own elaboration}
+\end{table}
+
+%=============================================================================
+\section{Static Analysis Results}
+\label{sec:static_results}
+%=============================================================================
+
+Static analysis employed 12 tools across five categories: Python security (Bandit, Semgrep), Python code quality (Pylint, Ruff, Mypy, Vulture, Radon), Python dependency security (Safety, pip-audit), secret detection (detect-secrets), and JavaScript analysis (ESLint, npm-audit). Stylelint and HTML-validator were excluded from results due to producing zero findings across all models (see Section~\ref{sec:reproducibility} for details).
+
+\subsection{Python Security Analysis}
+
+\subsubsection{Bandit}
+
+Bandit is a Python security linter that identifies common security issues such as hardcoded passwords, use of insecure functions, and SQL injection patterns.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Bandit: Results by Model}
+    \label{tab:tool_bandit}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} & \textbf{High} & \textbf{Med.} & \textbf{Low} \\
+        \midrule
+        GLM-4.7 & 20 & 20 & 134 & 6.7 & 5.70 & 18 & 0 & 116 \\
+        GPT-5.2 Codex & 20 & 20 & 90 & 4.5 & 2.31 & 20 & 1 & 69 \\
+        DeepSeek R1 & 20 & 20 & 89 & 4.5 & 2.54 & 20 & 0 & 69 \\
+        Mistral Small 3.1 & 20 & 20 & 88 & 4.4 & 5.61 & 19 & 0 & 69 \\
+        Claude 4.5 Sonnet & 20 & 20 & 78 & 3.9 & 2.25 & 20 & 2 & 56 \\
+        Qwen3 Coder+ & 20 & 20 & 76 & 3.8 & 2.92 & 15 & 0 & 61 \\
+        Gemini 3 Pro & 20 & 20 & 67 & 3.4 & 3.40 & 16 & 3 & 48 \\
+        Llama 3.1 405B & 20 & 20 & 66 & 3.3 & 9.06 & 20 & 0 & 46 \\
+        Gemini 3 Flash & 20 & 20 & 49 & 2.5 & 2.22 & 20 & 1 & 28 \\
+        GPT-4o Mini & 20 & 20 & 27 & 1.4 & 3.64 & 19 & 0 & 8 \\
+        \midrule
+        \textbf{Total} & --- & --- & \textbf{764} & --- & --- & \textbf{187} & \textbf{7} & \textbf{570} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsubsection{Semgrep}
+
+Semgrep is a pattern-based static analysis tool using language-aware rules to detect security vulnerabilities, anti-patterns, and policy violations.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Semgrep: Results by Model}
+    \label{tab:tool_semgrep}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} & \textbf{High} & \textbf{Med.} & \textbf{Low} \\
+        \midrule
+        Claude 4.5 Sonnet & 20 & 20 & 180 & 9.0 & 5.19 & 0 & 180 & 0 \\
+        DeepSeek R1 & 20 & 20 & 175 & 8.8 & 5.00 & 0 & 175 & 0 \\
+        GPT-5.2 Codex & 20 & 19 & 175 & 9.2 & 4.50 & 0 & 175 & 0 \\
+        Gemini 3 Flash & 20 & 20 & 167 & 8.3 & 7.56 & 0 & 167 & 0 \\
+        Mistral Small 3.1 & 20 & 19 & 144 & 7.6 & 9.19 & 0 & 144 & 0 \\
+        Llama 3.1 405B & 20 & 20 & 133 & 6.7 & 18.26 & 0 & 133 & 0 \\
+        Gemini 3 Pro & 20 & 17 & 126 & 7.4 & 6.39 & 0 & 126 & 0 \\
+        GLM-4.7 & 20 & 14 & 112 & 8.0 & 4.76 & 0 & 112 & 0 \\
+        Qwen3 Coder+ & 20 & 18 & 111 & 6.2 & 4.27 & 0 & 111 & 0 \\
+        GPT-4o Mini & 20 & 18 & 98 & 5.4 & 13.23 & 0 & 98 & 0 \\
+        \midrule
+        \textbf{Total} & --- & --- & \textbf{1{,}421} & --- & --- & \textbf{0} & \textbf{1{,}421} & \textbf{0} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsection{Python Code Quality}
+
+\subsubsection{Pylint}
+
+Pylint is a comprehensive Python code quality checker enforcing PEP~8 style, detecting logical errors, and measuring code complexity.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Pylint: Results by Model}
+    \label{tab:tool_pylint}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} & \textbf{High} & \textbf{Med.} & \textbf{Low} \\
+        \midrule
+        Claude 4.5 Sonnet & 20 & 16 & 2{,}153 & 134.6 & 62.03 & 18 & 139 & 1996 \\
+        DeepSeek R1 & 20 & 16 & 827 & 51.7 & 23.65 & 9 & 98 & 720 \\
+        Qwen3 Coder+ & 20 & 16 & 814 & 50.9 & 31.31 & 12 & 117 & 685 \\
+        Gemini 3 Pro & 20 & 16 & 774 & 48.4 & 39.26 & 12 & 117 & 645 \\
+        GLM-4.7 & 20 & 15 & 764 & 50.9 & 32.49 & 2 & 95 & 667 \\
+        Gemini 3 Flash & 20 & 15 & 701 & 46.7 & 31.75 & 16 & 85 & 600 \\
+        GPT-5.2 Codex & 20 & 13 & 656 & 50.5 & 16.86 & 19 & 330 & 307 \\
+        Mistral Small 3.1 & 20 & 12 & 209 & 17.4 & 13.33 & 7 & 81 & 121 \\
+        GPT-4o Mini & 20 & 15 & 191 & 12.7 & 25.78 & 1 & 76 & 114 \\
+        Llama 3.1 405B & 20 & 12 & 111 & 9.2 & 15.24 & 11 & 45 & 55 \\
+        \midrule
+        \textbf{Total} & --- & --- & \textbf{7{,}200} & --- & --- & \textbf{107} & \textbf{1{,}183} & \textbf{5{,}910} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsubsection{Ruff}
+
+Ruff is a high-performance Python linter covering style violations, import ordering, and common anti-patterns.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Ruff: Results by Model}
+    \label{tab:tool_ruff}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} & \textbf{High} & \textbf{Med.} & \textbf{Low} \\
+        \midrule
+        Claude 4.5 Sonnet & 20 & 20 & 2{,}574 & 128.7 & 74.16 & 55 & 459 & 2060 \\
+        Qwen3 Coder+ & 20 & 20 & 1{,}440 & 72.0 & 55.39 & 49 & 263 & 1128 \\
+        GLM-4.7 & 20 & 20 & 1{,}368 & 68.4 & 58.18 & 114 & 278 & 976 \\
+        DeepSeek R1 & 20 & 20 & 1{,}068 & 53.4 & 30.54 & 76 & 118 & 874 \\
+        Gemini 3 Pro & 20 & 20 & 1{,}010 & 50.5 & 51.23 & 50 & 221 & 739 \\
+        Gemini 3 Flash & 20 & 20 & 907 & 45.4 & 41.08 & 27 & 315 & 565 \\
+        GPT-5.2 Codex & 20 & 20 & 474 & 23.7 & 12.18 & 69 & 380 & 25 \\
+        Mistral Small 3.1 & 20 & 20 & 399 & 19.9 & 25.46 & 70 & 267 & 62 \\
+        GPT-4o Mini & 20 & 20 & 279 & 13.9 & 37.65 & 7 & 225 & 47 \\
+        Llama 3.1 405B & 20 & 20 & 194 & 9.7 & 26.64 & 47 & 103 & 44 \\
+        \midrule
+        \textbf{Total} & --- & --- & \textbf{9{,}713} & --- & --- & \textbf{564} & \textbf{2{,}629} & \textbf{6{,}520} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsubsection{Mypy}
+
+Mypy is a static type checker verifying Python type annotations for correctness and completeness.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Mypy: Results by Model}
+    \label{tab:tool_mypy}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} & \textbf{High} & \textbf{Med.} & \textbf{Low} \\
+        \midrule
+        GPT-5.2 Codex & 20 & 17 & 952 & 56.0 & 24.47 & 952 & 0 & 0 \\
+        Claude 4.5 Sonnet & 20 & 18 & 760 & 42.2 & 21.90 & 759 & 0 & 1 \\
+        DeepSeek R1 & 20 & 18 & 620 & 34.4 & 17.73 & 620 & 0 & 0 \\
+        Gemini 3 Flash & 20 & 19 & 509 & 26.8 & 23.05 & 509 & 0 & 0 \\
+        Gemini 3 Pro & 20 & 18 & 419 & 23.3 & 21.25 & 419 & 0 & 0 \\
+        GLM-4.7 & 20 & 15 & 395 & 26.3 & 16.80 & 395 & 0 & 0 \\
+        Mistral Small 3.1 & 20 & 13 & 372 & 28.6 & 23.73 & 372 & 0 & 0 \\
+        Qwen3 Coder+ & 20 & 10 & 261 & 26.1 & 10.04 & 261 & 0 & 0 \\
+        GPT-4o Mini & 20 & 12 & 194 & 16.2 & 26.18 & 194 & 0 & 0 \\
+        Llama 3.1 405B & 20 & 11 & 180 & 16.4 & 24.72 & 180 & 0 & 0 \\
+        \midrule
+        \textbf{Total} & --- & --- & \textbf{4{,}662} & --- & --- & \textbf{4{,}661} & \textbf{0} & \textbf{1} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsubsection{Vulture}
+
+Vulture is a dead code detector identifying unused functions, variables, imports, and unreachable code segments.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Vulture: Results by Model}
+    \label{tab:tool_vulture}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} & \textbf{High} & \textbf{Med.} & \textbf{Low} \\
+        \midrule
+        GPT-5.2 Codex & 20 & 20 & 407 & 20.4 & 10.46 & 0 & 18 & 389 \\
+        Claude 4.5 Sonnet & 20 & 20 & 308 & 15.4 & 8.87 & 0 & 16 & 292 \\
+        Gemini 3 Flash & 20 & 20 & 273 & 13.7 & 12.36 & 0 & 10 & 263 \\
+        DeepSeek R1 & 20 & 20 & 267 & 13.3 & 7.63 & 0 & 30 & 237 \\
+        Gemini 3 Pro & 20 & 20 & 255 & 12.8 & 12.93 & 0 & 39 & 216 \\
+        GLM-4.7 & 20 & 20 & 241 & 12.1 & 10.25 & 0 & 10 & 231 \\
+        Mistral Small 3.1 & 20 & 20 & 187 & 9.3 & 11.93 & 0 & 10 & 177 \\
+        GPT-4o Mini & 20 & 20 & 186 & 9.3 & 25.10 & 0 & 43 & 143 \\
+        Llama 3.1 405B & 20 & 20 & 173 & 8.7 & 23.75 & 0 & 12 & 161 \\
+        Qwen3 Coder+ & 20 & 20 & 162 & 8.1 & 6.23 & 0 & 20 & 142 \\
+        \midrule
+        \textbf{Total} & --- & --- & \textbf{2{,}459} & --- & --- & \textbf{0} & \textbf{208} & \textbf{2{,}251} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsubsection{Radon}
+
+Radon is a Python complexity analyzer computing cyclomatic complexity, Halstead metrics, and maintainability indices.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Radon: Results by Model}
+    \label{tab:tool_radon}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} & \textbf{High} & \textbf{Med.} & \textbf{Low} \\
+        \midrule
+        Claude 4.5 Sonnet & 20 & 20 & 4 & 0.2 & 0.12 & 0 & 40 & 0 \\
+        Qwen3 Coder+ & 20 & 20 & 4 & 0.2 & 0.15 & 0 & 14 & 0 \\
+        GPT-5.2 Codex & 20 & 20 & 1 & 0.1 & 0.03 & 0 & 26 & 0 \\
+        DeepSeek R1 & 20 & 20 & 0 & 0.0 & 0.00 & 0 & 11 & 0 \\
+        Gemini 3 Flash & 20 & 20 & 0 & 0.0 & 0.00 & 0 & 1 & 0 \\
+        Gemini 3 Pro & 20 & 20 & 0 & 0.0 & 0.00 & 0 & 7 & 0 \\
+        Llama 3.1 405B & 20 & 20 & 0 & 0.0 & 0.00 & 0 & 0 & 0 \\
+        Mistral Small 3.1 & 20 & 20 & 0 & 0.0 & 0.00 & 0 & 0 & 0 \\
+        GPT-4o Mini & 20 & 20 & 0 & 0.0 & 0.00 & 0 & 0 & 0 \\
+        GLM-4.7 & 20 & 20 & 0 & 0.0 & 0.00 & 0 & 9 & 0 \\
+        \midrule
+        \textbf{Total} & --- & --- & \textbf{9} & --- & --- & \textbf{0} & \textbf{108} & \textbf{0} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsection{Python Dependency Security}
+
+\subsubsection{Safety}
+
+Safety is a dependency vulnerability scanner checking installed Python packages against the Safety advisory database.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Safety: Results by Model}
+    \label{tab:tool_safety}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} & \textbf{High} & \textbf{Med.} & \textbf{Low} \\
+        \midrule
+        Claude 4.5 Sonnet & 20 & 20 & 180 & 9.0 & 5.19 & 180 & 0 & 0 \\
+        DeepSeek R1 & 20 & 20 & 180 & 9.0 & 5.15 & 180 & 0 & 0 \\
+        Gemini 3 Flash & 20 & 20 & 180 & 9.0 & 8.15 & 180 & 0 & 0 \\
+        Gemini 3 Pro & 20 & 20 & 180 & 9.0 & 9.13 & 180 & 0 & 0 \\
+        Llama 3.1 405B & 20 & 20 & 180 & 9.0 & 24.72 & 180 & 0 & 0 \\
+        Mistral Small 3.1 & 20 & 20 & 180 & 9.0 & 11.48 & 180 & 0 & 0 \\
+        GPT-4o Mini & 20 & 20 & 180 & 9.0 & 24.29 & 180 & 0 & 0 \\
+        GPT-5.2 Codex & 20 & 20 & 180 & 9.0 & 4.63 & 180 & 0 & 0 \\
+        Qwen3 Coder+ & 20 & 20 & 180 & 9.0 & 6.92 & 180 & 0 & 0 \\
+        GLM-4.7 & 20 & 20 & 180 & 9.0 & 7.66 & 180 & 0 & 0 \\
+        \midrule
+        \textbf{Total} & --- & --- & \textbf{1{,}800} & --- & --- & \textbf{1{,}800} & \textbf{0} & \textbf{0} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsubsection{pip-audit}
+
+pip-audit is a Python package auditor scanning installed packages for known vulnerabilities using the PyPI advisory database.
+
+\begin{table}[htbp]
+    \centering
+    \caption{pip-audit: Results by Model}
+    \label{tab:tool_pipaudit}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} & \textbf{High} & \textbf{Med.} & \textbf{Low} \\
+        \midrule
+        Gemini 3 Flash & 20 & 19 & 190 & 10.0 & 8.61 & 190 & 0 & 0 \\
+        DeepSeek R1 & 20 & 18 & 180 & 10.0 & 5.15 & 180 & 0 & 0 \\
+        Claude 4.5 Sonnet & 20 & 17 & 170 & 10.0 & 4.90 & 170 & 0 & 0 \\
+        Gemini 3 Pro & 20 & 17 & 160 & 9.4 & 8.12 & 160 & 0 & 0 \\
+        GPT-5.2 Codex & 20 & 17 & 160 & 9.4 & 4.11 & 160 & 0 & 0 \\
+        GLM-4.7 & 20 & 17 & 150 & 8.8 & 6.38 & 150 & 0 & 0 \\
+        Qwen3 Coder+ & 20 & 15 & 140 & 9.3 & 5.38 & 140 & 0 & 0 \\
+        Mistral Small 3.1 & 20 & 13 & 120 & 9.2 & 7.66 & 120 & 0 & 0 \\
+        GPT-4o Mini & 20 & 13 & 110 & 8.5 & 14.84 & 110 & 0 & 0 \\
+        Llama 3.1 405B & 20 & 10 & 90 & 9.0 & 12.36 & 90 & 0 & 0 \\
+        \midrule
+        \textbf{Total} & --- & --- & \textbf{1{,}470} & --- & --- & \textbf{1{,}470} & \textbf{0} & \textbf{0} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsection{Secret Detection}
+
+\subsubsection{detect-secrets}
+
+detect-secrets is a secret detection tool scanning source code for hardcoded credentials, API keys, and tokens.
+
+\begin{table}[htbp]
+    \centering
+    \caption{detect-secrets: Results by Model}
+    \label{tab:tool_detectsecrets}
+    \small
+    \begin{tabular}{@{} l r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} \\
+        \midrule
+        Claude 4.5 Sonnet & 20 & 20 & 0 & 0.0 & 0.00 \\
+        DeepSeek R1 & 20 & 20 & 0 & 0.0 & 0.00 \\
+        Gemini 3 Flash & 20 & 20 & 0 & 0.0 & 0.00 \\
+        Gemini 3 Pro & 20 & 20 & 0 & 0.0 & 0.00 \\
+        Llama 3.1 405B & 20 & 20 & 0 & 0.0 & 0.00 \\
+        Mistral Small 3.1 & 20 & 20 & 0 & 0.0 & 0.00 \\
+        GPT-4o Mini & 20 & 20 & 0 & 0.0 & 0.00 \\
+        GPT-5.2 Codex & 20 & 20 & 0 & 0.0 & 0.00 \\
+        Qwen3 Coder+ & 20 & 20 & 0 & 0.0 & 0.00 \\
+        GLM-4.7 & 20 & 20 & 0 & 0.0 & 0.00 \\
+        \midrule
+        \textbf{Total} & --- & --- & \textbf{0} & --- & --- \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsection{JavaScript and Frontend Analysis}
+
+\subsubsection{ESLint}
+
+ESLint is a JavaScript and TypeScript linter enforcing coding standards, detecting potential errors, and identifying anti-patterns.
+
+\begin{table}[htbp]
+    \centering
+    \caption{ESLint: Results by Model}
+    \label{tab:tool_eslint}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} & \textbf{High} & \textbf{Med.} & \textbf{Low} \\
+        \midrule
+        Mistral Small 3.1 & 20 & 20 & 1{,}182 & 59.1 & 75.41 & 50 & 1132 & 0 \\
+        DeepSeek R1 & 20 & 20 & 1{,}064 & 53.2 & 30.43 & 7 & 1057 & 0 \\
+        GPT-5.2 Codex & 20 & 20 & 1{,}030 & 51.5 & 26.47 & 16 & 1014 & 0 \\
+        Claude 4.5 Sonnet & 20 & 20 & 1{,}001 & 50.0 & 28.84 & 58 & 943 & 0 \\
+        Qwen3 Coder+ & 20 & 20 & 923 & 46.1 & 35.50 & 31 & 892 & 0 \\
+        Gemini 3 Flash & 20 & 20 & 919 & 46.0 & 41.62 & 15 & 904 & 0 \\
+        GLM-4.7 & 20 & 20 & 785 & 39.2 & 33.39 & 16 & 769 & 0 \\
+        Gemini 3 Pro & 20 & 20 & 772 & 38.6 & 39.16 & 8 & 764 & 0 \\
+        Llama 3.1 405B & 20 & 20 & 653 & 32.6 & 89.66 & 2 & 651 & 0 \\
+        GPT-4o Mini & 20 & 19 & 475 & 25.0 & 64.10 & 6 & 469 & 0 \\
+        \midrule
+        \textbf{Total} & --- & --- & \textbf{8{,}804} & --- & --- & \textbf{209} & \textbf{8{,}595} & \textbf{0} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsubsection{npm-audit}
+
+npm-audit is a Node.js dependency auditor checking packages against the npm advisory database for known security vulnerabilities.
+
+\begin{table}[htbp]
+    \centering
+    \caption{npm-audit: Results by Model}
+    \label{tab:tool_npmaudit}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} & \textbf{High} & \textbf{Med.} & \textbf{Low} \\
+        \midrule
+        Claude 4.5 Sonnet & 20 & 20 & 40 & 2.0 & 1.15 & 0 & 40 & 0 \\
+        DeepSeek R1 & 20 & 20 & 40 & 2.0 & 1.14 & 0 & 40 & 0 \\
+        Gemini 3 Flash & 20 & 20 & 40 & 2.0 & 1.81 & 0 & 40 & 0 \\
+        Gemini 3 Pro & 20 & 20 & 40 & 2.0 & 2.03 & 0 & 40 & 0 \\
+        Qwen3 Coder+ & 20 & 20 & 40 & 2.0 & 1.54 & 0 & 40 & 0 \\
+        Llama 3.1 405B & 20 & 19 & 38 & 2.0 & 5.22 & 0 & 38 & 0 \\
+        GPT-4o Mini & 20 & 19 & 38 & 2.0 & 5.13 & 0 & 38 & 0 \\
+        Mistral Small 3.1 & 20 & 18 & 36 & 2.0 & 2.30 & 0 & 36 & 0 \\
+        GPT-5.2 Codex & 20 & 18 & 36 & 2.0 & 0.93 & 0 & 36 & 0 \\
+        GLM-4.7 & 20 & 18 & 36 & 2.0 & 1.53 & 0 & 36 & 0 \\
+        \midrule
+        \textbf{Total} & --- & --- & \textbf{384} & --- & --- & \textbf{0} & \textbf{384} & \textbf{0} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+%=============================================================================
+\section{Dynamic Analysis Results}
+\label{sec:dynamic_results}
+%=============================================================================
+
+Dynamic analysis employed three tools requiring running application containers: OWASP ZAP for vulnerability scanning, curl for HTTP probe testing, and curl-endpoint-tester for systematic API endpoint validation. Coverage correlated with container deployment success; models with 0\% deployment (Mistral Small 3.1 and Llama 3.1 405B) received only baseline scans with minimal findings.
+
+\subsection{OWASP ZAP}
+
+OWASP ZAP is an automated web application vulnerability scanner performing spider crawling and passive security analysis in baseline mode.
+
+\begin{table}[htbp]
+    \centering
+    \caption{OWASP ZAP: Dynamic Vulnerability Scanning Results by Model}
+    \label{tab:tool_zap}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} & \textbf{Med.} & \textbf{Low} & \textbf{Info} \\
+        \midrule
+        Gemini 3 Flash & 20 & 20 & 484 & 24.2 & 21.92 & 236 & 200 & 48 \\
+        GPT-5.2 Codex & 20 & 20 & 472 & 23.6 & 12.13 & 232 & 200 & 40 \\
+        Claude 4.5 Sonnet & 20 & 18 & 415 & 23.1 & 11.96 & 196 & 175 & 42 \\
+        Gemini 3 Pro & 20 & 16 & 380 & 23.8 & 19.28 & 180 & 160 & 36 \\
+        Qwen3 Coder+ & 20 & 13 & 325 & 25.0 & 12.50 & 156 & 130 & 32 \\
+        GLM-4.7 & 20 & 13 & 319 & 24.5 & 13.57 & 156 & 130 & 26 \\
+        DeepSeek R1 & 20 & 16 & 306 & 19.1 & 8.75 & 116 & 150 & 36 \\
+        GPT-4o Mini & 20 & 4 & 112 & 28.0 & 15.11 & 48 & 40 & 8 \\
+        Llama 3.1 405B & 20 & 0 & 20 & 0.0 & 2.75 & 0 & 0 & 0 \\
+        Mistral Small 3.1 & 20 & 0 & 20 & 0.0 & 1.28 & 0 & 0 & 0 \\
+        \midrule
+        \textbf{Total} & --- & --- & \textbf{2{,}853} & --- & --- & \textbf{1{,}320} & \textbf{1{,}185} & \textbf{268} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsection{Curl HTTP Probe}
+
+Curl is an HTTP probe testing endpoint availability, response codes, and basic connectivity of running applications. Findings represent HTTP-level issues such as missing security headers or unexpected response codes.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Curl: HTTP Probe Results by Model}
+    \label{tab:tool_curl}
+    \small
+    \begin{tabular}{@{} l r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} \\
+        \midrule
+        Claude 4.5 Sonnet & 20 & 20 & 13 & 0.65 & 0.37 \\
+        Gemini 3 Flash & 20 & 20 & 13 & 0.65 & 0.59 \\
+        DeepSeek R1 & 20 & 20 & 11 & 0.55 & 0.31 \\
+        GLM-4.7 & 20 & 20 & 10 & 0.50 & 0.43 \\
+        Qwen3 Coder+ & 20 & 20 & 9 & 0.45 & 0.35 \\
+        Gemini 3 Pro & 20 & 20 & 8 & 0.40 & 0.41 \\
+        GPT-5.2 Codex & 20 & 20 & 8 & 0.40 & 0.21 \\
+        GPT-4o Mini & 20 & 20 & 3 & 0.15 & 0.40 \\
+        Llama 3.1 405B & 20 & 20 & 0 & 0.00 & 0.00 \\
+        Mistral Small 3.1 & 20 & 20 & 0 & 0.00 & 0.00 \\
+        \midrule
+        \textbf{Total} & --- & --- & \textbf{75} & --- & --- \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsection{Curl Endpoint Tester}
+
+The Curl Endpoint Tester systematically validates expected API endpoints, HTTP methods, and response schemas. Table~\ref{tab:tool_curlendpoint} includes the endpoint pass rate---the proportion of tested endpoints that returned expected responses.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Curl Endpoint Tester: API Endpoint Validation Results by Model}
+    \label{tab:tool_curlendpoint}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Endpoints} & \textbf{Passed} & \textbf{Failed} & \textbf{Pass\%} & \textbf{F/kLOC} \\
+        \midrule
+        GPT-5.2 Codex & 20 & 12 & 84 & 12 & 72 & 14.3 & 1.85 \\
+        Gemini 3 Pro & 20 & 9 & 63 & 8 & 55 & 12.7 & 2.79 \\
+        Gemini 3 Flash & 20 & 7 & 49 & 7 & 42 & 14.3 & 1.90 \\
+        Llama 3.1 405B & 20 & 7 & 49 & 0 & 49 & 0.0 & 6.73 \\
+        Claude 4.5 Sonnet & 20 & 6 & 42 & 5 & 37 & 11.9 & 1.07 \\
+        Mistral Small 3.1 & 20 & 6 & 42 & 0 & 42 & 0.0 & 2.68 \\
+        Qwen3 Coder+ & 20 & 6 & 42 & 4 & 38 & 9.5 & 1.46 \\
+        GLM-4.7 & 20 & 6 & 42 & 3 & 39 & 7.1 & 1.66 \\
+        DeepSeek R1 & 20 & 5 & 35 & 3 & 32 & 8.6 & 0.92 \\
+        GPT-4o Mini & 20 & 4 & 28 & 1 & 27 & 3.6 & 3.64 \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+%=============================================================================
+\section{Performance Testing Results}
+\label{sec:performance_results}
+%=============================================================================
+
+Performance testing employed four tools measuring throughput and latency under load. These tools report performance metrics (requests per second, response time) rather than traditional ``findings.'' Coverage corresponds to container deployment success---models with 0\% deployment rates received no performance testing.
+
+\subsection{Apache Bench (ab)}
+
+Apache Bench (ab) is an HTTP benchmarking tool measuring request throughput and response latency under concurrent load.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Apache Bench (ab): Performance Metrics by Model}
+    \label{tab:tool_ab}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Avg RPS} & \textbf{Avg RT (ms)} & \textbf{Errors} \\
+        \midrule
+        Qwen3 Coder+ & 13 & 13 & 388.4 & 2.58 & 0 \\
+        GPT-5.2 Codex & 20 & 20 & 383.6 & 2.61 & 0 \\
+        DeepSeek R1 & 14 & 14 & 382.4 & 2.62 & 0 \\
+        GPT-4o Mini & 4 & 4 & 382.1 & 2.62 & 0 \\
+        Claude 4.5 Sonnet & 17 & 17 & 380.7 & 2.63 & 0 \\
+        Gemini 3 Pro & 16 & 16 & 361.8 & 3.08 & 0 \\
+        GLM-4.7 & 13 & 13 & 331.9 & 4.12 & 0 \\
+        Gemini 3 Flash & 20 & 20 & 330.6 & 3.85 & 0 \\
+        Llama 3.1 405B & 0 & 0 & --- & --- & 0 \\
+        Mistral Small 3.1 & 0 & 0 & --- & --- & 0 \\
+        \midrule
+        \textbf{Aggregate} & \textbf{117} & --- & \textbf{365.7} & \textbf{3.05} & \textbf{0} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsection{Locust}
+
+Locust is a Python-based load testing framework executing user behavior scenarios with configurable concurrency.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Locust: Performance Metrics by Model}
+    \label{tab:tool_locust}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Avg RPS} & \textbf{Avg RT (ms)} & \textbf{Errors} \\
+        \midrule
+        GPT-4o Mini & 4 & 4 & 6.2 & 3.00 & 0 \\
+        GPT-5.2 Codex & 20 & 20 & 6.2 & 3.00 & 0 \\
+        Gemini 3 Pro & 16 & 16 & 6.1 & 3.06 & 0 \\
+        GLM-4.7 & 13 & 13 & 6.0 & 3.00 & 0 \\
+        Claude 4.5 Sonnet & 17 & 17 & 6.0 & 3.29 & 0 \\
+        DeepSeek R1 & 14 & 14 & 5.9 & 3.14 & 0 \\
+        Qwen3 Coder+ & 13 & 13 & 5.7 & 3.08 & 0 \\
+        Gemini 3 Flash & 20 & 20 & 5.6 & 107.75 & 0 \\
+        Llama 3.1 405B & 0 & 0 & --- & --- & 0 \\
+        Mistral Small 3.1 & 0 & 0 & --- & --- & 0 \\
+        \midrule
+        \textbf{Aggregate} & \textbf{117} & --- & \textbf{5.9} & \textbf{20.98} & \textbf{0} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsection{Artillery}
+
+Artillery is a modern load testing toolkit running scenario-based performance tests with detailed latency reporting.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Artillery: Performance Metrics by Model}
+    \label{tab:tool_artillery}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Avg RPS} & \textbf{Avg RT (ms)} & \textbf{Errors} \\
+        \midrule
+        Claude 4.5 Sonnet & 17 & 17 & 5.0 & --- & 0 \\
+        Gemini 3 Flash & 20 & 20 & 5.0 & --- & 0 \\
+        GPT-4o Mini & 4 & 4 & 5.0 & --- & 0 \\
+        GPT-5.2 Codex & 20 & 20 & 5.0 & --- & 0 \\
+        Gemini 3 Pro & 16 & 16 & 4.9 & --- & 0 \\
+        Qwen3 Coder+ & 13 & 13 & 4.8 & --- & 0 \\
+        GLM-4.7 & 13 & 13 & 4.8 & --- & 0 \\
+        DeepSeek R1 & 14 & 14 & 4.7 & --- & 0 \\
+        Llama 3.1 405B & 0 & 0 & --- & --- & 0 \\
+        Mistral Small 3.1 & 0 & 0 & --- & --- & 0 \\
+        \midrule
+        \textbf{Aggregate} & \textbf{117} & --- & \textbf{4.9} & \textbf{0.00} & \textbf{0} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsection{aiohttp}
+
+aiohttp is an asynchronous HTTP client measuring response characteristics and connection handling under async load.
+
+\begin{table}[htbp]
+    \centering
+    \caption{aiohttp: Performance Metrics by Model}
+    \label{tab:tool_aiohttp}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Avg RPS} & \textbf{Avg RT (ms)} & \textbf{Errors} \\
+        \midrule
+        Claude 4.5 Sonnet & 20 & 20 & --- & 3.13 & 60 \\
+        DeepSeek R1 & 20 & 20 & --- & 3.26 & 120 \\
+        Gemini 3 Flash & 20 & 20 & --- & 4.84 & 0 \\
+        Gemini 3 Pro & 20 & 20 & --- & 5.09 & 80 \\
+        Llama 3.1 405B & 20 & 20 & --- & --- & 400 \\
+        Mistral Small 3.1 & 20 & 20 & --- & --- & 400 \\
+        GPT-4o Mini & 20 & 20 & --- & 2.86 & 320 \\
+        GPT-5.2 Codex & 20 & 20 & --- & 3.09 & 0 \\
+        Qwen3 Coder+ & 20 & 20 & --- & 3.07 & 140 \\
+        GLM-4.7 & 20 & 20 & --- & 4.69 & 140 \\
+        \midrule
+        \textbf{Aggregate} & \textbf{200} & --- & \textbf{0.0} & \textbf{3.86} & \textbf{1660} \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+%=============================================================================
+\section{AI-Based Analysis Results}
+\label{sec:ai_results}
+%=============================================================================
+
+AI-based analysis employed two tools using large language model evaluation: a requirements scanner assessing functional compliance, and a code quality analyzer grading code structure and maintainability. These tools produce structured assessments (compliance percentages, letter grades) rather than granular issue counts.
+
+\subsection{Requirements Scanner}
+
+The Requirements Scanner is an AI-based tool evaluating whether generated code implements the functional requirements specified in the template. It reports a compliance percentage based on requirements met versus total requirements.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Requirements Scanner: Compliance Results by Model}
+    \label{tab:tool_reqscanner}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Avg Compl.\%} & \textbf{Reqs Met} & \textbf{Reqs Total} \\
+        \midrule
+        GPT-5.2 Codex & 20 & 20 & 75.7 & 12.3 & 14.8 \\
+        Gemini 3 Flash & 20 & 20 & 74.8 & 13.0 & 14.8 \\
+        DeepSeek R1 & 20 & 20 & 74.6 & 13.1 & 14.8 \\
+        Claude 4.5 Sonnet & 20 & 20 & 73.5 & 12.5 & 14.8 \\
+        GLM-4.7 & 20 & 20 & 68.3 & 12.6 & 14.8 \\
+        Qwen3 Coder+ & 20 & 20 & 63.7 & 11.8 & 14.8 \\
+        Mistral Small 3.1 & 20 & 20 & 63.6 & 13.4 & 14.8 \\
+        Gemini 3 Pro & 20 & 20 & 57.9 & 10.5 & 14.8 \\
+        GPT-4o Mini & 20 & 20 & 56.6 & 11.2 & 14.8 \\
+        Llama 3.1 405B & 20 & 20 & 50.9 & 10.7 & 14.8 \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+\subsection{Code Quality Analyzer}
+
+The Code Quality Analyzer is an AI-based code review tool assessing code structure, naming conventions, error handling, and maintainability patterns. It assigns a letter grade (A--F) and a numerical score (0--100) per application.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Code Quality Analyzer: AI Review Results by Model}
+    \label{tab:tool_codequalanalyzer}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Avg Score} & \textbf{Metrics Pass} & \textbf{Grade Dist.} \\
+        \midrule
+        GPT-5.2 Codex & 20 & 20 & 76.2 & 8/8 & B:3, C:16, F:1 \\
+        Claude 4.5 Sonnet & 20 & 20 & 75.9 & 7/8 & B:1, C:19 \\
+        GLM-4.7 & 20 & 20 & 75.0 & 7/8 & B:1, C:19 \\
+        Gemini 3 Flash & 20 & 20 & 72.6 & 6/8 & C:16, D:4 \\
+        DeepSeek R1 & 20 & 20 & 70.5 & 6/8 & C:15, D:5 \\
+        Qwen3 Coder+ & 20 & 20 & 68.6 & 6/8 & C:7, D:13 \\
+        Gemini 3 Pro & 20 & 20 & 61.0 & 6/8 & C:16, F:4 \\
+        Mistral Small 3.1 & 20 & 20 & 58.2 & 4/8 & D:15, F:5 \\
+        GPT-4o Mini & 20 & 20 & 56.1 & 4/8 & D:10, F:10 \\
+        Llama 3.1 405B & 20 & 20 & 48.9 & 2/8 & F:20 \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+%=============================================================================
+\section{Tool Findings Heatmap}
+\label{sec:heatmap}
+%=============================================================================
+
+Table~\ref{tab:heatmap} presents a condensed cross-reference of the tools that produced nonzero findings. The five largest contributors to total findings were ruff (9{,}713), eslint (8{,}804), pylint (7{,}200), mypy (4{,}662), zap (2{,}853).
+
+\begin{table}[htbp]
+    \centering
+    \caption{Tool $\times$ Model Findings Heatmap (All Models: 20 Apps Each)}
+    \label{tab:heatmap}
+    \footnotesize
+    \setlength{\tabcolsep}{2.5pt}
+    \renewcommand{\arraystretch}{1.05}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{@{} l r r r r r r r r r r @{}}
+        \toprule
+        \textbf{Tool} & \rotatebox{70}{\textbf{Claude 4.5 Sonnet}} & \rotatebox{70}{\textbf{DeepSeek R1}} & \rotatebox{70}{\textbf{Gemini 3 Flash}} & \rotatebox{70}{\textbf{Gemini 3 Pro}} & \rotatebox{70}{\textbf{Llama 3.1 405B}} & \rotatebox{70}{\textbf{Mistral Small 3.1}} & \rotatebox{70}{\textbf{GPT-4o Mini}} & \rotatebox{70}{\textbf{GPT-5.2 Codex}} & \rotatebox{70}{\textbf{Qwen3 Coder+}} & \rotatebox{70}{\textbf{GLM-4.7}} \\
+        \midrule
+        bandit & 78 & 89 & 49 & 67 & 66 & 88 & 27 & 90 & 76 & 134 \\
+        semgrep & 180 & 175 & 167 & 126 & 133 & 144 & 98 & 175 & 111 & 112 \\
+        pylint & 2{,}153 & 827 & 701 & 774 & 111 & 209 & 191 & 656 & 814 & 764 \\
+        ruff & 2{,}574 & 1{,}068 & 907 & 1{,}010 & 194 & 399 & 279 & 474 & 1{,}440 & 1{,}368 \\
+        mypy & 760 & 620 & 509 & 419 & 180 & 372 & 194 & 952 & 261 & 395 \\
+        vulture & 308 & 267 & 273 & 255 & 173 & 187 & 186 & 407 & 162 & 241 \\
+        radon & 4 & 0 & 0 & 0 & 0 & 0 & 0 & 1 & 4 & 0 \\
+        safety & 180 & 180 & 180 & 180 & 180 & 180 & 180 & 180 & 180 & 180 \\
+        pip-audit & 170 & 180 & 190 & 160 & 90 & 120 & 110 & 160 & 140 & 150 \\
+        eslint & 1{,}001 & 1{,}064 & 919 & 772 & 653 & 1{,}182 & 475 & 1{,}030 & 923 & 785 \\
+        npm-audit & 40 & 40 & 40 & 40 & 38 & 36 & 38 & 36 & 40 & 36 \\
+        zap & 415 & 306 & 484 & 380 & 20 & 20 & 112 & 472 & 325 & 319 \\
+        curl & 13 & 11 & 13 & 8 & 0 & 0 & 3 & 8 & 9 & 10 \\
+        curl-endpoint-tester & 37 & 32 & 42 & 55 & 49 & 42 & 27 & 72 & 38 & 39 \\
+        \bottomrule
+    \end{tabular}%
+    }
+    \source{Own elaboration}
+\end{table}
+
+Safety, pip-audit, and npm-audit exhibited near-uniform distributions across models, confirming that their findings originate from shared scaffolding dependencies rather than model-generated code. Ruff, pylint, and eslint showed the widest inter-model variation, making them the most discriminating tools for code quality comparison.
+
+%=============================================================================
+\section{Operational Research: Model Rankings}
+\label{sec:model_rankings}
+%=============================================================================
+
+To provide an objective multi-criteria evaluation, two Multi-Criteria Decision Making (MCDM) methods were applied: TOPSIS (Technique for Order of Preference by Similarity to Ideal Solution) and the Weighted Sum Model (WSM). Both methods prioritize deployment success and requirements compliance as the primary quality indicators.
+
+\subsection{TOPSIS Analysis}
+
+TOPSIS evaluates models against six criteria:
+
+\begin{itemize}
+    \item \textbf{Deploy\%} (25\%, benefit): deployment success rate---higher indicates more reliably deployable code
+    \item \textbf{Compliance\%} (25\%, benefit): requirements compliance---higher indicates better functional coverage
+    \item \textbf{Quality} (15\%, benefit): AI-assessed code quality score---higher indicates better code
+    \item \textbf{LOC/App} (10\%, benefit): code output volume---higher indicates more complete implementations
+    \item \textbf{D/kLOC} (15\%, cost): defect density---lower is better
+    \item \textbf{Out \$/Mtok} (10\%, cost): output pricing---lower is more cost-effective
+\end{itemize}
+
+\begin{table}[htbp]
+    \centering
+    \caption{TOPSIS Multi-Criteria Decision Analysis (Higher Score = Better)}
+    \label{tab:topsis}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Deploy\%} & \textbf{Compl.\%} & \textbf{Quality} & \textbf{LOC/App} & \textbf{D/kLOC} & \textbf{\$/Mtok} & \textbf{Score} & \textbf{Rank} \\
+        \midrule
+        Gemini 3 Flash & 100 & 74.8 & 72.6 & 1{,}104 & 92.5 & 3.00 & 0.8029 & 1 \\
+        DeepSeek R1 & 70 & 74.6 & 70.5 & 1{,}749 & 68.5 & 1.75 & 0.7518 & 2 \\
+        GPT-5.2 Codex & 100 & 75.7 & 76.2 & 1{,}945 & 45.5 & 14.00 & 0.7068 & 3 \\
+        GLM-4.7 & 65 & 68.3 & 75.0 & 1{,}176 & 102.0 & 1.50 & 0.6556 & 4 \\
+        Qwen3 Coder+ & 65 & 63.7 & 68.6 & 1{,}300 & 98.1 & 5.00 & 0.6255 & 5 \\
+        Claude 4.5 Sonnet & 85 & 73.5 & 75.9 & 1{,}735 & 110.4 & 15.00 & 0.6128 & 6 \\
+        Gemini 3 Pro & 80 & 57.9 & 61.0 & 986 & 100.2 & 12.00 & 0.5885 & 7 \\
+        GPT-4o Mini & 20 & 56.6 & 56.1 & 370 & 118.6 & 0.60 & 0.3696 & 8 \\
+        Mistral Small 3.1 & 0 & 63.6 & 58.2 & 784 & 115.7 & 0.11 & 0.3405 & 9 \\
+        Llama 3.1 405B & 0 & 50.9 & 48.9 & 364 & 143.6 & 4.00 & 0.2461 & 10 \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+Gemini 3 Flash ranked first (score 0.8029), driven by its 100\% deployment rate combined with high compliance (74.8\%) and competitive pricing. Models with 0\% deployment (Mistral Small 3.1 and Llama 3.1 405B) ranked last regardless of other metrics, confirming the importance of deployment success as a quality indicator.
+
+\subsection{Weighted Sum Model}
+
+The WSM provides an alternative ranking using min-max normalization and linear weighting: Deploy\% (30\%), Compliance\% (30\%), Quality (20\%), and D/kLOC (20\%).
+
+\begin{table}[htbp]
+    \centering
+    \caption{Weighted Sum Model Ranking (Higher Score = Better)}
+    \label{tab:wsm}
+    \small
+    \begin{tabular}{@{} l r r r r r r @{}}
+        \toprule
+        \textbf{Model} & \textbf{Deploy\%} & \textbf{Compl.\%} & \textbf{Quality} & \textbf{D/kLOC} & \textbf{Score} & \textbf{Rank} \\
+        \midrule
+        GPT-5.2 Codex & 100 & 75.7 & 76.2 & 45.5 & 1.0000 & 1 \\
+        Gemini 3 Flash & 100 & 74.8 & 72.6 & 92.5 & 0.8669 & 2 \\
+        DeepSeek R1 & 70 & 74.6 & 70.5 & 68.5 & 0.8080 & 3 \\
+        Claude 4.5 Sonnet & 85 & 73.5 & 75.9 & 110.4 & 0.7938 & 4 \\
+        GLM-4.7 & 65 & 68.3 & 75.0 & 102.0 & 0.6814 & 5 \\
+        Qwen3 Coder+ & 65 & 63.7 & 68.6 & 98.1 & 0.5870 & 6 \\
+        Gemini 3 Pro & 80 & 57.9 & 61.0 & 100.2 & 0.5018 & 7 \\
+        Mistral Small 3.1 & 0 & 63.6 & 58.2 & 115.7 & 0.2787 & 8 \\
+        GPT-4o Mini & 20 & 56.6 & 56.1 & 118.6 & 0.2326 & 9 \\
+        Llama 3.1 405B & 0 & 50.9 & 48.9 & 143.6 & 0.0000 & 10 \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+Both MCDM methods agree on the bottom tier: Mistral Small 3.1 and Llama 3.1 405B ranked last in both analyses due to 0\% deployment. GPT-5.2 Codex ranked first in WSM (score 1.0000) with perfect deployment and the highest quality score, while Gemini 3 Flash ranked second. The methods diverge slightly in mid-tier ordering, reflecting the different criteria weighting: TOPSIS includes output pricing and LOC/App as additional factors.
+
+\subsection{Correlation Analysis}
+
+Spearman rank correlation was computed between model parameters and study outcomes (Table~\ref{tab:correlations}).
+
+\begin{table}[htbp]
+    \centering
+    \caption{Spearman Rank Correlations Between Model Parameters and Study Outcomes ($n = 10$)}
+    \label{tab:correlations}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{@{} l r r r r r r @{}}
+        \toprule
+        \textbf{Parameter} & \textbf{Deploy\%} & \textbf{Total LOC} & \textbf{LOC/App} & \textbf{D/kLOC} & \textbf{Compl.\%} & \textbf{Quality} \\
+        \midrule
+        Context (k) & 0.84 & 0.41 & 0.41 & $-$0.52 & 0.59 & 0.64 \\
+        Max Out (k) & 0.29 & 0.45 & 0.45 & $-$0.48 & 0.54 & 0.42 \\
+        Out \$/Mtok & 0.64 & 0.49 & 0.49 & $-$0.35 & 0.31 & 0.49 \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+The strongest correlation is between Context (k) and Deploy\% ($\rho = 0.84$): models with larger context windows showed higher deployment success rates. This suggests that larger context capacity allows models to maintain consistency across the full-stack generation process, producing more deployable applications.
+
+%=============================================================================
+\section{Reproducibility Analysis}
+\label{sec:reproducibility}
+%=============================================================================
+
+Claude 4.5 Sonnet generated 50 applications---20 unique templates plus 30 additional instances across 10 templates (4 runs each). This section uses all 50 applications to analyze output variability for identical prompts. The main study results (Sections~\ref{sec:data_overview}--\ref{sec:model_rankings}) use only the first 20 applications to ensure consistent comparison with other models.
+
+\textit{Note:} Stylelint and HTML-validator consistently produced zero findings across all models and were excluded from the main results tables. They are retained in the reproducibility analysis below to confirm their consistency.
+
+\subsection{Coefficient of Variation by Tool}
+
+The coefficient of variation (CV = $\sigma / \mu \times 100\%$) measures finding consistency across repeated generations. Table~\ref{tab:reproducibility} presents CV statistics across the 10 multi-instance templates.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Reproducibility: Coefficient of Variation by Tool Across Claude 4.5 Sonnet Repeated Generations (Tpl.\ = Templates with $>$ 1 Run; Stability: High $<$ 5\%, Medium 5--15\%, Low $>$ 15\%)}
+    \label{tab:reproducibility}
+    \small
+    \begin{tabular}{@{} l r r r r l @{}}
+        \toprule
+        \textbf{Tool} & \textbf{Mean CV\%} & \textbf{Min CV\%} & \textbf{Max CV\%} & \textbf{Tpl.} & \textbf{Stability} \\
+        \midrule
+        safety & 0.0 & 0.0 & 0.0 & 10 & High \\
+        pip-audit & 0.0 & 0.0 & 0.0 & 10 & High \\
+        detect-secrets & 0.0 & 0.0 & 0.0 & 10 & High \\
+        npm-audit & 0.0 & 0.0 & 0.0 & 10 & High \\
+        stylelint & 0.0 & 0.0 & 0.0 & 10 & High \\
+        html-validator & 0.0 & 0.0 & 0.0 & 10 & High \\
+        requirements-scanner & 0.0 & 0.0 & 0.0 & 10 & High \\
+        code-quality-analyzer & 0.0 & 0.0 & 0.0 & 10 & High \\
+        structure & 0.0 & 0.0 & 0.0 & 10 & High \\
+        semgrep & 3.3 & 0.0 & 15.2 & 10 & High \\
+        zap & 4.5 & 0.0 & 25.9 & 10 & High \\
+        mypy & 7.5 & 2.2 & 25.3 & 10 & Medium \\
+        vulture & 9.4 & 4.3 & 15.1 & 10 & Medium \\
+        ruff & 9.6 & 3.6 & 15.8 & 10 & Medium \\
+        eslint & 9.6 & 4.2 & 14.0 & 10 & Medium \\
+        pylint & 10.3 & 3.3 & 20.3 & 10 & Medium \\
+        radon & 26.7 & 0.0 & 200.0 & 10 & Low \\
+        bandit & 32.5 & 0.0 & 68.0 & 10 & Low \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+Tools analyzing scaffolding dependencies (safety, pip-audit, npm-audit) exhibited perfect reproducibility (CV = 0\%), confirming that their findings originate from the immutable scaffolding rather than generated code. Semgrep and ZAP showed high stability (CV $<$ 5\%), while Bandit exhibited the lowest stability (CV = 32.5\%), suggesting that its pattern-matching rules are sensitive to minor code variations produced by stochastic LLM generation.
+
+\subsection{First 20 vs.\ All 50 Applications}
+
+Table~\ref{tab:claude_20vs50} compares the first 20 applications (one per template) against all 50 for tools with nonzero findings.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Claude 4.5 Sonnet: First 20 vs.\ All 50 Applications (Ratio = Avg(50)/Avg(20))}
+    \label{tab:claude_20vs50}
+    \small
+    \begin{tabular}{@{} l r r r r r @{}}
+        \toprule
+        \textbf{Tool} & \textbf{First 20} & \textbf{All 50} & \textbf{Avg (20)} & \textbf{Avg (50)} & \textbf{Ratio} \\
+        \midrule
+        bandit & 78 & 238 & 3.9 & 4.8 & 1.23 \\
+        curl & 13 & 32 & 0.7 & 0.6 & 0.86 \\
+        curl-endpoint-tester & 37 & 98 & 1.9 & 2.0 & 1.05 \\
+        eslint & 1{,}001 & 2{,}541 & 50.0 & 50.8 & 1.02 \\
+        mypy & 760 & 1{,}749 & 38.0 & 35.0 & 0.92 \\
+        npm-audit & 40 & 96 & 2.0 & 1.9 & 0.95 \\
+        pip-audit & 170 & 450 & 8.5 & 9.0 & 1.06 \\
+        pylint & 2{,}153 & 5{,}202 & 107.7 & 104.0 & 0.97 \\
+        radon & 4 & 8 & 0.2 & 0.2 & 1.00 \\
+        ruff & 2{,}574 & 6{,}439 & 128.7 & 128.8 & 1.00 \\
+        safety & 180 & 450 & 9.0 & 9.0 & 1.00 \\
+        semgrep & 180 & 449 & 9.0 & 9.0 & 1.00 \\
+        vulture & 308 & 797 & 15.4 & 15.9 & 1.03 \\
+        zap & 413 & 1{,}101 & 20.6 & 22.0 & 1.07 \\
+        \bottomrule
+    \end{tabular}
+    \source{Own elaboration}
+\end{table}
+
+The ratio of Avg/App(50) to Avg/App(20) remained within 0.80--1.23 for all tools with nonzero findings, confirming that the additional 30 applications did not introduce systematic bias and that 20 applications per model provides a representative sample.
