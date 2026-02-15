@@ -1723,6 +1723,36 @@ class ReportService:
                     tbm['findings'] += findings_count
                     tbm['duration'] += duration
                     
+                    # Enrich per-model data with tool-specific metrics
+                    metrics = t_data.get('metrics', {})
+                    if metrics and isinstance(metrics, dict):
+                        if 'metrics_list' not in tbm:
+                            tbm['metrics_list'] = []
+                        tbm['metrics_list'].append(metrics)
+                    
+                    # Capture endpoint test data for curl-endpoint-tester
+                    ep_metrics = t_data.get('endpoint_metrics', {})
+                    if ep_metrics and isinstance(ep_metrics, dict):
+                        if 'endpoint_data' not in tbm:
+                            tbm['endpoint_data'] = {'total': 0, 'passed': 0, 'failed': 0}
+                        tbm['endpoint_data']['total'] += ep_metrics.get('endpoints_total', 0)
+                        tbm['endpoint_data']['passed'] += ep_metrics.get('endpoints_passed', 0)
+                        tbm['endpoint_data']['failed'] += ep_metrics.get('endpoints_failed', 0)
+                    
+                    # Capture per-app severity breakdown (for ZAP per-model)
+                    sev_bd_data = t_data.get('severity_breakdown', {})
+                    if sev_bd_data and isinstance(sev_bd_data, dict):
+                        if 'severity' not in tbm:
+                            tbm['severity'] = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
+                        for sk, sv in sev_bd_data.items():
+                            sk_lower = sk.lower()
+                            if sk_lower in tbm['severity'] and isinstance(sv, (int, float)):
+                                tbm['severity'][sk_lower] += int(sv)
+                    
+                    # Store tool_type
+                    if 'tool_type' in t_data:
+                        tbm['tool_type'] = t_data['tool_type']
+                    
                     # Track by template
                     if template_slug:
                         if template_slug not in tools_by_template:
@@ -1737,6 +1767,51 @@ class ReportService:
                         if status in ('success', 'completed', 'no_issues'):
                             tbt['successful'] += 1
                         tbt['findings'] += findings_count
+        
+        # Aggregate per-model rich metrics from collected lists
+        for model_slug, model_tools in tools_by_model.items():
+            for t_name, tbm in model_tools.items():
+                ml = tbm.pop('metrics_list', [])
+                if not ml:
+                    continue
+                tool_type = tbm.get('tool_type', '')
+                if tool_type == 'performance':
+                    rps = [m.get('requests_per_second') for m in ml if m.get('requests_per_second') is not None]
+                    rt = [m.get('avg_response_time') for m in ml if m.get('avg_response_time') is not None]
+                    errs = [m.get('failed_requests', 0) or 0 for m in ml]
+                    p95 = [m.get('p95_response_time') for m in ml if m.get('p95_response_time') is not None]
+                    tbm['perf'] = {
+                        'avg_rps': round(sum(rps) / len(rps), 2) if rps else 0,
+                        'avg_rt': round(sum(rt) / len(rt), 2) if rt else 0,
+                        'total_errors': sum(int(e) for e in errs if e),
+                        'p95_rt': round(sum(p95) / len(p95), 2) if p95 else 0,
+                        'samples': len(ml),
+                    }
+                elif tool_type == 'ai':
+                    compliance = [m.get('compliance_percentage') for m in ml if m.get('compliance_percentage') is not None]
+                    scores = [m.get('aggregate_score') for m in ml if m.get('aggregate_score') is not None]
+                    grades = [m.get('quality_grade') for m in ml if m.get('quality_grade')]
+                    reqs_met = [m.get('requirements_met', 0) or 0 for m in ml]
+                    reqs_total = [m.get('total_requirements', 0) or 0 for m in ml]
+                    metrics_passed = [m.get('metrics_passed', 0) or 0 for m in ml]
+                    metrics_total = [m.get('total_metrics', 0) or 0 for m in ml]
+                    grade_dist: Dict[str, int] = {}
+                    for g in grades:
+                        grade_dist[g] = grade_dist.get(g, 0) + 1
+                    tbm['ai'] = {
+                        'avg_compliance': round(sum(compliance) / len(compliance), 1) if compliance else 0,
+                        'avg_score': round(sum(scores) / len(scores), 1) if scores else 0,
+                        'grade_dist': grade_dist,
+                        'avg_reqs_met': round(sum(reqs_met) / len(reqs_met), 1) if reqs_met else 0,
+                        'avg_reqs_total': round(sum(reqs_total) / len(reqs_total), 1) if reqs_total else 0,
+                        'avg_metrics_passed': round(sum(metrics_passed) / len(metrics_passed), 1) if metrics_passed else 0,
+                        'avg_metrics_total': round(sum(metrics_total) / len(metrics_total), 1) if metrics_total else 0,
+                        'samples': len(ml),
+                    }
+                # Compute endpoint pass rate
+                ep = tbm.get('endpoint_data')
+                if ep and ep.get('total', 0) > 0:
+                    ep['pass_rate'] = round(ep['passed'] / ep['total'] * 100, 1)
         
         report.update_progress(60)
         db.session.commit()
@@ -2861,18 +2936,39 @@ class ReportService:
             }
 
         # Dynamic tools — each gets custom per-model data
+        # Dynamic tools — per-model findings + endpoint/severity detail
         dynamic_tools_data: Dict[str, Dict[str, Any]] = {}
         for tn in _DYNAMIC_TOOLS:
             if tn not in tools_by_name:
                 continue
             agg = tools_by_name[tn]
+            per_model = _per_model_findings(tn)
+            # Enrich curl-endpoint-tester and zap with per-model detail
+            for row in per_model:
+                slug = row['model_slug']
+                mt = tools_by_model.get(slug, {}).get(tn, {})
+                if tn == 'curl-endpoint-tester':
+                    ep = mt.get('endpoint_data', {})
+                    ep_total = ep.get('total', 0)
+                    ep_passed = ep.get('passed', 0)
+                    ep_failed = ep.get('failed', 0)
+                    row['endpoints'] = ep_total
+                    row['ep_passed'] = ep_passed
+                    row['ep_failed'] = ep_failed
+                    row['ep_pass_rate'] = round(ep_passed / ep_total * 100, 1) if ep_total > 0 else 0
+                if tn == 'zap':
+                    sev = mt.get('severity', {})
+                    row['high'] = sev.get('high', 0)
+                    row['medium'] = sev.get('medium', 0)
+                    row['low'] = sev.get('low', 0)
+                    row['info'] = sev.get('info', 0)
             dynamic_tools_data[tn] = {
                 'tool_name': tn,
                 'display_name': agg.get('display_name', tn),
                 'total_findings': agg.get('total_findings', 0),
                 'total_runs': agg.get('executions', 0),
                 'severity': agg.get('findings_by_severity', {}),
-                'per_model': _per_model_findings(tn),
+                'per_model': per_model,
             }
 
         # Performance tools — per-model RPS/RT metrics
@@ -2886,11 +2982,16 @@ class ReportService:
             for slug in model_slugs:
                 mt = tools_by_model.get(slug, {}).get(tn, {})
                 runs = mt.get('executions', 0)
+                perf = mt.get('perf', {})
                 per_model_rows.append({
                     'model_slug': slug,
                     'short_name': self._SHORT_NAMES.get(slug, slug),
                     'runs': runs,
                     'ok': mt.get('successful', 0),
+                    'avg_rps': perf.get('avg_rps', 0),
+                    'avg_rt': perf.get('avg_rt', 0),
+                    'errors': perf.get('total_errors', 0),
+                    'p95_rt': perf.get('p95_rt', 0),
                 })
             perf_tools_data[tn] = {
                 'tool_name': tn,
@@ -2900,7 +3001,7 @@ class ReportService:
                 'per_model': per_model_rows,
             }
 
-        # AI tools — per-model scores/compliance
+        # AI tools — per-model scores/compliance/grades
         ai_tools_data: Dict[str, Dict[str, Any]] = {}
         for tn in _AI_TOOLS:
             if tn not in tools_by_name:
@@ -2910,12 +3011,22 @@ class ReportService:
             per_model_rows = []
             for slug in model_slugs:
                 mt = tools_by_model.get(slug, {}).get(tn, {})
-                per_model_rows.append({
+                ai = mt.get('ai', {})
+                row: Dict[str, Any] = {
                     'model_slug': slug,
                     'short_name': self._SHORT_NAMES.get(slug, slug),
                     'runs': mt.get('executions', 0),
                     'ok': mt.get('successful', 0),
-                })
+                }
+                if ai:
+                    row['avg_compliance'] = ai.get('avg_compliance', 0)
+                    row['avg_score'] = ai.get('avg_score', 0)
+                    row['grade_dist'] = ai.get('grade_dist', {})
+                    row['reqs_met'] = ai.get('avg_reqs_met', 0)
+                    row['reqs_total'] = ai.get('avg_reqs_total', 0)
+                    row['metrics_passed'] = ai.get('avg_metrics_passed', 0)
+                    row['metrics_total'] = ai.get('avg_metrics_total', 0)
+                per_model_rows.append(row)
             ai_tools_data[tn] = {
                 'tool_name': tn,
                 'display_name': agg.get('display_name', tn),
@@ -2946,6 +3057,15 @@ class ReportService:
         }
 
         # ── TOPSIS ──────────────────────────────────────────────────────────
+        # Build per-model compliance & quality scores from AI tools
+        model_compliance: Dict[str, float] = {}
+        model_quality: Dict[str, float] = {}
+        for slug in model_slugs:
+            rs_data = tools_by_model.get(slug, {}).get('requirements-scanner', {}).get('ai', {})
+            cqa_data = tools_by_model.get(slug, {}).get('code-quality-analyzer', {}).get('ai', {})
+            model_compliance[slug] = rs_data.get('avg_compliance', 0)
+            model_quality[slug] = cqa_data.get('avg_score', 0)
+
         topsis_rows = []
         for slug in model_slugs:
             mr = model_reports[slug]
@@ -2954,21 +3074,20 @@ class ReportService:
             apps_count = mr.get('apps_count', 0)
             loc_app = total_loc / apps_count if apps_count > 0 else 0
             total_f = mr.get('summary', {}).get('total_findings', 0) or 0
-            sev = mr.get('findings_breakdown', {})
             d_kloc = (total_f / total_loc * 1000) if total_loc > 0 else 0
-            high_pct = ((sev.get('high', 0) + sev.get('critical', 0)) / total_f * 100) if total_f > 0 else 0
-            i100 = (total_f / total_loc * 100) if total_loc > 0 else 0
             out_price = self._MODEL_PARAMS.get(slug, {}).get('out_price', 0)
+            compliance = model_compliance.get(slug, 0)
+            quality = model_quality.get(slug, 0)
             topsis_rows.append({
                 'model_slug': slug,
                 'short_name': self._SHORT_NAMES.get(slug, slug),
-                'dkloc': d_kloc, 'high_pct': high_pct,
-                'loc_app': loc_app, 'out_price': out_price, 'i100': i100,
+                'compliance': compliance, 'loc_app': loc_app,
+                'quality': quality, 'dkloc': d_kloc, 'out_price': out_price,
             })
 
-        criteria = ['dkloc', 'high_pct', 'loc_app', 'out_price', 'i100']
-        weights = [0.30, 0.15, 0.20, 0.20, 0.15]
-        is_benefit = [False, False, True, False, False]
+        criteria = ['compliance', 'loc_app', 'quality', 'dkloc', 'out_price']
+        weights = [0.25, 0.20, 0.20, 0.20, 0.15]
+        is_benefit = [True, True, True, False, False]
 
         # Vector normalization
         norms = {}
@@ -3002,9 +3121,9 @@ class ReportService:
         ]
 
         # ── WSM ─────────────────────────────────────────────────────────────
-        wsm_criteria = ['dkloc', 'loc_app', 'out_price', 'i100']
-        wsm_weights = [0.35, 0.25, 0.20, 0.20]
-        wsm_is_benefit = [False, True, False, False]
+        wsm_criteria = ['compliance', 'loc_app', 'quality', 'dkloc']
+        wsm_weights = [0.30, 0.25, 0.25, 0.20]
+        wsm_is_benefit = [True, True, True, False]
 
         mins = {c: min(r[c] for r in topsis_rows) for c in wsm_criteria}
         maxs = {c: max(r[c] for r in topsis_rows) for c in wsm_criteria}
@@ -3056,7 +3175,8 @@ class ReportService:
                       for r in topsis_rows]
         loc_apps = [r['loc_app'] for r in topsis_rows]
         dklocs_v = [r['dkloc'] for r in topsis_rows]
-        i100s_v = [r['i100'] for r in topsis_rows]
+        compliance_v = [r['compliance'] for r in topsis_rows]
+        quality_v = [r['quality'] for r in topsis_rows]
         ctx_ks = [self._MODEL_PARAMS.get(r['model_slug'], {}).get('ctx_k', 0) for r in topsis_rows]
         max_outs = [self._MODEL_PARAMS.get(r['model_slug'], {}).get('max_out_k', 0) for r in topsis_rows]
         out_prices_v = [r['out_price'] for r in topsis_rows]
@@ -3070,7 +3190,8 @@ class ReportService:
             ('Total LOC', total_locs),
             ('LOC/App', loc_apps),
             ('D/kLOC', dklocs_v),
-            ('I/100LOC', i100s_v),
+            ('Compl.%', compliance_v),
+            ('Quality', quality_v),
         ]
 
         correlations: List[Dict[str, Any]] = []
@@ -3401,7 +3522,8 @@ class ReportService:
                             if tool_name.startswith('_'):
                                 continue
                             if isinstance(tool_data, dict) and ('status' in tool_data or 'executed' in tool_data):
-                                tools[tool_name] = self._normalize_tool_data(tool_data, tool_name=tool_name)
+                                if tool_name not in tools:
+                                    tools[tool_name] = self._normalize_tool_data(tool_data, tool_name=tool_name)
                     elif 'status' in value or 'executed' in value:
                         # Direct tool entry
                         tools[key] = self._normalize_tool_data(value, tool_name=key)
@@ -3435,6 +3557,27 @@ class ReportService:
             for tool_name, tool_data in tool_results.items():
                 if isinstance(tool_data, dict) and tool_name not in tools:
                     tools[tool_name] = self._normalize_tool_data(tool_data, tool_name=tool_name)
+        
+        # 5. Enrich ZAP tool with severity from zap_security_scan list
+        if isinstance(results, dict):
+            zap_scan = results.get('zap_security_scan', [])
+            if isinstance(zap_scan, list) and zap_scan and 'zap' in tools:
+                sev_counts = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
+                for scan_entry in zap_scan:
+                    if not isinstance(scan_entry, dict):
+                        continue
+                    abr = scan_entry.get('alerts_by_risk', {})
+                    if isinstance(abr, dict):
+                        for risk_level, alerts in abr.items():
+                            if isinstance(alerts, list):
+                                key = risk_level.lower()
+                                if key == 'informational':
+                                    key = 'info'
+                                if key in sev_counts:
+                                    sev_counts[key] += len(alerts)
+                if any(v > 0 for v in sev_counts.values()):
+                    tools['zap']['severity_breakdown'] = sev_counts
+                    tools['zap']['total_issues'] = sum(sev_counts.values())
         
         return tools
     
@@ -3520,6 +3663,17 @@ class ReportService:
                     'total_requirements': summary.get('total_requirements'),
                     'metrics_passed': summary.get('metrics_passed'),
                     'total_metrics': summary.get('total_metrics'),
+                }
+        
+        # Curl-endpoint-tester: extract endpoint test pass/fail data
+        if tool_name == 'curl-endpoint-tester':
+            normalized['tool_type'] = 'dynamic'
+            et = tool_data.get('endpoint_tests', {})
+            if isinstance(et, dict) and et:
+                normalized['endpoint_metrics'] = {
+                    'endpoints_total': et.get('total', 0),
+                    'endpoints_passed': et.get('passed', 0),
+                    'endpoints_failed': et.get('failed', 0),
                 }
         
         return normalized

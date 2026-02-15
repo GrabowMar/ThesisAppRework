@@ -854,6 +854,40 @@
             <span class="text-muted small">{{ "{:,}".format(tool_data.total_findings) }} findings across {{ tool_data.total_runs }} runs</span>
           </h6>
           <div class="table-responsive">
+          {% if tool_name == 'curl-endpoint-tester' %}
+          <table class="table table-sm compact-table table-striped mb-1">
+            <thead><tr><th>Model</th><th class="text-end">Runs</th><th class="text-end">Endpoints</th><th class="text-end">Passed</th><th class="text-end">Failed</th><th class="text-end">Pass%</th></tr></thead>
+            <tbody>
+              {% for r in tool_data.per_model %}
+              <tr>
+                <td>{{ r.short_name }}</td>
+                <td class="text-end">{{ r.runs }}</td>
+                <td class="text-end">{{ r.get('endpoints', 0) }}</td>
+                <td class="text-end text-success">{{ r.get('ep_passed', 0) }}</td>
+                <td class="text-end text-danger">{{ r.get('ep_failed', 0) }}</td>
+                <td class="text-end"><span class="badge bg-{{ 'success' if r.get('ep_pass_rate', 0) >= 70 else ('warning' if r.get('ep_pass_rate', 0) >= 40 else 'danger') }}-lt">{{ "%.1f"|format(r.get('ep_pass_rate', 0)) }}%</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% elif tool_name == 'zap' %}
+          <table class="table table-sm compact-table table-striped mb-1">
+            <thead><tr><th>Model</th><th class="text-end">Runs</th><th class="text-end">Findings</th><th class="text-end text-danger">High</th><th class="text-end text-warning">Med</th><th class="text-end text-success">Low</th><th class="text-end text-info">Info</th></tr></thead>
+            <tbody>
+              {% for r in tool_data.per_model %}
+              <tr>
+                <td>{{ r.short_name }}</td>
+                <td class="text-end">{{ r.runs }}</td>
+                <td class="text-end">{{ "{:,}".format(r.findings) }}</td>
+                <td class="text-end text-danger">{{ r.get('high', 0) }}</td>
+                <td class="text-end text-warning">{{ r.get('medium', 0) }}</td>
+                <td class="text-end text-success">{{ r.get('low', 0) }}</td>
+                <td class="text-end text-info">{{ r.get('info', 0) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
           <table class="table table-sm compact-table table-striped mb-1">
             <thead><tr><th>Model</th><th class="text-end">Runs</th><th class="text-end">OK</th><th class="text-end">Findings</th><th class="text-end">Avg/Run</th><th class="text-end">F/kLOC</th></tr></thead>
             <tbody>
@@ -869,6 +903,7 @@
               {% endfor %}
             </tbody>
           </table>
+          {% endif %}
           </div>
           {% else %}
           <div class="text-muted fst-italic">No dynamic tool data.</div>
@@ -894,13 +929,16 @@
           </h6>
           <div class="table-responsive">
           <table class="table table-sm compact-table table-striped mb-1">
-            <thead><tr><th>Model</th><th class="text-end">Runs</th><th class="text-end">OK</th></tr></thead>
+            <thead><tr><th>Model</th><th class="text-end">Runs</th><th class="text-end">OK</th><th class="text-end">Avg RPS</th><th class="text-end">Avg RT (ms)</th><th class="text-end">Errors</th></tr></thead>
             <tbody>
               {% for r in tool_data.per_model %}
               <tr>
                 <td>{{ r.short_name }}</td>
                 <td class="text-end">{{ r.runs }}</td>
                 <td class="text-end">{{ r.ok }}</td>
+                <td class="text-end">{{ "%.1f"|format(r.get('avg_rps', 0)) }}</td>
+                <td class="text-end">{{ "%.2f"|format(r.get('avg_rt', 0)) }}</td>
+                <td class="text-end">{{ r.get('errors', 0) }}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -928,6 +966,41 @@
             </span>
           </h6>
           <div class="table-responsive">
+          {% if tool_name == 'requirements-scanner' %}
+          <table class="table table-sm compact-table table-striped mb-1">
+            <thead><tr><th>Model</th><th class="text-end">Runs</th><th class="text-end">Compl.%</th><th class="text-end">Reqs Met</th><th class="text-end">Reqs Total</th><th class="text-end">Func. Met</th></tr></thead>
+            <tbody>
+              {% for r in tool_data.per_model %}
+              <tr>
+                <td>{{ r.short_name }}</td>
+                <td class="text-end">{{ r.runs }}</td>
+                <td class="text-end"><span class="badge bg-{{ 'success' if r.get('avg_compliance', 0) >= 70 else ('warning' if r.get('avg_compliance', 0) >= 40 else 'danger') }}-lt">{{ "%.1f"|format(r.get('avg_compliance', 0)) }}%</span></td>
+                <td class="text-end">{{ "%.1f"|format(r.get('reqs_met', 0)) }}</td>
+                <td class="text-end">{{ "%.1f"|format(r.get('reqs_total', 0)) }}</td>
+                <td class="text-end">{{ "%.1f"|format(r.get('metrics_passed', 0)) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% elif tool_name == 'code-quality-analyzer' %}
+          <table class="table table-sm compact-table table-striped mb-1">
+            <thead><tr><th>Model</th><th class="text-end">Runs</th><th class="text-end">Score</th><th class="text-end">Grade</th><th class="text-end">Passed</th><th class="text-end">Total</th></tr></thead>
+            <tbody>
+              {% for r in tool_data.per_model %}
+              {% set gd = r.get('grade_dist', {}) %}
+              {% set top_grade = gd.keys()|list|first if gd else '—' %}
+              <tr>
+                <td>{{ r.short_name }}</td>
+                <td class="text-end">{{ r.runs }}</td>
+                <td class="text-end"><span class="badge bg-{{ 'success' if r.get('avg_score', 0) >= 70 else ('warning' if r.get('avg_score', 0) >= 50 else 'danger') }}-lt">{{ "%.1f"|format(r.get('avg_score', 0)) }}</span></td>
+                <td class="text-end">{% for g, c in gd.items() %}<span class="badge bg-secondary-lt me-1" style="font-size:0.65rem">{{ g }}×{{ c }}</span>{% endfor %}{% if not gd %}—{% endif %}</td>
+                <td class="text-end">{{ "%.1f"|format(r.get('metrics_passed', 0)) }}</td>
+                <td class="text-end">{{ "%.1f"|format(r.get('metrics_total', 0)) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
           <table class="table table-sm compact-table table-striped mb-1">
             <thead><tr><th>Model</th><th class="text-end">Runs</th><th class="text-end">OK</th></tr></thead>
             <tbody>
@@ -940,6 +1013,7 @@
               {% endfor %}
             </tbody>
           </table>
+          {% endif %}
           </div>
           {% else %}
           <div class="text-muted fst-italic">No AI tool data.</div>
@@ -992,19 +1066,20 @@
           {% set topsis = ta.get('topsis', []) %}
           {% if topsis %}
           <h6 class="mb-1">TOPSIS Multi-Criteria Decision Analysis <span class="text-muted small">(Higher Score = Better)</span></h6>
+          <p class="text-muted small mb-1">Criteria: Compliance% (↑ 0.25), LOC/App (↑ 0.20), Quality Score (↑ 0.20), D/kLOC (↓ 0.20), $/Mtok (↓ 0.15)</p>
           <div class="table-responsive">
           <table class="table table-sm compact-table table-striped mb-2">
-            <thead><tr><th class="text-center">#</th><th>Model</th><th class="text-end">D/kLOC</th><th class="text-end">High%</th><th class="text-end">LOC/App</th><th class="text-end">$/Mtok</th><th class="text-end">I/100</th><th class="text-end">Score</th></tr></thead>
+            <thead><tr><th class="text-center">#</th><th>Model</th><th class="text-end">Compl.%</th><th class="text-end">LOC/App</th><th class="text-end">Quality</th><th class="text-end">D/kLOC</th><th class="text-end">$/Mtok</th><th class="text-end">Score</th></tr></thead>
             <tbody>
               {% for r in topsis %}
-              <tr>
+              <tr class="{{ 'table-success' if loop.index <= 3 else '' }}">
                 <td class="text-center fw-bold">{{ r.rank }}</td>
                 <td>{{ r.short_name }}</td>
-                <td class="text-end">{{ "%.1f"|format(r.dkloc) }}</td>
-                <td class="text-end">{{ "%.1f"|format(r.high_pct) }}</td>
+                <td class="text-end">{{ "%.1f"|format(r.compliance) }}%</td>
                 <td class="text-end">{{ "{:,}".format(r.loc_app|int) }}</td>
-                <td class="text-end">{{ "%.2f"|format(r.out_price) }}</td>
-                <td class="text-end">{{ "%.2f"|format(r.i100) }}</td>
+                <td class="text-end">{{ "%.1f"|format(r.quality) }}</td>
+                <td class="text-end">{{ "%.1f"|format(r.dkloc) }}</td>
+                <td class="text-end">${{ "%.2f"|format(r.out_price) }}</td>
                 <td class="text-end fw-medium">{{ "%.4f"|format(r.score) }}</td>
               </tr>
               {% endfor %}
@@ -1017,18 +1092,19 @@
           {% set wsm = ta.get('wsm', []) %}
           {% if wsm %}
           <h6 class="mt-3 mb-1">Weighted Sum Model Ranking <span class="text-muted small">(Higher Score = Better)</span></h6>
+          <p class="text-muted small mb-1">Criteria: Compliance% (↑ 0.30), LOC/App (↑ 0.25), Quality Score (↑ 0.25), D/kLOC (↓ 0.20)</p>
           <div class="table-responsive">
           <table class="table table-sm compact-table table-striped mb-2">
-            <thead><tr><th class="text-center">#</th><th>Model</th><th class="text-end">D/kLOC</th><th class="text-end">LOC/App</th><th class="text-end">$/Mtok</th><th class="text-end">I/100</th><th class="text-end">Score</th></tr></thead>
+            <thead><tr><th class="text-center">#</th><th>Model</th><th class="text-end">Compl.%</th><th class="text-end">LOC/App</th><th class="text-end">Quality</th><th class="text-end">D/kLOC</th><th class="text-end">Score</th></tr></thead>
             <tbody>
               {% for r in wsm %}
-              <tr>
+              <tr class="{{ 'table-success' if loop.index <= 3 else '' }}">
                 <td class="text-center fw-bold">{{ r.rank }}</td>
                 <td>{{ r.short_name }}</td>
-                <td class="text-end">{{ "%.1f"|format(r.dkloc) }}</td>
+                <td class="text-end">{{ "%.1f"|format(r.compliance) }}%</td>
                 <td class="text-end">{{ "{:,}".format(r.loc_app|int) }}</td>
-                <td class="text-end">{{ "%.2f"|format(r.out_price) }}</td>
-                <td class="text-end">{{ "%.2f"|format(r.i100) }}</td>
+                <td class="text-end">{{ "%.1f"|format(r.quality) }}</td>
+                <td class="text-end">{{ "%.1f"|format(r.dkloc) }}</td>
                 <td class="text-end fw-medium">{{ "%.4f"|format(r.score) }}</td>
               </tr>
               {% endfor %}
