@@ -20,3 +20,10 @@
 - **Status**: Currently included but shows 0 findings for all models
 - **Reason**: LLM-generated CSS consistently passes default stylelint rules
 - **Decision**: Keep for now — may produce findings with stricter configs or different app templates
+
+### Smarter app number handling for reports
+- **Status**: Currently uses `max_app_number` config (default 20) to cap apps per model
+- **Problem**: Claude had 50 apps (first 20 study, apps 21-50 system tests). The cap is a blunt instrument — it filters by `app_number <= N` across all models, not per-model.
+- **Improvement**: Add per-model `study_app_range` metadata (e.g., `{'claude': [1,20], 'gpt-5.2': [1,20]}`) to distinguish study apps from system test apps. Could be stored in `generated_applications.metadata_json` or a separate config.
+- **Alternative**: Tag apps with `study_group` enum (study/test/debug) during generation, then filter by tag in reports.
+- **Files**: `src/app/services/report_service.py`, `src/app/models/core.py`

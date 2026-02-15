@@ -1,0 +1,179 @@
+{
+  "timestamp": "2026-02-12T19:47:28.496532",
+  "ground_truth_file": "scripts/calibration_ground_truth.json",
+  "apps_compared": 5,
+  "overall_metrics": {
+    "tp": 51,
+    "fp": 4,
+    "fn": 2,
+    "tn": 3,
+    "total": 60,
+    "unmatched": 1,
+    "precision": 0.9273,
+    "recall": 0.9623,
+    "f1": 0.9444,
+    "false_positive_rate": 0.5714,
+    "false_negative_rate": 0.0377,
+    "accuracy": 0.9
+  },
+  "template_metrics": {
+    "api_url_shortener": {
+      "tp": 9,
+      "fp": 0,
+      "fn": 2,
+      "tn": 1,
+      "total": 12,
+      "unmatched": 1,
+      "precision": 1.0,
+      "recall": 0.8182,
+      "f1": 0.9,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 0.1818,
+      "accuracy": 0.8333
+    },
+    "auth_user_login": {
+      "tp": 20,
+      "fp": 4,
+      "fn": 0,
+      "tn": 0,
+      "total": 24,
+      "unmatched": 0,
+      "precision": 0.8333,
+      "recall": 1.0,
+      "f1": 0.9091,
+      "false_positive_rate": 1.0,
+      "false_negative_rate": 0.0,
+      "accuracy": 0.8333
+    },
+    "collaboration_simple_poll": {
+      "tp": 11,
+      "fp": 0,
+      "fn": 0,
+      "tn": 1,
+      "total": 12,
+      "unmatched": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 0.0,
+      "accuracy": 1.0
+    },
+    "dataviz_sales_table": {
+      "tp": 11,
+      "fp": 0,
+      "fn": 0,
+      "tn": 1,
+      "total": 12,
+      "unmatched": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 0.0,
+      "accuracy": 1.0
+    }
+  },
+  "app_details": [
+    {
+      "model_slug": "anthropic_claude-4.5-sonnet-20250929",
+      "app_number": 1,
+      "template_slug": "api_url_shortener",
+      "status": "compared",
+      "metrics": {
+        "tp": 9,
+        "fp": 0,
+        "fn": 2,
+        "tn": 1,
+        "total": 12,
+        "unmatched": 1,
+        "precision": 1.0,
+        "recall": 0.8182,
+        "f1": 0.9,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.1818,
+        "accuracy": 0.8333
+      }
+    },
+    {
+      "model_slug": "anthropic_claude-4.5-sonnet-20250929",
+      "app_number": 3,
+      "template_slug": "auth_user_login",
+      "status": "compared",
+      "metrics": {
+        "tp": 10,
+        "fp": 2,
+        "fn": 0,
+        "tn": 0,
+        "total": 12,
+        "unmatched": 0,
+        "precision": 0.8333,
+        "recall": 1.0,
+        "f1": 0.9091,
+        "false_positive_rate": 1.0,
+        "false_negative_rate": 0.0,
+        "accuracy": 0.8333
+      }
+    },
+    {
+      "model_slug": "google_gemini-3-flash-preview-20251217",
+      "app_number": 5,
+      "template_slug": "collaboration_simple_poll",
+      "status": "compared",
+      "metrics": {
+        "tp": 11,
+        "fp": 0,
+        "fn": 0,
+        "tn": 1,
+        "total": 12,
+        "unmatched": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0,
+        "accuracy": 1.0
+      }
+    },
+    {
+      "model_slug": "deepseek_deepseek-r1-0528",
+      "app_number": 10,
+      "template_slug": "dataviz_sales_table",
+      "status": "compared",
+      "metrics": {
+        "tp": 11,
+        "fp": 0,
+        "fn": 0,
+        "tn": 1,
+        "total": 12,
+        "unmatched": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0,
+        "accuracy": 1.0
+      }
+    },
+    {
+      "model_slug": "openai_gpt-5.2-codex-20260114",
+      "app_number": 3,
+      "template_slug": "auth_user_login",
+      "status": "compared",
+      "metrics": {
+        "tp": 10,
+        "fp": 2,
+        "fn": 0,
+        "tn": 0,
+        "total": 12,
+        "unmatched": 0,
+        "precision": 0.8333,
+        "recall": 1.0,
+        "f1": 0.9091,
+        "false_positive_rate": 1.0,
+        "false_negative_rate": 0.0,
+        "accuracy": 0.8333
+      }
+    }
+  ]
+}

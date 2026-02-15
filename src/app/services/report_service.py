@@ -422,6 +422,10 @@ class ReportService:
         if date_range.get('end'):
             query = query.filter(AnalysisTask.completed_at <= date_range['end'])  # type: ignore[operator]
         
+        max_app_number = config.get('max_app_number')
+        if max_app_number:
+            query = query.filter(AnalysisTask.target_app_number <= max_app_number)
+        
         tasks = query.order_by(
             AnalysisTask.target_app_number,
             AnalysisTask.completed_at.desc()  # type: ignore[union-attr]
@@ -1541,6 +1545,10 @@ class ReportService:
         if filter_app:
             query = query.filter(AnalysisTask.target_app_number == filter_app)
         
+        max_app_number = config.get('max_app_number')
+        if max_app_number:
+            query = query.filter(AnalysisTask.target_app_number <= max_app_number)
+        
         tasks = query.order_by(AnalysisTask.completed_at.desc()).all()  # type: ignore[union-attr]
         
         report.update_progress(15)
@@ -1558,6 +1566,9 @@ class ReportService:
         
         # Track LOC per tool (approximate by app)
         tool_loc_tracking: Dict[str, Dict[str, int]] = {}  # tool -> app_key -> loc
+        
+        # Track deployment reachability per model
+        deploy_tracking: Dict[str, Dict[str, int]] = {}  # model -> {reachable, total}
         
         for task in tasks:
             result = self.unified_service.load_analysis_results(task.task_id)
@@ -1577,6 +1588,18 @@ class ReportService:
             models_seen.add(model_slug)
             if template_slug:
                 templates_seen.add(template_slug)
+            
+            # Track deployment reachability from dynamic-analyzer
+            if model_slug not in deploy_tracking:
+                deploy_tracking[model_slug] = {'reachable': 0, 'total': 0}
+            deploy_tracking[model_slug]['total'] += 1
+            dyn_svc = (result.tools or {}).get('dynamic-analyzer', {})
+            if isinstance(dyn_svc, dict):
+                dyn_payload = dyn_svc.get('payload', dyn_svc)
+                dyn_analysis = dyn_payload.get('analysis', {}) if isinstance(dyn_payload, dict) else {}
+                dyn_summary = dyn_analysis.get('summary', {}) if isinstance(dyn_analysis, dict) else {}
+                if isinstance(dyn_summary, dict) and dyn_summary.get('reachable_urls', 0) > 0:
+                    deploy_tracking[model_slug]['reachable'] += 1
             
             # Get LOC for this app (cached by app_key)
             app_loc = 0
@@ -2254,7 +2277,10 @@ class ReportService:
             'tool_finding_analytics': self._build_tool_finding_analytics(tools_list, tasks),
 
             # Sample findings
-            'findings': all_findings[:500]
+            'findings': all_findings[:500],
+
+            # Deployment reachability per model
+            'deploy_tracking': deploy_tracking,
         }
 
     def _build_tool_finding_analytics(
@@ -2563,11 +2589,17 @@ class ReportService:
         db.session.commit()
 
         filter_mode = config.get('filter_mode', 'all')
+        max_app_number = config.get('max_app_number', 20)
 
-        app_pairs = db.session.query(
+        app_query = db.session.query(
             GeneratedApplication.model_slug,
             GeneratedApplication.template_slug
-        ).all()
+        )
+        if max_app_number:
+            app_query = app_query.filter(
+                GeneratedApplication.app_number <= max_app_number
+            )
+        app_pairs = app_query.all()
         total_apps = len(app_pairs)
 
         models_set: set[str] = set()
@@ -2611,7 +2643,8 @@ class ReportService:
         for model_slug in model_slugs:
             try:
                 model_reports[model_slug] = self._generate_model_report(
-                    {'model_slug': model_slug, 'filter_mode': filter_mode},
+                    {'model_slug': model_slug, 'filter_mode': filter_mode,
+                     'max_app_number': max_app_number},
                     sub_report,  # type: ignore[arg-type]
                 )
             except Exception as exc:
@@ -2641,7 +2674,7 @@ class ReportService:
 
         try:
             tool_report = self._generate_tool_report(
-                {'filter_mode': filter_mode},
+                {'filter_mode': filter_mode, 'max_app_number': max_app_number},
                 sub_report,  # type: ignore[arg-type]
             )
         except Exception as exc:
@@ -2653,7 +2686,8 @@ class ReportService:
 
         try:
             generation_report = self._generate_generation_analytics(
-                {'days_back': None, 'filter_mode': filter_mode},
+                {'days_back': None, 'filter_mode': filter_mode,
+                 'max_app_number': max_app_number},
                 sub_report,  # type: ignore[arg-type]
             )
         except Exception as exc:
@@ -2672,7 +2706,7 @@ class ReportService:
             for key in findings_breakdown:
                 findings_breakdown[key] += sev.get(key, 0) or 0
 
-        model_rankings = self._build_comprehensive_rankings(model_reports)
+        model_rankings = self._build_comprehensive_rankings(model_reports, tool_report)
 
         # Compute thesis-level analytics (per-tool per-model, heatmap, TOPSIS, etc.)
         thesis_analytics = self._compute_thesis_analytics(model_reports, tool_report)
@@ -2707,8 +2741,13 @@ class ReportService:
             'subreport_errors': subreport_errors,
         }
 
-    def _build_comprehensive_rankings(self, model_reports: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _build_comprehensive_rankings(
+        self,
+        model_reports: Dict[str, Dict[str, Any]],
+        tool_report: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
         """Build model leaderboard for comprehensive reports."""
+        deploy_tracking = (tool_report or {}).get('deploy_tracking', {})
         rankings: List[Dict[str, Any]] = []
 
         for model_slug, model_data in model_reports.items():
@@ -2721,6 +2760,8 @@ class ReportService:
             info = severity.get('info', 0) or 0
             total_findings = summary.get('total_findings', 0) or 0
             apps_count = model_data.get('apps_count', summary.get('total_apps', 0))
+            dt = deploy_tracking.get(model_slug, {})
+            deploy_rate = (dt.get('reachable', 0) / dt['total'] * 100) if dt.get('total', 0) > 0 else 0
 
             severity_score = (critical * 100) + (high * 10) + (medium * 3) + low
             rankings.append({
@@ -2733,6 +2774,7 @@ class ReportService:
                 'low': low,
                 'info': info,
                 'severity_score': severity_score,
+                'deploy_rate': round(deploy_rate, 1),
             })
 
         rankings.sort(key=lambda row: (row['severity_score'], row['total_findings'], row['model_slug']))
@@ -2793,6 +2835,7 @@ class ReportService:
         model_slugs = sorted(model_reports.keys())
         tools_by_model = tool_report.get('by_model', {})
         tools_list = tool_report.get('tools', [])
+        deploy_tracking = tool_report.get('deploy_tracking', {})
         tools_by_name: Dict[str, Dict[str, Any]] = {
             t['tool_name']: t for t in tools_list
         }
@@ -2809,6 +2852,8 @@ class ReportService:
             total_findings = mr.get('summary', {}).get('total_findings', 0) or 0
             loc_per_app = total_loc / apps_count if apps_count else 0
             i_100_loc = (total_findings / total_loc * 100) if total_loc > 0 else 0
+            dt = deploy_tracking.get(slug, {})
+            deploy_rate = (dt.get('reachable', 0) / dt['total'] * 100) if dt.get('total', 0) > 0 else 0
 
             code_composition.append({
                 'model_slug': slug,
@@ -2819,6 +2864,9 @@ class ReportService:
                 'js_loc': js_loc,
                 'loc_per_app': round(loc_per_app),
                 'i_100_loc': round(i_100_loc, 2),
+                'deploy_rate': round(deploy_rate, 1),
+                'deploy_reachable': dt.get('reachable', 0),
+                'deploy_total': dt.get('total', 0),
             })
         code_composition.sort(key=lambda r: r['loc_per_app'], reverse=True)
 
@@ -3078,11 +3126,14 @@ class ReportService:
         # Build per-model compliance & quality scores from AI tools
         model_compliance: Dict[str, float] = {}
         model_quality: Dict[str, float] = {}
+        model_deploy: Dict[str, float] = {}
         for slug in model_slugs:
             rs_data = tools_by_model.get(slug, {}).get('requirements-scanner', {}).get('ai', {})
             cqa_data = tools_by_model.get(slug, {}).get('code-quality-analyzer', {}).get('ai', {})
             model_compliance[slug] = rs_data.get('avg_compliance', 0)
             model_quality[slug] = cqa_data.get('avg_score', 0)
+            dt = deploy_tracking.get(slug, {})
+            model_deploy[slug] = (dt.get('reachable', 0) / dt['total'] * 100) if dt.get('total', 0) > 0 else 0
 
         topsis_rows = []
         for slug in model_slugs:
@@ -3096,16 +3147,18 @@ class ReportService:
             out_price = self._MODEL_PARAMS.get(slug, {}).get('out_price', 0)
             compliance = model_compliance.get(slug, 0)
             quality = model_quality.get(slug, 0)
+            deploy_rate = model_deploy.get(slug, 0)
             topsis_rows.append({
                 'model_slug': slug,
                 'short_name': self._SHORT_NAMES.get(slug, slug),
+                'deploy_rate': deploy_rate,
                 'compliance': compliance, 'loc_app': loc_app,
                 'quality': quality, 'dkloc': d_kloc, 'out_price': out_price,
             })
 
-        criteria = ['compliance', 'loc_app', 'quality', 'dkloc', 'out_price']
-        weights = [0.25, 0.20, 0.20, 0.20, 0.15]
-        is_benefit = [True, True, True, False, False]
+        criteria = ['deploy_rate', 'compliance', 'quality', 'loc_app', 'dkloc', 'out_price']
+        weights = [0.25, 0.25, 0.15, 0.10, 0.15, 0.10]
+        is_benefit = [True, True, True, True, False, False]
 
         # Vector normalization
         norms = {}
@@ -3139,8 +3192,8 @@ class ReportService:
         ]
 
         # ── WSM ─────────────────────────────────────────────────────────────
-        wsm_criteria = ['compliance', 'loc_app', 'quality', 'dkloc']
-        wsm_weights = [0.30, 0.25, 0.25, 0.20]
+        wsm_criteria = ['deploy_rate', 'compliance', 'quality', 'dkloc']
+        wsm_weights = [0.30, 0.30, 0.20, 0.20]
         wsm_is_benefit = [True, True, True, False]
 
         mins = {c: min(r[c] for r in topsis_rows) for c in wsm_criteria}
@@ -3195,6 +3248,7 @@ class ReportService:
         dklocs_v = [r['dkloc'] for r in topsis_rows]
         compliance_v = [r['compliance'] for r in topsis_rows]
         quality_v = [r['quality'] for r in topsis_rows]
+        deploy_v = [r['deploy_rate'] for r in topsis_rows]
         ctx_ks = [self._MODEL_PARAMS.get(r['model_slug'], {}).get('ctx_k', 0) for r in topsis_rows]
         max_outs = [self._MODEL_PARAMS.get(r['model_slug'], {}).get('max_out_k', 0) for r in topsis_rows]
         out_prices_v = [r['out_price'] for r in topsis_rows]
@@ -3205,6 +3259,7 @@ class ReportService:
             ('Out $/Mtok', out_prices_v),
         ]
         outcomes_list = [
+            ('Deploy%', deploy_v),
             ('Total LOC', total_locs),
             ('LOC/App', loc_apps),
             ('D/kLOC', dklocs_v),

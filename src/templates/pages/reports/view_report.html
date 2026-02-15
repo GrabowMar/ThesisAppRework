@@ -730,13 +730,14 @@
         <div class="accordion-body p-2">
           {% if comp_rankings %}
           <table class="table table-sm compact-table table-striped table-hover mb-0">
-            <thead><tr><th class="text-center">#</th><th>Model</th><th class="text-center">Apps</th><th class="text-center">Findings</th><th class="text-center">C/H/M/L</th><th class="text-end">Score</th></tr></thead>
+            <thead><tr><th class="text-center">#</th><th>Model</th><th class="text-center">Apps</th><th class="text-center">Deploy%</th><th class="text-center">Findings</th><th class="text-center">C/H/M/L</th><th class="text-end">Score</th></tr></thead>
             <tbody>
               {% for row in comp_rankings %}
               <tr>
                 <td class="text-center fw-bold">{{ row.get('rank', loop.index) }}</td>
                 <td>{{ mn.get(row.get('model_slug',''), row.get('model_slug','')) }}</td>
                 <td class="text-center">{{ row.get('apps_count', 0) }}</td>
+                <td class="text-center{% if row.get('deploy_rate', 0) >= 80 %} text-success{% elif row.get('deploy_rate', 0) >= 50 %} text-warning{% elif row.get('deploy_rate', 0) > 0 %}" style="color:var(--tblr-orange){% else %} text-danger{% endif %}">{{ "%.0f"|format(row.get('deploy_rate', 0)) }}%</td>
                 <td class="text-center">{{ row.get('total_findings', 0) }}</td>
                 <td class="text-center small">{{ row.get('critical', 0) }}/{{ row.get('high', 0) }}/{{ row.get('medium', 0) }}/{{ row.get('low', 0) }}</td>
                 <td class="text-end fw-medium">{{ row.get('severity_score', 0) }}</td>
@@ -762,7 +763,7 @@
           <h6 class="mb-1">Code Composition by Model</h6>
           <div class="table-responsive">
           <table class="table table-sm compact-table table-striped mb-2">
-            <thead><tr><th>Model</th><th class="text-end">Apps</th><th class="text-end">Total LOC</th><th class="text-end">Backend (Py)</th><th class="text-end">Frontend (JS)</th><th class="text-end">LOC/App</th><th class="text-end">I/100LOC</th></tr></thead>
+            <thead><tr><th>Model</th><th class="text-end">Apps</th><th class="text-end">Total LOC</th><th class="text-end">Backend (Py)</th><th class="text-end">Frontend (JS)</th><th class="text-end">LOC/App</th><th class="text-end">Deploy%</th><th class="text-end">I/100LOC</th></tr></thead>
             <tbody>
               {% for r in cc %}
               <tr>
@@ -772,6 +773,7 @@
                 <td class="text-end">{{ "{:,}".format(r.python_loc) }}</td>
                 <td class="text-end">{{ "{:,}".format(r.js_loc) }}</td>
                 <td class="text-end">{{ "{:,}".format(r.loc_per_app) }}</td>
+                <td class="text-end{% if r.deploy_rate >= 80 %} text-success{% elif r.deploy_rate >= 50 %} text-warning{% elif r.deploy_rate > 0 %}" style="color:var(--tblr-orange){% else %} text-danger{% endif %}">{{ "%.0f"|format(r.deploy_rate) }}%</td>
                 <td class="text-end">{{ "%.2f"|format(r.i_100_loc) }}</td>
               </tr>
               {% endfor %}
@@ -1113,18 +1115,19 @@
           {% set topsis = ta.get('topsis', []) %}
           {% if topsis %}
           <h6 class="mb-1">TOPSIS Multi-Criteria Decision Analysis <span class="text-muted small">(Higher Score = Better)</span></h6>
-          <p class="text-muted small mb-1">Criteria: Compliance% (↑ 0.25), LOC/App (↑ 0.20), Quality Score (↑ 0.20), D/kLOC (↓ 0.20), $/Mtok (↓ 0.15)</p>
+          <p class="text-muted small mb-1">Criteria: Deploy% (↑ 0.25), Compliance% (↑ 0.25), Quality (↑ 0.15), LOC/App (↑ 0.10), D/kLOC (↓ 0.15), $/Mtok (↓ 0.10)</p>
           <div class="table-responsive">
           <table class="table table-sm compact-table table-striped mb-2">
-            <thead><tr><th class="text-center">#</th><th>Model</th><th class="text-end">Compl.%</th><th class="text-end">LOC/App</th><th class="text-end">Quality</th><th class="text-end">D/kLOC</th><th class="text-end">$/Mtok</th><th class="text-end">Score</th></tr></thead>
+            <thead><tr><th class="text-center">#</th><th>Model</th><th class="text-end">Deploy%</th><th class="text-end">Compl.%</th><th class="text-end">Quality</th><th class="text-end">LOC/App</th><th class="text-end">D/kLOC</th><th class="text-end">$/Mtok</th><th class="text-end">Score</th></tr></thead>
             <tbody>
               {% for r in topsis %}
               <tr class="{{ 'table-success' if loop.index <= 3 else '' }}">
                 <td class="text-center fw-bold">{{ r.rank }}</td>
                 <td>{{ r.short_name }}</td>
+                <td class="text-end">{{ "%.0f"|format(r.deploy_rate) }}%</td>
                 <td class="text-end">{{ "%.1f"|format(r.compliance) }}%</td>
-                <td class="text-end">{{ "{:,}".format(r.loc_app|int) }}</td>
                 <td class="text-end">{{ "%.1f"|format(r.quality) }}</td>
+                <td class="text-end">{{ "{:,}".format(r.loc_app|int) }}</td>
                 <td class="text-end">{{ "%.1f"|format(r.dkloc) }}</td>
                 <td class="text-end">${{ "%.2f"|format(r.out_price) }}</td>
                 <td class="text-end fw-medium">{{ "%.4f"|format(r.score) }}</td>
@@ -1139,17 +1142,17 @@
           {% set wsm = ta.get('wsm', []) %}
           {% if wsm %}
           <h6 class="mt-3 mb-1">Weighted Sum Model Ranking <span class="text-muted small">(Higher Score = Better)</span></h6>
-          <p class="text-muted small mb-1">Criteria: Compliance% (↑ 0.30), LOC/App (↑ 0.25), Quality Score (↑ 0.25), D/kLOC (↓ 0.20)</p>
+          <p class="text-muted small mb-1">Criteria: Deploy% (↑ 0.30), Compliance% (↑ 0.30), Quality (↑ 0.20), D/kLOC (↓ 0.20)</p>
           <div class="table-responsive">
           <table class="table table-sm compact-table table-striped mb-2">
-            <thead><tr><th class="text-center">#</th><th>Model</th><th class="text-end">Compl.%</th><th class="text-end">LOC/App</th><th class="text-end">Quality</th><th class="text-end">D/kLOC</th><th class="text-end">Score</th></tr></thead>
+            <thead><tr><th class="text-center">#</th><th>Model</th><th class="text-end">Deploy%</th><th class="text-end">Compl.%</th><th class="text-end">Quality</th><th class="text-end">D/kLOC</th><th class="text-end">Score</th></tr></thead>
             <tbody>
               {% for r in wsm %}
               <tr class="{{ 'table-success' if loop.index <= 3 else '' }}">
                 <td class="text-center fw-bold">{{ r.rank }}</td>
                 <td>{{ r.short_name }}</td>
+                <td class="text-end">{{ "%.0f"|format(r.deploy_rate) }}%</td>
                 <td class="text-end">{{ "%.1f"|format(r.compliance) }}%</td>
-                <td class="text-end">{{ "{:,}".format(r.loc_app|int) }}</td>
                 <td class="text-end">{{ "%.1f"|format(r.quality) }}</td>
                 <td class="text-end">{{ "%.1f"|format(r.dkloc) }}</td>
                 <td class="text-end fw-medium">{{ "%.4f"|format(r.score) }}</td>
