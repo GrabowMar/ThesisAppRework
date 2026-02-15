@@ -1577,21 +1577,40 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         
         results: Dict[str, Any] = {}
         
-        # html-validator analysis
+        # html-validator analysis (validates one file at a time via --file=)
         html_config = (config or {}).get('html-validator', {})
         if (
             'html-validator' in self.available_tools
             and (selected_tools is None or 'html-validator' in selected_tools)
             and html_config.get('enabled', True)
         ):
-            # html-validator-cli --format=json --verbose file1 file2 ...
-            cmd = ['html-validator', '--format=json', '--verbose']
-            cmd.extend([str(p) for p in html_files])
+            all_issues = []
+            severity_breakdown = {'high': 0, 'medium': 0, 'low': 0}
+            any_executed = False
+            total_duration = 0.0
 
-            # Use _run_tool with registered HTMLValidatorParser
-            # html-validator-cli exit code 1 means issues found
-            result = await self._run_tool(cmd, 'html-validator', config=html_config, success_exit_codes=[0, 1], timeout=60)
-            results['html-validator'] = result
+            for html_file in html_files:
+                cmd = ['html-validator', f'--file={html_file}', '--format=json', '--verbose']
+                result = await self._run_tool(cmd, 'html-validator', config=html_config, success_exit_codes=[0, 1], timeout=60)
+                if isinstance(result, dict) and result.get('executed'):
+                    any_executed = True
+                    total_duration += result.get('duration_seconds', 0)
+                    all_issues.extend(result.get('issues', []))
+                    for sev, count in result.get('severity_breakdown', {}).items():
+                        if sev in severity_breakdown:
+                            severity_breakdown[sev] += count
+
+            results['html-validator'] = {
+                'tool': 'html-validator',
+                'executed': any_executed,
+                'status': 'success' if any_executed else 'error',
+                'issues': all_issues,
+                'total_issues': len(all_issues),
+                'issue_count': len(all_issues),
+                'severity_breakdown': severity_breakdown,
+                'duration_seconds': round(total_duration, 3),
+                'config_used': html_config,
+            }
         
         return results
     

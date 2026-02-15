@@ -2891,7 +2891,7 @@ class ReportService:
         _STATIC_TOOLS = [
             'bandit', 'semgrep', 'pylint', 'ruff', 'mypy', 'vulture', 'radon',
             'safety', 'pip-audit', 'detect-secrets', 'eslint', 'npm-audit',
-            'stylelint', 'html-validator',
+            'stylelint',
         ]
         _DYNAMIC_TOOLS = ['zap', 'owasp-zap', 'nmap', 'curl', 'curl-endpoint-tester',
                           'connectivity', 'port-scan']
