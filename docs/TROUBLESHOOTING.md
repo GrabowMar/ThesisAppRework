@@ -72,6 +72,28 @@ source .venv/bin/activate   # Linux
 pip install -r requirements.txt
 ```
 
+### Nginx Returns `502 Bad Gateway` Intermittently
+
+**Symptoms:** Nginx responds with `502 Bad Gateway` while `web` container still appears healthy.
+
+**Cause:** In Docker, upstream container IPs can change after recreation. If nginx keeps a stale resolved IP for `web`, upstream connections fail with `connect() failed (111: Connection refused)`.
+
+**Diagnosis:**
+```bash
+# Confirm nginx upstream errors
+docker compose logs --tail=100 nginx | grep "connect() failed"
+
+# Compare current web container IP
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' thesisapprework-web-1
+```
+
+**Current fix in this repository:** `nginx.conf` uses Docker DNS resolver (`127.0.0.11`) and hostname-based proxying so upstream resolution refreshes automatically.
+
+**Operational fallback (if needed):**
+```bash
+docker compose restart nginx
+```
+
 ## Analyzer Issues
 
 ### Containers Won't Start

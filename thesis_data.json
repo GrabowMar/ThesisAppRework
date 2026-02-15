@@ -1,0 +1,5197 @@
+{
+  "overview": {
+    "total_apps": 230,
+    "apps_with_results": 230,
+    "total_models": 10,
+    "total_static_findings": 49657,
+    "total_zap_alerts": 3461,
+    "service_completion": {
+      "static": {
+        "success": 230,
+        "total": 230
+      },
+      "dynamic": {
+        "success": 145,
+        "total": 230
+      },
+      "performance": {
+        "success": 146,
+        "total": 230
+      },
+      "ai": {
+        "success": 230,
+        "total": 230
+      }
+    }
+  },
+  "static_tools": {
+    "bandit": {
+      "total_findings": 924,
+      "total_runs": 230,
+      "avg_per_run": 4.017391304347826,
+      "severity": {
+        "critical": 0,
+        "high": 222,
+        "medium": 0,
+        "low": 702,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 238,
+          "avg_per_run": 4.76,
+          "severity": {
+            "critical": 0,
+            "high": 55,
+            "medium": 0,
+            "low": 183,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 89,
+          "avg_per_run": 4.45,
+          "severity": {
+            "critical": 0,
+            "high": 20,
+            "medium": 0,
+            "low": 69,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 49,
+          "avg_per_run": 2.45,
+          "severity": {
+            "critical": 0,
+            "high": 20,
+            "medium": 0,
+            "low": 29,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 67,
+          "avg_per_run": 3.35,
+          "severity": {
+            "critical": 0,
+            "high": 16,
+            "medium": 0,
+            "low": 51,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 66,
+          "avg_per_run": 3.3,
+          "severity": {
+            "critical": 0,
+            "high": 20,
+            "medium": 0,
+            "low": 46,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 88,
+          "avg_per_run": 4.4,
+          "severity": {
+            "critical": 0,
+            "high": 19,
+            "medium": 0,
+            "low": 69,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 27,
+          "avg_per_run": 1.35,
+          "severity": {
+            "critical": 0,
+            "high": 19,
+            "medium": 0,
+            "low": 8,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 90,
+          "avg_per_run": 4.5,
+          "severity": {
+            "critical": 0,
+            "high": 20,
+            "medium": 0,
+            "low": 70,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 76,
+          "avg_per_run": 3.8,
+          "severity": {
+            "critical": 0,
+            "high": 15,
+            "medium": 0,
+            "low": 61,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 134,
+          "avg_per_run": 6.7,
+          "severity": {
+            "critical": 0,
+            "high": 18,
+            "medium": 0,
+            "low": 116,
+            "info": 0
+          }
+        }
+      }
+    },
+    "detect-secrets": {
+      "total_findings": 0,
+      "total_runs": 230,
+      "avg_per_run": 0.0,
+      "severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        }
+      }
+    },
+    "eslint": {
+      "total_findings": 10344,
+      "total_runs": 230,
+      "avg_per_run": 44.97391304347826,
+      "severity": {
+        "critical": 0,
+        "high": 287,
+        "medium": 10057,
+        "low": 0,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 2541,
+          "avg_per_run": 50.82,
+          "severity": {
+            "critical": 0,
+            "high": 136,
+            "medium": 2405,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 1064,
+          "avg_per_run": 53.2,
+          "severity": {
+            "critical": 0,
+            "high": 7,
+            "medium": 1057,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 919,
+          "avg_per_run": 45.95,
+          "severity": {
+            "critical": 0,
+            "high": 15,
+            "medium": 904,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 772,
+          "avg_per_run": 38.6,
+          "severity": {
+            "critical": 0,
+            "high": 8,
+            "medium": 764,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 653,
+          "avg_per_run": 32.65,
+          "severity": {
+            "critical": 0,
+            "high": 2,
+            "medium": 651,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 1182,
+          "avg_per_run": 59.1,
+          "severity": {
+            "critical": 0,
+            "high": 50,
+            "medium": 1132,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 475,
+          "avg_per_run": 23.75,
+          "severity": {
+            "critical": 0,
+            "high": 6,
+            "medium": 469,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 1030,
+          "avg_per_run": 51.5,
+          "severity": {
+            "critical": 0,
+            "high": 16,
+            "medium": 1014,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 923,
+          "avg_per_run": 46.15,
+          "severity": {
+            "critical": 0,
+            "high": 31,
+            "medium": 892,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 785,
+          "avg_per_run": 39.25,
+          "severity": {
+            "critical": 0,
+            "high": 16,
+            "medium": 769,
+            "low": 0,
+            "info": 0
+          }
+        }
+      }
+    },
+    "html-validator": {
+      "total_findings": 0,
+      "total_runs": 230,
+      "avg_per_run": 0.0,
+      "severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        }
+      }
+    },
+    "mypy": {
+      "total_findings": 5651,
+      "total_runs": 230,
+      "avg_per_run": 24.569565217391304,
+      "severity": {
+        "critical": 0,
+        "high": 5650,
+        "medium": 0,
+        "low": 1,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 1749,
+          "avg_per_run": 34.98,
+          "severity": {
+            "critical": 0,
+            "high": 1748,
+            "medium": 0,
+            "low": 1,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 620,
+          "avg_per_run": 31.0,
+          "severity": {
+            "critical": 0,
+            "high": 620,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 509,
+          "avg_per_run": 25.45,
+          "severity": {
+            "critical": 0,
+            "high": 509,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 419,
+          "avg_per_run": 20.95,
+          "severity": {
+            "critical": 0,
+            "high": 419,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 180,
+          "avg_per_run": 9.0,
+          "severity": {
+            "critical": 0,
+            "high": 180,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 372,
+          "avg_per_run": 18.6,
+          "severity": {
+            "critical": 0,
+            "high": 372,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 194,
+          "avg_per_run": 9.7,
+          "severity": {
+            "critical": 0,
+            "high": 194,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 952,
+          "avg_per_run": 47.6,
+          "severity": {
+            "critical": 0,
+            "high": 952,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 261,
+          "avg_per_run": 13.05,
+          "severity": {
+            "critical": 0,
+            "high": 261,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 395,
+          "avg_per_run": 19.75,
+          "severity": {
+            "critical": 0,
+            "high": 395,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        }
+      }
+    },
+    "npm-audit": {
+      "total_findings": 440,
+      "total_runs": 230,
+      "avg_per_run": 1.9130434782608696,
+      "severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 440,
+        "low": 0,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 96,
+          "avg_per_run": 1.92,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 96,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 40,
+          "avg_per_run": 2.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 40,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 40,
+          "avg_per_run": 2.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 40,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 40,
+          "avg_per_run": 2.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 40,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 38,
+          "avg_per_run": 1.9,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 38,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 36,
+          "avg_per_run": 1.8,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 36,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 38,
+          "avg_per_run": 1.9,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 38,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 36,
+          "avg_per_run": 1.8,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 36,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 40,
+          "avg_per_run": 2.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 40,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 36,
+          "avg_per_run": 1.8,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 36,
+            "low": 0,
+            "info": 0
+          }
+        }
+      }
+    },
+    "pip-audit": {
+      "total_findings": 1750,
+      "total_runs": 230,
+      "avg_per_run": 7.608695652173913,
+      "severity": {
+        "critical": 0,
+        "high": 1750,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 450,
+          "avg_per_run": 9.0,
+          "severity": {
+            "critical": 0,
+            "high": 450,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 180,
+          "avg_per_run": 9.0,
+          "severity": {
+            "critical": 0,
+            "high": 180,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 190,
+          "avg_per_run": 9.5,
+          "severity": {
+            "critical": 0,
+            "high": 190,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 160,
+          "avg_per_run": 8.0,
+          "severity": {
+            "critical": 0,
+            "high": 160,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 90,
+          "avg_per_run": 4.5,
+          "severity": {
+            "critical": 0,
+            "high": 90,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 120,
+          "avg_per_run": 6.0,
+          "severity": {
+            "critical": 0,
+            "high": 120,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 110,
+          "avg_per_run": 5.5,
+          "severity": {
+            "critical": 0,
+            "high": 110,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 160,
+          "avg_per_run": 8.0,
+          "severity": {
+            "critical": 0,
+            "high": 160,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 140,
+          "avg_per_run": 7.0,
+          "severity": {
+            "critical": 0,
+            "high": 140,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 150,
+          "avg_per_run": 7.5,
+          "severity": {
+            "critical": 0,
+            "high": 150,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        }
+      }
+    },
+    "pylint": {
+      "total_findings": 10249,
+      "total_runs": 230,
+      "avg_per_run": 44.56086956521739,
+      "severity": {
+        "critical": 0,
+        "high": 125,
+        "medium": 1379,
+        "low": 8745,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 5202,
+          "avg_per_run": 104.04,
+          "severity": {
+            "critical": 0,
+            "high": 36,
+            "medium": 335,
+            "low": 4831,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 827,
+          "avg_per_run": 41.35,
+          "severity": {
+            "critical": 0,
+            "high": 9,
+            "medium": 98,
+            "low": 720,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 701,
+          "avg_per_run": 35.05,
+          "severity": {
+            "critical": 0,
+            "high": 16,
+            "medium": 85,
+            "low": 600,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 774,
+          "avg_per_run": 38.7,
+          "severity": {
+            "critical": 0,
+            "high": 12,
+            "medium": 117,
+            "low": 645,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 111,
+          "avg_per_run": 5.55,
+          "severity": {
+            "critical": 0,
+            "high": 11,
+            "medium": 45,
+            "low": 55,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 209,
+          "avg_per_run": 10.45,
+          "severity": {
+            "critical": 0,
+            "high": 7,
+            "medium": 81,
+            "low": 121,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 191,
+          "avg_per_run": 9.55,
+          "severity": {
+            "critical": 0,
+            "high": 1,
+            "medium": 76,
+            "low": 114,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 656,
+          "avg_per_run": 32.8,
+          "severity": {
+            "critical": 0,
+            "high": 19,
+            "medium": 330,
+            "low": 307,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 814,
+          "avg_per_run": 40.7,
+          "severity": {
+            "critical": 0,
+            "high": 12,
+            "medium": 117,
+            "low": 685,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 764,
+          "avg_per_run": 38.2,
+          "severity": {
+            "critical": 0,
+            "high": 2,
+            "medium": 95,
+            "low": 667,
+            "info": 0
+          }
+        }
+      }
+    },
+    "radon": {
+      "total_findings": 13,
+      "total_runs": 230,
+      "avg_per_run": 0.05652173913043478,
+      "severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 154,
+        "low": 0,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 8,
+          "avg_per_run": 0.16,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 86,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 11,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 1,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 7,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 1,
+          "avg_per_run": 0.05,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 26,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 4,
+          "avg_per_run": 0.2,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 14,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 9,
+            "low": 0,
+            "info": 0
+          }
+        }
+      }
+    },
+    "ruff": {
+      "total_findings": 13578,
+      "total_runs": 230,
+      "avg_per_run": 59.03478260869565,
+      "severity": {
+        "critical": 0,
+        "high": 687,
+        "medium": 3485,
+        "low": 9406,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 6439,
+          "avg_per_run": 128.78,
+          "severity": {
+            "critical": 0,
+            "high": 178,
+            "medium": 1157,
+            "low": 5104,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 1068,
+          "avg_per_run": 53.4,
+          "severity": {
+            "critical": 0,
+            "high": 76,
+            "medium": 126,
+            "low": 866,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 907,
+          "avg_per_run": 45.35,
+          "severity": {
+            "critical": 0,
+            "high": 27,
+            "medium": 324,
+            "low": 556,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 1010,
+          "avg_per_run": 50.5,
+          "severity": {
+            "critical": 0,
+            "high": 50,
+            "medium": 240,
+            "low": 720,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 194,
+          "avg_per_run": 9.7,
+          "severity": {
+            "critical": 0,
+            "high": 47,
+            "medium": 122,
+            "low": 25,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 399,
+          "avg_per_run": 19.95,
+          "severity": {
+            "critical": 0,
+            "high": 70,
+            "medium": 309,
+            "low": 20,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 279,
+          "avg_per_run": 13.95,
+          "severity": {
+            "critical": 0,
+            "high": 7,
+            "medium": 245,
+            "low": 27,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 474,
+          "avg_per_run": 23.7,
+          "severity": {
+            "critical": 0,
+            "high": 69,
+            "medium": 385,
+            "low": 20,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 1440,
+          "avg_per_run": 72.0,
+          "severity": {
+            "critical": 0,
+            "high": 49,
+            "medium": 283,
+            "low": 1108,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 1368,
+          "avg_per_run": 68.4,
+          "severity": {
+            "critical": 0,
+            "high": 114,
+            "medium": 294,
+            "low": 960,
+            "info": 0
+          }
+        }
+      }
+    },
+    "safety": {
+      "total_findings": 2070,
+      "total_runs": 230,
+      "avg_per_run": 9.0,
+      "severity": {
+        "critical": 0,
+        "high": 2070,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 450,
+          "avg_per_run": 9.0,
+          "severity": {
+            "critical": 0,
+            "high": 450,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 180,
+          "avg_per_run": 9.0,
+          "severity": {
+            "critical": 0,
+            "high": 180,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 180,
+          "avg_per_run": 9.0,
+          "severity": {
+            "critical": 0,
+            "high": 180,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 180,
+          "avg_per_run": 9.0,
+          "severity": {
+            "critical": 0,
+            "high": 180,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 180,
+          "avg_per_run": 9.0,
+          "severity": {
+            "critical": 0,
+            "high": 180,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 180,
+          "avg_per_run": 9.0,
+          "severity": {
+            "critical": 0,
+            "high": 180,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 180,
+          "avg_per_run": 9.0,
+          "severity": {
+            "critical": 0,
+            "high": 180,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 180,
+          "avg_per_run": 9.0,
+          "severity": {
+            "critical": 0,
+            "high": 180,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 180,
+          "avg_per_run": 9.0,
+          "severity": {
+            "critical": 0,
+            "high": 180,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 180,
+          "avg_per_run": 9.0,
+          "severity": {
+            "critical": 0,
+            "high": 180,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        }
+      }
+    },
+    "semgrep": {
+      "total_findings": 1690,
+      "total_runs": 230,
+      "avg_per_run": 7.3478260869565215,
+      "severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 1690,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 449,
+          "avg_per_run": 8.98,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 449,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 175,
+          "avg_per_run": 8.75,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 175,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 167,
+          "avg_per_run": 8.35,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 167,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 126,
+          "avg_per_run": 6.3,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 126,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 133,
+          "avg_per_run": 6.65,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 133,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 144,
+          "avg_per_run": 7.2,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 144,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 98,
+          "avg_per_run": 4.9,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 98,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 175,
+          "avg_per_run": 8.75,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 175,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 111,
+          "avg_per_run": 5.55,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 111,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 112,
+          "avg_per_run": 5.6,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 112,
+            "info": 0
+          }
+        }
+      }
+    },
+    "stylelint": {
+      "total_findings": 0,
+      "total_runs": 230,
+      "avg_per_run": 0.0,
+      "severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        }
+      }
+    },
+    "vulture": {
+      "total_findings": 2948,
+      "total_runs": 230,
+      "avg_per_run": 12.817391304347826,
+      "severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 227,
+        "low": 2721,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 797,
+          "avg_per_run": 15.94,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 35,
+            "low": 762,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 267,
+          "avg_per_run": 13.35,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 30,
+            "low": 237,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 273,
+          "avg_per_run": 13.65,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 10,
+            "low": 263,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 255,
+          "avg_per_run": 12.75,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 39,
+            "low": 216,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 173,
+          "avg_per_run": 8.65,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 12,
+            "low": 161,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 187,
+          "avg_per_run": 9.35,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 10,
+            "low": 177,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 186,
+          "avg_per_run": 9.3,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 43,
+            "low": 143,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 407,
+          "avg_per_run": 20.35,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 18,
+            "low": 389,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 162,
+          "avg_per_run": 8.1,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 20,
+            "low": 142,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 241,
+          "avg_per_run": 12.05,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 10,
+            "low": 231,
+            "info": 0
+          }
+        }
+      }
+    }
+  },
+  "dynamic_zap": {
+    "per_model": {
+      "anthropic_claude-4.5-sonnet-20250929": {
+        "scans": 93,
+        "attempted_scans": 100,
+        "alerts": 1101,
+        "scans_with_alerts": 93,
+        "high": 0,
+        "medium": 536,
+        "low": 465,
+        "informational": 100
+      },
+      "deepseek_deepseek-r1-0528": {
+        "scans": 30,
+        "attempted_scans": 40,
+        "alerts": 302,
+        "scans_with_alerts": 30,
+        "high": 0,
+        "medium": 116,
+        "low": 150,
+        "informational": 36
+      },
+      "google_gemini-3-flash-preview-20251217": {
+        "scans": 40,
+        "attempted_scans": 40,
+        "alerts": 484,
+        "scans_with_alerts": 40,
+        "high": 0,
+        "medium": 236,
+        "low": 200,
+        "informational": 48
+      },
+      "google_gemini-3-pro-preview-20251117": {
+        "scans": 32,
+        "attempted_scans": 40,
+        "alerts": 376,
+        "scans_with_alerts": 32,
+        "high": 0,
+        "medium": 180,
+        "low": 160,
+        "informational": 36
+      },
+      "meta-llama_llama-3.1-405b-instruct": {
+        "scans": 0,
+        "attempted_scans": 40,
+        "alerts": 0,
+        "scans_with_alerts": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "informational": 0
+      },
+      "mistralai_mistral-small-3.1-24b-instruct-2503": {
+        "scans": 0,
+        "attempted_scans": 40,
+        "alerts": 0,
+        "scans_with_alerts": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "informational": 0
+      },
+      "openai_gpt-4o-mini": {
+        "scans": 8,
+        "attempted_scans": 40,
+        "alerts": 96,
+        "scans_with_alerts": 8,
+        "high": 0,
+        "medium": 48,
+        "low": 40,
+        "informational": 8
+      },
+      "openai_gpt-5.2-codex-20260114": {
+        "scans": 40,
+        "attempted_scans": 40,
+        "alerts": 472,
+        "scans_with_alerts": 40,
+        "high": 0,
+        "medium": 232,
+        "low": 200,
+        "informational": 40
+      },
+      "qwen_qwen3-coder-plus": {
+        "scans": 26,
+        "attempted_scans": 40,
+        "alerts": 318,
+        "scans_with_alerts": 26,
+        "high": 0,
+        "medium": 156,
+        "low": 130,
+        "informational": 32
+      },
+      "z-ai_glm-4.7-20251222": {
+        "scans": 26,
+        "attempted_scans": 40,
+        "alerts": 312,
+        "scans_with_alerts": 26,
+        "high": 0,
+        "medium": 156,
+        "low": 130,
+        "informational": 26
+      }
+    },
+    "top_cwes": {
+      "CWE-693": 1132,
+      "CWE-497": 888,
+      "CWE-264": 528,
+      "CWE-1104": 295,
+      "CWE-1021": 292
+    },
+    "top_alert_types": {
+      "Server Leaks Version Information via \"Server\" HTTP Response Header Field": 888,
+      "Content Security Policy (CSP) Header Not Set": 840,
+      "Cross-Domain Misconfiguration": 528,
+      "Modern Web Application": 326,
+      "ZAP is Out of Date": 295,
+      "Missing Anti-clickjacking Header": 292,
+      "X-Content-Type-Options Header Missing": 292
+    },
+    "total_alerts": 3461,
+    "total_scans": 295,
+    "total_attempted_scans": 460,
+    "total_scans_with_alerts": 295
+  },
+  "dynamic_diagnostics": {
+    "per_model": {
+      "anthropic_claude-4.5-sonnet-20250929": {
+        "apps_with_any_output": 50,
+        "port_scan_attempted": 50,
+        "port_scan_success": 27,
+        "apps_with_open_ports": 23,
+        "avg_open_ports_per_app": 0.8518518518518519,
+        "curl_attempted": 16,
+        "curl_success": 16,
+        "endpoints_total": 112,
+        "endpoints_passed": 14,
+        "endpoint_pass_rate": 12.5
+      },
+      "deepseek_deepseek-r1-0528": {
+        "apps_with_any_output": 20,
+        "port_scan_attempted": 20,
+        "port_scan_success": 13,
+        "apps_with_open_ports": 7,
+        "avg_open_ports_per_app": 0.5384615384615384,
+        "curl_attempted": 5,
+        "curl_success": 5,
+        "endpoints_total": 35,
+        "endpoints_passed": 3,
+        "endpoint_pass_rate": 8.571428571428571
+      },
+      "google_gemini-3-flash-preview-20251217": {
+        "apps_with_any_output": 20,
+        "port_scan_attempted": 20,
+        "port_scan_success": 8,
+        "apps_with_open_ports": 8,
+        "avg_open_ports_per_app": 1.0,
+        "curl_attempted": 7,
+        "curl_success": 7,
+        "endpoints_total": 49,
+        "endpoints_passed": 7,
+        "endpoint_pass_rate": 14.285714285714285
+      },
+      "google_gemini-3-pro-preview-20251117": {
+        "apps_with_any_output": 20,
+        "port_scan_attempted": 20,
+        "port_scan_success": 15,
+        "apps_with_open_ports": 11,
+        "avg_open_ports_per_app": 0.7333333333333333,
+        "curl_attempted": 9,
+        "curl_success": 9,
+        "endpoints_total": 63,
+        "endpoints_passed": 8,
+        "endpoint_pass_rate": 12.698412698412698
+      },
+      "meta-llama_llama-3.1-405b-instruct": {
+        "apps_with_any_output": 20,
+        "port_scan_attempted": 20,
+        "port_scan_success": 20,
+        "apps_with_open_ports": 0,
+        "avg_open_ports_per_app": 0.0,
+        "curl_attempted": 7,
+        "curl_success": 7,
+        "endpoints_total": 49,
+        "endpoints_passed": 0,
+        "endpoint_pass_rate": 0.0
+      },
+      "mistralai_mistral-small-3.1-24b-instruct-2503": {
+        "apps_with_any_output": 20,
+        "port_scan_attempted": 20,
+        "port_scan_success": 20,
+        "apps_with_open_ports": 0,
+        "avg_open_ports_per_app": 0.0,
+        "curl_attempted": 6,
+        "curl_success": 6,
+        "endpoints_total": 42,
+        "endpoints_passed": 0,
+        "endpoint_pass_rate": 0.0
+      },
+      "openai_gpt-4o-mini": {
+        "apps_with_any_output": 20,
+        "port_scan_attempted": 20,
+        "port_scan_success": 18,
+        "apps_with_open_ports": 2,
+        "avg_open_ports_per_app": 0.1111111111111111,
+        "curl_attempted": 4,
+        "curl_success": 4,
+        "endpoints_total": 28,
+        "endpoints_passed": 1,
+        "endpoint_pass_rate": 3.571428571428571
+      },
+      "openai_gpt-5.2-codex-20260114": {
+        "apps_with_any_output": 20,
+        "port_scan_attempted": 20,
+        "port_scan_success": 15,
+        "apps_with_open_ports": 15,
+        "avg_open_ports_per_app": 1.0,
+        "curl_attempted": 12,
+        "curl_success": 12,
+        "endpoints_total": 84,
+        "endpoints_passed": 12,
+        "endpoint_pass_rate": 14.285714285714285
+      },
+      "qwen_qwen3-coder-plus": {
+        "apps_with_any_output": 20,
+        "port_scan_attempted": 20,
+        "port_scan_success": 15,
+        "apps_with_open_ports": 8,
+        "avg_open_ports_per_app": 0.5333333333333333,
+        "curl_attempted": 6,
+        "curl_success": 6,
+        "endpoints_total": 42,
+        "endpoints_passed": 4,
+        "endpoint_pass_rate": 9.523809523809524
+      },
+      "z-ai_glm-4.7-20251222": {
+        "apps_with_any_output": 20,
+        "port_scan_attempted": 20,
+        "port_scan_success": 13,
+        "apps_with_open_ports": 6,
+        "avg_open_ports_per_app": 0.46153846153846156,
+        "curl_attempted": 6,
+        "curl_success": 6,
+        "endpoints_total": 42,
+        "endpoints_passed": 3,
+        "endpoint_pass_rate": 7.142857142857142
+      }
+    },
+    "top_open_ports": {
+      "80": 79,
+      "5234": 1
+    },
+    "total_port_scan_attempted": 230,
+    "total_port_scan_success": 164,
+    "total_open_ports": 80,
+    "total_curl_attempted": 78,
+    "total_endpoints": 546,
+    "total_endpoints_passed": 52
+  },
+  "performance": {
+    "anthropic_claude-4.5-sonnet-20250929": {
+      "tests": 92,
+      "backend_mean": 378.2080434782609,
+      "backend_median": 381.53,
+      "backend_std": 17.34301455528232,
+      "backend_min": 310.59,
+      "backend_max": 411.32,
+      "backend_rt": {
+        "mean": 2.6499782608695654,
+        "median": 2.621,
+        "std": 0.13311473566153956,
+        "min": 2.431,
+        "max": 3.22,
+        "n": 46
+      }
+    },
+    "deepseek_deepseek-r1-0528": {
+      "tests": 28,
+      "backend_mean": 382.44714285714286,
+      "backend_median": 385.46500000000003,
+      "backend_std": 17.26017935042366,
+      "backend_min": 340.26,
+      "backend_max": 400.71,
+      "backend_rt": {
+        "mean": 2.62,
+        "median": 2.5940000000000003,
+        "std": 0.12489749643361397,
+        "min": 2.496,
+        "max": 2.939,
+        "n": 14
+      }
+    },
+    "google_gemini-3-flash-preview-20251217": {
+      "tests": 40,
+      "backend_mean": 330.603,
+      "backend_median": 375.785,
+      "backend_std": 100.50139145933831,
+      "backend_min": 69.53,
+      "backend_max": 405.23,
+      "backend_rt": {
+        "mean": 3.8466,
+        "median": 2.6609999999999996,
+        "std": 3.0487809712287164,
+        "min": 2.468,
+        "max": 14.382,
+        "n": 20
+      }
+    },
+    "google_gemini-3-pro-preview-20251117": {
+      "tests": 32,
+      "backend_mean": 361.79,
+      "backend_median": 386.43,
+      "backend_std": 72.87326459911985,
+      "backend_min": 106.39,
+      "backend_max": 405.25,
+      "backend_rt": {
+        "mean": 3.075625,
+        "median": 2.588,
+        "std": 1.6992160496338697,
+        "min": 2.468,
+        "max": 9.4,
+        "n": 16
+      }
+    },
+    "meta-llama_llama-3.1-405b-instruct": null,
+    "mistralai_mistral-small-3.1-24b-instruct-2503": null,
+    "openai_gpt-4o-mini": {
+      "tests": 8,
+      "backend_mean": 382.14,
+      "backend_median": 379.19,
+      "backend_std": 17.591480892750333,
+      "backend_min": 364.31,
+      "backend_max": 405.87,
+      "backend_rt": {
+        "mean": 2.621,
+        "median": 2.6375,
+        "std": 0.11828496664129956,
+        "min": 2.464,
+        "max": 2.745,
+        "n": 4
+      }
+    },
+    "openai_gpt-5.2-codex-20260114": {
+      "tests": 40,
+      "backend_mean": 383.591,
+      "backend_median": 383.09000000000003,
+      "backend_std": 11.820095689344617,
+      "backend_min": 360.45,
+      "backend_max": 404.88,
+      "backend_rt": {
+        "mean": 2.6094,
+        "median": 2.6105,
+        "std": 0.08074286672094189,
+        "min": 2.47,
+        "max": 2.774,
+        "n": 20
+      }
+    },
+    "qwen_qwen3-coder-plus": {
+      "tests": 26,
+      "backend_mean": 388.45461538461535,
+      "backend_median": 388.79,
+      "backend_std": 7.213082576569488,
+      "backend_min": 372.27,
+      "backend_max": 398.6,
+      "backend_rt": {
+        "mean": 2.575076923076923,
+        "median": 2.572,
+        "std": 0.048436318223796966,
+        "min": 2.509,
+        "max": 2.686,
+        "n": 13
+      }
+    },
+    "z-ai_glm-4.7-20251222": {
+      "tests": 26,
+      "backend_mean": 331.88,
+      "backend_median": 376.7,
+      "backend_std": 110.0507782798468,
+      "backend_min": 69.22,
+      "backend_max": 391.35,
+      "backend_rt": {
+        "mean": 4.124,
+        "median": 2.655,
+        "std": 3.701279395920641,
+        "min": 2.555,
+        "max": 14.446,
+        "n": 13
+      }
+    }
+  },
+  "ai_compliance": {
+    "anthropic_claude-4.5-sonnet-20250929": {
+      "apps": 50,
+      "overall": {
+        "mean": 80.94642857142857,
+        "median": 83.48214285714286,
+        "std": 11.759083460708224,
+        "min": 50.0,
+        "max": 100.0,
+        "n": 50
+      },
+      "backend": {
+        "mean": 81.0,
+        "median": 83.33333333333334,
+        "std": 14.289681988689203,
+        "min": 50.0,
+        "max": 100.0,
+        "n": 50
+      },
+      "frontend": {
+        "mean": 75.16666666666667,
+        "median": 83.33333333333334,
+        "std": 24.440450096244742,
+        "min": 0.0,
+        "max": 100.0,
+        "n": 50
+      },
+      "admin": {
+        "mean": 100.0,
+        "median": 100.0,
+        "std": 0.0,
+        "min": 100.0,
+        "max": 100.0,
+        "n": 50
+      }
+    },
+    "deepseek_deepseek-r1-0528": {
+      "apps": 20,
+      "overall": {
+        "mean": 88.08035714285714,
+        "median": 92.85714285714286,
+        "std": 13.908540034894232,
+        "min": 42.857142857142854,
+        "max": 100.0,
+        "n": 20
+      },
+      "backend": {
+        "mean": 85.0,
+        "median": 83.33333333333334,
+        "std": 15.198491768816528,
+        "min": 66.66666666666666,
+        "max": 100.0,
+        "n": 20
+      },
+      "frontend": {
+        "mean": 86.66666666666667,
+        "median": 100.0,
+        "std": 24.654038967822302,
+        "min": 0.0,
+        "max": 100.0,
+        "n": 20
+      },
+      "admin": {
+        "mean": 100.0,
+        "median": 100.0,
+        "std": 0.0,
+        "min": 100.0,
+        "max": 100.0,
+        "n": 20
+      }
+    },
+    "google_gemini-3-flash-preview-20251217": {
+      "apps": 20,
+      "overall": {
+        "mean": 87.72321428571429,
+        "median": 87.5,
+        "std": 11.128713521103922,
+        "min": 64.28571428571429,
+        "max": 100.0,
+        "n": 20
+      },
+      "backend": {
+        "mean": 86.66666666666667,
+        "median": 83.33333333333334,
+        "std": 13.891812557774848,
+        "min": 66.66666666666666,
+        "max": 100.0,
+        "n": 20
+      },
+      "frontend": {
+        "mean": 85.83333333333333,
+        "median": 100.0,
+        "std": 23.23443955180649,
+        "min": 16.666666666666664,
+        "max": 100.0,
+        "n": 20
+      },
+      "admin": {
+        "mean": 95.0,
+        "median": 100.0,
+        "std": 22.360679774997898,
+        "min": 0.0,
+        "max": 100.0,
+        "n": 20
+      }
+    },
+    "google_gemini-3-pro-preview-20251117": {
+      "apps": 20,
+      "overall": {
+        "mean": 69.86607142857143,
+        "median": 87.5,
+        "std": 38.144386347862444,
+        "min": 0.0,
+        "max": 100.0,
+        "n": 20
+      },
+      "backend": {
+        "mean": 63.333333333333336,
+        "median": 75.0,
+        "std": 39.588526898437436,
+        "min": 0.0,
+        "max": 100.0,
+        "n": 20
+      },
+      "frontend": {
+        "mean": 72.5,
+        "median": 87.5,
+        "std": 38.79112607270256,
+        "min": 0.0,
+        "max": 100.0,
+        "n": 20
+      },
+      "admin": {
+        "mean": 80.0,
+        "median": 100.0,
+        "std": 41.03913408340616,
+        "min": 0.0,
+        "max": 100.0,
+        "n": 20
+      }
+    },
+    "meta-llama_llama-3.1-405b-instruct": {
+      "apps": 20,
+      "overall": {
+        "mean": 72.76785714285714,
+        "median": 78.57142857142857,
+        "std": 14.629613027561515,
+        "min": 31.25,
+        "max": 92.85714285714286,
+        "n": 20
+      },
+      "backend": {
+        "mean": 79.16666666666667,
+        "median": 83.33333333333334,
+        "std": 24.10685277835315,
+        "min": 0.0,
+        "max": 100.0,
+        "n": 20
+      },
+      "frontend": {
+        "mean": 61.875,
+        "median": 64.58333333333333,
+        "std": 22.550908942923936,
+        "min": 12.5,
+        "max": 100.0,
+        "n": 20
+      },
+      "admin": {
+        "mean": 90.0,
+        "median": 100.0,
+        "std": 20.51956704170308,
+        "min": 50.0,
+        "max": 100.0,
+        "n": 20
+      }
+    },
+    "mistralai_mistral-small-3.1-24b-instruct-2503": {
+      "apps": 20,
+      "overall": {
+        "mean": 91.02678571428572,
+        "median": 92.85714285714286,
+        "std": 7.009295222917875,
+        "min": 75.0,
+        "max": 100.0,
+        "n": 20
+      },
+      "backend": {
+        "mean": 85.83333333333333,
+        "median": 83.33333333333334,
+        "std": 13.545461681454153,
+        "min": 66.66666666666666,
+        "max": 100.0,
+        "n": 20
+      },
+      "frontend": {
+        "mean": 92.70833333333334,
+        "median": 100.0,
+        "std": 8.642827367955503,
+        "min": 75.0,
+        "max": 100.0,
+        "n": 20
+      },
+      "admin": {
+        "mean": 100.0,
+        "median": 100.0,
+        "std": 0.0,
+        "min": 100.0,
+        "max": 100.0,
+        "n": 20
+      }
+    },
+    "openai_gpt-4o-mini": {
+      "apps": 20,
+      "overall": {
+        "mean": 76.60714285714286,
+        "median": 78.57142857142857,
+        "std": 17.013926184468016,
+        "min": 42.857142857142854,
+        "max": 100.0,
+        "n": 20
+      },
+      "backend": {
+        "mean": 81.66666666666667,
+        "median": 83.33333333333334,
+        "std": 24.122009556196595,
+        "min": 0.0,
+        "max": 100.0,
+        "n": 20
+      },
+      "frontend": {
+        "mean": 66.25,
+        "median": 66.66666666666666,
+        "std": 25.214721171226344,
+        "min": 25.0,
+        "max": 100.0,
+        "n": 20
+      },
+      "admin": {
+        "mean": 100.0,
+        "median": 100.0,
+        "std": 0.0,
+        "min": 100.0,
+        "max": 100.0,
+        "n": 20
+      }
+    },
+    "openai_gpt-5.2-codex-20260114": {
+      "apps": 20,
+      "overall": {
+        "mean": 83.16964285714286,
+        "median": 83.48214285714286,
+        "std": 11.895545853130542,
+        "min": 56.25,
+        "max": 100.0,
+        "n": 20
+      },
+      "backend": {
+        "mean": 86.66666666666667,
+        "median": 83.33333333333334,
+        "std": 13.891812557774848,
+        "min": 66.66666666666666,
+        "max": 100.0,
+        "n": 20
+      },
+      "frontend": {
+        "mean": 74.58333333333333,
+        "median": 83.33333333333334,
+        "std": 25.395267091394707,
+        "min": 12.5,
+        "max": 100.0,
+        "n": 20
+      },
+      "admin": {
+        "mean": 100.0,
+        "median": 100.0,
+        "std": 0.0,
+        "min": 100.0,
+        "max": 100.0,
+        "n": 20
+      }
+    },
+    "qwen_qwen3-coder-plus": {
+      "apps": 20,
+      "overall": {
+        "mean": 80.58035714285714,
+        "median": 86.60714285714286,
+        "std": 18.10651767024397,
+        "min": 50.0,
+        "max": 100.0,
+        "n": 20
+      },
+      "backend": {
+        "mean": 81.66666666666667,
+        "median": 83.33333333333334,
+        "std": 23.508117299081363,
+        "min": 0.0,
+        "max": 100.0,
+        "n": 20
+      },
+      "frontend": {
+        "mean": 73.75,
+        "median": 87.5,
+        "std": 33.41820335968817,
+        "min": 0.0,
+        "max": 100.0,
+        "n": 20
+      },
+      "admin": {
+        "mean": 100.0,
+        "median": 100.0,
+        "std": 0.0,
+        "min": 100.0,
+        "max": 100.0,
+        "n": 20
+      }
+    },
+    "z-ai_glm-4.7-20251222": {
+      "apps": 20,
+      "overall": {
+        "mean": 85.13392857142857,
+        "median": 87.5,
+        "std": 13.410937044494155,
+        "min": 50.0,
+        "max": 100.0,
+        "n": 20
+      },
+      "backend": {
+        "mean": 85.83333333333333,
+        "median": 83.33333333333334,
+        "std": 14.584899665257014,
+        "min": 66.66666666666666,
+        "max": 100.0,
+        "n": 20
+      },
+      "frontend": {
+        "mean": 79.375,
+        "median": 87.5,
+        "std": 25.163028376489653,
+        "min": 25.0,
+        "max": 100.0,
+        "n": 20
+      },
+      "admin": {
+        "mean": 100.0,
+        "median": 100.0,
+        "std": 0.0,
+        "min": 100.0,
+        "max": 100.0,
+        "n": 20
+      }
+    }
+  },
+  "performance_tools": {
+    "ab": {
+      "total_runs": 292,
+      "overall_rps": {
+        "mean": 3980.070719178082,
+        "median": 405.56,
+        "std": 3765.8527526819603,
+        "min": 69.22,
+        "max": 9756.1,
+        "n": 292
+      },
+      "overall_avg_rt": {
+        "mean": 1.5857636986301369,
+        "median": 2.466,
+        "std": 1.876086576061189,
+        "min": 0.103,
+        "max": 14.446,
+        "n": 292
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 92,
+          "rps": {
+            "mean": 4012.756847826087,
+            "median": 406.445,
+            "std": 3795.4236322045194,
+            "min": 310.59,
+            "max": 9293.68,
+            "n": 92
+          },
+          "avg_response_time": {
+            "mean": 1.4199891304347827,
+            "median": 2.4605,
+            "std": 1.2727224820690766,
+            "min": 0.108,
+            "max": 3.22,
+            "n": 92
+          },
+          "total_requests": 1840.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 28,
+          "rps": {
+            "mean": 3988.315357142857,
+            "median": 3160.685,
+            "std": 3754.98765434917,
+            "min": 340.26,
+            "max": 9242.14,
+            "n": 28
+          },
+          "avg_response_time": {
+            "mean": 1.3772142857142857,
+            "median": 1.3325,
+            "std": 1.2686357606191359,
+            "min": 0.108,
+            "max": 2.939,
+            "n": 28
+          },
+          "total_requests": 560.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 40,
+          "rps": {
+            "mean": 3888.29975,
+            "median": 399.87,
+            "std": 3819.416132050369,
+            "min": 69.53,
+            "max": 9233.61,
+            "n": 40
+          },
+          "avg_response_time": {
+            "mean": 2.0945,
+            "median": 2.5015,
+            "std": 2.8499549344165303,
+            "min": 0.108,
+            "max": 14.382,
+            "n": 40
+          },
+          "total_requests": 800.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 32,
+          "rps": {
+            "mean": 3744.2934375,
+            "median": 420.265,
+            "std": 3747.8136439328323,
+            "min": 106.39,
+            "max": 9442.87,
+            "n": 32
+          },
+          "avg_response_time": {
+            "mean": 1.67321875,
+            "median": 2.3825000000000003,
+            "std": 1.8891347351046808,
+            "min": 0.106,
+            "max": 9.4,
+            "n": 32
+          },
+          "total_requests": 640.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "meta-llama_llama-3.1-405b-instruct": null,
+        "mistralai_mistral-small-3.1-24b-instruct-2503": null,
+        "openai_gpt-4o-mini": {
+          "runs": 8,
+          "rps": {
+            "mean": 4187.3575,
+            "median": 3705.56,
+            "std": 4147.643292086827,
+            "min": 364.31,
+            "max": 9756.1,
+            "n": 8
+          },
+          "avg_response_time": {
+            "mean": 1.374125,
+            "median": 1.3034999999999999,
+            "std": 1.3352626748000882,
+            "min": 0.103,
+            "max": 2.745,
+            "n": 8
+          },
+          "total_requests": 160.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 40,
+          "rps": {
+            "mean": 3946.683,
+            "median": 1314.29,
+            "std": 3754.5601431320683,
+            "min": 360.45,
+            "max": 9519.28,
+            "n": 40
+          },
+          "avg_response_time": {
+            "mean": 1.3776,
+            "median": 1.4600000000000002,
+            "std": 1.2498011903437345,
+            "min": 0.105,
+            "max": 2.774,
+            "n": 40
+          },
+          "total_requests": 800.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 26,
+          "rps": {
+            "mean": 4102.419615384615,
+            "median": 3261.15,
+            "std": 3844.9338296553096,
+            "min": 372.27,
+            "max": 9389.67,
+            "n": 26
+          },
+          "avg_response_time": {
+            "mean": 1.352423076923077,
+            "median": 1.3359999999999999,
+            "std": 1.247367762067849,
+            "min": 0.106,
+            "max": 2.686,
+            "n": 26
+          },
+          "total_requests": 520.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 26,
+          "rps": {
+            "mean": 4152.1430769230765,
+            "median": 3493.8300000000004,
+            "std": 3936.4005006277184,
+            "min": 69.22,
+            "max": 8988.76,
+            "n": 26
+          },
+          "avg_response_time": {
+            "mean": 2.125346153846154,
+            "median": 1.3535000000000001,
+            "std": 3.2757037099506747,
+            "min": 0.111,
+            "max": 14.446,
+            "n": 26
+          },
+          "total_requests": 520.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        }
+      }
+    },
+    "aiohttp": {
+      "total_runs": 292,
+      "overall_rps": {
+        "mean": 0,
+        "median": 0,
+        "std": 0,
+        "min": 0,
+        "max": 0,
+        "n": 0
+      },
+      "overall_avg_rt": {
+        "mean": 2.3981633561643836,
+        "median": 2.5237,
+        "std": 3.0584675025438037,
+        "min": 0.62075,
+        "max": 34.60245,
+        "n": 292
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 92,
+          "rps": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "avg_response_time": {
+            "mean": 2.1785489130434783,
+            "median": 2.415775,
+            "std": 2.020427651010013,
+            "min": 0.625,
+            "max": 16.26875,
+            "n": 92
+          },
+          "total_requests": 1840.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 28,
+          "rps": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "avg_response_time": {
+            "mean": 2.5372964285714286,
+            "median": 2.759,
+            "std": 2.699857914365967,
+            "min": 0.63215,
+            "max": 14.5178,
+            "n": 28
+          },
+          "total_requests": 560.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 40,
+          "rps": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "avg_response_time": {
+            "mean": 2.83654875,
+            "median": 1.9173499999999999,
+            "std": 3.8436384821344154,
+            "min": 0.62075,
+            "max": 20.170550000000002,
+            "n": 40
+          },
+          "total_requests": 800.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 32,
+          "rps": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "avg_response_time": {
+            "mean": 2.9351234374999997,
+            "median": 1.835175,
+            "std": 5.912421356470553,
+            "min": 0.6377499999999999,
+            "max": 34.60245,
+            "n": 32
+          },
+          "total_requests": 640.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "meta-llama_llama-3.1-405b-instruct": null,
+        "mistralai_mistral-small-3.1-24b-instruct-2503": null,
+        "openai_gpt-4o-mini": {
+          "runs": 8,
+          "rps": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "avg_response_time": {
+            "mean": 1.83623125,
+            "median": 1.774675,
+            "std": 1.108223801513517,
+            "min": 0.6545,
+            "max": 3.0606,
+            "n": 8
+          },
+          "total_requests": 160.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 40,
+          "rps": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "avg_response_time": {
+            "mean": 1.9065987500000001,
+            "median": 1.7375,
+            "std": 1.219000138485063,
+            "min": 0.62165,
+            "max": 3.7788,
+            "n": 40
+          },
+          "total_requests": 800.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 26,
+          "rps": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "avg_response_time": {
+            "mean": 2.2454865384615386,
+            "median": 2.71705,
+            "std": 1.9597560492345822,
+            "min": 0.625,
+            "max": 9.8264,
+            "n": 26
+          },
+          "total_requests": 520.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 26,
+          "rps": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "avg_response_time": {
+            "mean": 2.771944230769231,
+            "median": 2.59795,
+            "std": 3.4239163489293056,
+            "min": 0.6285,
+            "max": 15.535300000000001,
+            "n": 26
+          },
+          "total_requests": 520.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        }
+      }
+    },
+    "artillery": {
+      "total_runs": 292,
+      "overall_rps": {
+        "mean": 4.917808219178082,
+        "median": 5.0,
+        "std": 0.397705607246498,
+        "min": 3.0,
+        "max": 5.0,
+        "n": 292
+      },
+      "overall_avg_rt": {
+        "mean": 0,
+        "median": 0,
+        "std": 0,
+        "min": 0,
+        "max": 0,
+        "n": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 92,
+          "rps": {
+            "mean": 4.934782608695652,
+            "median": 5.0,
+            "std": 0.35716674549826616,
+            "min": 3.0,
+            "max": 5.0,
+            "n": 92
+          },
+          "avg_response_time": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "total_requests": 13800.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 28,
+          "rps": {
+            "mean": 4.857142857142857,
+            "median": 5.0,
+            "std": 0.5245305283129621,
+            "min": 3.0,
+            "max": 5.0,
+            "n": 28
+          },
+          "avg_response_time": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "total_requests": 4200.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 40,
+          "rps": {
+            "mean": 4.95,
+            "median": 5.0,
+            "std": 0.31622776601683794,
+            "min": 3.0,
+            "max": 5.0,
+            "n": 40
+          },
+          "avg_response_time": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "total_requests": 6000.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 32,
+          "rps": {
+            "mean": 4.875,
+            "median": 5.0,
+            "std": 0.4918693768379647,
+            "min": 3.0,
+            "max": 5.0,
+            "n": 32
+          },
+          "avg_response_time": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "total_requests": 4800.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "meta-llama_llama-3.1-405b-instruct": null,
+        "mistralai_mistral-small-3.1-24b-instruct-2503": null,
+        "openai_gpt-4o-mini": {
+          "runs": 8,
+          "rps": {
+            "mean": 5.0,
+            "median": 5.0,
+            "std": 0.0,
+            "min": 5.0,
+            "max": 5.0,
+            "n": 8
+          },
+          "avg_response_time": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "total_requests": 1200.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 40,
+          "rps": {
+            "mean": 4.95,
+            "median": 5.0,
+            "std": 0.31622776601683794,
+            "min": 3.0,
+            "max": 5.0,
+            "n": 40
+          },
+          "avg_response_time": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "total_requests": 6000.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 26,
+          "rps": {
+            "mean": 4.846153846153846,
+            "median": 5.0,
+            "std": 0.543492976389406,
+            "min": 3.0,
+            "max": 5.0,
+            "n": 26
+          },
+          "avg_response_time": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "total_requests": 3900.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 26,
+          "rps": {
+            "mean": 4.923076923076923,
+            "median": 5.0,
+            "std": 0.3922322702763681,
+            "min": 3.0,
+            "max": 5.0,
+            "n": 26
+          },
+          "avg_response_time": {
+            "mean": 0,
+            "median": 0,
+            "std": 0,
+            "min": 0,
+            "max": 0,
+            "n": 0
+          },
+          "total_requests": 3900.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        }
+      }
+    },
+    "locust": {
+      "total_runs": 292,
+      "overall_rps": {
+        "mean": 6.277232218367924,
+        "median": 6.078502772316877,
+        "std": 9.521581947618069,
+        "min": 0.3034040878278151,
+        "max": 166.55960606782622,
+        "n": 290
+      },
+      "overall_avg_rt": {
+        "mean": 66.67586206896551,
+        "median": 3.0,
+        "std": 647.7338872474564,
+        "min": 3.0,
+        "max": 10000.0,
+        "n": 290
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 92,
+          "rps": {
+            "mean": 5.857360378007553,
+            "median": 6.0907598353399015,
+            "std": 0.912387353615611,
+            "min": 0.7549241642385692,
+            "max": 6.397481898799723,
+            "n": 92
+          },
+          "avg_response_time": {
+            "mean": 34.77173913043478,
+            "median": 3.0,
+            "std": 302.00393357677194,
+            "min": 3.0,
+            "max": 2900.0,
+            "n": 92
+          },
+          "total_requests": 7298.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 28,
+          "rps": {
+            "mean": 5.624140370479187,
+            "median": 6.075324783370679,
+            "std": 1.1856719781107878,
+            "min": 1.6085747338155,
+            "max": 6.330597943205614,
+            "n": 28
+          },
+          "avg_response_time": {
+            "mean": 3.107142857142857,
+            "median": 3.0,
+            "std": 0.314970394174356,
+            "min": 3.0,
+            "max": 4.0,
+            "n": 28
+          },
+          "total_requests": 2163.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 40,
+          "rps": {
+            "mean": 5.681394159780216,
+            "median": 6.066230694098886,
+            "std": 1.2560325273113213,
+            "min": 1.5613983881498377,
+            "max": 6.310833378030234,
+            "n": 38
+          },
+          "avg_response_time": {
+            "mean": 58.39473684210526,
+            "median": 3.0,
+            "std": 340.1438121508658,
+            "min": 3.0,
+            "max": 2100.0,
+            "n": 38
+          },
+          "total_requests": 2934.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 32,
+          "rps": {
+            "mean": 5.56375065489133,
+            "median": 6.099767701534945,
+            "std": 1.5879047085600837,
+            "min": 0.3034040878278151,
+            "max": 6.455250837886871,
+            "n": 32
+          },
+          "avg_response_time": {
+            "mean": 3.1875,
+            "median": 3.0,
+            "std": 0.5350610456580119,
+            "min": 3.0,
+            "max": 5.0,
+            "n": 32
+          },
+          "total_requests": 2469.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "meta-llama_llama-3.1-405b-instruct": null,
+        "mistralai_mistral-small-3.1-24b-instruct-2503": null,
+        "openai_gpt-4o-mini": {
+          "runs": 8,
+          "rps": {
+            "mean": 5.631812287367685,
+            "median": 6.086736539118517,
+            "std": 1.3840365969847672,
+            "min": 2.249622836492766,
+            "max": 6.412261640395259,
+            "n": 8
+          },
+          "avg_response_time": {
+            "mean": 3.125,
+            "median": 3.0,
+            "std": 0.3535533905932738,
+            "min": 3.0,
+            "max": 4.0,
+            "n": 8
+          },
+          "total_requests": 625.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 40,
+          "rps": {
+            "mean": 5.875845050540542,
+            "median": 6.087201618672006,
+            "std": 0.9915348005713626,
+            "min": 1.3029496921182107,
+            "max": 6.506584785793177,
+            "n": 40
+          },
+          "avg_response_time": {
+            "mean": 11.225,
+            "median": 3.0,
+            "std": 51.695601905870646,
+            "min": 3.0,
+            "max": 330.0,
+            "n": 40
+          },
+          "total_requests": 3217.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 26,
+          "rps": {
+            "mean": 5.445455968726538,
+            "median": 6.078336643651396,
+            "std": 1.804268393222352,
+            "min": 0.38285605862463923,
+            "max": 6.3186148227494305,
+            "n": 26
+          },
+          "avg_response_time": {
+            "mean": 506.6923076923077,
+            "median": 3.0,
+            "std": 2029.1383938850652,
+            "min": 3.0,
+            "max": 10000.0,
+            "n": 26
+          },
+          "total_requests": 1893.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 26,
+          "rps": {
+            "mean": 11.863119370806228,
+            "median": 6.068654261508388,
+            "std": 31.57248510412455,
+            "min": 1.8780118853947456,
+            "max": 166.55960606782622,
+            "n": 26
+          },
+          "avg_response_time": {
+            "mean": 3.1153846153846154,
+            "median": 3.0,
+            "std": 0.4314554973040049,
+            "min": 3.0,
+            "max": 5.0,
+            "n": 26
+          },
+          "total_requests": 1958.0,
+          "total_errors": 0.0,
+          "error_rate": 0.0
+        }
+      }
+    }
+  },
+  "ai_tools": {
+    "code-quality-analyzer": {
+      "total_runs": 230,
+      "overall_score": {
+        "mean": 67.59347826086956,
+        "median": 72.2,
+        "std": 14.510466064308737,
+        "min": 0.0,
+        "max": 87.2,
+        "n": 230
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "score": {
+            "mean": 76.058,
+            "median": 75.5,
+            "std": 2.7454667645233006,
+            "min": 70.6,
+            "max": 87.2,
+            "n": 50
+          },
+          "compliance_pct": {
+            "mean": 86.5,
+            "median": 87.5,
+            "std": 9.728456051340169,
+            "min": 75.0,
+            "max": 100.0,
+            "n": 50
+          },
+          "grades": [
+            "C",
+            "C",
+            "B",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "B",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "B",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C"
+          ],
+          "dominant_grade": "C",
+          "avg_metrics_passed": 6.92,
+          "avg_metrics_total": 8.0
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "score": {
+            "mean": 70.47,
+            "median": 70.4,
+            "std": 2.2129047355051354,
+            "min": 66.9,
+            "max": 74.9,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 71.25,
+            "median": 68.75,
+            "std": 10.016433864825398,
+            "min": 62.5,
+            "max": 87.5,
+            "n": 20
+          },
+          "grades": [
+            "C",
+            "C",
+            "D",
+            "C",
+            "C",
+            "C",
+            "C",
+            "D",
+            "C",
+            "C",
+            "C",
+            "D",
+            "C",
+            "D",
+            "C",
+            "C",
+            "C",
+            "C",
+            "D",
+            "C"
+          ],
+          "dominant_grade": "C",
+          "avg_metrics_passed": 5.7,
+          "avg_metrics_total": 8.0
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "score": {
+            "mean": 72.555,
+            "median": 73.4,
+            "std": 4.230276213452882,
+            "min": 65.1,
+            "max": 78.1,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 78.75,
+            "median": 75.0,
+            "std": 11.542256460957983,
+            "min": 62.5,
+            "max": 100.0,
+            "n": 20
+          },
+          "grades": [
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "D",
+            "C",
+            "D",
+            "C",
+            "C",
+            "C",
+            "D",
+            "D",
+            "C",
+            "C",
+            "C"
+          ],
+          "dominant_grade": "C",
+          "avg_metrics_passed": 6.3,
+          "avg_metrics_total": 8.0
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "score": {
+            "mean": 60.99,
+            "median": 75.80000000000001,
+            "std": 31.328310721000886,
+            "min": 0.0,
+            "max": 78.9,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 70.0,
+            "median": 87.5,
+            "std": 36.81389897708115,
+            "min": 0.0,
+            "max": 100.0,
+            "n": 20
+          },
+          "grades": [
+            "F",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "F",
+            "C",
+            "F",
+            "F",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C"
+          ],
+          "dominant_grade": "C",
+          "avg_metrics_passed": 5.6,
+          "avg_metrics_total": 8.0
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "score": {
+            "mean": 48.93,
+            "median": 49.150000000000006,
+            "std": 4.5716632928462575,
+            "min": 41.9,
+            "max": 54.1,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 25.0,
+            "median": 25.0,
+            "std": 11.470786693528089,
+            "min": 12.5,
+            "max": 37.5,
+            "n": 20
+          },
+          "grades": [
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F",
+            "F"
+          ],
+          "dominant_grade": "F",
+          "avg_metrics_passed": 2.0,
+          "avg_metrics_total": 8.0
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "score": {
+            "mean": 58.2,
+            "median": 61.650000000000006,
+            "std": 14.034993859335279,
+            "min": 0.0,
+            "max": 64.9,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 55.0,
+            "median": 62.5,
+            "std": 15.389675281277311,
+            "min": 0.0,
+            "max": 62.5,
+            "n": 20
+          },
+          "grades": [
+            "D",
+            "F",
+            "D",
+            "F",
+            "D",
+            "D",
+            "F",
+            "F",
+            "D",
+            "D",
+            "F",
+            "D",
+            "D",
+            "D",
+            "D",
+            "D",
+            "D",
+            "D",
+            "D",
+            "D"
+          ],
+          "dominant_grade": "D",
+          "avg_metrics_passed": 4.4,
+          "avg_metrics_total": 8.0
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "score": {
+            "mean": 56.15,
+            "median": 59.650000000000006,
+            "std": 13.58340706039619,
+            "min": 0.0,
+            "max": 63.7,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 49.375,
+            "median": 50.0,
+            "std": 14.887185411409511,
+            "min": 0.0,
+            "max": 62.5,
+            "n": 20
+          },
+          "grades": [
+            "D",
+            "F",
+            "D",
+            "F",
+            "D",
+            "F",
+            "D",
+            "F",
+            "F",
+            "D",
+            "D",
+            "F",
+            "F",
+            "D",
+            "D",
+            "D",
+            "F",
+            "F",
+            "D",
+            "F"
+          ],
+          "dominant_grade": "D",
+          "avg_metrics_passed": 3.95,
+          "avg_metrics_total": 8.0
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "score": {
+            "mean": 76.235,
+            "median": 78.6,
+            "std": 9.336925843687862,
+            "min": 39.6,
+            "max": 84.8,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 93.75,
+            "median": 100.0,
+            "std": 13.752990105504521,
+            "min": 50.0,
+            "max": 100.0,
+            "n": 20
+          },
+          "grades": [
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "F",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "B",
+            "B",
+            "B",
+            "C",
+            "C"
+          ],
+          "dominant_grade": "C",
+          "avg_metrics_passed": 7.5,
+          "avg_metrics_total": 8.0
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "score": {
+            "mean": 68.61,
+            "median": 67.7,
+            "std": 3.5688565174443863,
+            "min": 63.8,
+            "max": 77.2,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 70.625,
+            "median": 62.5,
+            "std": 11.66627505608412,
+            "min": 62.5,
+            "max": 100.0,
+            "n": 20
+          },
+          "grades": [
+            "C",
+            "C",
+            "C",
+            "D",
+            "D",
+            "D",
+            "C",
+            "D",
+            "C",
+            "C",
+            "D",
+            "D",
+            "D",
+            "D",
+            "C",
+            "D",
+            "D",
+            "D",
+            "D",
+            "D"
+          ],
+          "dominant_grade": "D",
+          "avg_metrics_passed": 5.65,
+          "avg_metrics_total": 8.0
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "score": {
+            "mean": 75.04,
+            "median": 75.6,
+            "std": 2.6845366158995234,
+            "min": 70.7,
+            "max": 80.7,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 83.125,
+            "median": 87.5,
+            "std": 10.159096261090612,
+            "min": 62.5,
+            "max": 100.0,
+            "n": 20
+          },
+          "grades": [
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "B",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C"
+          ],
+          "dominant_grade": "C",
+          "avg_metrics_passed": 6.65,
+          "avg_metrics_total": 8.0
+        }
+      },
+      "grade_distribution": {
+        "C": 136,
+        "D": 47,
+        "F": 40,
+        "B": 7
+      }
+    },
+    "requirements-scanner": {
+      "total_runs": 230,
+      "overall_score": {
+        "mean": 81.50621118012423,
+        "median": 85.71428571428571,
+        "std": 17.707288100847308,
+        "min": 0.0,
+        "max": 100.0,
+        "n": 230
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "score": {
+            "mean": 80.94642857142857,
+            "median": 83.48214285714286,
+            "std": 11.759083460708224,
+            "min": 50.0,
+            "max": 100.0,
+            "n": 50
+          },
+          "compliance_pct": {
+            "mean": 80.94642857142857,
+            "median": 83.48214285714286,
+            "std": 11.759083460708224,
+            "min": 50.0,
+            "max": 100.0,
+            "n": 50
+          },
+          "avg_metrics_passed": 12.06,
+          "avg_metrics_total": 14.92
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "score": {
+            "mean": 88.08035714285714,
+            "median": 92.85714285714286,
+            "std": 13.908540034894232,
+            "min": 42.857142857142854,
+            "max": 100.0,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 88.08035714285714,
+            "median": 92.85714285714286,
+            "std": 13.908540034894232,
+            "min": 42.857142857142854,
+            "max": 100.0,
+            "n": 20
+          },
+          "avg_metrics_passed": 13.05,
+          "avg_metrics_total": 14.8
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "score": {
+            "mean": 87.72321428571429,
+            "median": 87.5,
+            "std": 11.128713521103922,
+            "min": 64.28571428571429,
+            "max": 100.0,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 87.72321428571429,
+            "median": 87.5,
+            "std": 11.128713521103922,
+            "min": 64.28571428571429,
+            "max": 100.0,
+            "n": 20
+          },
+          "avg_metrics_passed": 13.0,
+          "avg_metrics_total": 14.8
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "score": {
+            "mean": 69.86607142857143,
+            "median": 87.5,
+            "std": 38.144386347862444,
+            "min": 0.0,
+            "max": 100.0,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 69.86607142857143,
+            "median": 87.5,
+            "std": 38.144386347862444,
+            "min": 0.0,
+            "max": 100.0,
+            "n": 20
+          },
+          "avg_metrics_passed": 10.5,
+          "avg_metrics_total": 14.8
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "score": {
+            "mean": 72.76785714285714,
+            "median": 78.57142857142857,
+            "std": 14.629613027561515,
+            "min": 31.25,
+            "max": 92.85714285714286,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 72.76785714285714,
+            "median": 78.57142857142857,
+            "std": 14.629613027561515,
+            "min": 31.25,
+            "max": 92.85714285714286,
+            "n": 20
+          },
+          "avg_metrics_passed": 10.7,
+          "avg_metrics_total": 14.8
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "score": {
+            "mean": 91.02678571428572,
+            "median": 92.85714285714286,
+            "std": 7.009295222917875,
+            "min": 75.0,
+            "max": 100.0,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 91.02678571428572,
+            "median": 92.85714285714286,
+            "std": 7.009295222917875,
+            "min": 75.0,
+            "max": 100.0,
+            "n": 20
+          },
+          "avg_metrics_passed": 13.45,
+          "avg_metrics_total": 14.8
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "score": {
+            "mean": 76.60714285714286,
+            "median": 78.57142857142857,
+            "std": 17.013926184468016,
+            "min": 42.857142857142854,
+            "max": 100.0,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 76.60714285714286,
+            "median": 78.57142857142857,
+            "std": 17.013926184468016,
+            "min": 42.857142857142854,
+            "max": 100.0,
+            "n": 20
+          },
+          "avg_metrics_passed": 11.25,
+          "avg_metrics_total": 14.8
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "score": {
+            "mean": 83.16964285714286,
+            "median": 83.48214285714286,
+            "std": 11.895545853130542,
+            "min": 56.25,
+            "max": 100.0,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 83.16964285714286,
+            "median": 83.48214285714286,
+            "std": 11.895545853130542,
+            "min": 56.25,
+            "max": 100.0,
+            "n": 20
+          },
+          "avg_metrics_passed": 12.3,
+          "avg_metrics_total": 14.8
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "score": {
+            "mean": 80.58035714285714,
+            "median": 86.60714285714286,
+            "std": 18.10651767024397,
+            "min": 50.0,
+            "max": 100.0,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 80.58035714285714,
+            "median": 86.60714285714286,
+            "std": 18.10651767024397,
+            "min": 50.0,
+            "max": 100.0,
+            "n": 20
+          },
+          "avg_metrics_passed": 11.85,
+          "avg_metrics_total": 14.8
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "score": {
+            "mean": 85.13392857142857,
+            "median": 87.5,
+            "std": 13.410937044494155,
+            "min": 50.0,
+            "max": 100.0,
+            "n": 20
+          },
+          "compliance_pct": {
+            "mean": 85.13392857142857,
+            "median": 87.5,
+            "std": 13.410937044494155,
+            "min": 50.0,
+            "max": 100.0,
+            "n": 20
+          },
+          "avg_metrics_passed": 12.6,
+          "avg_metrics_total": 14.8
+        }
+      }
+    }
+  },
+  "dynamic_tools": {
+    "zap": {
+      "total_findings": 3542,
+      "total_runs": 230,
+      "avg_per_run": 15.4,
+      "severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 1660,
+        "low": 1475,
+        "info": 326
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 1104,
+          "avg_per_run": 22.08,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 536,
+            "low": 465,
+            "info": 100
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 306,
+          "avg_per_run": 15.3,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 116,
+            "low": 150,
+            "info": 36
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 484,
+          "avg_per_run": 24.2,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 236,
+            "low": 200,
+            "info": 48
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 380,
+          "avg_per_run": 19.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 180,
+            "low": 160,
+            "info": 36
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 20,
+          "avg_per_run": 1.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 20,
+          "avg_per_run": 1.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 112,
+          "avg_per_run": 5.6,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 48,
+            "low": 40,
+            "info": 8
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 472,
+          "avg_per_run": 23.6,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 232,
+            "low": 200,
+            "info": 40
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 325,
+          "avg_per_run": 16.25,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 156,
+            "low": 130,
+            "info": 32
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 319,
+          "avg_per_run": 15.95,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 156,
+            "low": 130,
+            "info": 26
+          }
+        }
+      }
+    },
+    "nmap": {
+      "total_findings": 0,
+      "total_runs": 230,
+      "avg_per_run": 0.0,
+      "severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        }
+      }
+    },
+    "curl": {
+      "total_findings": 94,
+      "total_runs": 230,
+      "avg_per_run": 0.40869565217391307,
+      "severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 32,
+          "avg_per_run": 0.64,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 11,
+          "avg_per_run": 0.55,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 13,
+          "avg_per_run": 0.65,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 8,
+          "avg_per_run": 0.4,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 3,
+          "avg_per_run": 0.15,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 8,
+          "avg_per_run": 0.4,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 9,
+          "avg_per_run": 0.45,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 10,
+          "avg_per_run": 0.5,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        }
+      }
+    },
+    "curl-endpoint-tester": {
+      "total_findings": 494,
+      "total_runs": 230,
+      "avg_per_run": 2.1478260869565218,
+      "severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 98,
+          "avg_per_run": 1.96,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 32,
+          "avg_per_run": 1.6,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 42,
+          "avg_per_run": 2.1,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 55,
+          "avg_per_run": 2.75,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 49,
+          "avg_per_run": 2.45,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 42,
+          "avg_per_run": 2.1,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 27,
+          "avg_per_run": 1.35,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 72,
+          "avg_per_run": 3.6,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 38,
+          "avg_per_run": 1.9,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 39,
+          "avg_per_run": 1.95,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        }
+      }
+    },
+    "connectivity": {
+      "total_findings": 0,
+      "total_runs": 230,
+      "avg_per_run": 0.0,
+      "severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        }
+      }
+    },
+    "port-scan": {
+      "total_findings": 0,
+      "total_runs": 230,
+      "avg_per_run": 0.0,
+      "severity": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "per_model": {
+        "anthropic_claude-4.5-sonnet-20250929": {
+          "runs": 50,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "deepseek_deepseek-r1-0528": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-flash-preview-20251217": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "google_gemini-3-pro-preview-20251117": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "meta-llama_llama-3.1-405b-instruct": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "mistralai_mistral-small-3.1-24b-instruct-2503": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-4o-mini": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "openai_gpt-5.2-codex-20260114": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "qwen_qwen3-coder-plus": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        },
+        "z-ai_glm-4.7-20251222": {
+          "runs": 20,
+          "findings": 0,
+          "avg_per_run": 0.0,
+          "severity": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0
+          }
+        }
+      }
+    }
+  },
+  "model_summary": {
+    "anthropic_claude-4.5-sonnet-20250929": {
+      "short_name": "Claude 4.5 Sonnet",
+      "total_findings": 18419,
+      "total_loc": 132227,
+      "python_loc": 43448,
+      "js_loc": 63529,
+      "defect_density_kloc": 139.29832787554736,
+      "severity": {
+        "critical": 0,
+        "high": 3053,
+        "medium": 4114,
+        "low": 11330,
+        "info": 0
+      },
+      "stats": {
+        "mean": 368.38,
+        "median": 383.5,
+        "std": 62.26208267296806,
+        "min": 231,
+        "max": 457,
+        "n": 50
+      }
+    },
+    "deepseek_deepseek-r1-0528": {
+      "short_name": "DeepSeek R1",
+      "total_findings": 4510,
+      "total_loc": 50469,
+      "python_loc": 9480,
+      "js_loc": 30889,
+      "defect_density_kloc": 89.36178644316313,
+      "severity": {
+        "critical": 0,
+        "high": 1092,
+        "medium": 1362,
+        "low": 2067,
+        "info": 0
+      },
+      "stats": {
+        "mean": 225.5,
+        "median": 223.5,
+        "std": 37.62487978648395,
+        "min": 125,
+        "max": 298,
+        "n": 20
+      }
+    },
+    "google_gemini-3-flash-preview-20251217": {
+      "short_name": "Gemini 3 Flash",
+      "total_findings": 3935,
+      "total_loc": 36514,
+      "python_loc": 8338,
+      "js_loc": 18076,
+      "defect_density_kloc": 107.76688393492907,
+      "severity": {
+        "critical": 0,
+        "high": 957,
+        "medium": 1364,
+        "low": 1615,
+        "info": 0
+      },
+      "stats": {
+        "mean": 196.75,
+        "median": 197.0,
+        "std": 34.22968087247643,
+        "min": 132,
+        "max": 258,
+        "n": 20
+      }
+    },
+    "google_gemini-3-pro-preview-20251117": {
+      "short_name": "Gemini 3 Pro",
+      "total_findings": 3803,
+      "total_loc": 34559,
+      "python_loc": 8562,
+      "js_loc": 15897,
+      "defect_density_kloc": 110.04369339390607,
+      "severity": {
+        "critical": 0,
+        "high": 845,
+        "medium": 1207,
+        "low": 1758,
+        "info": 0
+      },
+      "stats": {
+        "mean": 190.15,
+        "median": 227.0,
+        "std": 92.22756466594207,
+        "min": 25,
+        "max": 298,
+        "n": 20
+      }
+    },
+    "meta-llama_llama-3.1-405b-instruct": {
+      "short_name": "Llama 3.1 405B",
+      "total_findings": 1818,
+      "total_loc": 19315,
+      "python_loc": 3317,
+      "js_loc": 5898,
+      "defect_density_kloc": 94.12373802743981,
+      "severity": {
+        "critical": 0,
+        "high": 530,
+        "medium": 868,
+        "low": 420,
+        "info": 0
+      },
+      "stats": {
+        "mean": 90.9,
+        "median": 92.5,
+        "std": 21.908662069697694,
+        "min": 34,
+        "max": 123,
+        "n": 20
+      }
+    },
+    "mistralai_mistral-small-3.1-24b-instruct-2503": {
+      "short_name": "Mistral Small 3.1",
+      "total_findings": 2917,
+      "total_loc": 28398,
+      "python_loc": 5009,
+      "js_loc": 13289,
+      "defect_density_kloc": 102.71850130290866,
+      "severity": {
+        "critical": 0,
+        "high": 818,
+        "medium": 1568,
+        "low": 531,
+        "info": 0
+      },
+      "stats": {
+        "mean": 145.85,
+        "median": 144.5,
+        "std": 39.58372206641992,
+        "min": 64,
+        "max": 235,
+        "n": 20
+      }
+    },
+    "openai_gpt-4o-mini": {
+      "short_name": "GPT-4o Mini",
+      "total_findings": 1778,
+      "total_loc": 19686,
+      "python_loc": 3623,
+      "js_loc": 5963,
+      "defect_density_kloc": 90.31799248196688,
+      "severity": {
+        "critical": 0,
+        "high": 517,
+        "medium": 871,
+        "low": 390,
+        "info": 0
+      },
+      "stats": {
+        "mean": 88.9,
+        "median": 87.5,
+        "std": 26.020032768295238,
+        "min": 36,
+        "max": 130,
+        "n": 20
+      }
+    },
+    "openai_gpt-5.2-codex-20260114": {
+      "short_name": "GPT-5.2 Codex",
+      "total_findings": 4161,
+      "total_loc": 54145,
+      "python_loc": 15093,
+      "js_loc": 28952,
+      "defect_density_kloc": 76.84920121894912,
+      "severity": {
+        "critical": 0,
+        "high": 1416,
+        "medium": 1809,
+        "low": 961,
+        "info": 0
+      },
+      "stats": {
+        "mean": 208.05,
+        "median": 207.0,
+        "std": 71.2087184194981,
+        "min": 95,
+        "max": 423,
+        "n": 20
+      }
+    },
+    "qwen_qwen3-coder-plus": {
+      "short_name": "Qwen3 Coder+",
+      "total_findings": 4151,
+      "total_loc": 40859,
+      "python_loc": 10376,
+      "js_loc": 20383,
+      "defect_density_kloc": 101.59328422134658,
+      "severity": {
+        "critical": 0,
+        "high": 688,
+        "medium": 1366,
+        "low": 2107,
+        "info": 0
+      },
+      "stats": {
+        "mean": 207.55,
+        "median": 211.5,
+        "std": 57.85142039833822,
+        "min": 116,
+        "max": 327,
+        "n": 20
+      }
+    },
+    "z-ai_glm-4.7-20251222": {
+      "short_name": "GLM-4.7",
+      "total_findings": 4165,
+      "total_loc": 38916,
+      "python_loc": 10819,
+      "js_loc": 17997,
+      "defect_density_kloc": 107.02538801521224,
+      "severity": {
+        "critical": 0,
+        "high": 875,
+        "medium": 1213,
+        "low": 2086,
+        "info": 0
+      },
+      "stats": {
+        "mean": 208.25,
+        "median": 208.0,
+        "std": 54.584434835544364,
+        "min": 135,
+        "max": 286,
+        "n": 20
+      }
+    }
+  }
+}

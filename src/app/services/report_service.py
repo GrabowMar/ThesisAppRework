@@ -1611,7 +1611,7 @@ class ReportService:
                 
                 if is_direct_tool:
                     # item_data IS the tool data itself (AI analyzer format)
-                    tool_results = {item_name: self._normalize_tool_data(item_data)}
+                    tool_results = {item_name: self._normalize_tool_data(item_data, tool_name=item_name)}
                     service_name = 'ai-analyzer'  # Infer service from direct tool structure
                 else:
                     # item_data is a service containing tools (possibly without 'analysis' wrapper)
@@ -1678,18 +1678,35 @@ class ReportService:
                     if app_key not in tool_loc_tracking[t_name] and app_loc > 0:
                         tool_loc_tracking[t_name][app_key] = app_loc
                     
-                    # Count findings by severity
-                    issues_list = t_data.get('issues', [])
-                    if isinstance(issues_list, list) and isinstance(findings_count, int) and findings_count >= 0:
-                        # Clamp to total_issues to keep severity heatmaps consistent with total_findings.
-                        # This also prevents counting auxiliary entries (e.g., per-function metrics) as findings.
-                        issues_list = issues_list[:findings_count]
+                    # Count findings by severity - prefer severity_breakdown over iterating issues
+                    sev_bd = t_data.get('severity_breakdown', {})
+                    if isinstance(sev_bd, dict) and sev_bd:
+                        # Use pre-computed severity breakdown (most reliable)
+                        for sev_key, sev_count in sev_bd.items():
+                            sev_lower = sev_key.lower()
+                            if sev_lower in agg['findings_by_severity'] and isinstance(sev_count, (int, float)):
+                                agg['findings_by_severity'][sev_lower] += int(sev_count)
+                    else:
+                        # Fallback: count from issues list
+                        issues_list = t_data.get('issues', [])
+                        if isinstance(issues_list, list) and isinstance(findings_count, int) and findings_count >= 0:
+                            issues_list = issues_list[:findings_count]
 
-                    for finding in issues_list if isinstance(issues_list, list) else []:
-                        sev = finding.get('severity', 'info').lower()
-                        if sev in agg['findings_by_severity']:
-                            agg['findings_by_severity'][sev] += 1
-                        all_findings.append({**finding, 'tool': t_name})
+                        for finding in issues_list if isinstance(issues_list, list) else []:
+                            sev = 'info'
+                            if isinstance(finding, dict):
+                                sev = str(finding.get('severity', 'info')).lower()
+                            if sev in agg['findings_by_severity']:
+                                agg['findings_by_severity'][sev] += 1
+                            all_findings.append({**finding, 'tool': t_name} if isinstance(finding, dict) else {'tool': t_name})
+                    
+                    # Store performance/AI metrics if present
+                    if 'metrics' in t_data:
+                        if 'metrics' not in agg:
+                            agg['metrics'] = []
+                        agg['metrics'].append(t_data['metrics'])
+                    if 'tool_type' in t_data:
+                        agg['tool_type'] = t_data['tool_type']
                     
                     # Track by model
                     if model_slug not in tools_by_model:
@@ -1781,6 +1798,37 @@ class ReportService:
                 sev['info'] * 0.1
             )
             agg['effectiveness_score'] = round(weighted_findings / successful, 2) if successful > 0 else 0
+            
+            # Aggregate performance/AI metrics if present
+            tool_type = agg.get('tool_type', 'static')
+            metrics_list = agg.get('metrics', [])
+            if tool_type == 'performance' and metrics_list:
+                rps_vals = [m.get('requests_per_second') for m in metrics_list
+                            if m.get('requests_per_second') is not None]
+                rt_vals = [m.get('avg_response_time') for m in metrics_list
+                           if m.get('avg_response_time') is not None]
+                err_vals = [m.get('failed_requests', 0) for m in metrics_list
+                            if m.get('failed_requests') is not None]
+                agg['performance_metrics'] = {
+                    'avg_rps': round(sum(rps_vals) / len(rps_vals), 2) if rps_vals else 0,
+                    'avg_response_time': round(sum(rt_vals) / len(rt_vals), 2) if rt_vals else 0,
+                    'total_errors': sum(e for e in err_vals if e),
+                    'samples': len(metrics_list),
+                }
+            elif tool_type == 'ai' and metrics_list:
+                scores = [m.get('aggregate_score') or m.get('compliance_percentage')
+                          for m in metrics_list
+                          if m.get('aggregate_score') is not None or m.get('compliance_percentage') is not None]
+                grades = [m.get('quality_grade') for m in metrics_list
+                          if m.get('quality_grade')]
+                agg['ai_metrics'] = {
+                    'avg_score': round(sum(s for s in scores if s) / len(scores), 2) if scores else 0,
+                    'grades': grades,
+                    'samples': len(metrics_list),
+                }
+            
+            # Remove raw metrics list from output
+            agg.pop('metrics', None)
             
             # Add display-friendly fields
             agg['display_name'] = t_name.replace('_', ' ').title()
@@ -2551,6 +2599,9 @@ class ReportService:
 
         model_rankings = self._build_comprehensive_rankings(model_reports)
 
+        # Compute thesis-level analytics (per-tool per-model, heatmap, TOPSIS, etc.)
+        thesis_analytics = self._compute_thesis_analytics(model_reports, tool_report)
+
         report.update_progress(95)
         db.session.commit()
 
@@ -2571,6 +2622,7 @@ class ReportService:
             'tool_report': tool_report,
             'generation_report': generation_report,
             'model_rankings': model_rankings,
+            'thesis_analytics': thesis_analytics,
             'platform_metrics': {
                 'avg_findings_per_model': (
                     total_findings / models_with_findings if models_with_findings else 0
@@ -2614,6 +2666,437 @@ class ReportService:
 
         return rankings
     
+    # ==========================================================================
+    # THESIS ANALYTICS — Per-tool per-model data for comprehensive report tables
+    # ==========================================================================
+
+    # Model pricing data for TOPSIS/WSM computations
+    _MODEL_PARAMS: Dict[str, Dict[str, float]] = {
+        'openai_gpt-4o-mini': {'ctx_k': 128, 'max_out_k': 16, 'in_price': 0.15, 'out_price': 0.60},
+        'openai_gpt-5.2-codex-20260114': {'ctx_k': 400, 'max_out_k': 128, 'in_price': 1.75, 'out_price': 14.00},
+        'google_gemini-3-pro-preview-20251117': {'ctx_k': 1048, 'max_out_k': 65, 'in_price': 2.00, 'out_price': 12.00},
+        'deepseek_deepseek-r1-0528': {'ctx_k': 163, 'max_out_k': 65, 'in_price': 0.40, 'out_price': 1.75},
+        'qwen_qwen3-coder-plus': {'ctx_k': 128, 'max_out_k': 65, 'in_price': 1.00, 'out_price': 5.00},
+        'z-ai_glm-4.7-20251222': {'ctx_k': 202, 'max_out_k': 65, 'in_price': 0.40, 'out_price': 1.50},
+        'mistralai_mistral-small-3.1-24b-instruct-2503': {'ctx_k': 131, 'max_out_k': 131, 'in_price': 0.03, 'out_price': 0.11},
+        'google_gemini-3-flash-preview-20251217': {'ctx_k': 1048, 'max_out_k': 65, 'in_price': 0.50, 'out_price': 3.00},
+        'meta-llama_llama-3.1-405b-instruct': {'ctx_k': 10, 'max_out_k': 0, 'in_price': 4.00, 'out_price': 4.00},
+        'anthropic_claude-4.5-sonnet-20250929': {'ctx_k': 1000, 'max_out_k': 64, 'in_price': 3.00, 'out_price': 15.00},
+    }
+
+    _SHORT_NAMES: Dict[str, str] = {
+        'openai_gpt-4o-mini': 'GPT-4o Mini',
+        'openai_gpt-5.2-codex-20260114': 'GPT-5.2 Codex',
+        'google_gemini-3-pro-preview-20251117': 'Gemini 3 Pro',
+        'deepseek_deepseek-r1-0528': 'DeepSeek R1',
+        'qwen_qwen3-coder-plus': 'Qwen3 Coder+',
+        'z-ai_glm-4.7-20251222': 'GLM-4.7',
+        'mistralai_mistral-small-3.1-24b-instruct-2503': 'Mistral Small 3.1',
+        'google_gemini-3-flash-preview-20251217': 'Gemini 3 Flash',
+        'meta-llama_llama-3.1-405b-instruct': 'Llama 3.1 405B',
+        'anthropic_claude-4.5-sonnet-20250929': 'Claude 4.5 Sonnet',
+    }
+
+    def _compute_thesis_analytics(
+        self,
+        model_reports: Dict[str, Dict[str, Any]],
+        tool_report: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Compute thesis-level analytics for the comprehensive report.
+
+        Produces per-tool per-model breakdowns, code composition, severity tables,
+        heatmap matrix, TOPSIS/WSM rankings, and Spearman correlations — all from
+        the already-generated model_reports and tool_report data.
+
+        Returns:
+            Dict with keys: code_composition, severity_by_model, service_completion,
+            static_tools, dynamic_tools, performance_tools, ai_tools,
+            heatmap, topsis, wsm, correlations
+        """
+        import math
+
+        model_slugs = sorted(model_reports.keys())
+        tools_by_model = tool_report.get('by_model', {})
+        tools_list = tool_report.get('tools', [])
+        tools_by_name: Dict[str, Dict[str, Any]] = {
+            t['tool_name']: t for t in tools_list
+        }
+
+        # ── Code Composition per model ───────────────────────────────────────
+        code_composition: List[Dict[str, Any]] = []
+        for slug in model_slugs:
+            mr = model_reports[slug]
+            loc = mr.get('loc_metrics', {})
+            apps_count = mr.get('apps_count', 0)
+            total_loc = loc.get('total_loc', 0)
+            python_loc = loc.get('backend_loc', 0)
+            js_loc = loc.get('frontend_loc', 0)
+            total_findings = mr.get('summary', {}).get('total_findings', 0) or 0
+            loc_per_app = total_loc / apps_count if apps_count else 0
+            i_100_loc = (total_findings / total_loc * 100) if total_loc > 0 else 0
+
+            code_composition.append({
+                'model_slug': slug,
+                'short_name': self._SHORT_NAMES.get(slug, slug),
+                'apps': apps_count,
+                'total_loc': total_loc,
+                'python_loc': python_loc,
+                'js_loc': js_loc,
+                'loc_per_app': round(loc_per_app),
+                'i_100_loc': round(i_100_loc, 2),
+            })
+        code_composition.sort(key=lambda r: r['loc_per_app'], reverse=True)
+
+        # ── Severity by Model ────────────────────────────────────────────────
+        severity_by_model: List[Dict[str, Any]] = []
+        for slug in model_slugs:
+            mr = model_reports[slug]
+            sev = mr.get('findings_breakdown', {})
+            total_f = mr.get('summary', {}).get('total_findings', 0) or 0
+            loc = mr.get('loc_metrics', {})
+            total_loc = loc.get('total_loc', 0)
+            apps_count = mr.get('apps_count', 0)
+            d_kloc = (total_f / total_loc * 1000) if total_loc > 0 else 0
+            avg_per_app = total_f / apps_count if apps_count > 0 else 0
+
+            severity_by_model.append({
+                'model_slug': slug,
+                'short_name': self._SHORT_NAMES.get(slug, slug),
+                'apps': apps_count,
+                'total': total_f,
+                'critical': sev.get('critical', 0),
+                'high': sev.get('high', 0),
+                'medium': sev.get('medium', 0),
+                'low': sev.get('low', 0),
+                'info': sev.get('info', 0),
+                'd_kloc': round(d_kloc, 2),
+                'avg_per_app': round(avg_per_app, 1),
+            })
+        severity_by_model.sort(key=lambda r: r['d_kloc'], reverse=True)
+
+        # ── Service Completion per model ─────────────────────────────────────
+        service_completion: List[Dict[str, Any]] = []
+        # Derive from tool_report by_model: count tools from each service
+        _svc_tools: Dict[str, set] = {}
+        for t in tools_list:
+            svc = t.get('service', '')
+            if svc not in _svc_tools:
+                _svc_tools[svc] = set()
+            _svc_tools[svc].add(t['tool_name'])
+
+        for slug in model_slugs:
+            mr = model_reports[slug]
+            apps_count = mr.get('apps_count', 0)
+            model_tools = tools_by_model.get(slug, {})
+
+            # Count apps that had at least one tool from each service type
+            svc_counts: Dict[str, int] = {}
+            for svc_type in ['static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer']:
+                svc_tool_set = _svc_tools.get(svc_type, set())
+                if svc_tool_set:
+                    count = max(
+                        (model_tools.get(tn, {}).get('executions', 0) for tn in svc_tool_set),
+                        default=0
+                    )
+                    svc_counts[svc_type] = count
+                else:
+                    svc_counts[svc_type] = 0
+
+            service_completion.append({
+                'model_slug': slug,
+                'short_name': self._SHORT_NAMES.get(slug, slug),
+                'apps': apps_count,
+                'static': svc_counts.get('static-analyzer', 0),
+                'dynamic': svc_counts.get('dynamic-analyzer', 0),
+                'performance': svc_counts.get('performance-tester', 0),
+                'ai': svc_counts.get('ai-analyzer', 0),
+            })
+
+        # ── Per-tool per-model data grouped by tool type ─────────────────────
+        _STATIC_TOOLS = [
+            'bandit', 'semgrep', 'pylint', 'ruff', 'mypy', 'vulture', 'radon',
+            'safety', 'pip-audit', 'detect-secrets', 'eslint', 'npm-audit',
+            'stylelint', 'html-validator',
+        ]
+        _DYNAMIC_TOOLS = ['zap', 'owasp-zap', 'nmap', 'curl', 'curl-endpoint-tester',
+                          'connectivity', 'port-scan']
+        _PERF_TOOLS = ['ab', 'locust', 'artillery', 'aiohttp']
+        _AI_TOOLS = ['requirements-scanner', 'code-quality-analyzer']
+
+        def _per_model_findings(tool_name: str) -> List[Dict[str, Any]]:
+            """Build per-model breakdown for a findings-based tool."""
+            rows = []
+            tool_agg = tools_by_name.get(tool_name, {})
+            total_loc_tracked = tool_agg.get('total_loc_analyzed', 0)
+            for slug in model_slugs:
+                mt = tools_by_model.get(slug, {}).get(tool_name, {})
+                runs = mt.get('executions', 0)
+                ok = mt.get('successful', 0)
+                findings = mt.get('findings', 0)
+                loc = model_reports[slug].get('loc_metrics', {}).get('total_loc', 0)
+                avg_run = findings / ok if ok > 0 else 0
+                f_kloc = (findings / loc * 1000) if loc > 0 else 0
+                rows.append({
+                    'model_slug': slug,
+                    'short_name': self._SHORT_NAMES.get(slug, slug),
+                    'runs': runs, 'ok': ok, 'findings': findings,
+                    'avg_per_run': round(avg_run, 2),
+                    'f_kloc': round(f_kloc, 2),
+                })
+            return rows
+
+        # Static tools
+        static_tools_data: Dict[str, Dict[str, Any]] = {}
+        for tn in _STATIC_TOOLS:
+            if tn not in tools_by_name:
+                continue
+            agg = tools_by_name[tn]
+            static_tools_data[tn] = {
+                'tool_name': tn,
+                'display_name': agg.get('display_name', tn),
+                'total_findings': agg.get('total_findings', 0),
+                'total_runs': agg.get('executions', 0),
+                'severity': agg.get('findings_by_severity', {}),
+                'per_model': _per_model_findings(tn),
+            }
+
+        # Dynamic tools — each gets custom per-model data
+        dynamic_tools_data: Dict[str, Dict[str, Any]] = {}
+        for tn in _DYNAMIC_TOOLS:
+            if tn not in tools_by_name:
+                continue
+            agg = tools_by_name[tn]
+            dynamic_tools_data[tn] = {
+                'tool_name': tn,
+                'display_name': agg.get('display_name', tn),
+                'total_findings': agg.get('total_findings', 0),
+                'total_runs': agg.get('executions', 0),
+                'severity': agg.get('findings_by_severity', {}),
+                'per_model': _per_model_findings(tn),
+            }
+
+        # Performance tools — per-model RPS/RT metrics
+        perf_tools_data: Dict[str, Dict[str, Any]] = {}
+        for tn in _PERF_TOOLS:
+            if tn not in tools_by_name:
+                continue
+            agg = tools_by_name[tn]
+            pm = agg.get('performance_metrics', {})
+            per_model_rows: List[Dict[str, Any]] = []
+            for slug in model_slugs:
+                mt = tools_by_model.get(slug, {}).get(tn, {})
+                runs = mt.get('executions', 0)
+                per_model_rows.append({
+                    'model_slug': slug,
+                    'short_name': self._SHORT_NAMES.get(slug, slug),
+                    'runs': runs,
+                    'ok': mt.get('successful', 0),
+                })
+            perf_tools_data[tn] = {
+                'tool_name': tn,
+                'display_name': agg.get('display_name', tn),
+                'total_runs': agg.get('executions', 0),
+                'performance_metrics': pm,
+                'per_model': per_model_rows,
+            }
+
+        # AI tools — per-model scores/compliance
+        ai_tools_data: Dict[str, Dict[str, Any]] = {}
+        for tn in _AI_TOOLS:
+            if tn not in tools_by_name:
+                continue
+            agg = tools_by_name[tn]
+            am = agg.get('ai_metrics', {})
+            per_model_rows = []
+            for slug in model_slugs:
+                mt = tools_by_model.get(slug, {}).get(tn, {})
+                per_model_rows.append({
+                    'model_slug': slug,
+                    'short_name': self._SHORT_NAMES.get(slug, slug),
+                    'runs': mt.get('executions', 0),
+                    'ok': mt.get('successful', 0),
+                })
+            ai_tools_data[tn] = {
+                'tool_name': tn,
+                'display_name': agg.get('display_name', tn),
+                'total_runs': agg.get('executions', 0),
+                'ai_metrics': am,
+                'per_model': per_model_rows,
+            }
+
+        # ── Heatmap — tool × model findings matrix ──────────────────────────
+        # Only include tools with nonzero findings
+        heatmap_tools = [
+            tn for tn in (_STATIC_TOOLS + _DYNAMIC_TOOLS)
+            if tools_by_name.get(tn, {}).get('total_findings', 0) > 0
+        ]
+        heatmap_models = model_slugs
+        heatmap_matrix: List[Dict[str, Any]] = []
+        for tn in heatmap_tools:
+            row: Dict[str, Any] = {'tool': tn}
+            for slug in heatmap_models:
+                row[slug] = tools_by_model.get(slug, {}).get(tn, {}).get('findings', 0)
+            heatmap_matrix.append(row)
+
+        heatmap = {
+            'tools': heatmap_tools,
+            'models': heatmap_models,
+            'model_names': {s: self._SHORT_NAMES.get(s, s) for s in heatmap_models},
+            'matrix': heatmap_matrix,
+        }
+
+        # ── TOPSIS ──────────────────────────────────────────────────────────
+        topsis_rows = []
+        for slug in model_slugs:
+            mr = model_reports[slug]
+            loc_m = mr.get('loc_metrics', {})
+            total_loc = loc_m.get('total_loc', 0)
+            apps_count = mr.get('apps_count', 0)
+            loc_app = total_loc / apps_count if apps_count > 0 else 0
+            total_f = mr.get('summary', {}).get('total_findings', 0) or 0
+            sev = mr.get('findings_breakdown', {})
+            d_kloc = (total_f / total_loc * 1000) if total_loc > 0 else 0
+            high_pct = ((sev.get('high', 0) + sev.get('critical', 0)) / total_f * 100) if total_f > 0 else 0
+            i100 = (total_f / total_loc * 100) if total_loc > 0 else 0
+            out_price = self._MODEL_PARAMS.get(slug, {}).get('out_price', 0)
+            topsis_rows.append({
+                'model_slug': slug,
+                'short_name': self._SHORT_NAMES.get(slug, slug),
+                'dkloc': d_kloc, 'high_pct': high_pct,
+                'loc_app': loc_app, 'out_price': out_price, 'i100': i100,
+            })
+
+        criteria = ['dkloc', 'high_pct', 'loc_app', 'out_price', 'i100']
+        weights = [0.30, 0.15, 0.20, 0.20, 0.15]
+        is_benefit = [False, False, True, False, False]
+
+        # Vector normalization
+        norms = {}
+        for c in criteria:
+            ss = math.sqrt(sum(r[c] ** 2 for r in topsis_rows))
+            norms[c] = ss if ss > 0 else 1
+        normalized = [{c: r[c] / norms[c] for c in criteria} for r in topsis_rows]
+        weighted = [{c: nr[c] * weights[i] for i, c in enumerate(criteria)} for nr in normalized]
+
+        ideal = {}
+        anti_ideal = {}
+        for i, c in enumerate(criteria):
+            vals = [wr[c] for wr in weighted]
+            if is_benefit[i]:
+                ideal[c], anti_ideal[c] = max(vals), min(vals)
+            else:
+                ideal[c], anti_ideal[c] = min(vals), max(vals)
+
+        topsis_scores = []
+        for wr in weighted:
+            d_plus = math.sqrt(sum((wr[c] - ideal[c]) ** 2 for c in criteria))
+            d_minus = math.sqrt(sum((wr[c] - anti_ideal[c]) ** 2 for c in criteria))
+            topsis_scores.append(d_minus / (d_plus + d_minus) if (d_plus + d_minus) > 0 else 0)
+
+        topsis_combined = sorted(
+            zip(topsis_rows, topsis_scores), key=lambda x: x[1], reverse=True
+        )
+        topsis = [
+            {**row, 'score': round(score, 4), 'rank': rank}
+            for rank, (row, score) in enumerate(topsis_combined, 1)
+        ]
+
+        # ── WSM ─────────────────────────────────────────────────────────────
+        wsm_criteria = ['dkloc', 'loc_app', 'out_price', 'i100']
+        wsm_weights = [0.35, 0.25, 0.20, 0.20]
+        wsm_is_benefit = [False, True, False, False]
+
+        mins = {c: min(r[c] for r in topsis_rows) for c in wsm_criteria}
+        maxs = {c: max(r[c] for r in topsis_rows) for c in wsm_criteria}
+
+        wsm_scored = []
+        for r in topsis_rows:
+            score = 0.0
+            for i, c in enumerate(wsm_criteria):
+                rng = maxs[c] - mins[c]
+                if rng == 0:
+                    norm = 1.0
+                elif wsm_is_benefit[i]:
+                    norm = (r[c] - mins[c]) / rng
+                else:
+                    norm = (maxs[c] - r[c]) / rng
+                score += norm * wsm_weights[i]
+            wsm_scored.append((r, score))
+
+        wsm_combined = sorted(wsm_scored, key=lambda x: x[1], reverse=True)
+        wsm = [
+            {**row, 'score': round(score, 4), 'rank': rank}
+            for rank, (row, score) in enumerate(wsm_combined, 1)
+        ]
+
+        # ── Spearman correlations ────────────────────────────────────────────
+        def _rank(vals: List[float]) -> List[float]:
+            indexed = sorted(enumerate(vals), key=lambda x: x[1])
+            ranks = [0.0] * len(vals)
+            i = 0
+            while i < len(indexed):
+                j = i
+                while j < len(indexed) - 1 and indexed[j + 1][1] == indexed[j][1]:
+                    j += 1
+                avg_r = sum(range(i + 1, j + 2)) / (j - i + 1)
+                for k in range(i, j + 1):
+                    ranks[indexed[k][0]] = avg_r
+                i = j + 1
+            return ranks
+
+        def _spearman(x: List[float], y: List[float]) -> float:
+            n = len(x)
+            if n < 3:
+                return 0.0
+            rx, ry = _rank(x), _rank(y)
+            d2 = sum((rx[i] - ry[i]) ** 2 for i in range(n))
+            return 1 - (6 * d2) / (n * (n ** 2 - 1))
+
+        total_locs = [r['loc_app'] * (model_reports[r['model_slug']].get('apps_count', 0))
+                      for r in topsis_rows]
+        loc_apps = [r['loc_app'] for r in topsis_rows]
+        dklocs_v = [r['dkloc'] for r in topsis_rows]
+        i100s_v = [r['i100'] for r in topsis_rows]
+        ctx_ks = [self._MODEL_PARAMS.get(r['model_slug'], {}).get('ctx_k', 0) for r in topsis_rows]
+        max_outs = [self._MODEL_PARAMS.get(r['model_slug'], {}).get('max_out_k', 0) for r in topsis_rows]
+        out_prices_v = [r['out_price'] for r in topsis_rows]
+
+        params_list = [
+            ('Context (k)', ctx_ks),
+            ('Max Out (k)', max_outs),
+            ('Out $/Mtok', out_prices_v),
+        ]
+        outcomes_list = [
+            ('Total LOC', total_locs),
+            ('LOC/App', loc_apps),
+            ('D/kLOC', dklocs_v),
+            ('I/100LOC', i100s_v),
+        ]
+
+        correlations: List[Dict[str, Any]] = []
+        for pname, pvals in params_list:
+            row_data: Dict[str, Any] = {'parameter': pname}
+            for oname, ovals in outcomes_list:
+                row_data[oname] = round(_spearman(pvals, ovals), 2)
+            correlations.append(row_data)
+        correlation_outcomes = [o[0] for o in outcomes_list]
+
+        return {
+            'code_composition': code_composition,
+            'severity_by_model': severity_by_model,
+            'service_completion': service_completion,
+            'static_tools': static_tools_data,
+            'dynamic_tools': dynamic_tools_data,
+            'performance_tools': perf_tools_data,
+            'ai_tools': ai_tools_data,
+            'heatmap': heatmap,
+            'topsis': topsis,
+            'wsm': wsm,
+            'correlations': correlations,
+            'correlation_outcomes': correlation_outcomes,
+            'model_names': {s: self._SHORT_NAMES.get(s, s) for s in model_slugs},
+        }
+
     # ==========================================================================
     # HELPERS
     # ==========================================================================
@@ -2898,7 +3381,7 @@ class ReportService:
         if isinstance(ai_tools, dict):
             for tool_name, tool_data in ai_tools.items():
                 if isinstance(tool_data, dict) and 'status' in tool_data:
-                    tools[tool_name] = self._normalize_tool_data(tool_data)
+                    tools[tool_name] = self._normalize_tool_data(tool_data, tool_name=tool_name)
         
         # 2. Static analyzer structure: analysis.results.{language}.{tool}
         results = analysis.get('results', {})
@@ -2918,35 +3401,128 @@ class ReportService:
                             if tool_name.startswith('_'):
                                 continue
                             if isinstance(tool_data, dict) and ('status' in tool_data or 'executed' in tool_data):
-                                tools[tool_name] = self._normalize_tool_data(tool_data)
+                                tools[tool_name] = self._normalize_tool_data(tool_data, tool_name=tool_name)
                     elif 'status' in value or 'executed' in value:
                         # Direct tool entry
-                        tools[key] = self._normalize_tool_data(value)
+                        tools[key] = self._normalize_tool_data(value, tool_name=key)
         
-        # 3. Direct tool_results structure (dynamic/perf analyzers)
+        # 3. Performance analyzer: results keyed by URL, each URL has per-tool data
+        # Extract per-tool metrics from URL-keyed results
+        if isinstance(results, dict):
+            for url_key, url_data in results.items():
+                if url_key == 'tool_runs' or not isinstance(url_data, dict):
+                    continue
+                # Check if this looks like URL-keyed performance data
+                perf_tool_names = {'ab', 'locust', 'artillery', 'aiohttp'}
+                if any(t in url_data for t in perf_tool_names):
+                    for pt_name in perf_tool_names:
+                        pt_data = url_data.get(pt_name, {})
+                        if isinstance(pt_data, dict) and pt_data:
+                            normalized = self._normalize_tool_data(pt_data, tool_name=pt_name)
+                            if pt_name in tools:
+                                # Merge metrics from multiple URLs
+                                existing = tools[pt_name]
+                                existing['executions'] = existing.get('executions', 0) + 1
+                                if 'metrics' in normalized and 'metrics' in existing:
+                                    # Keep first set of metrics; downstream aggregation handles cross-app
+                                    pass
+                            else:
+                                tools[pt_name] = normalized
+        
+        # 4. Direct tool_results structure (dynamic/perf analyzers)
         tool_results = analysis.get('tool_results', {}) or service_data.get('tool_results', {})
         if isinstance(tool_results, dict):
             for tool_name, tool_data in tool_results.items():
                 if isinstance(tool_data, dict) and tool_name not in tools:
-                    tools[tool_name] = self._normalize_tool_data(tool_data)
+                    tools[tool_name] = self._normalize_tool_data(tool_data, tool_name=tool_name)
         
         return tools
     
-    def _normalize_tool_data(self, tool_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Normalize tool data to consistent format."""
+    def _normalize_tool_data(self, tool_data: Dict[str, Any],
+                             tool_name: str = '') -> Dict[str, Any]:
+        """Normalize tool data to consistent format with tool-aware extraction.
+        
+        Handles different data schemas:
+        - Standard: issues list with severity per item
+        - Vulnerability tools (safety, pip-audit): vulnerabilities list
+        - npm-audit: vulnerabilities dict keyed by package name
+        - Output-only tools (semgrep, ruff, eslint): output string + issue_count
+        - Performance tools (ab, locust, artillery, aiohttp): metrics not findings
+        - AI tools (requirements-scanner, code-quality-analyzer): scores/compliance
+        """
         status = tool_data.get('status', 'unknown')
         if status in ('success', 'completed', 'no_issues'):
             status = 'success'
-        elif tool_data.get('executed') == False:
+        elif tool_data.get('executed') is False:
             status = 'skipped'
         
-        return {
+        # Base normalized data
+        normalized: Dict[str, Any] = {
             'status': status,
             'total_issues': tool_data.get('total_issues') or tool_data.get('issue_count', 0),
             'duration_seconds': tool_data.get('duration_seconds', 0) or 0,
-            'issues': tool_data.get('issues', []),
-            'executed': tool_data.get('executed', True)
+            'issues': [],
+            'executed': tool_data.get('executed', True),
+            'severity_breakdown': {},
         }
+        
+        # Use severity_breakdown if available (most reliable for static tools)
+        sev_bd = tool_data.get('severity_breakdown', {})
+        if isinstance(sev_bd, dict) and sev_bd:
+            normalized['severity_breakdown'] = {
+                k.lower(): v for k, v in sev_bd.items() if isinstance(v, (int, float))
+            }
+        
+        # Extract issues from the correct field based on tool type
+        issues = tool_data.get('issues', [])
+        vulns = tool_data.get('vulnerabilities')
+        
+        if isinstance(issues, list) and issues:
+            normalized['issues'] = issues
+        elif isinstance(vulns, list) and vulns:
+            # safety, pip-audit: vulnerabilities is a list
+            normalized['issues'] = vulns
+            if not normalized['total_issues']:
+                normalized['total_issues'] = len(vulns)
+        elif isinstance(vulns, dict) and vulns:
+            # npm-audit: vulnerabilities is a dict keyed by package name
+            normalized['issues'] = list(vulns.values())
+            if not normalized['total_issues']:
+                normalized['total_issues'] = len(vulns)
+        
+        # Performance tool metrics
+        perf_tools = {'ab', 'locust', 'artillery', 'aiohttp'}
+        if tool_name in perf_tools:
+            normalized['tool_type'] = 'performance'
+            normalized['metrics'] = {
+                'requests_per_second': tool_data.get('requests_per_second'),
+                'avg_response_time': tool_data.get('avg_response_time'),
+                'failed_requests': tool_data.get('failed_requests',
+                                                  tool_data.get('failures',
+                                                               tool_data.get('errors', 0))),
+                'completed_requests': tool_data.get('completed_requests',
+                                                     tool_data.get('requests', 0)),
+                'p95_response_time': tool_data.get('p95_response_time'),
+            }
+        
+        # AI tool metrics
+        ai_tools = {'requirements-scanner', 'code-quality-analyzer'}
+        if tool_name in ai_tools:
+            normalized['tool_type'] = 'ai'
+            results = tool_data.get('results', {})
+            summary = results.get('summary', {}) if isinstance(results, dict) else {}
+            if isinstance(summary, dict) and summary:
+                normalized['metrics'] = {
+                    'compliance_percentage': summary.get('compliance_percentage'),
+                    'aggregate_score': summary.get('aggregate_score'),
+                    'quality_grade': summary.get('quality_grade'),
+                    'requirements_met': summary.get('requirements_met'),
+                    'total_requirements': summary.get('total_requirements'),
+                    'metrics_passed': summary.get('metrics_passed'),
+                    'total_metrics': summary.get('total_metrics'),
+                }
+        
+        return normalized
     
     def _count_severities(self, findings: List[Dict[str, Any]]) -> Dict[str, int]:
         """Count findings by severity."""

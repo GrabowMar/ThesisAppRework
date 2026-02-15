@@ -93,8 +93,18 @@ def extract_all_data(results_dir: Path, gen_dir: Path) -> dict:
     perf_model = defaultdict(lambda: {'backend_rps': [], 'backend_rt': [],
                                        'frontend_rps': [], 'frontend_rt': [],
                                        'tests': 0})
+    # Per-tool performance metrics: perf_tool_model[tool][model] = {rps:[], rt:[], ...}
+    perf_tool_model = defaultdict(lambda: defaultdict(
+        lambda: {'rps': [], 'avg_rt': [], 'requests': [], 'errors': [],
+                 'p95_rt': [], 'runs': 0}
+    ))
     ai_model = defaultdict(lambda: {'overall': [], 'backend': [], 'frontend': [],
                                      'admin': [], 'apps': 0})
+    # Per-tool AI metrics: ai_tool_model[tool][model] = {scores:[], runs:0, ...}
+    ai_tool_model = defaultdict(lambda: defaultdict(
+        lambda: {'runs': 0, 'scores': [], 'grades': [],
+                 'compliance_pcts': [], 'metrics_passed': [], 'metrics_total': []}
+    ))
     zap_model = defaultdict(lambda: {'alerts': 0, 'scans': 0, 'attempted_scans': 0, 'scans_with_alerts': 0,
                                        'by_risk': defaultdict(int),
                                        'cwes': defaultdict(int),
@@ -175,13 +185,16 @@ def extract_all_data(results_dir: Path, gen_dir: Path) -> dict:
             services = data.get('services', {})
             _process_static(services, model_slug, app_n, tool_model,
                              model_app_findings, model_app_severity, service_completion)
-            _process_dynamic(services, model_slug, zap_model, dyn_diag_model, service_completion)
-            _process_performance(services, model_slug, perf_model, service_completion)
-            _process_ai(services, model_slug, ai_model, service_completion)
+            _process_dynamic(services, model_slug, app_n, tool_model, zap_model,
+                             dyn_diag_model, service_completion)
+            _process_performance(services, model_slug, perf_model, perf_tool_model,
+                                 service_completion)
+            _process_ai(services, model_slug, ai_model, ai_tool_model, service_completion)
 
     loc_data = count_loc(gen_dir) if gen_dir.exists() else {}
     return _build_output(tool_model, model_app_findings, model_app_severity,
-                         perf_model, ai_model, zap_model, dyn_diag_model, service_completion,
+                         perf_model, perf_tool_model, ai_model, ai_tool_model,
+                         zap_model, dyn_diag_model, service_completion,
                          loc_data, app_count, processed_app_count)
 
 
@@ -215,7 +228,8 @@ def _process_static(services: dict, model_slug: str, app_n: str,
                     model_app_severity[model_slug][app_n][sev] += cnt
 
 
-def _process_dynamic(services: dict, model_slug: str,
+def _process_dynamic(services: dict, model_slug: str, app_n: str,
+                      tool_model: dict,
                       zap_model: dict, dyn_diag_model: dict,
                       service_completion: dict) -> None:
     dyn = services.get('dynamic-analyzer', {})
@@ -224,6 +238,7 @@ def _process_dynamic(services: dict, model_slug: str,
         service_completion['dynamic']['success'] += 1
     analysis = dyn.get('payload', {}).get('analysis', {})
     results = analysis.get('results', {})
+    tool_results = analysis.get('tool_results', {})
     if not isinstance(results, dict) or not results:
         return
 
@@ -233,8 +248,10 @@ def _process_dynamic(services: dict, model_slug: str,
     if (isinstance(connectivity, list) and connectivity) or (isinstance(connectivity, dict) and connectivity):
         any_output = True
 
+    # --- ZAP (existing logic) ---
     zap = results.get('zap_security_scan')
     scans = zap if isinstance(zap, list) else ([zap] if isinstance(zap, dict) else [])
+    zap_total_alerts = 0
     for scan in scans:
         if not isinstance(scan, dict):
             continue
@@ -249,6 +266,7 @@ def _process_dynamic(services: dict, model_slug: str,
             continue
         zap_model[model_slug]['scans_with_alerts'] += 1
         zap_model[model_slug]['alerts'] += total_alerts
+        zap_total_alerts += total_alerts
         for risk, alerts in scan.get('alerts_by_risk', {}).items():
             if isinstance(alerts, list):
                 zap_model[model_slug]['by_risk'][risk.lower()] += len(alerts)
@@ -259,15 +277,68 @@ def _process_dynamic(services: dict, model_slug: str,
                     alert_name = a.get('alert', a.get('name', 'Unknown'))
                     zap_model[model_slug]['alert_types'][alert_name] += 1
 
-    # Additional dynamic diagnostics (port scan + endpoint probing)
+    # --- Feed dynamic tools into tool_model for unified per-tool tables ---
+    # ZAP: total alerts as findings, severity from by_risk
+    zap_tr = tool_results.get('zap', {})
+    if isinstance(zap_tr, dict) and zap_tr.get('executed', False):
+        zap_issues = int(zap_tr.get('total_issues', 0) or 0)
+        tool_model['zap'][model_slug]['runs'] += 1
+        tool_model['zap'][model_slug]['findings'] += zap_issues
+        # Map ZAP risk levels to severity
+        for scan in scans:
+            if not isinstance(scan, dict):
+                continue
+            abr = scan.get('alerts_by_risk', {})
+            for risk, alerts in abr.items():
+                if not isinstance(alerts, list):
+                    continue
+                risk_lower = risk.lower()
+                sev = {'high': 'high', 'medium': 'medium', 'low': 'low',
+                       'informational': 'info'}.get(risk_lower, 'info')
+                tool_model['zap'][model_slug]['severity'][sev] += len(alerts)
+
+    # Nmap
+    nmap_tr = tool_results.get('nmap', {})
+    if isinstance(nmap_tr, dict) and nmap_tr.get('executed', False):
+        nmap_issues = int(nmap_tr.get('total_issues', 0) or 0)
+        tool_model['nmap'][model_slug]['runs'] += 1
+        tool_model['nmap'][model_slug]['findings'] += nmap_issues
+
+    # Curl (HTTP probe)
+    curl_tr = tool_results.get('curl', {})
+    if isinstance(curl_tr, dict) and curl_tr.get('executed', False):
+        curl_issues = int(curl_tr.get('total_issues', 0) or 0)
+        tool_model['curl'][model_slug]['runs'] += 1
+        tool_model['curl'][model_slug]['findings'] += curl_issues
+
+    # Curl-endpoint-tester
+    curl_et = results.get('curl-endpoint-tester', {})
+    curl_et_tr = tool_results.get('curl-endpoint-tester', {})
+    if isinstance(curl_et_tr, dict) and curl_et_tr.get('executed', False):
+        cet_issues = int(curl_et_tr.get('total_issues', 0) or 0)
+        tool_model['curl-endpoint-tester'][model_slug]['runs'] += 1
+        tool_model['curl-endpoint-tester'][model_slug]['findings'] += cet_issues
+
+    # Connectivity
+    conn_tools = results.get('tool_runs', {}).get('connectivity', {}) if isinstance(results.get('tool_runs'), dict) else {}
+    # Connectivity is tracked via the connectivity key in results
+    if isinstance(connectivity, (list, dict)) and connectivity:
+        tool_model['connectivity'][model_slug]['runs'] += 1
+        # Connectivity doesn't produce findings
+
+    # Port scan
     port_scan = results.get('port_scan')
+    if isinstance(port_scan, dict):
+        tool_model['port-scan'][model_slug]['runs'] += 1
+        # Port scan doesn't produce defect findings
+
+    # --- Additional dynamic diagnostics (existing logic) ---
     if isinstance(port_scan, dict):
         any_output = True
         dyn_diag_model[model_slug]['port_scan_attempted'] += 1
         if port_scan.get('status') == 'success':
             dyn_diag_model[model_slug]['port_scan_success'] += 1
             open_ports = port_scan.get('open_ports') or []
-            # Prefer explicit total_open if present.
             try:
                 total_open = int(port_scan.get('total_open'))
             except Exception:
@@ -284,10 +355,9 @@ def _process_dynamic(services: dict, model_slug: str,
                     except Exception:
                         continue
 
-    curl = results.get('curl-endpoint-tester')
-    if isinstance(curl, dict):
-        # Extract counts even if endpoints failed (pass rate is still meaningful).
-        endpoint_tests = curl.get('endpoint_tests')
+    curl_et_data = results.get('curl-endpoint-tester')
+    if isinstance(curl_et_data, dict):
+        endpoint_tests = curl_et_data.get('endpoint_tests')
         total = passed = None
         if isinstance(endpoint_tests, dict):
             try:
@@ -299,12 +369,11 @@ def _process_dynamic(services: dict, model_slug: str,
             total = len(endpoint_tests)
             passed = sum(1 for t in endpoint_tests if isinstance(t, dict) and t.get('passed') is True)
         else:
-            # Fallback variants (older schemas).
             for tk, pk in (('total_endpoints', 'passed_endpoints'), ('total', 'passed')):
-                if tk in curl and pk in curl:
+                if tk in curl_et_data and pk in curl_et_data:
                     try:
-                        total = int(curl.get(tk, 0) or 0)
-                        passed = int(curl.get(pk, 0) or 0)
+                        total = int(curl_et_data.get(tk, 0) or 0)
+                        passed = int(curl_et_data.get(pk, 0) or 0)
                     except Exception:
                         total = passed = None
                     break
@@ -312,7 +381,7 @@ def _process_dynamic(services: dict, model_slug: str,
         if total is not None and total > 0 and passed is not None:
             any_output = True
             dyn_diag_model[model_slug]['curl_attempted'] += 1
-            if curl.get('status') == 'success':
+            if curl_et_data.get('status') == 'success':
                 dyn_diag_model[model_slug]['curl_success'] += 1
             dyn_diag_model[model_slug]['endpoints_total'] += total
             dyn_diag_model[model_slug]['endpoints_passed'] += passed
@@ -322,7 +391,8 @@ def _process_dynamic(services: dict, model_slug: str,
 
 
 def _process_performance(services: dict, model_slug: str,
-                           perf_model: dict, service_completion: dict) -> None:
+                           perf_model: dict, perf_tool_model: dict,
+                           service_completion: dict) -> None:
     perf = services.get('performance-tester', {})
     service_completion['performance']['total'] += 1
     if perf.get('status') != 'success':
@@ -334,6 +404,8 @@ def _process_performance(services: dict, model_slug: str,
         if url == 'tool_runs' or not isinstance(url_data, dict):
             continue
         is_backend = 'backend' in url
+
+        # --- AB (existing + per-tool) ---
         ab = url_data.get('ab', {})
         if isinstance(ab, dict) and ab.get('status') == 'success':
             rps = ab.get('requests_per_second')
@@ -346,9 +418,47 @@ def _process_performance(services: dict, model_slug: str,
             if rt and rt > 0:
                 perf_model[model_slug][rt_key].append(rt)
 
+        # --- Per-tool extraction (ab, locust, artillery, aiohttp) ---
+        for tool_name in ('ab', 'locust', 'artillery', 'aiohttp'):
+            td = url_data.get(tool_name, {})
+            if not isinstance(td, dict) or not td:
+                continue
+            # Some tools have status, some don't — accept if data exists
+            rps = _safe_float(td.get('requests_per_second'))
+            avg_rt = _safe_float(td.get('avg_response_time'))
+            reqs = _safe_float(td.get('completed_requests', td.get('requests', 0)))
+            errors = _safe_float(td.get('failed_requests',
+                                         td.get('failures',
+                                                td.get('errors', 0))))
+            p95 = _safe_float(td.get('p95_response_time'))
+
+            ptm = perf_tool_model[tool_name][model_slug]
+            ptm['runs'] += 1
+            if rps is not None and rps > 0:
+                ptm['rps'].append(rps)
+            if avg_rt is not None and avg_rt > 0:
+                ptm['avg_rt'].append(avg_rt)
+            if reqs is not None:
+                ptm['requests'].append(reqs)
+            if errors is not None:
+                ptm['errors'].append(errors)
+            if p95 is not None and p95 > 0:
+                ptm['p95_rt'].append(p95)
+
+
+def _safe_float(val) -> float | None:
+    """Convert value to float, returning None if not numeric."""
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
 
 def _process_ai(services: dict, model_slug: str,
-                 ai_model: dict, service_completion: dict) -> None:
+                 ai_model: dict, ai_tool_model: dict,
+                 service_completion: dict) -> None:
     ai = services.get('ai-analyzer', {})
     service_completion['ai']['total'] += 1
     if ai.get('status') != 'success':
@@ -376,6 +486,42 @@ def _process_ai(services: dict, model_slug: str,
         summary.get('admin_compliance', (am / at * 100 if at else 0)))
     ai_model[model_slug]['apps'] += 1
 
+    # --- Per-tool AI extraction ---
+    # Requirements scanner per-tool data
+    rs_atm = ai_tool_model['requirements-scanner'][model_slug]
+    rs_atm['runs'] += 1
+    rs_atm['compliance_pcts'].append(overall)
+    rs_atm['scores'].append(overall)
+    met_count = _safe_float(summary.get('requirements_met', total_m))
+    total_count = _safe_float(summary.get('total_requirements', total_t))
+    if met_count is not None:
+        rs_atm['metrics_passed'].append(met_count)
+    if total_count is not None:
+        rs_atm['metrics_total'].append(total_count)
+
+    # Code quality analyzer
+    cq = tools.get('code-quality-analyzer', {})
+    cq_results = cq.get('results', {})
+    cq_summary = cq_results.get('summary', {})
+    if cq_summary:
+        cq_atm = ai_tool_model['code-quality-analyzer'][model_slug]
+        cq_atm['runs'] += 1
+        agg_score = _safe_float(cq_summary.get('aggregate_score'))
+        if agg_score is not None:
+            cq_atm['scores'].append(agg_score)
+        grade = cq_summary.get('quality_grade')
+        if grade:
+            cq_atm['grades'].append(grade)
+        cq_compliance = _safe_float(cq_summary.get('compliance_percentage'))
+        if cq_compliance is not None:
+            cq_atm['compliance_pcts'].append(cq_compliance)
+        mp = _safe_float(cq_summary.get('metrics_passed'))
+        mt = _safe_float(cq_summary.get('total_metrics'))
+        if mp is not None:
+            cq_atm['metrics_passed'].append(mp)
+        if mt is not None:
+            cq_atm['metrics_total'].append(mt)
+
 
 def _safe_stats(values: list) -> dict:
     if not values:
@@ -391,14 +537,17 @@ def _safe_stats(values: list) -> dict:
 
 
 def _build_output(tool_model, model_app_findings, model_app_severity,
-                    perf_model, ai_model, zap_model, dyn_diag_model, service_completion,
+                    perf_model, perf_tool_model, ai_model, ai_tool_model,
+                    zap_model, dyn_diag_model, service_completion,
                     loc_data, app_count, processed_app_count) -> dict:
     output = {}
 
     # Overview
+    _dynamic_tool_set = {'zap', 'nmap', 'curl', 'curl-endpoint-tester',
+                         'connectivity', 'port-scan'}
     total_static = sum(
         sum(d['findings'] for d in tm.values())
-        for tm in tool_model.values()
+        for tn, tm in tool_model.items() if tn not in _dynamic_tool_set
     )
     total_zap = sum(z['alerts'] for z in zap_model.values())
     output['overview'] = {
@@ -410,9 +559,11 @@ def _build_output(tool_model, model_app_findings, model_app_severity,
         'service_completion': {k: dict(v) for k, v in service_completion.items()},
     }
 
-    # Static tools
+    # Static tools (exclude dynamic tool entries that are in tool_model)
     tool_tables = {}
     for tn in sorted(tool_model.keys()):
+        if tn in _dynamic_tool_set:
+            continue  # These go into dynamic_tools section
         tm = tool_model[tn]
         total_f = sum(d['findings'] for d in tm.values())
         total_r = sum(d['runs'] for d in tm.values())
@@ -537,6 +688,118 @@ def _build_output(tool_model, model_app_findings, model_app_severity,
             ai_output[ms] = None
     output['ai_compliance'] = ai_output
 
+    # Performance tools (per-tool per-model metrics)
+    perf_tools_output = {}
+    for tool_name in sorted(perf_tool_model.keys()):
+        tool_data = perf_tool_model[tool_name]
+        per_model = {}
+        total_runs = 0
+        all_rps = []
+        all_rt = []
+        all_errors = []
+        for ms in MODEL_SHORT_NAMES:
+            ptm = tool_data.get(ms)
+            if ptm and ptm['runs'] > 0:
+                per_model[ms] = {
+                    'runs': ptm['runs'],
+                    'rps': _safe_stats(ptm['rps']),
+                    'avg_response_time': _safe_stats(ptm['avg_rt']),
+                    'total_requests': sum(ptm['requests']),
+                    'total_errors': sum(ptm['errors']),
+                    'error_rate': (sum(ptm['errors']) / sum(ptm['requests']) * 100
+                                   if sum(ptm['requests']) > 0 else 0),
+                }
+                if ptm['p95_rt']:
+                    per_model[ms]['p95_response_time'] = _safe_stats(ptm['p95_rt'])
+                total_runs += ptm['runs']
+                all_rps.extend(ptm['rps'])
+                all_rt.extend(ptm['avg_rt'])
+                all_errors.extend(ptm['errors'])
+            else:
+                per_model[ms] = None
+        perf_tools_output[tool_name] = {
+            'total_runs': total_runs,
+            'overall_rps': _safe_stats(all_rps),
+            'overall_avg_rt': _safe_stats(all_rt),
+            'per_model': per_model,
+        }
+    output['performance_tools'] = perf_tools_output
+
+    # AI tools (per-tool per-model metrics)
+    ai_tools_output = {}
+    for tool_name in sorted(ai_tool_model.keys()):
+        tool_data = ai_tool_model[tool_name]
+        per_model = {}
+        total_runs = 0
+        all_scores = []
+        all_grades = []
+        for ms in MODEL_SHORT_NAMES:
+            atm = tool_data.get(ms)
+            if atm and atm['runs'] > 0:
+                pm = {
+                    'runs': atm['runs'],
+                    'score': _safe_stats(atm['scores']),
+                    'compliance_pct': _safe_stats(atm['compliance_pcts']),
+                }
+                if atm['grades']:
+                    pm['grades'] = atm['grades']
+                    # Most common grade
+                    from collections import Counter
+                    gc = Counter(atm['grades'])
+                    pm['dominant_grade'] = gc.most_common(1)[0][0]
+                if atm['metrics_passed'] and atm['metrics_total']:
+                    pm['avg_metrics_passed'] = statistics.mean(atm['metrics_passed'])
+                    pm['avg_metrics_total'] = statistics.mean(atm['metrics_total'])
+                per_model[ms] = pm
+                total_runs += atm['runs']
+                all_scores.extend(atm['scores'])
+                all_grades.extend(atm['grades'])
+            else:
+                per_model[ms] = None
+        ai_tools_out = {
+            'total_runs': total_runs,
+            'overall_score': _safe_stats(all_scores),
+            'per_model': per_model,
+        }
+        if all_grades:
+            from collections import Counter
+            gc = Counter(all_grades)
+            ai_tools_out['grade_distribution'] = dict(gc.most_common())
+        ai_tools_output[tool_name] = ai_tools_out
+    output['ai_tools'] = ai_tools_output
+
+    # Dynamic tools (per-tool per-model with findings/runs)
+    dynamic_tool_names = ['zap', 'nmap', 'curl', 'curl-endpoint-tester',
+                          'connectivity', 'port-scan']
+    dyn_tools_output = {}
+    for tn in dynamic_tool_names:
+        if tn not in tool_model:
+            continue
+        tm = tool_model[tn]
+        total_f = sum(d['findings'] for d in tm.values())
+        total_r = sum(d['runs'] for d in tm.values())
+        total_sev = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
+        per_model = {}
+        for ms in MODEL_SHORT_NAMES:
+            d = tm.get(ms, {'runs': 0, 'findings': 0,
+                            'severity': {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}})
+            per_model[ms] = {
+                'runs': d['runs'],
+                'findings': d['findings'],
+                'avg_per_run': d['findings'] / d['runs'] if d['runs'] > 0 else 0,
+                'severity': d['severity'],
+            }
+            for sev in total_sev:
+                total_sev[sev] += d['severity'].get(sev, 0)
+        dyn_tools_output[tn] = {
+            'total_findings': total_f,
+            'total_runs': total_r,
+            'avg_per_run': total_f / total_r if total_r > 0 else 0,
+            'severity': total_sev,
+            'per_model': per_model,
+        }
+    output['dynamic_tools'] = dyn_tools_output
+
     # Model summary
     model_summary = {}
     for ms in MODEL_SHORT_NAMES:
@@ -585,6 +848,36 @@ def print_summary(output: dict) -> None:
             print(f"  {tn:20s}: {td['total_findings']:6,d} "
                   f"({td['avg_per_run']:.1f}/run) "
                   f"H={s['high']} M={s['medium']} L={s['low']}")
+
+    # Dynamic tools summary
+    dyn_tools = output.get('dynamic_tools', {})
+    if dyn_tools:
+        print(f"\nDynamic Tools ({len(dyn_tools)} tools):")
+        for tn, td in sorted(dyn_tools.items(), key=lambda x: -x[1]['total_findings']):
+            print(f"  {tn:24s}: {td['total_runs']:4d} runs, "
+                  f"{td['total_findings']:6,d} findings")
+
+    # Performance tools summary
+    perf_tools = output.get('performance_tools', {})
+    if perf_tools:
+        print(f"\nPerformance Tools ({len(perf_tools)} tools):")
+        for tn, td in sorted(perf_tools.items()):
+            rps = td['overall_rps']
+            rt = td['overall_avg_rt']
+            print(f"  {tn:12s}: {td['total_runs']:4d} runs, "
+                  f"RPS mean={rps['mean']:.1f}, RT mean={rt['mean']:.1f}ms")
+
+    # AI tools summary
+    ai_tools = output.get('ai_tools', {})
+    if ai_tools:
+        print(f"\nAI Analysis Tools ({len(ai_tools)} tools):")
+        for tn, td in sorted(ai_tools.items()):
+            score = td['overall_score']
+            grades = td.get('grade_distribution', {})
+            grade_str = ', '.join(f"{g}={c}" for g, c in
+                                  sorted(grades.items())) if grades else 'N/A'
+            print(f"  {tn:24s}: {td['total_runs']:4d} runs, "
+                  f"score mean={score['mean']:.1f}, grades: {grade_str}")
 
     print(f"\nModel Summary:")
     hdr = f"  {'Model':22s} {'Findings':>8s} {'LOC':>7s} {'D/KLOC':>7s}"
