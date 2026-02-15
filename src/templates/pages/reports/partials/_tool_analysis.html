@@ -28,7 +28,7 @@
         'back_url': url_for('reports.reports_index'),
         'actions': [
             {'url': 'javascript:window.print()', 'icon': 'ti-printer', 'label': 'Print', 'class': 'btn-green'},
-            {'url': url_for('api.reports_api.download_report', report_id=report_id) if report_id else '#', 'icon': 'ti-download', 'label': 'Export', 'class': 'btn-outline-green', 'attrs': 'download'}
+            {'url': '#', 'icon': 'ti-download', 'label': 'Export', 'class': 'btn-outline-green', 'attrs': 'download'}
         ]
     } %}
     

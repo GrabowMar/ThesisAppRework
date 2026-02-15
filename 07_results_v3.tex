@@ -198,6 +198,8 @@ Bandit is a Python security linter that identifies common security issues such a
     \source{Own elaboration}
 \end{table}
 
+Two dominant finding categories account for 81\% of all Bandit findings: \texttt{B311} (pseudo-random generators, 433 occurrences, 56.7\%) and \texttt{B201} (Flask \texttt{debug=True}, 187 occurrences, 24.5\%). The third most common rule, \texttt{B105} (hardcoded passwords, 131 occurrences), flags template \texttt{SECRET\_KEY} values. These patterns are systematic---they reflect standard Flask scaffolding rather than model-specific security weaknesses. GPT-4o Mini's low count (27) is primarily due to shorter generated code.
+
 \subsubsection{Semgrep}
 
 Semgrep is a pattern-based static analysis tool using language-aware rules to detect security vulnerabilities, anti-patterns, and policy violations.
@@ -228,6 +230,8 @@ Semgrep is a pattern-based static analysis tool using language-aware rules to de
     \end{tabular}
     \source{Own elaboration}
 \end{table}
+
+Semgrep findings are predominantly architectural: \texttt{unvalidated-password} (408, 28.7\%) detects Django-style patterns in Flask code, \texttt{request-host-used} (370, 26.0\%) flags Nginx configuration risks, and \texttt{missing-user} (185, 13.0\%) identifies Dockerfiles running as root. All 10 models exhibit similar patterns because findings originate from the scaffolding templates (Dockerfile, nginx.conf) rather than the LLM-generated application logic.
 
 \subsection{Python Code Quality}
 
@@ -262,6 +266,8 @@ Pylint is a comprehensive Python code quality checker enforcing PEP~8 style, det
     \source{Own elaboration}
 \end{table}
 
+Style-related rules dominate: \texttt{trailing-whitespace} (4{,}274, 59.4\%) and \texttt{line-too-long} (1{,}263, 17.5\%) together account for 77\% of all Pylint findings. Substantive code quality issues include \texttt{broad-exception-caught} (510, 7.1\%), indicating that LLMs frequently use bare \texttt{except} clauses, and \texttt{unused-argument} (410, 5.7\%), reflecting over-specified function signatures. Claude's high count (2{,}153) correlates with its high LOC output (34{,}649 total).
+
 \subsubsection{Ruff}
 
 Ruff is a high-performance Python linter covering style violations, import ordering, and common anti-patterns.
@@ -292,6 +298,8 @@ Ruff is a high-performance Python linter covering style violations, import order
     \end{tabular}
     \source{Own elaboration}
 \end{table}
+
+As the most prolific tool (9{,}713 findings), Ruff's output is dominated by whitespace formatting: \texttt{W293} (5{,}900, 60.7\%) detects blank lines containing whitespace---an artifact of how LLMs format Python code. Security-relevant rules overlap with Bandit: \texttt{S311} (417, crypto-unsafe random), \texttt{S201} (184, debug mode), and \texttt{S105} (100, hardcoded passwords). Finding density correlates strongly with code volume ($r = 0.95$).
 
 \subsubsection{Mypy}
 
@@ -324,6 +332,8 @@ Mypy is a static type checker verifying Python type annotations for correctness 
     \source{Own elaboration}
 \end{table}
 
+All 4{,}662 findings are type-checking errors classified as \texttt{error} severity. This single-category result reveals that LLMs consistently produce Python code without proper type annotations. Notably, GPT-5.2 Codex has the highest error count (952) despite achieving 100\% deployment success, demonstrating that Python's dynamic typing allows functional code to ignore type correctness entirely.
+
 \subsubsection{Vulture}
 
 Vulture is a dead code detector identifying unused functions, variables, imports, and unreachable code segments.
@@ -355,6 +365,8 @@ Vulture is a dead code detector identifying unused functions, variables, imports
     \source{Own elaboration}
 \end{table}
 
+Dead code analysis reveals that 76.4\% of findings are unused functions (1{,}878), followed by unused variables (334, 13.6\%) and unused imports (171, 7.0\%). This indicates that LLMs generate boilerplate scaffold code---utility functions, helper methods---that is never invoked. This pattern represents code bloat rather than a security or correctness concern.
+
 \subsubsection{Radon}
 
 Radon is a Python complexity analyzer computing cyclomatic complexity, Halstead metrics, and maintainability indices.
@@ -385,6 +397,8 @@ Radon is a Python complexity analyzer computing cyclomatic complexity, Halstead 
     \end{tabular}
     \source{Own elaboration}
 \end{table}
+
+Only 9 complexity findings across 200 applications indicates that LLM-generated code is overwhelmingly low-complexity. This is expected for template-based CRUD applications with simple control flow. The near-zero count suggests generated functions are short and linear, consistent with LLM tendencies to decompose logic into small functions.
 
 \subsection{Python Dependency Security}
 
@@ -419,6 +433,8 @@ Safety is a dependency vulnerability scanner checking installed Python packages 
     \source{Own elaboration}
 \end{table}
 
+The uniform distribution (exactly 9.0 findings per app, zero variance) confirms that Safety findings are an \emph{architectural artifact}: the static analyzer's base \texttt{requirements.txt} contains packages with known CVEs (e.g., older Flask and Werkzeug versions). These findings measure the analysis environment's dependency baseline, not LLM code quality. All findings are classified as \texttt{high} severity.
+
 \subsubsection{pip-audit}
 
 pip-audit is a Python package auditor scanning installed packages for known vulnerabilities using the PyPI advisory database.
@@ -449,6 +465,8 @@ pip-audit is a Python package auditor scanning installed packages for known vuln
     \end{tabular}
     \source{Own elaboration}
 \end{table}
+
+Similar to Safety but using the PyPI advisory database. Minor between-model variance (90--190 per model) exists because some LLMs introduce additional Python dependencies that carry vulnerabilities. All 1{,}470 findings are classified as \texttt{high} severity. The variance is driven by whether models add packages like \texttt{requests} or \texttt{pyjwt} beyond the base template.
 
 \subsection{Secret Detection}
 
@@ -481,6 +499,8 @@ detect-secrets is a secret detection tool scanning source code for hardcoded cre
     \end{tabular}
     \source{Own elaboration}
 \end{table}
+
+Zero findings is a positive result: no LLM embedded real API keys, passwords, or tokens in generated code. While Bandit's \texttt{B105} rule flags template \texttt{SECRET\_KEY} strings, detect-secrets uses entropy-based heuristics tuned for real credentials (AWS keys, private keys, high-entropy tokens). This distinction validates that LLMs use placeholder secrets rather than real ones.
 
 \subsection{JavaScript and Frontend Analysis}
 
@@ -515,6 +535,8 @@ ESLint is a JavaScript and TypeScript linter enforcing coding standards, detecti
     \source{Own elaboration}
 \end{table}
 
+The \texttt{no-unused-vars} rule accounts for 94.7\% (8{,}334) of all ESLint findings, predominantly flagging the \texttt{React} import in JSX files that use the new JSX transform (where explicit React imports are unnecessary). This is a configuration artifact rather than a code quality issue. Security-relevant findings from the \texttt{eslint-plugin-security} plugin---\texttt{detect-object-injection} (114) and \texttt{detect-possible-timing-attacks} (4)---represent only 1.3\% of the total.
+
 \subsubsection{npm-audit}
 
 npm-audit is a Node.js dependency auditor checking packages against the npm advisory database for known security vulnerabilities.
@@ -545,6 +567,8 @@ npm-audit is a Node.js dependency auditor checking packages against the npm advi
     \end{tabular}
     \source{Own elaboration}
 \end{table}
+
+Low between-model variance (36--40 findings per model) confirms that npm-audit findings, like Safety and pip-audit, reflect the base \texttt{package.json} template. All 384 findings are \texttt{medium} severity from known npm package advisories. The uniform distribution indicates that LLMs rarely add JavaScript dependencies beyond the React template defaults.
 
 %=============================================================================
 \section{Dynamic Analysis Results}
@@ -584,6 +608,8 @@ OWASP ZAP is an automated web application vulnerability scanner performing spide
     \source{Own elaboration}
 \end{table}
 
+All ZAP findings are configuration-level security issues: missing \texttt{Content-Security-Policy} headers (666), server version information leakage (714), and missing anti-clickjacking headers (234). No \texttt{High} or \texttt{Critical} vulnerabilities were detected. Models with 0\% deploy rate (Llama, Mistral) show minimal findings from fallback probing. Gemini 3 Flash's high alert count (484) reflects more endpoints being scanned in its deployed applications.
+
 \subsection{Curl HTTP Probe}
 
 Curl is an HTTP probe testing endpoint availability, response codes, and basic connectivity of running applications. Findings represent HTTP-level issues such as missing security headers or unexpected response codes.
@@ -614,6 +640,8 @@ Curl is an HTTP probe testing endpoint availability, response codes, and basic c
     \source{Own elaboration}
 \end{table}
 
+The low total count (75 findings across 200 apps) confirms that deployed containers generally respond correctly to HTTP requests. Non-zero findings indicate unexpected HTTP status codes or connection timeouts. Claude 4.5 Sonnet's relatively higher count (13) may reflect more complex routing that occasionally returns non-200 responses.
+
 \subsection{Curl Endpoint Tester}
 
 The Curl Endpoint Tester systematically validates expected API endpoints, HTTP methods, and response schemas. Table~\ref{tab:tool_curlendpoint} includes the endpoint pass rate---the proportion of tested endpoints that returned expected responses.
@@ -642,6 +670,8 @@ The Curl Endpoint Tester systematically validates expected API endpoints, HTTP m
     \end{tabular}
     \source{Own elaboration}
 \end{table}
+
+This tool measures functional completeness by testing API endpoints specified in each template's requirements. Findings represent endpoints returning unexpected status codes. GPT-5.2 Codex's high count (72) is notable given its 100\% deploy rate---suggesting that while its apps start successfully, some template-specified API routes are not fully implemented.
 
 %=============================================================================
 \section{Performance Testing Results}
@@ -681,6 +711,8 @@ Apache Bench (ab) is an HTTP benchmarking tool measuring request throughput and 
     \source{Own elaboration}
 \end{table}
 
+High throughput (avg 366 RPS) with low latency (3ms) demonstrates that Flask backends handle single-endpoint load efficiently. Between-model variance is minimal (355--389 RPS), confirming that backend performance is framework-determined rather than model-dependent. Only 117 of 200 apps were tested (8 models with non-zero deploy rates).
+
 \subsection{Locust}
 
 Locust is a Python-based load testing framework executing user behavior scenarios with configurable concurrency.
@@ -711,6 +743,8 @@ Locust is a Python-based load testing framework executing user behavior scenario
     \end{tabular}
     \source{Own elaboration}
 \end{table}
+
+Lower RPS than Apache Bench because Locust simulates realistic user behavior with think time between requests. The 21ms average response time remains acceptable for web applications. Minimal model variance (5.7--6.2 RPS) confirms that performance characteristics are framework-bound rather than model-specific.
 
 \subsection{Artillery}
 
@@ -743,6 +777,8 @@ Artillery is a modern load testing toolkit running scenario-based performance te
     \source{Own elaboration}
 \end{table}
 
+Tests multi-step API scenarios (e.g., create-read-update-delete sequences). Response time data was not captured by the current integration (reported as 0ms). RPS values (avg 4.9) are consistent with Locust's scenario-based testing approach.
+
 \subsection{aiohttp}
 
 aiohttp is an asynchronous HTTP client measuring response characteristics and connection handling under async load.
@@ -773,6 +809,8 @@ aiohttp is an asynchronous HTTP client measuring response characteristics and co
     \end{tabular}
     \source{Own elaboration}
 \end{table}
+
+Validates endpoint reachability using asynchronous HTTP requests. Runs on all 200 apps including non-deployed ones (where it records connection failures). The low average response time (3.9ms) confirms that reachable endpoints respond quickly.
 
 %=============================================================================
 \section{AI-Based Analysis Results}
@@ -810,6 +848,8 @@ The Requirements Scanner is an AI-based tool evaluating whether generated code i
     \source{Own elaboration}
 \end{table}
 
+GPT-5.2 Codex achieves highest compliance (75.7\%), consistent with its 100\% deploy rate and top-ranked code quality. Models with 0\% deploy rate (Llama, Mistral) still score above zero (50.9\%, 57.5\%) because the scanner evaluates code structure and API route definitions without requiring runtime verification. The platform-wide average of 66.0\% suggests that LLMs implement roughly two-thirds of specified template requirements.
+
 \subsection{Code Quality Analyzer}
 
 The Code Quality Analyzer is an AI-based code review tool assessing code structure, naming conventions, error handling, and maintainability patterns. It assigns a letter grade (A--F) and a numerical score (0--100) per application.
@@ -838,6 +878,8 @@ The Code Quality Analyzer is an AI-based code review tool assessing code structu
     \end{tabular}
     \source{Own elaboration}
 \end{table}
+
+Evaluates 8 quality dimensions with weighted scoring: error handling (1.5$\times$), anti-patterns (1.5$\times$), security practices (1.3$\times$), type safety (1.2$\times$), code organization (1.0$\times$), performance patterns (1.0$\times$), documentation (0.8$\times$), and testing readiness (0.7$\times$). Model rankings align closely with the requirements scanner ($r = 0.93$), suggesting that compliance and quality are correlated traits in LLM-generated code.
 
 %=============================================================================
 \section{Tool Findings Heatmap}

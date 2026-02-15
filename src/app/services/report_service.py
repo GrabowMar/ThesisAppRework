@@ -1935,6 +1935,25 @@ class ReportService:
             agg['avg_findings'] = agg['findings_per_run']
             agg['container'] = agg['service']
             
+            # Template-compatible aliases
+            agg['average_duration'] = agg['avg_duration']
+            agg['average_findings_per_execution'] = agg['findings_per_run']
+            agg['total_executions'] = agg['executions']
+            
+            # Build per-model breakdown from tools_by_model
+            exec_by_model: Dict[str, int] = {}
+            findings_by_model: Dict[str, int] = {}
+            success_by_model: Dict[str, int] = {}
+            for m_slug in sorted(models_seen):
+                tbm_data = tools_by_model.get(m_slug, {}).get(t_name)
+                if tbm_data:
+                    exec_by_model[m_slug] = tbm_data.get('executions', 0)
+                    findings_by_model[m_slug] = tbm_data.get('findings', 0)
+                    success_by_model[m_slug] = tbm_data.get('successful', 0)
+            agg['executions_by_model'] = exec_by_model
+            agg['findings_by_model'] = findings_by_model
+            agg['success_by_model'] = success_by_model
+            
             tools_list.append(agg)
         
         # Sort by execution count

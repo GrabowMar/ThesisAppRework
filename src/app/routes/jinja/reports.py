@@ -251,6 +251,43 @@ def view_report(report_id: str):
         .first()
     )
 
+    # Route tool_analysis reports to dedicated template
+    if report.report_type == 'tool_analysis':
+        overall_stats = report_data.get('summary', {})
+        overall_stats.setdefault('total_executions', report_data.get('total_executions', 0))
+        overall_stats.setdefault('total_successful', overall_stats.get('total_successful', 0))
+        overall_stats.setdefault('overall_success_rate', overall_stats.get('avg_success_rate', 0))
+        overall_stats.setdefault('total_findings', overall_stats.get('total_findings', 0))
+
+        filters = report_data.get('filter', {})
+        tools_list = report_data.get('tools', [])
+        tools_count = report_data.get('tools_count', len(tools_list) if isinstance(tools_list, list) else 0)
+
+        # Build insights from top_performers
+        top = report_data.get('top_performers', {})
+        insights = {
+            'most_findings_tool': top['by_findings'][0].get('tool_name', top['by_findings'][0].get('name')) if top.get('by_findings') else None,
+            'best_success_rate_tool': top['by_success_rate'][0].get('tool_name', top['by_success_rate'][0].get('name')) if top.get('by_success_rate') else None,
+            'worst_success_rate_tool': top['by_success_rate'][-1].get('tool_name', top['by_success_rate'][-1].get('name')) if top.get('by_success_rate') else None,
+            'fastest_tool': top['fastest'][0].get('tool_name', top['fastest'][0].get('name')) if top.get('fastest') else None,
+            'slowest_tool': top['slowest'][0].get('tool_name', top['slowest'][0].get('name')) if top.get('slowest') else None,
+        }
+
+        return render_template(
+            'pages/reports/partials/_tool_analysis.html',
+            report_id=report_id,
+            timestamp=report_data.get('generated_at', ''),
+            filters=filters,
+            tools_count=tools_count,
+            tasks_analyzed=report_data.get('total_executions', 0),
+            overall_stats=overall_stats,
+            tools=tools_list if isinstance(tools_list, list) else list(tools_list.values()),
+            insights=insights,
+            analyzer_categories=report_data.get('analyzer_categories', {}),
+            prev_report_id=prev_report[0] if prev_report else None,
+            next_report_id=next_report[0] if next_report else None,
+        )
+
     return render_template(
         'pages/reports/view_report.html',
         report=report_dict,
