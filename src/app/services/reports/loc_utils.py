@@ -33,9 +33,7 @@ def count_loc_from_generated_files(
 
     # Known scaffolding files to exclude (only count AI-generated code)
     scaffolding_files = {
-        # Backend scaffolding (not AI-generated)
-        'app.py',
-        # Frontend scaffolding
+        # Frontend scaffolding (not AI-generated)
         'vite.config.js',
         'tailwind.config.js',
         'postcss.config.js',

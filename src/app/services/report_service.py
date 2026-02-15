@@ -2958,6 +2958,8 @@ class ReportService:
             if tn not in tools_by_name:
                 continue
             agg = tools_by_name[tn]
+            if not agg.get('total_findings', 0):
+                continue
             per_model = _per_model_findings(tn)
             # Enrich curl-endpoint-tester and zap with per-model detail
             for row in per_model:
