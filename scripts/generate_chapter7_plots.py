@@ -74,25 +74,20 @@ DEFECT_DENSITY = {
 }
 
 # Severity totals (from Findings by Severity table)
+# Columns: Crit (all 0), High, Med, Low
 SEVERITY_HIGH = {
-    'Llama 3.1 405B': 0, 'GPT-4o Mini': 0, 'Mistral Small 3.1': 0,
-    'Claude 4.5 Sonnet': 0, 'GLM-4.7': 0, 'Gemini 3 Pro': 0,
-    'Qwen3 Coder+': 0, 'Gemini 3 Flash': 0, 'DeepSeek R1': 0,
-    'GPT-5.2 Codex': 0,
-}
-SEVERITY_MED = {
     'Llama 3.1 405B': 69, 'GPT-4o Mini': 32, 'Mistral Small 3.1': 139,
     'Claude 4.5 Sonnet': 133, 'GLM-4.7': 148, 'Gemini 3 Pro': 74,
     'Qwen3 Coder+': 95, 'Gemini 3 Flash': 62, 'DeepSeek R1': 103,
     'GPT-5.2 Codex': 105,
 }
-SEVERITY_LOW = {
+SEVERITY_MED = {
     'Llama 3.1 405B': 887, 'GPT-4o Mini': 792, 'Mistral Small 3.1': 1543,
     'Claude 4.5 Sonnet': 1584, 'GLM-4.7': 1159, 'Gemini 3 Pro': 1114,
     'Qwen3 Coder+': 1266, 'Gemini 3 Flash': 1387, 'DeepSeek R1': 1350,
     'GPT-5.2 Codex': 1570,
 }
-SEVERITY_INFO = {
+SEVERITY_LOW = {
     'Llama 3.1 405B': 90, 'GPT-4o Mini': 55, 'Mistral Small 3.1': 131,
     'Claude 4.5 Sonnet': 2116, 'GLM-4.7': 1092, 'Gemini 3 Pro': 787,
     'Qwen3 Coder+': 1189, 'Gemini 3 Flash': 593, 'DeepSeek R1': 943,
@@ -348,7 +343,7 @@ def plot_static_heatmap() -> None:
 # ── Plot 4: Severity Distribution Stacked Bars ───────────────────────────────
 def plot_severity_distribution() -> None:
     """Stacked bar chart: High/Medium/Low findings per model (per app)."""
-    total_findings = {m: SEVERITY_HIGH[m] + SEVERITY_MED[m] + SEVERITY_LOW[m] + SEVERITY_INFO[m]
+    total_findings = {m: SEVERITY_HIGH[m] + SEVERITY_MED[m] + SEVERITY_LOW[m]
                       for m in MODELS}
     models = sorted(MODELS, key=lambda m: total_findings[m], reverse=True)
     labels = _labels(models)
@@ -357,7 +352,6 @@ def plot_severity_distribution() -> None:
     highs_pa = [SEVERITY_HIGH[m] / n_apps for m in models]
     meds_pa = [SEVERITY_MED[m] / n_apps for m in models]
     lows_pa = [SEVERITY_LOW[m] / n_apps for m in models]
-    info_pa = [SEVERITY_INFO[m] / n_apps for m in models]
 
     fig, ax = plt.subplots(figsize=(12, 5.5))
     x = np.arange(len(models))
@@ -367,10 +361,8 @@ def plot_severity_distribution() -> None:
     ax.bar(x, meds_pa, w, bottom=highs_pa, label='Medium', color='#F18F01', edgecolor='white', linewidth=0.3)
     b2 = [h + m for h, m in zip(highs_pa, meds_pa)]
     ax.bar(x, lows_pa, w, bottom=b2, label='Low', color='#44BBA4', edgecolor='white', linewidth=0.3)
-    b3 = [b + l for b, l in zip(b2, lows_pa)]
-    ax.bar(x, info_pa, w, bottom=b3, label='Info', color='#8D6A9F', edgecolor='white', linewidth=0.3)
 
-    totals = [h + m + l + i for h, m, l, i in zip(highs_pa, meds_pa, lows_pa, info_pa)]
+    totals = [h + m + l for h, m, l in zip(highs_pa, meds_pa, lows_pa)]
     for xi, t in zip(x, totals):
         ax.text(xi, t + 3, f'{t:.0f}', ha='center', va='bottom', fontsize=8, fontweight='bold')
 
