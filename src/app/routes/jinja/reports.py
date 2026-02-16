@@ -261,7 +261,27 @@ def view_report(report_id: str):
 
         filters = report_data.get('filter', {})
         tools_list = report_data.get('tools', [])
-        tools_count = report_data.get('tools_count', len(tools_list) if isinstance(tools_list, list) else 0)
+        if isinstance(tools_list, dict):
+            tools_list = list(tools_list.values())
+
+        # Normalize tool dicts for template compatibility with legacy data
+        for tool in tools_list:
+            tool.setdefault('average_duration', tool.get('avg_duration', 0))
+            tool.setdefault('average_findings_per_execution', tool.get('findings_per_run', 0))
+            tool.setdefault('total_executions', tool.get('executions', 0))
+            tool.setdefault('tool_name', tool.get('name', 'unknown'))
+            tool.setdefault('success_rate', 0)
+            tool.setdefault('total_findings', 0)
+            tool.setdefault('successful', 0)
+            tool.setdefault('failed', 0)
+            sev = tool.setdefault('findings_by_severity', {})
+            for level in ('critical', 'high', 'medium', 'low', 'info'):
+                sev.setdefault(level, 0)
+            tool.setdefault('executions_by_model', {})
+            tool.setdefault('findings_by_model', {})
+            tool.setdefault('success_by_model', {})
+
+        tools_count = report_data.get('tools_count', len(tools_list))
 
         # Build insights from top_performers
         top = report_data.get('top_performers', {})
@@ -281,7 +301,7 @@ def view_report(report_id: str):
             tools_count=tools_count,
             tasks_analyzed=report_data.get('total_executions', 0),
             overall_stats=overall_stats,
-            tools=tools_list if isinstance(tools_list, list) else list(tools_list.values()),
+            tools=tools_list,
             insights=insights,
             analyzer_categories=report_data.get('analyzer_categories', {}),
             prev_report_id=prev_report[0] if prev_report else None,
