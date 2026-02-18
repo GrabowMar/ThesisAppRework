@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Generate aggregate summary plots for Chapter 7 of the thesis.
 
-Uses the 200-app dataset (10 models × 20 apps each, first-20 only for Claude).
-Data is hardcoded from the Overleaf LaTeX tables to ensure plot–text consistency.
+Uses the 200-app dataset (10 models × 20 apps each).
+Data is loaded from thesis_data_20.json to ensure accuracy.
 Produces 5 matplotlib figures as JPGs in plots/.
+
+Plot 1 uses TOPSIS (Technique for Order of Preference by Similarity to Ideal
+Solution) for multi-criteria ranking. All other plots use the raw metrics.
 """
 
+import json
 import pathlib
 
 import matplotlib
@@ -21,20 +25,24 @@ except ImportError:
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT_DIR = ROOT / 'plots'
+DATA_FILE = ROOT / 'thesis_data_20.json'
 
-# Model keys used throughout (alphabetical by short name)
-MODELS = [
-    'Claude 4.5 Sonnet',
-    'DeepSeek R1',
-    'Gemini 3 Flash',
-    'Gemini 3 Pro',
-    'GLM-4.7',
-    'GPT-4o Mini',
-    'GPT-5.2 Codex',
-    'Llama 3.1 405B',
-    'Mistral Small 3.1',
-    'Qwen3 Coder+',
-]
+# ── Load data from JSON ──────────────────────────────────────────────────────
+with open(DATA_FILE) as _f:
+    _RAW = json.load(_f)
+
+_SUMMARY = _RAW['model_summary']
+_PERF = _RAW['performance']
+_AI_TOOLS = _RAW['ai_tools']
+_STATIC = _RAW['static_tools']
+
+# Canonical model key order (alphabetical by short name)
+_MODEL_KEYS = sorted(_SUMMARY.keys(), key=lambda k: _SUMMARY[k]['short_name'])
+
+MODELS = [_SUMMARY[k]['short_name'] for k in _MODEL_KEYS]
+_MK = {_SUMMARY[k]['short_name']: k for k in _MODEL_KEYS}  # short_name → json key
+
+N_APPS = 20
 
 SHORT_LABELS = {
     'Claude 4.5 Sonnet': 'Claude 4.5\nSonnet',
@@ -49,134 +57,82 @@ SHORT_LABELS = {
     'Qwen3 Coder+': 'Qwen3\nCoder+',
 }
 
-# ── 200-app data from Overleaf tables ────────────────────────────────────────
-# From Table: Code Composition and Deployment Success
-LOC_PER_APP = {
-    'GPT-5.2 Codex': 1945, 'DeepSeek R1': 1749, 'Claude 4.5 Sonnet': 1735,
-    'Qwen3 Coder+': 1300, 'GLM-4.7': 1176, 'Gemini 3 Flash': 1104,
-    'Gemini 3 Pro': 986, 'Mistral Small 3.1': 784, 'GPT-4o Mini': 370,
-    'Llama 3.1 405B': 364,
+# ── Derived metric dicts (keyed by short name) ───────────────────────────────
+LOC_PER_APP: dict[str, float] = {
+    _SUMMARY[k]['short_name']: _SUMMARY[k]['total_loc'] / N_APPS
+    for k in _MODEL_KEYS
 }
 
-DEPLOY_PCT = {
-    'GPT-5.2 Codex': 100, 'Gemini 3 Flash': 100, 'Claude 4.5 Sonnet': 85,
-    'Gemini 3 Pro': 80, 'DeepSeek R1': 70, 'Qwen3 Coder+': 65,
-    'GLM-4.7': 65, 'GPT-4o Mini': 20, 'Mistral Small 3.1': 0,
-    'Llama 3.1 405B': 0,
+DEFECT_DENSITY: dict[str, float] = {
+    _SUMMARY[k]['short_name']: _SUMMARY[k]['defect_density_kloc']
+    for k in _MODEL_KEYS
 }
 
-# From Table: Findings by Severity per Model (D/kLOC column)
-DEFECT_DENSITY = {
-    'Llama 3.1 405B': 143.6, 'GPT-4o Mini': 118.6, 'Mistral Small 3.1': 115.7,
-    'Claude 4.5 Sonnet': 110.4, 'GLM-4.7': 102.0, 'Gemini 3 Pro': 100.2,
-    'Qwen3 Coder+': 98.1, 'Gemini 3 Flash': 92.5, 'DeepSeek R1': 68.5,
-    'GPT-5.2 Codex': 45.5,
+SEVERITY_HIGH: dict[str, int] = {
+    _SUMMARY[k]['short_name']: _SUMMARY[k]['severity']['high']
+    for k in _MODEL_KEYS
+}
+SEVERITY_MED: dict[str, int] = {
+    _SUMMARY[k]['short_name']: _SUMMARY[k]['severity']['medium']
+    for k in _MODEL_KEYS
+}
+SEVERITY_LOW: dict[str, int] = {
+    _SUMMARY[k]['short_name']: _SUMMARY[k]['severity']['low']
+    for k in _MODEL_KEYS
 }
 
-# Severity totals (from Findings by Severity table)
-# Columns: Crit (all 0), High, Med, Low
-SEVERITY_HIGH = {
-    'Llama 3.1 405B': 69, 'GPT-4o Mini': 32, 'Mistral Small 3.1': 139,
-    'Claude 4.5 Sonnet': 133, 'GLM-4.7': 148, 'Gemini 3 Pro': 74,
-    'Qwen3 Coder+': 95, 'Gemini 3 Flash': 62, 'DeepSeek R1': 103,
-    'GPT-5.2 Codex': 105,
+# True compliance: total_compliance_percentage (includes endpoint testing),
+# latest task per app, first 20 apps only. The ai_tools requirements-scanner
+# scores are inflated as they only count code-level feature presence.
+COMPLIANCE_MEAN: dict[str, float] = {
+    'Claude 4.5 Sonnet': 73.8, 'DeepSeek R1': 74.6, 'Gemini 3 Flash': 74.8,
+    'Gemini 3 Pro': 57.9, 'GLM-4.7': 68.3, 'GPT-4o Mini': 56.6,
+    'GPT-5.2 Codex': 75.7, 'Llama 3.1 405B': 50.9,
+    'Mistral Small 3.1': 63.6, 'Qwen3 Coder+': 63.7,
 }
-SEVERITY_MED = {
-    'Llama 3.1 405B': 887, 'GPT-4o Mini': 792, 'Mistral Small 3.1': 1543,
-    'Claude 4.5 Sonnet': 1584, 'GLM-4.7': 1159, 'Gemini 3 Pro': 1114,
-    'Qwen3 Coder+': 1266, 'Gemini 3 Flash': 1387, 'DeepSeek R1': 1350,
-    'GPT-5.2 Codex': 1570,
-}
-SEVERITY_LOW = {
-    'Llama 3.1 405B': 90, 'GPT-4o Mini': 55, 'Mistral Small 3.1': 131,
-    'Claude 4.5 Sonnet': 2116, 'GLM-4.7': 1092, 'Gemini 3 Pro': 787,
-    'Qwen3 Coder+': 1189, 'Gemini 3 Flash': 593, 'DeepSeek R1': 943,
-    'GPT-5.2 Codex': 94,
+COMPLIANCE_STD: dict[str, float] = {
+    'Claude 4.5 Sonnet': 9.2, 'DeepSeek R1': 11.0, 'Gemini 3 Flash': 7.9,
+    'Gemini 3 Pro': 30.4, 'GLM-4.7': 11.9, 'GPT-4o Mini': 14.8,
+    'GPT-5.2 Codex': 10.2, 'Llama 3.1 405B': 10.2,
+    'Mistral Small 3.1': 5.7, 'Qwen3 Coder+': 13.2,
 }
 
-# From Requirements Scanner table (mean compliance %, std)
-COMPLIANCE_MEAN = {
-    'GPT-5.2 Codex': 75.7, 'Gemini 3 Flash': 74.8, 'DeepSeek R1': 74.6,
-    'Claude 4.5 Sonnet': 73.5, 'GLM-4.7': 68.3, 'Qwen3 Coder+': 63.7,
-    'Mistral Small 3.1': 63.6, 'Gemini 3 Pro': 57.9, 'GPT-4o Mini': 56.6,
-    'Llama 3.1 405B': 50.9,
-}
-COMPLIANCE_STD = {
-    'GPT-5.2 Codex': 12.3, 'Gemini 3 Flash': 13.0, 'DeepSeek R1': 13.1,
-    'Claude 4.5 Sonnet': 12.5, 'GLM-4.7': 12.6, 'Qwen3 Coder+': 11.8,
-    'Mistral Small 3.1': 13.4, 'Gemini 3 Pro': 10.5, 'GPT-4o Mini': 11.2,
-    'Llama 3.1 405B': 10.7,
+_cq = _AI_TOOLS['code-quality-analyzer']['per_model']
+QUALITY_SCORE: dict[str, float] = {
+    _SUMMARY[k]['short_name']: _cq[k]['score']['mean'] for k in _MODEL_KEYS
 }
 
-# From Code Quality Analyzer table (mean score)
-QUALITY_SCORE = {
-    'GPT-5.2 Codex': 76.2, 'Claude 4.5 Sonnet': 75.9, 'GLM-4.7': 75.0,
-    'Gemini 3 Flash': 72.6, 'DeepSeek R1': 70.5, 'Qwen3 Coder+': 68.6,
-    'Gemini 3 Pro': 61.0, 'Mistral Small 3.1': 58.2, 'GPT-4o Mini': 56.1,
-    'Llama 3.1 405B': 48.9,
+RPS: dict[str, float] = {
+    _SUMMARY[k]['short_name']: (_PERF[k]['backend_mean'] if _PERF.get(k) else 0.0)
+    for k in _MODEL_KEYS
 }
 
-# From Apache Bench table (mean RPS)
-RPS = {
-    'Qwen3 Coder+': 388.4, 'GPT-5.2 Codex': 383.6, 'DeepSeek R1': 382.4,
-    'GPT-4o Mini': 382.1, 'Claude 4.5 Sonnet': 380.7, 'Gemini 3 Pro': 361.8,
-    'GLM-4.7': 331.9, 'Gemini 3 Flash': 330.6,
-    'Llama 3.1 405B': 0, 'Mistral Small 3.1': 0,
+# Deploy% = apps that completed performance testing × 2 runs / (20 apps)
+DEPLOY_PCT: dict[str, float] = {
+    _SUMMARY[k]['short_name']: (
+        (_PERF[k]['tests'] // 2) / N_APPS * 100 if _PERF.get(k) else 0.0
+    )
+    for k in _MODEL_KEYS
 }
 
-# Output token price ($/M tokens)
-PRICES = {
+# Output token price ($/M tokens) — kept as external knowledge
+PRICES: dict[str, float] = {
     'Claude 4.5 Sonnet': 15.00, 'DeepSeek R1': 1.75, 'Gemini 3 Flash': 3.00,
     'Gemini 3 Pro': 12.00, 'GLM-4.7': 1.50, 'GPT-4o Mini': 0.60,
     'GPT-5.2 Codex': 14.00, 'Llama 3.1 405B': 4.00,
     'Mistral Small 3.1': 0.11, 'Qwen3 Coder+': 5.00,
 }
 
-# Heatmap: avg findings/app from per-tool tables
-HEATMAP = {
-    'Pylint': {
-        'Claude 4.5 Sonnet': 134.6, 'DeepSeek R1': 51.7, 'Gemini 3 Flash': 46.7,
-        'Gemini 3 Pro': 48.4, 'GLM-4.7': 50.9, 'GPT-4o Mini': 12.7,
-        'GPT-5.2 Codex': 50.5, 'Llama 3.1 405B': 9.2, 'Mistral Small 3.1': 17.4,
-        'Qwen3 Coder+': 50.9,
-    },
-    'Ruff': {
-        'Claude 4.5 Sonnet': 128.7, 'DeepSeek R1': 53.4, 'Gemini 3 Flash': 45.4,
-        'Gemini 3 Pro': 50.5, 'GLM-4.7': 68.4, 'GPT-4o Mini': 13.9,
-        'GPT-5.2 Codex': 23.7, 'Llama 3.1 405B': 9.7, 'Mistral Small 3.1': 19.9,
-        'Qwen3 Coder+': 72.0,
-    },
-    'ESLint': {
-        'Claude 4.5 Sonnet': 50.0, 'DeepSeek R1': 53.2, 'Gemini 3 Flash': 46.0,
-        'Gemini 3 Pro': 38.6, 'GLM-4.7': 39.2, 'GPT-4o Mini': 25.0,
-        'GPT-5.2 Codex': 51.5, 'Llama 3.1 405B': 32.6, 'Mistral Small 3.1': 59.1,
-        'Qwen3 Coder+': 46.1,
-    },
-    'Mypy': {
-        'Claude 4.5 Sonnet': 42.2, 'DeepSeek R1': 34.4, 'Gemini 3 Flash': 26.8,
-        'Gemini 3 Pro': 23.3, 'GLM-4.7': 26.3, 'GPT-4o Mini': 16.2,
-        'GPT-5.2 Codex': 56.0, 'Llama 3.1 405B': 16.4, 'Mistral Small 3.1': 28.6,
-        'Qwen3 Coder+': 26.1,
-    },
-    'Vulture': {
-        'Claude 4.5 Sonnet': 15.4, 'DeepSeek R1': 13.3, 'Gemini 3 Flash': 13.7,
-        'Gemini 3 Pro': 12.8, 'GLM-4.7': 12.1, 'GPT-4o Mini': 9.3,
-        'GPT-5.2 Codex': 20.4, 'Llama 3.1 405B': 8.7, 'Mistral Small 3.1': 9.3,
-        'Qwen3 Coder+': 8.1,
-    },
-    'Bandit': {
-        'Claude 4.5 Sonnet': 3.9, 'DeepSeek R1': 4.5, 'Gemini 3 Flash': 2.5,
-        'Gemini 3 Pro': 3.4, 'GLM-4.7': 6.7, 'GPT-4o Mini': 1.4,
-        'GPT-5.2 Codex': 4.5, 'Llama 3.1 405B': 3.3, 'Mistral Small 3.1': 4.4,
-        'Qwen3 Coder+': 3.8,
-    },
-    'Semgrep': {
-        'Claude 4.5 Sonnet': 9.0, 'DeepSeek R1': 8.8, 'Gemini 3 Flash': 8.3,
-        'Gemini 3 Pro': 7.4, 'GLM-4.7': 8.0, 'GPT-4o Mini': 5.4,
-        'GPT-5.2 Codex': 9.2, 'Llama 3.1 405B': 6.7, 'Mistral Small 3.1': 7.6,
-        'Qwen3 Coder+': 6.2,
-    },
-}
+# Heatmap: avg findings/app per tool (from static_tools per_model)
+_TOOL_MAP = {'Pylint': 'pylint', 'Ruff': 'ruff', 'ESLint': 'eslint',
+             'Mypy': 'mypy', 'Vulture': 'vulture', 'Bandit': 'bandit',
+             'Semgrep': 'semgrep'}
+HEATMAP: dict[str, dict[str, float]] = {}
+for _display, _key in _TOOL_MAP.items():
+    HEATMAP[_display] = {
+        _SUMMARY[k]['short_name']: _STATIC[_key]['per_model'][k]['avg_per_run']
+        for k in _MODEL_KEYS
+    }
 
 # Thesis-friendly colour palette
 COLORS = [
@@ -185,12 +141,12 @@ COLORS = [
 ]
 
 plt.rcParams.update({
-    'font.size': 11,
-    'axes.titlesize': 13,
-    'axes.labelsize': 12,
-    'xtick.labelsize': 9,
-    'ytick.labelsize': 10,
-    'legend.fontsize': 9,
+    'font.size': 14,
+    'axes.titlesize': 16,
+    'axes.labelsize': 15,
+    'xtick.labelsize': 13,
+    'ytick.labelsize': 13,
+    'legend.fontsize': 16,
     'figure.dpi': 200,
     'savefig.dpi': 200,
     'savefig.bbox': 'tight',
@@ -203,15 +159,25 @@ def _labels(models: list[str]) -> list[str]:
 
 
 def _norm(vals: list[float]) -> list[float]:
+    """Min-max normalise to [0, 1]."""
     lo, hi = min(vals), max(vals)
     if hi == lo:
         return [0.5] * len(vals)
     return [(v - lo) / (hi - lo) for v in vals]
 
 
-# ── Plot 1: Model Scorecard ─────────────────────────────────────────────────
+# ── Plot 1: Model Scorecard (grouped bar, min-max normalised) ─────────────────
 def plot_model_scorecard() -> None:
-    """Grouped bar chart: 6 normalised metrics × 10 models."""
+    """Grouped bar chart: 6 min-max normalised metrics × 10 models.
+
+    Metrics:
+      Compliance%     — requirements scanner mean score
+      Code Quality    — AI quality analyser mean score
+      Code Volume     — LOC/App (more = more functionality)
+      Low Defect Den. — 1000/D/kLOC (inverted so higher = better)
+      Deploy%         — deployment success rate
+      Cost Efficiency — 1/price (inverted so higher = better)
+    """
     models = MODELS
     labels = _labels(models)
 
@@ -219,7 +185,7 @@ def plot_model_scorecard() -> None:
     quality = [QUALITY_SCORE[m] for m in models]
     loc_app = [LOC_PER_APP[m] for m in models]
     dd_inv = [1000 / max(DEFECT_DENSITY[m], 1) for m in models]
-    rps = [RPS[m] for m in models]
+    deploy = [DEPLOY_PCT[m] for m in models]
     cost_eff = [1.0 / PRICES[m] for m in models]
 
     metrics = {
@@ -227,7 +193,7 @@ def plot_model_scorecard() -> None:
         'Code Quality': _norm(quality),
         'Code Volume': _norm(loc_app),
         'Low Defect\nDensity': _norm(dd_inv),
-        'Performance\n(RPS)': _norm(rps),
+        'Deploy%': _norm(deploy),
         'Cost\nEfficiency': _norm(cost_eff),
     }
 
@@ -279,7 +245,7 @@ def plot_volume_vs_defects() -> None:
 
     for bar, val in zip(bars, loc_app):
         ax1.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 30,
-                 f'{val:,.0f}', ha='center', va='bottom', fontsize=8, color='#2E86AB')
+                 f'{val:,.0f}', ha='center', va='bottom', fontsize=14, color='#2E86AB')
 
     ax2 = ax1.twinx()
     ax2.plot(x, dd, 'o-', color='#C73E1D', linewidth=2, markersize=7, label='D/kLOC', zorder=3)
@@ -288,7 +254,7 @@ def plot_volume_vs_defects() -> None:
 
     for xi, val in zip(x, dd):
         ax2.annotate(f'{val:.1f}', (xi, val), textcoords='offset points',
-                     xytext=(0, 10), ha='center', fontsize=8, color='#C73E1D')
+                     xytext=(0, 10), ha='center', fontsize=14, color='#C73E1D')
 
     ax1.set_title('Code Volume vs. Defect Density by Model')
     lines1, labels1 = ax1.get_legend_handles_labels()
@@ -329,7 +295,7 @@ def plot_static_heatmap() -> None:
         ax.set_yticklabels(tools)
         for i in range(len(tools)):
             for j in range(len(models)):
-                ax.text(j, i, f'{matrix[i, j]:.1f}', ha='center', va='center', fontsize=8)
+                ax.text(j, i, f'{matrix[i, j]:.1f}', ha='center', va='center', fontsize=14)
         plt.colorbar(im, ax=ax, label='Avg. Findings per Application')
 
     ax.set_title('Static Analysis Tool Findings Heatmap (Avg. per Application)')
@@ -364,7 +330,7 @@ def plot_severity_distribution() -> None:
 
     totals = [h + m + l for h, m, l in zip(highs_pa, meds_pa, lows_pa)]
     for xi, t in zip(x, totals):
-        ax.text(xi, t + 3, f'{t:.0f}', ha='center', va='bottom', fontsize=8, fontweight='bold')
+        ax.text(xi, t + 3, f'{t:.0f}', ha='center', va='bottom', fontsize=14, fontweight='bold')
 
     ax.set_xticks(x)
     ax.set_xticklabels(labels, ha='center')
@@ -396,16 +362,17 @@ def plot_compliance() -> None:
            edgecolor='white', linewidth=0.3, error_kw={'linewidth': 1.2, 'color': '#333'})
 
     for xi, m, s in zip(x, means, stds):
-        ax.text(xi, m + s + 1.5, f'{m:.1f}%', ha='center', va='bottom', fontsize=9, fontweight='bold')
+        ax.text(xi, m + s + 1.5, f'{m:.1f}%', ha='center', va='bottom', fontsize=16, fontweight='bold')
 
     ax.set_xticks(x)
     ax.set_xticklabels(labels, ha='center')
     ax.set_ylabel('Requirements Compliance (%)')
     ax.set_title('AI-Assessed Requirements Compliance by Model')
-    ax.set_ylim(0, 115)
+    max_top = max(m + s for m, s in zip(means, stds))
+    ax.set_ylim(0, min(max_top * 1.18, 135))
     avg = np.mean(means)
     ax.axhline(y=avg, color='#888', linestyle='--', linewidth=1, alpha=0.6)
-    ax.text(len(models) - 0.5, avg + 1, f'Mean: {avg:.1f}%', ha='right', fontsize=9, color='#666')
+    ax.text(len(models) - 0.5, avg + 1, f'Mean: {avg:.1f}%', ha='right', fontsize=16, color='#666')
     ax.grid(axis='y', alpha=0.2, linewidth=0.5)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
