@@ -362,7 +362,7 @@ def plot_compliance() -> None:
            edgecolor='white', linewidth=0.3, error_kw={'linewidth': 1.2, 'color': '#333'})
 
     for xi, m, s in zip(x, means, stds):
-        ax.text(xi, m + s + 1.5, f'{m:.1f}%', ha='center', va='bottom', fontsize=16, fontweight='bold')
+        ax.text(xi, m + s + 1.5, f'{m:.1f}%', ha='center', va='bottom', fontsize=11, fontweight='bold')
 
     ax.set_xticks(x)
     ax.set_xticklabels(labels, ha='center')
@@ -372,7 +372,7 @@ def plot_compliance() -> None:
     ax.set_ylim(0, min(max_top * 1.18, 135))
     avg = np.mean(means)
     ax.axhline(y=avg, color='#888', linestyle='--', linewidth=1, alpha=0.6)
-    ax.text(len(models) - 0.5, avg + 1, f'Mean: {avg:.1f}%', ha='right', fontsize=16, color='#666')
+    ax.text(len(models) - 0.5, avg + 1, f'Mean: {avg:.1f}%', ha='right', fontsize=11, color='#666')
     ax.grid(axis='y', alpha=0.2, linewidth=0.5)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
