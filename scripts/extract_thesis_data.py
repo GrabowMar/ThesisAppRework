@@ -99,7 +99,7 @@ def extract_all_data(results_dir: Path, gen_dir: Path, max_apps: int = 0) -> dic
     """Extract all thesis data from raw result files."""
     # Data structures
     tool_model = defaultdict(lambda: defaultdict(
-        lambda: {'runs': 0, 'findings': 0,
+        lambda: {'runs': 0, 'ok_runs': 0, 'findings': 0,
                  'severity': {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}}
     ))
     model_app_findings = defaultdict(lambda: defaultdict(int))
@@ -157,27 +157,26 @@ def extract_all_data(results_dir: Path, gen_dir: Path, max_apps: int = 0) -> dic
 
             # Each app can contain multiple task runs and multiple JSON snapshots per task.
             # For thesis aggregation we count *one consolidated result per app* to avoid double-counting.
+            # Select the task with the most static tools executed (most complete analysis);
+            # break ties by alphabetical task-dir name (later name = preferred).
             task_candidates = []
-            for task_dir in app_dir.iterdir():
+            for task_dir in sorted(app_dir.iterdir()):
                 if not task_dir.is_dir():
                     continue
-                manifest = task_dir / 'manifest.json'
-                ts = ''
                 main_path = None
+                manifest = task_dir / 'manifest.json'
                 if manifest.exists():
                     try:
                         m = json.loads(manifest.read_text())
-                        ts = m.get('timestamp') or ''
                         main_file = m.get('main_result_file')
                         if main_file:
                             p = task_dir / main_file
                             if p.exists():
                                 main_path = p
                     except Exception:
-                        # fall back to selecting the latest JSON snapshot below
                         pass
 
-                # Fallback: some manifests can be stale/wrong; pick the latest JSON snapshot in the task dir.
+                # Fallback: pick the alphabetically-last JSON snapshot in the task dir.
                 if main_path is None:
                     json_candidates = [
                         p for p in task_dir.iterdir()
@@ -188,13 +187,25 @@ def extract_all_data(results_dir: Path, gen_dir: Path, max_apps: int = 0) -> dic
                     json_candidates.sort(key=lambda p: p.name)
                     main_path = json_candidates[-1]
 
-                task_candidates.append((ts, main_path))
+                # Count how many static tools were executed (to prefer complete runs).
+                try:
+                    _d = json.loads(main_path.read_text())
+                    _res = (_d.get('services', {}).get('static-analyzer', {})
+                              .get('payload', {}).get('analysis', {}).get('results', {}))
+                    tool_count = sum(
+                        1 for _tools in _res.values() if isinstance(_tools, dict)
+                        for _td in _tools.values() if isinstance(_td, dict) and _td.get('executed')
+                    )
+                except Exception:
+                    tool_count = 0
 
-            # Prefer the latest task (by manifest timestamp).
+                task_candidates.append((tool_count, task_dir.name, main_path))
+
+            # Prefer the task with the most executed tools; for equal counts prefer later dir name.
             if not task_candidates:
                 continue
-            task_candidates.sort(key=lambda x: x[0])
-            _, main_result_path = task_candidates[-1]
+            task_candidates.sort(key=lambda x: (x[0], x[1]))
+            _, _, main_result_path = task_candidates[-1]
 
             try:
                 data = json.loads(main_result_path.read_text())
@@ -240,6 +251,8 @@ def _process_static(services: dict, model_slug: str, app_n: str,
             count = td.get('issue_count', len(issues) if isinstance(issues, list) else 0)
             tool_model[tn][model_slug]['runs'] += 1
             tool_model[tn][model_slug]['findings'] += count
+            if not td.get('error'):
+                tool_model[tn][model_slug]['ok_runs'] += 1
             model_app_findings[model_slug][app_n] += count
             sb = td.get('severity_breakdown', {})
             for sev, cnt in sb.items():
@@ -595,15 +608,18 @@ def _build_output(tool_model, model_app_findings, model_app_severity,
         tm = tool_model[tn]
         total_f = sum(d['findings'] for d in tm.values())
         total_r = sum(d['runs'] for d in tm.values())
+        total_ok = sum(d.get('ok_runs', d['runs']) for d in tm.values())
         total_sev = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
         per_model = {}
         for ms in MODEL_SHORT_NAMES:
-            d = tm.get(ms, {'runs': 0, 'findings': 0,
+            d = tm.get(ms, {'runs': 0, 'ok_runs': 0, 'findings': 0,
                             'severity': {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}})
+            ok_r = d.get('ok_runs', d['runs'])
             per_model[ms] = {
                 'runs': d['runs'],
+                'ok_runs': ok_r,
                 'findings': d['findings'],
-                'avg_per_run': d['findings'] / d['runs'] if d['runs'] > 0 else 0,
+                'avg_per_run': d['findings'] / ok_r if ok_r > 0 else 0,
                 'severity': d['severity'],
             }
             for sev in total_sev:
@@ -611,7 +627,8 @@ def _build_output(tool_model, model_app_findings, model_app_severity,
         tool_tables[tn] = {
             'total_findings': total_f,
             'total_runs': total_r,
-            'avg_per_run': total_f / total_r if total_r > 0 else 0,
+            'total_ok_runs': total_ok,
+            'avg_per_run': total_f / total_ok if total_ok > 0 else 0,
             'severity': total_sev,
             'per_model': per_model,
         }

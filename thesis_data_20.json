@@ -3,19 +3,19 @@
     "total_apps": 200,
     "apps_with_results": 200,
     "total_models": 10,
-    "total_static_findings": 39061,
-    "total_zap_alerts": 2751,
+    "total_static_findings": 38687,
+    "total_zap_alerts": 2771,
     "service_completion": {
       "static": {
         "success": 200,
         "total": 200
       },
       "dynamic": {
-        "success": 116,
+        "success": 117,
         "total": 200
       },
       "performance": {
-        "success": 116,
+        "success": 117,
         "total": 200
       },
       "ai": {
@@ -26,31 +26,34 @@
   },
   "static_tools": {
     "bandit": {
-      "total_findings": 787,
+      "total_findings": 764,
       "total_runs": 200,
-      "avg_per_run": 3.935,
+      "total_ok_runs": 200,
+      "avg_per_run": 3.82,
       "severity": {
         "critical": 0,
         "high": 187,
         "medium": 0,
-        "low": 600,
+        "low": 577,
         "info": 0
       },
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
-          "findings": 101,
-          "avg_per_run": 5.05,
+          "ok_runs": 20,
+          "findings": 78,
+          "avg_per_run": 3.9,
           "severity": {
             "critical": 0,
             "high": 20,
             "medium": 0,
-            "low": 81,
+            "low": 58,
             "info": 0
           }
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 89,
           "avg_per_run": 4.45,
           "severity": {
@@ -63,6 +66,7 @@
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 49,
           "avg_per_run": 2.45,
           "severity": {
@@ -75,6 +79,7 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 67,
           "avg_per_run": 3.35,
           "severity": {
@@ -87,6 +92,7 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 66,
           "avg_per_run": 3.3,
           "severity": {
@@ -99,6 +105,7 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 88,
           "avg_per_run": 4.4,
           "severity": {
@@ -111,6 +118,7 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 27,
           "avg_per_run": 1.35,
           "severity": {
@@ -123,6 +131,7 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 90,
           "avg_per_run": 4.5,
           "severity": {
@@ -135,6 +144,7 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 76,
           "avg_per_run": 3.8,
           "severity": {
@@ -147,6 +157,7 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 134,
           "avg_per_run": 6.7,
           "severity": {
@@ -162,6 +173,7 @@
     "detect-secrets": {
       "total_findings": 0,
       "total_runs": 200,
+      "total_ok_runs": 200,
       "avg_per_run": 0.0,
       "severity": {
         "critical": 0,
@@ -173,6 +185,7 @@
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -185,6 +198,7 @@
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -197,6 +211,7 @@
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -209,6 +224,7 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -221,6 +237,7 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -233,6 +250,7 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -245,6 +263,7 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -257,6 +276,7 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -269,6 +289,7 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -281,6 +302,7 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -294,31 +316,34 @@
       }
     },
     "eslint": {
-      "total_findings": 8809,
+      "total_findings": 8804,
       "total_runs": 200,
-      "avg_per_run": 44.045,
+      "total_ok_runs": 200,
+      "avg_per_run": 44.02,
       "severity": {
         "critical": 0,
-        "high": 203,
-        "medium": 8606,
+        "high": 209,
+        "medium": 8595,
         "low": 0,
         "info": 0
       },
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
-          "findings": 1006,
-          "avg_per_run": 50.3,
+          "ok_runs": 20,
+          "findings": 1001,
+          "avg_per_run": 50.05,
           "severity": {
             "critical": 0,
-            "high": 52,
-            "medium": 954,
+            "high": 58,
+            "medium": 943,
             "low": 0,
             "info": 0
           }
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 1064,
           "avg_per_run": 53.2,
           "severity": {
@@ -331,6 +356,7 @@
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 919,
           "avg_per_run": 45.95,
           "severity": {
@@ -343,6 +369,7 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 772,
           "avg_per_run": 38.6,
           "severity": {
@@ -355,6 +382,7 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 653,
           "avg_per_run": 32.65,
           "severity": {
@@ -367,6 +395,7 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 1182,
           "avg_per_run": 59.1,
           "severity": {
@@ -379,6 +408,7 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 475,
           "avg_per_run": 23.75,
           "severity": {
@@ -391,6 +421,7 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 1030,
           "avg_per_run": 51.5,
           "severity": {
@@ -403,6 +434,7 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 923,
           "avg_per_run": 46.15,
           "severity": {
@@ -415,6 +447,7 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 785,
           "avg_per_run": 39.25,
           "severity": {
@@ -430,6 +463,7 @@
     "html-validator": {
       "total_findings": 0,
       "total_runs": 200,
+      "total_ok_runs": 200,
       "avg_per_run": 0.0,
       "severity": {
         "critical": 0,
@@ -441,6 +475,7 @@
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -453,6 +488,7 @@
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -465,6 +501,7 @@
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -477,6 +514,7 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -489,6 +527,7 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -501,6 +540,7 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -513,6 +553,7 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -525,6 +566,7 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -537,6 +579,7 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -549,6 +592,7 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -562,12 +606,13 @@
       }
     },
     "mypy": {
-      "total_findings": 4683,
+      "total_findings": 4662,
       "total_runs": 200,
-      "avg_per_run": 23.415,
+      "total_ok_runs": 155,
+      "avg_per_run": 30.07741935483871,
       "severity": {
         "critical": 0,
-        "high": 4682,
+        "high": 4661,
         "medium": 0,
         "low": 1,
         "info": 0
@@ -575,11 +620,12 @@
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
-          "findings": 781,
-          "avg_per_run": 39.05,
+          "ok_runs": 18,
+          "findings": 760,
+          "avg_per_run": 42.22222222222222,
           "severity": {
             "critical": 0,
-            "high": 780,
+            "high": 759,
             "medium": 0,
             "low": 1,
             "info": 0
@@ -587,6 +633,7 @@
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 620,
           "avg_per_run": 31.0,
           "severity": {
@@ -599,6 +646,7 @@
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 509,
           "avg_per_run": 25.45,
           "severity": {
@@ -611,8 +659,9 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
+          "ok_runs": 18,
           "findings": 419,
-          "avg_per_run": 20.95,
+          "avg_per_run": 23.27777777777778,
           "severity": {
             "critical": 0,
             "high": 419,
@@ -623,8 +672,9 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
+          "ok_runs": 11,
           "findings": 180,
-          "avg_per_run": 9.0,
+          "avg_per_run": 16.363636363636363,
           "severity": {
             "critical": 0,
             "high": 180,
@@ -635,8 +685,9 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
+          "ok_runs": 13,
           "findings": 372,
-          "avg_per_run": 18.6,
+          "avg_per_run": 28.615384615384617,
           "severity": {
             "critical": 0,
             "high": 372,
@@ -647,8 +698,9 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
+          "ok_runs": 12,
           "findings": 194,
-          "avg_per_run": 9.7,
+          "avg_per_run": 16.166666666666668,
           "severity": {
             "critical": 0,
             "high": 194,
@@ -659,8 +711,9 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
+          "ok_runs": 17,
           "findings": 952,
-          "avg_per_run": 47.6,
+          "avg_per_run": 56.0,
           "severity": {
             "critical": 0,
             "high": 952,
@@ -671,8 +724,9 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
+          "ok_runs": 11,
           "findings": 261,
-          "avg_per_run": 13.05,
+          "avg_per_run": 23.727272727272727,
           "severity": {
             "critical": 0,
             "high": 261,
@@ -683,8 +737,9 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
+          "ok_runs": 15,
           "findings": 395,
-          "avg_per_run": 19.75,
+          "avg_per_run": 26.333333333333332,
           "severity": {
             "critical": 0,
             "high": 395,
@@ -698,7 +753,8 @@
     "npm-audit": {
       "total_findings": 384,
       "total_runs": 200,
-      "avg_per_run": 1.92,
+      "total_ok_runs": 192,
+      "avg_per_run": 2.0,
       "severity": {
         "critical": 0,
         "high": 0,
@@ -709,6 +765,7 @@
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 40,
           "avg_per_run": 2.0,
           "severity": {
@@ -721,6 +778,7 @@
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 40,
           "avg_per_run": 2.0,
           "severity": {
@@ -733,6 +791,7 @@
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 40,
           "avg_per_run": 2.0,
           "severity": {
@@ -745,6 +804,7 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 40,
           "avg_per_run": 2.0,
           "severity": {
@@ -757,8 +817,9 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
+          "ok_runs": 19,
           "findings": 38,
-          "avg_per_run": 1.9,
+          "avg_per_run": 2.0,
           "severity": {
             "critical": 0,
             "high": 0,
@@ -769,8 +830,9 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
+          "ok_runs": 18,
           "findings": 36,
-          "avg_per_run": 1.8,
+          "avg_per_run": 2.0,
           "severity": {
             "critical": 0,
             "high": 0,
@@ -781,8 +843,9 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
+          "ok_runs": 19,
           "findings": 38,
-          "avg_per_run": 1.9,
+          "avg_per_run": 2.0,
           "severity": {
             "critical": 0,
             "high": 0,
@@ -793,8 +856,9 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
+          "ok_runs": 18,
           "findings": 36,
-          "avg_per_run": 1.8,
+          "avg_per_run": 2.0,
           "severity": {
             "critical": 0,
             "high": 0,
@@ -805,6 +869,7 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 40,
           "avg_per_run": 2.0,
           "severity": {
@@ -817,8 +882,9 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
+          "ok_runs": 18,
           "findings": 36,
-          "avg_per_run": 1.8,
+          "avg_per_run": 2.0,
           "severity": {
             "critical": 0,
             "high": 0,
@@ -830,12 +896,13 @@
       }
     },
     "pip-audit": {
-      "total_findings": 1480,
+      "total_findings": 1470,
       "total_runs": 200,
-      "avg_per_run": 7.4,
+      "total_ok_runs": 160,
+      "avg_per_run": 9.1875,
       "severity": {
         "critical": 0,
-        "high": 1480,
+        "high": 1470,
         "medium": 0,
         "low": 0,
         "info": 0
@@ -843,11 +910,12 @@
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
-          "findings": 180,
-          "avg_per_run": 9.0,
+          "ok_runs": 17,
+          "findings": 170,
+          "avg_per_run": 10.0,
           "severity": {
             "critical": 0,
-            "high": 180,
+            "high": 170,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -855,8 +923,9 @@
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
+          "ok_runs": 18,
           "findings": 180,
-          "avg_per_run": 9.0,
+          "avg_per_run": 10.0,
           "severity": {
             "critical": 0,
             "high": 180,
@@ -867,6 +936,7 @@
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 190,
           "avg_per_run": 9.5,
           "severity": {
@@ -879,8 +949,9 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
+          "ok_runs": 17,
           "findings": 160,
-          "avg_per_run": 8.0,
+          "avg_per_run": 9.411764705882353,
           "severity": {
             "critical": 0,
             "high": 160,
@@ -891,8 +962,9 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
+          "ok_runs": 10,
           "findings": 90,
-          "avg_per_run": 4.5,
+          "avg_per_run": 9.0,
           "severity": {
             "critical": 0,
             "high": 90,
@@ -903,8 +975,9 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
+          "ok_runs": 15,
           "findings": 120,
-          "avg_per_run": 6.0,
+          "avg_per_run": 8.0,
           "severity": {
             "critical": 0,
             "high": 120,
@@ -915,8 +988,9 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
+          "ok_runs": 13,
           "findings": 110,
-          "avg_per_run": 5.5,
+          "avg_per_run": 8.461538461538462,
           "severity": {
             "critical": 0,
             "high": 110,
@@ -927,8 +1001,9 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
+          "ok_runs": 18,
           "findings": 160,
-          "avg_per_run": 8.0,
+          "avg_per_run": 8.88888888888889,
           "severity": {
             "critical": 0,
             "high": 160,
@@ -939,8 +1014,9 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
+          "ok_runs": 15,
           "findings": 140,
-          "avg_per_run": 7.0,
+          "avg_per_run": 9.333333333333334,
           "severity": {
             "critical": 0,
             "high": 140,
@@ -951,8 +1027,9 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
+          "ok_runs": 17,
           "findings": 150,
-          "avg_per_run": 7.5,
+          "avg_per_run": 8.823529411764707,
           "severity": {
             "critical": 0,
             "high": 150,
@@ -964,33 +1041,36 @@
       }
     },
     "pylint": {
-      "total_findings": 7450,
+      "total_findings": 7200,
       "total_runs": 200,
-      "avg_per_run": 37.25,
+      "total_ok_runs": 153,
+      "avg_per_run": 47.05882352941177,
       "severity": {
         "critical": 0,
-        "high": 106,
-        "medium": 1204,
-        "low": 6140,
+        "high": 107,
+        "medium": 1183,
+        "low": 5910,
         "info": 0
       },
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
-          "findings": 2403,
-          "avg_per_run": 120.15,
+          "ok_runs": 17,
+          "findings": 2153,
+          "avg_per_run": 126.6470588235294,
           "severity": {
             "critical": 0,
-            "high": 17,
-            "medium": 160,
-            "low": 2226,
+            "high": 18,
+            "medium": 139,
+            "low": 1996,
             "info": 0
           }
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
+          "ok_runs": 16,
           "findings": 827,
-          "avg_per_run": 41.35,
+          "avg_per_run": 51.6875,
           "severity": {
             "critical": 0,
             "high": 9,
@@ -1001,8 +1081,9 @@
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
+          "ok_runs": 16,
           "findings": 701,
-          "avg_per_run": 35.05,
+          "avg_per_run": 43.8125,
           "severity": {
             "critical": 0,
             "high": 16,
@@ -1013,8 +1094,9 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
+          "ok_runs": 16,
           "findings": 774,
-          "avg_per_run": 38.7,
+          "avg_per_run": 48.375,
           "severity": {
             "critical": 0,
             "high": 12,
@@ -1025,8 +1107,9 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
+          "ok_runs": 13,
           "findings": 111,
-          "avg_per_run": 5.55,
+          "avg_per_run": 8.538461538461538,
           "severity": {
             "critical": 0,
             "high": 11,
@@ -1037,8 +1120,9 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
+          "ok_runs": 13,
           "findings": 209,
-          "avg_per_run": 10.45,
+          "avg_per_run": 16.076923076923077,
           "severity": {
             "critical": 0,
             "high": 7,
@@ -1049,8 +1133,9 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
+          "ok_runs": 15,
           "findings": 191,
-          "avg_per_run": 9.55,
+          "avg_per_run": 12.733333333333333,
           "severity": {
             "critical": 0,
             "high": 1,
@@ -1061,8 +1146,9 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
+          "ok_runs": 15,
           "findings": 656,
-          "avg_per_run": 32.8,
+          "avg_per_run": 43.733333333333334,
           "severity": {
             "critical": 0,
             "high": 19,
@@ -1073,8 +1159,9 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
+          "ok_runs": 16,
           "findings": 814,
-          "avg_per_run": 40.7,
+          "avg_per_run": 50.875,
           "severity": {
             "critical": 0,
             "high": 12,
@@ -1085,8 +1172,9 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
+          "ok_runs": 16,
           "findings": 764,
-          "avg_per_run": 38.2,
+          "avg_per_run": 47.75,
           "severity": {
             "critical": 0,
             "high": 2,
@@ -1098,31 +1186,34 @@
       }
     },
     "radon": {
-      "total_findings": 6,
+      "total_findings": 9,
       "total_runs": 200,
-      "avg_per_run": 0.03,
+      "total_ok_runs": 200,
+      "avg_per_run": 0.045,
       "severity": {
         "critical": 0,
         "high": 0,
-        "medium": 104,
+        "medium": 108,
         "low": 0,
         "info": 0
       },
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
-          "findings": 1,
-          "avg_per_run": 0.05,
+          "ok_runs": 20,
+          "findings": 4,
+          "avg_per_run": 0.2,
           "severity": {
             "critical": 0,
             "high": 0,
-            "medium": 36,
+            "medium": 40,
             "low": 0,
             "info": 0
           }
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1135,6 +1226,7 @@
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1147,6 +1239,7 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1159,6 +1252,7 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1171,6 +1265,7 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1183,6 +1278,7 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1195,6 +1291,7 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 1,
           "avg_per_run": 0.05,
           "severity": {
@@ -1207,6 +1304,7 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 4,
           "avg_per_run": 0.2,
           "severity": {
@@ -1219,6 +1317,7 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1232,31 +1331,34 @@
       }
     },
     "ruff": {
-      "total_findings": 9757,
+      "total_findings": 9713,
       "total_runs": 200,
-      "avg_per_run": 48.785,
+      "total_ok_runs": 200,
+      "avg_per_run": 48.565,
       "severity": {
         "critical": 0,
-        "high": 584,
-        "medium": 2794,
-        "low": 6379,
+        "high": 564,
+        "medium": 2795,
+        "low": 6354,
         "info": 0
       },
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
-          "findings": 2618,
-          "avg_per_run": 130.9,
+          "ok_runs": 20,
+          "findings": 2574,
+          "avg_per_run": 128.7,
           "severity": {
             "critical": 0,
-            "high": 75,
-            "medium": 466,
-            "low": 2077,
+            "high": 55,
+            "medium": 467,
+            "low": 2052,
             "info": 0
           }
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 1068,
           "avg_per_run": 53.4,
           "severity": {
@@ -1269,6 +1371,7 @@
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 907,
           "avg_per_run": 45.35,
           "severity": {
@@ -1281,6 +1384,7 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 1010,
           "avg_per_run": 50.5,
           "severity": {
@@ -1293,6 +1397,7 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 194,
           "avg_per_run": 9.7,
           "severity": {
@@ -1305,6 +1410,7 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 399,
           "avg_per_run": 19.95,
           "severity": {
@@ -1317,6 +1423,7 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 279,
           "avg_per_run": 13.95,
           "severity": {
@@ -1329,6 +1436,7 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 474,
           "avg_per_run": 23.7,
           "severity": {
@@ -1341,6 +1449,7 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 1440,
           "avg_per_run": 72.0,
           "severity": {
@@ -1353,6 +1462,7 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 1368,
           "avg_per_run": 68.4,
           "severity": {
@@ -1366,12 +1476,13 @@
       }
     },
     "safety": {
-      "total_findings": 1800,
+      "total_findings": 1801,
       "total_runs": 200,
-      "avg_per_run": 9.0,
+      "total_ok_runs": 200,
+      "avg_per_run": 9.005,
       "severity": {
         "critical": 0,
-        "high": 1800,
+        "high": 1801,
         "medium": 0,
         "low": 0,
         "info": 0
@@ -1379,11 +1490,12 @@
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
-          "findings": 180,
-          "avg_per_run": 9.0,
+          "ok_runs": 20,
+          "findings": 181,
+          "avg_per_run": 9.05,
           "severity": {
             "critical": 0,
-            "high": 180,
+            "high": 181,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1391,6 +1503,7 @@
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 180,
           "avg_per_run": 9.0,
           "severity": {
@@ -1403,6 +1516,7 @@
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 180,
           "avg_per_run": 9.0,
           "severity": {
@@ -1415,6 +1529,7 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 180,
           "avg_per_run": 9.0,
           "severity": {
@@ -1427,6 +1542,7 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 180,
           "avg_per_run": 9.0,
           "severity": {
@@ -1439,6 +1555,7 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 180,
           "avg_per_run": 9.0,
           "severity": {
@@ -1451,6 +1568,7 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 180,
           "avg_per_run": 9.0,
           "severity": {
@@ -1463,6 +1581,7 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 180,
           "avg_per_run": 9.0,
           "severity": {
@@ -1475,6 +1594,7 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 180,
           "avg_per_run": 9.0,
           "severity": {
@@ -1487,6 +1607,7 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 180,
           "avg_per_run": 9.0,
           "severity": {
@@ -1500,31 +1621,34 @@
       }
     },
     "semgrep": {
-      "total_findings": 1423,
+      "total_findings": 1421,
       "total_runs": 200,
-      "avg_per_run": 7.115,
+      "total_ok_runs": 185,
+      "avg_per_run": 7.681081081081081,
       "severity": {
         "critical": 0,
         "high": 0,
         "medium": 0,
-        "low": 1423,
+        "low": 1421,
         "info": 0
       },
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
-          "findings": 182,
-          "avg_per_run": 9.1,
+          "ok_runs": 20,
+          "findings": 180,
+          "avg_per_run": 9.0,
           "severity": {
             "critical": 0,
             "high": 0,
             "medium": 0,
-            "low": 182,
+            "low": 180,
             "info": 0
           }
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 175,
           "avg_per_run": 8.75,
           "severity": {
@@ -1537,6 +1661,7 @@
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 167,
           "avg_per_run": 8.35,
           "severity": {
@@ -1549,8 +1674,9 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
+          "ok_runs": 17,
           "findings": 126,
-          "avg_per_run": 6.3,
+          "avg_per_run": 7.411764705882353,
           "severity": {
             "critical": 0,
             "high": 0,
@@ -1561,6 +1687,7 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 133,
           "avg_per_run": 6.65,
           "severity": {
@@ -1573,8 +1700,9 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
+          "ok_runs": 19,
           "findings": 144,
-          "avg_per_run": 7.2,
+          "avg_per_run": 7.578947368421052,
           "severity": {
             "critical": 0,
             "high": 0,
@@ -1585,8 +1713,9 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
+          "ok_runs": 18,
           "findings": 98,
-          "avg_per_run": 4.9,
+          "avg_per_run": 5.444444444444445,
           "severity": {
             "critical": 0,
             "high": 0,
@@ -1597,8 +1726,9 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
+          "ok_runs": 19,
           "findings": 175,
-          "avg_per_run": 8.75,
+          "avg_per_run": 9.210526315789474,
           "severity": {
             "critical": 0,
             "high": 0,
@@ -1609,8 +1739,9 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
+          "ok_runs": 18,
           "findings": 111,
-          "avg_per_run": 5.55,
+          "avg_per_run": 6.166666666666667,
           "severity": {
             "critical": 0,
             "high": 0,
@@ -1621,8 +1752,9 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
+          "ok_runs": 14,
           "findings": 112,
-          "avg_per_run": 5.6,
+          "avg_per_run": 8.0,
           "severity": {
             "critical": 0,
             "high": 0,
@@ -1636,6 +1768,7 @@
     "stylelint": {
       "total_findings": 0,
       "total_runs": 200,
+      "total_ok_runs": 200,
       "avg_per_run": 0.0,
       "severity": {
         "critical": 0,
@@ -1647,6 +1780,7 @@
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1659,6 +1793,7 @@
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1671,6 +1806,7 @@
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1683,6 +1819,7 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1695,6 +1832,7 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1707,6 +1845,7 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1719,6 +1858,7 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1731,6 +1871,7 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1743,6 +1884,7 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1755,6 +1897,7 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -1768,31 +1911,34 @@
       }
     },
     "vulture": {
-      "total_findings": 2482,
+      "total_findings": 2459,
       "total_runs": 200,
-      "avg_per_run": 12.41,
+      "total_ok_runs": 200,
+      "avg_per_run": 12.295,
       "severity": {
         "critical": 0,
         "high": 0,
         "medium": 208,
-        "low": 2274,
+        "low": 2251,
         "info": 0
       },
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
-          "findings": 331,
-          "avg_per_run": 16.55,
+          "ok_runs": 20,
+          "findings": 308,
+          "avg_per_run": 15.4,
           "severity": {
             "critical": 0,
             "high": 0,
             "medium": 16,
-            "low": 315,
+            "low": 292,
             "info": 0
           }
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 267,
           "avg_per_run": 13.35,
           "severity": {
@@ -1805,6 +1951,7 @@
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 273,
           "avg_per_run": 13.65,
           "severity": {
@@ -1817,6 +1964,7 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 255,
           "avg_per_run": 12.75,
           "severity": {
@@ -1829,6 +1977,7 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 173,
           "avg_per_run": 8.65,
           "severity": {
@@ -1841,6 +1990,7 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 187,
           "avg_per_run": 9.35,
           "severity": {
@@ -1853,6 +2003,7 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 186,
           "avg_per_run": 9.3,
           "severity": {
@@ -1865,6 +2016,7 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 407,
           "avg_per_run": 20.35,
           "severity": {
@@ -1877,6 +2029,7 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 162,
           "avg_per_run": 8.1,
           "severity": {
@@ -1889,6 +2042,7 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
+          "ok_runs": 20,
           "findings": 241,
           "avg_per_run": 12.05,
           "severity": {
@@ -1905,14 +2059,14 @@
   "dynamic_zap": {
     "per_model": {
       "anthropic_claude-4.5-sonnet-20250929": {
-        "scans": 33,
+        "scans": 35,
         "attempted_scans": 40,
-        "alerts": 391,
-        "scans_with_alerts": 33,
+        "alerts": 411,
+        "scans_with_alerts": 35,
         "high": 0,
-        "medium": 192,
-        "low": 165,
-        "informational": 34
+        "medium": 196,
+        "low": 175,
+        "informational": 40
       },
       "deepseek_deepseek-r1-0528": {
         "scans": 30,
@@ -2006,25 +2160,25 @@
       }
     },
     "top_cwes": {
-      "CWE-693": 892,
-      "CWE-497": 708,
-      "CWE-264": 424,
-      "CWE-1104": 235,
-      "CWE-1021": 232
+      "CWE-693": 900,
+      "CWE-497": 714,
+      "CWE-264": 420,
+      "CWE-1104": 237,
+      "CWE-1021": 234
     },
     "top_alert_types": {
-      "Server Leaks Version Information via \"Server\" HTTP Response Header Field": 708,
-      "Content Security Policy (CSP) Header Not Set": 660,
-      "Cross-Domain Misconfiguration": 424,
-      "Modern Web Application": 260,
-      "ZAP is Out of Date": 235,
-      "Missing Anti-clickjacking Header": 232,
-      "X-Content-Type-Options Header Missing": 232
+      "Server Leaks Version Information via \"Server\" HTTP Response Header Field": 714,
+      "Content Security Policy (CSP) Header Not Set": 666,
+      "Cross-Domain Misconfiguration": 420,
+      "Modern Web Application": 266,
+      "ZAP is Out of Date": 237,
+      "Missing Anti-clickjacking Header": 234,
+      "X-Content-Type-Options Header Missing": 234
     },
-    "total_alerts": 2751,
-    "total_scans": 235,
+    "total_alerts": 2771,
+    "total_scans": 237,
     "total_attempted_scans": 400,
-    "total_scans_with_alerts": 235
+    "total_scans_with_alerts": 237
   },
   "dynamic_diagnostics": {
     "per_model": {
@@ -2037,8 +2191,8 @@
         "curl_attempted": 6,
         "curl_success": 6,
         "endpoints_total": 42,
-        "endpoints_passed": 4,
-        "endpoint_pass_rate": 9.523809523809524
+        "endpoints_passed": 5,
+        "endpoint_pass_rate": 11.904761904761903
       },
       "deepseek_deepseek-r1-0528": {
         "apps_with_any_output": 20,
@@ -2150,31 +2304,30 @@
       }
     },
     "top_open_ports": {
-      "80": 66,
-      "5234": 1
+      "80": 67
     },
     "total_port_scan_attempted": 200,
     "total_port_scan_success": 150,
     "total_open_ports": 67,
     "total_curl_attempted": 68,
     "total_endpoints": 476,
-    "total_endpoints_passed": 42
+    "total_endpoints_passed": 43
   },
   "performance": {
     "anthropic_claude-4.5-sonnet-20250929": {
-      "tests": 32,
-      "backend_mean": 377.580625,
-      "backend_median": 384.525,
-      "backend_std": 23.490811953825695,
-      "backend_min": 310.59,
+      "tests": 34,
+      "backend_mean": 382.0276470588235,
+      "backend_median": 384.93,
+      "backend_std": 15.574982555933957,
+      "backend_min": 356.21,
       "backend_max": 411.32,
       "backend_rt": {
-        "mean": 2.659125,
-        "median": 2.6005000000000003,
-        "std": 0.1831738245492516,
+        "mean": 2.6217647058823528,
+        "median": 2.598,
+        "std": 0.1077633572995505,
         "min": 2.431,
-        "max": 3.22,
-        "n": 16
+        "max": 2.807,
+        "n": 17
       }
     },
     "deepseek_deepseek-r1-0528": {
@@ -2296,25 +2449,25 @@
     "anthropic_claude-4.5-sonnet-20250929": {
       "apps": 20,
       "overall": {
-        "mean": 83.39285714285714,
-        "median": 85.71428571428571,
-        "std": 9.552451448651281,
-        "min": 64.28571428571429,
+        "mean": 81.06696428571429,
+        "median": 83.48214285714286,
+        "std": 13.727965298980035,
+        "min": 52.5,
         "max": 100.0,
         "n": 20
       },
       "backend": {
-        "mean": 81.66666666666667,
+        "mean": 84.16666666666667,
         "median": 83.33333333333334,
-        "std": 14.204027103779843,
-        "min": 66.66666666666666,
+        "std": 15.741887356472214,
+        "min": 50.0,
         "max": 100.0,
         "n": 20
       },
       "frontend": {
-        "mean": 80.0,
+        "mean": 80.20833333333333,
         "median": 87.5,
-        "std": 21.61261814676544,
+        "std": 19.862235685661084,
         "min": 16.666666666666664,
         "max": 100.0,
         "n": 20
@@ -2331,9 +2484,9 @@
     "deepseek_deepseek-r1-0528": {
       "apps": 20,
       "overall": {
-        "mean": 88.08035714285714,
-        "median": 92.85714285714286,
-        "std": 13.908540034894232,
+        "mean": 79.89732142857143,
+        "median": 86.60714285714286,
+        "std": 17.454321114188218,
         "min": 42.857142857142854,
         "max": 100.0,
         "n": 20
@@ -2436,11 +2589,11 @@
     "meta-llama_llama-3.1-405b-instruct": {
       "apps": 20,
       "overall": {
-        "mean": 72.76785714285714,
-        "median": 78.57142857142857,
-        "std": 14.629613027561515,
-        "min": 31.25,
-        "max": 92.85714285714286,
+        "mean": 50.93749999999999,
+        "median": 54.99999999999999,
+        "std": 10.240729119293059,
+        "min": 21.875,
+        "max": 65.0,
         "n": 20
       },
       "backend": {
@@ -2471,11 +2624,11 @@
     "mistralai_mistral-small-3.1-24b-instruct-2503": {
       "apps": 20,
       "overall": {
-        "mean": 91.02678571428572,
-        "median": 92.85714285714286,
-        "std": 7.009295222917875,
-        "min": 75.0,
-        "max": 100.0,
+        "mean": 63.71875,
+        "median": 65.0,
+        "std": 4.906506656042514,
+        "min": 52.5,
+        "max": 70.0,
         "n": 20
       },
       "backend": {
@@ -2506,10 +2659,10 @@
     "openai_gpt-4o-mini": {
       "apps": 20,
       "overall": {
-        "mean": 76.60714285714286,
-        "median": 78.57142857142857,
-        "std": 17.013926184468016,
-        "min": 42.857142857142854,
+        "mean": 58.76785714285714,
+        "median": 58.43749999999999,
+        "std": 18.178167048695215,
+        "min": 29.999999999999996,
         "max": 100.0,
         "n": 20
       },
@@ -2576,10 +2729,10 @@
     "qwen_qwen3-coder-plus": {
       "apps": 20,
       "overall": {
-        "mean": 80.58035714285714,
-        "median": 86.60714285714286,
-        "std": 18.10651767024397,
-        "min": 50.0,
+        "mean": 72.31696428571429,
+        "median": 67.5,
+        "std": 21.11527860184832,
+        "min": 35.0,
         "max": 100.0,
         "n": 20
       },
@@ -2611,10 +2764,10 @@
     "z-ai_glm-4.7-20251222": {
       "apps": 20,
       "overall": {
-        "mean": 85.13392857142857,
-        "median": 87.5,
-        "std": 13.410937044494155,
-        "min": 50.0,
+        "mean": 76.29464285714286,
+        "median": 82.14285714285714,
+        "std": 17.9944089844387,
+        "min": 45.0,
         "max": 100.0,
         "n": 20
       },
@@ -2646,43 +2799,43 @@
   },
   "performance_tools": {
     "ab": {
-      "total_runs": 232,
+      "total_runs": 234,
       "overall_rps": {
-        "mean": 3992.9025,
+        "mean": 3999.3896153846154,
         "median": 408.595,
-        "std": 3775.281010877754,
+        "std": 3778.217444096142,
         "min": 69.22,
         "max": 9756.1,
-        "n": 232
+        "n": 234
       },
       "overall_avg_rt": {
-        "mean": 1.6249827586206897,
+        "mean": 1.6201666666666668,
         "median": 2.4475,
-        "std": 2.0031280472619373,
+        "std": 1.9964304868542762,
         "min": 0.103,
         "max": 14.446,
-        "n": 232
+        "n": 234
       },
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
-          "runs": 32,
+          "runs": 34,
           "rps": {
-            "mean": 4167.07375,
+            "mean": 4201.475,
             "median": 3165.115,
-            "std": 3916.1352042664666,
-            "min": 310.59,
+            "std": 3925.8065349376416,
+            "min": 356.21,
             "max": 9250.69,
-            "n": 32
+            "n": 34
           },
           "avg_response_time": {
-            "mean": 1.3935,
+            "mean": 1.3739705882352942,
             "median": 1.3,
-            "std": 1.2922312286843625,
+            "std": 1.2688242824421336,
             "min": 0.108,
-            "max": 3.22,
-            "n": 32
+            "max": 2.807,
+            "n": 34
           },
-          "total_requests": 640.0,
+          "total_requests": 680.0,
           "total_errors": 0.0,
           "error_rate": 0.0
         },
@@ -2845,7 +2998,7 @@
       }
     },
     "aiohttp": {
-      "total_runs": 232,
+      "total_runs": 234,
       "overall_rps": {
         "mean": 0,
         "median": 0,
@@ -2855,16 +3008,16 @@
         "n": 0
       },
       "overall_avg_rt": {
-        "mean": 2.4189719827586207,
+        "mean": 2.4375429487179487,
         "median": 2.5595499999999998,
-        "std": 3.220443909153495,
+        "std": 3.20579373421197,
         "min": 0.62075,
         "max": 34.60245,
-        "n": 232
+        "n": 234
       },
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
-          "runs": 32,
+          "runs": 34,
           "rps": {
             "mean": 0,
             "median": 0,
@@ -2874,14 +3027,14 @@
             "n": 0
           },
           "avg_response_time": {
-            "mean": 1.917634375,
-            "median": 1.9594,
-            "std": 1.1681807688106116,
+            "mean": 2.0749367647058823,
+            "median": 2.5075000000000003,
+            "std": 1.1704695461139196,
             "min": 0.625,
-            "max": 4.0228,
-            "n": 32
+            "max": 4.2796,
+            "n": 34
           },
-          "total_requests": 640.0,
+          "total_requests": 680.0,
           "total_errors": 0.0,
           "error_rate": 0.0
         },
@@ -3044,14 +3197,14 @@
       }
     },
     "artillery": {
-      "total_runs": 232,
+      "total_runs": 234,
       "overall_rps": {
-        "mean": 4.905172413793103,
+        "mean": 4.914529914529915,
         "median": 5.0,
-        "std": 0.425963603832322,
+        "std": 0.405385411330139,
         "min": 3.0,
         "max": 5.0,
-        "n": 232
+        "n": 234
       },
       "overall_avg_rt": {
         "mean": 0,
@@ -3063,14 +3216,14 @@
       },
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
-          "runs": 32,
+          "runs": 34,
           "rps": {
-            "mean": 4.875,
+            "mean": 4.9411764705882355,
             "median": 5.0,
-            "std": 0.4918693768379647,
+            "std": 0.3429971702850177,
             "min": 3.0,
             "max": 5.0,
-            "n": 32
+            "n": 34
           },
           "avg_response_time": {
             "mean": 0,
@@ -3080,7 +3233,7 @@
             "max": 0,
             "n": 0
           },
-          "total_requests": 4800.0,
+          "total_requests": 5100.0,
           "total_errors": 0.0,
           "error_rate": 0.0
         },
@@ -3243,43 +3396,43 @@
       }
     },
     "locust": {
-      "total_runs": 232,
+      "total_runs": 234,
       "overall_rps": {
-        "mean": 6.359031039583647,
-        "median": 6.075929669774534,
-        "std": 10.687980885408205,
+        "mean": 6.356533331015904,
+        "median": 6.077491090849694,
+        "std": 10.641919667811944,
         "min": 0.3034040878278151,
         "max": 166.55960606782622,
-        "n": 230
+        "n": 232
       },
       "overall_avg_rt": {
-        "mean": 70.61739130434782,
+        "mean": 70.05172413793103,
         "median": 3.0,
-        "std": 702.410765534681,
+        "std": 699.3898372861726,
         "min": 3.0,
         "max": 10000.0,
-        "n": 230
+        "n": 232
       },
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
-          "runs": 32,
+          "runs": 34,
           "rps": {
-            "mean": 5.65802970481987,
-            "median": 6.027282152042772,
-            "std": 1.1315532785882585,
+            "mean": 5.682221889579022,
+            "median": 6.098271103044331,
+            "std": 1.1194892127121168,
             "min": 1.5869959282302206,
-            "max": 6.397481898799723,
-            "n": 32
+            "max": 6.405548608979988,
+            "n": 34
           },
           "avg_response_time": {
-            "mean": 3.28125,
+            "mean": 3.3823529411764706,
             "median": 3.0,
-            "std": 0.5811209967839966,
+            "std": 0.6969503213613096,
             "min": 3.0,
             "max": 5.0,
-            "n": 32
+            "n": 34
           },
-          "total_requests": 2416.0,
+          "total_requests": 2587.0,
           "total_errors": 0.0,
           "error_rate": 0.0
         },
@@ -3446,9 +3599,9 @@
     "code-quality-analyzer": {
       "total_runs": 200,
       "overall_score": {
-        "mean": 66.3715,
+        "mean": 66.3075,
         "median": 70.95,
-        "std": 15.143064410770487,
+        "std": 15.105205390841181,
         "min": 0.0,
         "max": 84.8,
         "n": 200
@@ -3457,22 +3610,30 @@
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
           "score": {
-            "mean": 76.535,
-            "median": 76.4,
-            "std": 1.8885458064759486,
-            "min": 71.9,
+            "mean": 75.895,
+            "median": 75.9,
+            "std": 2.2087088393090895,
+            "min": 71.0,
             "max": 80.7,
             "n": 20
           },
           "compliance_pct": {
-            "mean": 89.375,
+            "mean": 87.5,
             "median": 87.5,
-            "std": 8.38525491562421,
+            "std": 9.93399267798783,
             "min": 75.0,
             "max": 100.0,
             "n": 20
           },
           "grades": [
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
             "C",
             "C",
             "B",
@@ -3484,18 +3645,10 @@
             "C",
             "C",
             "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
             "C"
           ],
           "dominant_grade": "C",
-          "avg_metrics_passed": 7.15,
+          "avg_metrics_passed": 7.0,
           "avg_metrics_total": 8.0
         },
         "deepseek_deepseek-r1-0528": {
@@ -3518,6 +3671,14 @@
           },
           "grades": [
             "C",
+            "D",
+            "D",
+            "C",
+            "C",
+            "C",
+            "C",
+            "D",
+            "C",
             "C",
             "D",
             "C",
@@ -3528,14 +3689,6 @@
             "C",
             "C",
             "C",
-            "D",
-            "C",
-            "D",
-            "C",
-            "C",
-            "C",
-            "C",
-            "D",
             "C"
           ],
           "dominant_grade": "C",
@@ -3562,6 +3715,14 @@
           },
           "grades": [
             "C",
+            "D",
+            "C",
+            "C",
+            "D",
+            "D",
+            "C",
+            "C",
+            "C",
             "C",
             "C",
             "C",
@@ -3571,14 +3732,6 @@
             "C",
             "C",
             "D",
-            "C",
-            "D",
-            "C",
-            "C",
-            "C",
-            "D",
-            "D",
-            "C",
             "C",
             "C"
           ],
@@ -3606,20 +3759,20 @@
           },
           "grades": [
             "F",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "F",
-            "C",
             "F",
             "F",
+            "F",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
             "C",
             "C",
             "C",
@@ -3694,6 +3847,14 @@
           },
           "grades": [
             "D",
+            "D",
+            "D",
+            "D",
+            "D",
+            "D",
+            "D",
+            "D",
+            "D",
             "F",
             "D",
             "F",
@@ -3704,14 +3865,6 @@
             "D",
             "D",
             "F",
-            "D",
-            "D",
-            "D",
-            "D",
-            "D",
-            "D",
-            "D",
-            "D",
             "D"
           ],
           "dominant_grade": "D",
@@ -3740,21 +3893,21 @@
             "D",
             "F",
             "D",
-            "F",
-            "D",
-            "F",
-            "D",
-            "F",
-            "F",
             "D",
             "D",
             "F",
             "F",
             "D",
+            "F",
+            "F",
             "D",
+            "F",
+            "D",
+            "F",
             "D",
             "F",
             "F",
+            "D",
             "D",
             "F"
           ],
@@ -3785,20 +3938,20 @@
             "C",
             "C",
             "C",
+            "B",
+            "B",
+            "B",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
             "C",
             "C",
             "C",
             "F",
             "C",
             "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "B",
-            "B",
-            "B",
             "C",
             "C"
           ],
@@ -3826,6 +3979,14 @@
           },
           "grades": [
             "C",
+            "D",
+            "D",
+            "C",
+            "D",
+            "D",
+            "D",
+            "D",
+            "D",
             "C",
             "C",
             "D",
@@ -3835,14 +3996,6 @@
             "D",
             "C",
             "C",
-            "D",
-            "D",
-            "D",
-            "D",
-            "C",
-            "D",
-            "D",
-            "D",
             "D",
             "D"
           ],
@@ -3874,15 +4027,15 @@
             "C",
             "C",
             "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
+            "C",
             "B",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
-            "C",
             "C",
             "C",
             "C",
@@ -3905,9 +4058,9 @@
     "requirements-scanner": {
       "total_runs": 200,
       "overall_score": {
-        "mean": 81.83482142857143,
-        "median": 85.71428571428571,
-        "std": 18.320792876235927,
+        "mean": 72.37589285714286,
+        "median": 71.42857142857143,
+        "std": 21.256788924258405,
         "min": 0.0,
         "max": 100.0,
         "n": 200
@@ -3916,38 +4069,38 @@
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
           "score": {
-            "mean": 83.39285714285714,
-            "median": 85.71428571428571,
-            "std": 9.552451448651281,
-            "min": 64.28571428571429,
+            "mean": 81.06696428571429,
+            "median": 83.48214285714286,
+            "std": 13.727965298980035,
+            "min": 52.5,
             "max": 100.0,
             "n": 20
           },
           "compliance_pct": {
-            "mean": 73.8,
-            "median": 85.71428571428571,
-            "std": 9.552451448651281,
-            "min": 64.28571428571429,
+            "mean": 81.06696428571429,
+            "median": 83.48214285714286,
+            "std": 13.727965298980035,
+            "min": 52.5,
             "max": 100.0,
             "n": 20
           },
-          "avg_metrics_passed": 12.4,
-          "avg_metrics_total": 14.9
+          "avg_metrics_passed": 12.55,
+          "avg_metrics_total": 14.8
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
           "score": {
-            "mean": 88.08035714285714,
-            "median": 92.85714285714286,
-            "std": 13.908540034894232,
+            "mean": 79.89732142857143,
+            "median": 86.60714285714286,
+            "std": 17.454321114188218,
             "min": 42.857142857142854,
             "max": 100.0,
             "n": 20
           },
           "compliance_pct": {
-            "mean": 74.6,
-            "median": 92.85714285714286,
-            "std": 13.908540034894232,
+            "mean": 79.89732142857143,
+            "median": 86.60714285714286,
+            "std": 17.454321114188218,
             "min": 42.857142857142854,
             "max": 100.0,
             "n": 20
@@ -3966,7 +4119,7 @@
             "n": 20
           },
           "compliance_pct": {
-            "mean": 74.8,
+            "mean": 87.72321428571429,
             "median": 87.5,
             "std": 11.128713521103922,
             "min": 64.28571428571429,
@@ -3987,7 +4140,7 @@
             "n": 20
           },
           "compliance_pct": {
-            "mean": 57.9,
+            "mean": 69.86607142857143,
             "median": 87.5,
             "std": 38.144386347862444,
             "min": 0.0,
@@ -4000,19 +4153,19 @@
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
           "score": {
-            "mean": 72.76785714285714,
-            "median": 78.57142857142857,
-            "std": 14.629613027561515,
-            "min": 31.25,
-            "max": 92.85714285714286,
+            "mean": 50.93749999999999,
+            "median": 54.99999999999999,
+            "std": 10.240729119293059,
+            "min": 21.875,
+            "max": 65.0,
             "n": 20
           },
           "compliance_pct": {
-            "mean": 50.9,
-            "median": 78.57142857142857,
-            "std": 14.629613027561515,
-            "min": 31.25,
-            "max": 92.85714285714286,
+            "mean": 50.93749999999999,
+            "median": 54.99999999999999,
+            "std": 10.240729119293059,
+            "min": 21.875,
+            "max": 65.0,
             "n": 20
           },
           "avg_metrics_passed": 10.7,
@@ -4021,19 +4174,19 @@
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
           "score": {
-            "mean": 91.02678571428572,
-            "median": 92.85714285714286,
-            "std": 7.009295222917875,
-            "min": 75.0,
-            "max": 100.0,
+            "mean": 63.71875,
+            "median": 65.0,
+            "std": 4.906506656042514,
+            "min": 52.5,
+            "max": 70.0,
             "n": 20
           },
           "compliance_pct": {
-            "mean": 63.6,
-            "median": 92.85714285714286,
-            "std": 7.009295222917875,
-            "min": 75.0,
-            "max": 100.0,
+            "mean": 63.71875,
+            "median": 65.0,
+            "std": 4.906506656042514,
+            "min": 52.5,
+            "max": 70.0,
             "n": 20
           },
           "avg_metrics_passed": 13.45,
@@ -4042,18 +4195,18 @@
         "openai_gpt-4o-mini": {
           "runs": 20,
           "score": {
-            "mean": 76.60714285714286,
-            "median": 78.57142857142857,
-            "std": 17.013926184468016,
-            "min": 42.857142857142854,
+            "mean": 58.76785714285714,
+            "median": 58.43749999999999,
+            "std": 18.178167048695215,
+            "min": 29.999999999999996,
             "max": 100.0,
             "n": 20
           },
           "compliance_pct": {
-            "mean": 56.6,
-            "median": 78.57142857142857,
-            "std": 17.013926184468016,
-            "min": 42.857142857142854,
+            "mean": 58.76785714285714,
+            "median": 58.43749999999999,
+            "std": 18.178167048695215,
+            "min": 29.999999999999996,
             "max": 100.0,
             "n": 20
           },
@@ -4071,7 +4224,7 @@
             "n": 20
           },
           "compliance_pct": {
-            "mean": 75.7,
+            "mean": 83.16964285714286,
             "median": 83.48214285714286,
             "std": 11.895545853130542,
             "min": 56.25,
@@ -4084,18 +4237,18 @@
         "qwen_qwen3-coder-plus": {
           "runs": 20,
           "score": {
-            "mean": 80.58035714285714,
-            "median": 86.60714285714286,
-            "std": 18.10651767024397,
-            "min": 50.0,
+            "mean": 72.31696428571429,
+            "median": 67.5,
+            "std": 21.11527860184832,
+            "min": 35.0,
             "max": 100.0,
             "n": 20
           },
           "compliance_pct": {
-            "mean": 63.7,
-            "median": 86.60714285714286,
-            "std": 18.10651767024397,
-            "min": 50.0,
+            "mean": 72.31696428571429,
+            "median": 67.5,
+            "std": 21.11527860184832,
+            "min": 35.0,
             "max": 100.0,
             "n": 20
           },
@@ -4105,18 +4258,18 @@
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
           "score": {
-            "mean": 85.13392857142857,
-            "median": 87.5,
-            "std": 13.410937044494155,
-            "min": 50.0,
+            "mean": 76.29464285714286,
+            "median": 82.14285714285714,
+            "std": 17.9944089844387,
+            "min": 45.0,
             "max": 100.0,
             "n": 20
           },
           "compliance_pct": {
-            "mean": 68.3,
-            "median": 87.5,
-            "std": 13.410937044494155,
-            "min": 50.0,
+            "mean": 76.29464285714286,
+            "median": 82.14285714285714,
+            "std": 17.9944089844387,
+            "min": 45.0,
             "max": 100.0,
             "n": 20
           },
@@ -4128,27 +4281,27 @@
   },
   "dynamic_tools": {
     "zap": {
-      "total_findings": 2832,
+      "total_findings": 2851,
       "total_runs": 200,
-      "avg_per_run": 14.16,
+      "avg_per_run": 14.255,
       "severity": {
         "critical": 0,
         "high": 0,
-        "medium": 1316,
-        "low": 1175,
-        "info": 260
+        "medium": 1320,
+        "low": 1185,
+        "info": 266
       },
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
-          "findings": 394,
-          "avg_per_run": 19.7,
+          "findings": 413,
+          "avg_per_run": 20.65,
           "severity": {
             "critical": 0,
             "high": 0,
-            "medium": 192,
-            "low": 165,
-            "info": 34
+            "medium": 196,
+            "low": 175,
+            "info": 40
           }
         },
         "deepseek_deepseek-r1-0528": {
@@ -4396,9 +4549,9 @@
       }
     },
     "curl": {
-      "total_findings": 74,
+      "total_findings": 75,
       "total_runs": 200,
-      "avg_per_run": 0.37,
+      "avg_per_run": 0.375,
       "severity": {
         "critical": 0,
         "high": 0,
@@ -4409,8 +4562,8 @@
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
-          "findings": 12,
-          "avg_per_run": 0.6,
+          "findings": 13,
+          "avg_per_run": 0.65,
           "severity": {
             "critical": 0,
             "high": 0,
@@ -4530,9 +4683,9 @@
       }
     },
     "curl-endpoint-tester": {
-      "total_findings": 434,
+      "total_findings": 433,
       "total_runs": 200,
-      "avg_per_run": 2.17,
+      "avg_per_run": 2.165,
       "severity": {
         "critical": 0,
         "high": 0,
@@ -4543,8 +4696,8 @@
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
-          "findings": 38,
-          "avg_per_run": 1.9,
+          "findings": 37,
+          "avg_per_run": 1.85,
           "severity": {
             "critical": 0,
             "high": 0,

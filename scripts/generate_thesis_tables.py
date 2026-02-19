@@ -131,7 +131,8 @@ def _sort_models_by(data: dict, key: str, reverse: bool = True) -> list:
 # ─── Static / Dynamic finding-based tool table ────────────────────────────────
 
 def _gen_findings_tool_table(tool_name: str, tool_data: dict, loc_data: dict,
-                              caption: str, label: str, note: str = '') -> str:
+                              caption: str, label: str, note: str = '',
+                              observation: str = '') -> str:
     """Generate table for tools that produce findings (static + dynamic finding tools).
 
     Includes High/Med./Low severity columns when severity data is present.
@@ -171,11 +172,12 @@ def _gen_findings_tool_table(tool_name: str, tool_data: dict, loc_data: dict,
 
     for ms, md in rows:
         if md is None:
-            md = {'runs': 0, 'findings': 0, 'avg_per_run': 0, 'severity': {}}
+            md = {'runs': 0, 'ok_runs': 0, 'findings': 0, 'avg_per_run': 0, 'severity': {}}
         runs = md.get('runs', 0)
+        ok_runs = md.get('ok_runs', runs)
         findings = md.get('findings', 0)
-        avg = md.get('avg_per_run', 0)
-        ok = runs
+        avg = findings / ok_runs if ok_runs > 0 else 0
+        ok = ok_runs
         total_loc = loc_data.get(ms, {}).get('total_loc', 0) if isinstance(loc_data, dict) else 0
         fkloc = (findings / total_loc * 1000) if total_loc > 0 else 0
         sev = md.get('severity', {})
@@ -210,6 +212,8 @@ def _gen_findings_tool_table(tool_name: str, tool_data: dict, loc_data: dict,
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if observation:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{{observation}}}}}')
     if note:
         lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
@@ -220,7 +224,8 @@ def _gen_findings_tool_table(tool_name: str, tool_data: dict, loc_data: dict,
 # ─── Performance tool table ───────────────────────────────────────────────────
 
 def _gen_perf_tool_table(tool_name: str, tool_data: dict,
-                          caption: str, label: str, note: str = '') -> str:
+                          caption: str, label: str, note: str = '',
+                          observation: str = '') -> str:
     """Generate table for performance tools with RPS/RT/error metrics."""
     per_model = tool_data['per_model']
     
@@ -279,6 +284,8 @@ def _gen_perf_tool_table(tool_name: str, tool_data: dict,
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if observation:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{{observation}}}}}')
     if note:
         lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
@@ -289,7 +296,8 @@ def _gen_perf_tool_table(tool_name: str, tool_data: dict,
 # ─── AI tool table ────────────────────────────────────────────────────────────
 
 def _gen_ai_tool_table(tool_name: str, tool_data: dict,
-                        caption: str, label: str, note: str = '') -> str:
+                        caption: str, label: str, note: str = '',
+                        observation: str = '') -> str:
     """Generate table for AI analysis tools with score/grade/compliance."""
     per_model = tool_data['per_model']
     
@@ -376,6 +384,8 @@ def _gen_ai_tool_table(tool_name: str, tool_data: dict,
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if observation:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{{observation}}}}}')
     if note:
         lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
@@ -515,7 +525,7 @@ def _gen_service_completion_table(data: dict) -> str:
 
 # ─── Code composition table ──────────────────────────────────────────────────
 
-def _gen_code_composition_table(data: dict) -> str:
+def _gen_code_composition_table(data: dict, observation: str = '') -> str:
     """Generate Table: Code Composition by Model (with Deploy%)."""
     ms_data = data['model_summary']
     deploy_pcts = _get_deploy_pcts(data)
@@ -557,13 +567,15 @@ def _gen_code_composition_table(data: dict) -> str:
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if observation:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{{observation}}}}}')
     lines.append(r'\end{table}')
     return '\n'.join(lines)
 
 
 # ─── Severity table ──────────────────────────────────────────────────────────
 
-def _gen_severity_table(data: dict, note: str = '') -> str:
+def _gen_severity_table(data: dict, note: str = '', observation: str = '') -> str:
     """Generate Table: Findings by Severity per Model."""
     ms_data = data['model_summary']
     
@@ -599,6 +611,8 @@ def _gen_severity_table(data: dict, note: str = '') -> str:
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if observation:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{{observation}}}}}')
     if note:
         lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
@@ -607,7 +621,7 @@ def _gen_severity_table(data: dict, note: str = '') -> str:
 
 # ─── ZAP table ────────────────────────────────────────────────────────────────
 
-def _gen_zap_table(data: dict, note: str = '') -> str:
+def _gen_zap_table(data: dict, note: str = '', observation: str = '') -> str:
     """Generate Table: OWASP ZAP Results."""
     zap = data['dynamic_zap']
     per_model = zap['per_model']
@@ -651,6 +665,8 @@ def _gen_zap_table(data: dict, note: str = '') -> str:
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if observation:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{{observation}}}}}')
     if note:
         lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
@@ -767,7 +783,7 @@ def _gen_heatmap_table(data: dict) -> str:
 
 # ─── TOPSIS / WSM tables ─────────────────────────────────────────────────────
 
-def _gen_topsis_table(data: dict, note: str = '') -> str:
+def _gen_topsis_table(data: dict, note: str = '', observation: str = '') -> str:
     """Generate TOPSIS Multi-Criteria Decision Analysis table.
 
     Criteria (matching thesis):
@@ -854,13 +870,15 @@ def _gen_topsis_table(data: dict, note: str = '') -> str:
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if observation:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{{observation}}}}}')
     if note:
         lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
     return '\n'.join(lines)
 
 
-def _gen_wsm_table(data: dict, note: str = '') -> str:
+def _gen_wsm_table(data: dict, note: str = '', observation: str = '') -> str:
     """Generate Weighted Sum Model Ranking table.
 
     Criteria (matching thesis):
@@ -930,6 +948,8 @@ def _gen_wsm_table(data: dict, note: str = '') -> str:
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if observation:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{{observation}}}}}')
     if note:
         lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
@@ -938,7 +958,7 @@ def _gen_wsm_table(data: dict, note: str = '') -> str:
 
 # ─── Correlation table ────────────────────────────────────────────────────────
 
-def _gen_correlation_table(data: dict, note: str = '') -> str:
+def _gen_correlation_table(data: dict, note: str = '', observation: str = '') -> str:
     """Generate Spearman Rank Correlation table.
 
     Outcomes (matching thesis): Deploy%, Total LOC, LOC/App, D/kLOC, Compl.%, Quality
@@ -1034,6 +1054,8 @@ def _gen_correlation_table(data: dict, note: str = '') -> str:
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if observation:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{{observation}}}}}')
     if note:
         lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
@@ -1100,7 +1122,7 @@ def _gen_per_model_service_table(data: dict) -> str:
 
 # ─── AI Compliance Summary table ──────────────────────────────────────────────
 
-def _gen_ai_compliance_summary(data: dict, note: str = '') -> str:
+def _gen_ai_compliance_summary(data: dict, note: str = '', observation: str = '') -> str:
     """Generate AI compliance summary (backend/frontend/admin/overall)."""
     ai_compl = data['ai_compliance']
     
@@ -1138,6 +1160,8 @@ def _gen_ai_compliance_summary(data: dict, note: str = '') -> str:
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if observation:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{{observation}}}}}')
     if note:
         lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
@@ -1151,6 +1175,335 @@ def _gen_reproducibility_tables(data: dict) -> str:
     # These require per-app per-template data which thesis_data.json doesn't have
     # Return a comment indicating manual data needed
     return '% Reproducibility tables require per-app per-template data — generate separately with extract_thesis_data.py --reproducibility flag'
+
+
+# ─── Observation helpers ──────────────────────────────────────────────────────
+
+def _obs_severity(data: dict) -> str:
+    """One-sentence factual observation for the severity/D-kLOC table."""
+    ms_data = data['model_summary']
+    items = [(ms, ms_data.get(ms, {}).get('defect_density_kloc', 0)) for ms in MODEL_ORDER]
+    items.sort(key=lambda x: x[1])
+    best_ms, best_v = items[0]
+    worst_ms, worst_v = items[-1]
+    ratio = worst_v / best_v if best_v > 0 else 0
+    return (
+        f'{_sn(best_ms)} had the lowest defect density ({best_v:.1f}~D/kLOC); '
+        f'{_sn(worst_ms)} the highest ({worst_v:.1f}~D/kLOC) --- '
+        f'{ratio:.1f}$\\times$ spread across models.'
+    )
+
+
+def _obs_code_composition(data: dict) -> str:
+    """One-sentence factual observation for the code composition table."""
+    ms_data = data['model_summary']
+    items = [(ms, ms_data.get(ms, {}).get('total_loc', 0) / 20) for ms in MODEL_ORDER]
+    items.sort(key=lambda x: x[1], reverse=True)
+    largest_ms, largest_loc = items[0]
+    smallest_ms, smallest_loc = items[-1]
+    deploy_pcts = _get_deploy_pcts(data)
+    full_deploy = sum(1 for ms in MODEL_ORDER if deploy_pcts.get(ms, 0) >= 100)
+    zero_deploy = sum(1 for ms in MODEL_ORDER if deploy_pcts.get(ms, 0) == 0)
+    return (
+        f'Largest codebase: {_sn(largest_ms)} ({largest_loc:,.0f}~LOC/app); '
+        f'smallest: {_sn(smallest_ms)} ({smallest_loc:,.0f}~LOC/app). '
+        f'{full_deploy} model{"s" if full_deploy != 1 else ""} deployed all 20 apps; '
+        f'{zero_deploy} had zero successful deployments.'
+    )
+
+
+def _obs_findings_tool(tool_name: str, tool_data: dict, loc_data: dict) -> str:
+    """One-sentence factual observation for a findings-based tool table."""
+    per_model = tool_data.get('per_model', {})
+    items = [(ms, (per_model.get(ms) or {}).get('findings', 0)) for ms in MODEL_ORDER]
+    items.sort(key=lambda x: x[1], reverse=True)
+    best_ms, best_f = items[0]
+    if best_f == 0:
+        return 'No model reported findings for this tool (confirmed null result).'
+    runs = (per_model.get(best_ms) or {}).get('runs', 1) or 1
+    avg = best_f / runs
+    zeros = sum(1 for _, f in items if f == 0)
+    obs = f'Highest: {_sn(best_ms)} ({best_f:,} findings, {avg:.1f}/run).'
+    if zeros:
+        obs += f' {zeros} model{"s" if zeros != 1 else ""} reported zero findings.'
+    return obs
+
+
+def _obs_zap(data: dict) -> str:
+    """One-sentence factual observation for the ZAP table."""
+    per_model = data['dynamic_zap']['per_model']
+    items = [
+        (ms, (per_model.get(ms) or {}).get('alerts', 0),
+         (per_model.get(ms) or {}).get('scans', 0))
+        for ms in MODEL_ORDER
+    ]
+    items.sort(key=lambda x: x[1], reverse=True)
+    top_ms, top_alerts, top_scans = items[0]
+    deployed = [(ms, alerts, scans) for ms, alerts, scans in items if scans > 0]
+    if deployed:
+        total_alerts = sum(a for _, a, _ in deployed)
+        total_scans = sum(s for _, _, s in deployed)
+        avg = total_alerts / total_scans if total_scans > 0 else 0
+        avg_str = f'{avg:.1f}'
+    else:
+        avg_str = '---'
+    obs = f'Highest alerts: {_sn(top_ms)} ({top_alerts:,} alerts across {top_scans} scans).'
+    if deployed:
+        obs += f' Average across deployed models: {avg_str}~alerts/scan.'
+    return obs
+
+
+def _obs_perf(tool_name: str, tool_data: dict) -> str:
+    """One-sentence factual observation for a performance tool table."""
+    per_model = tool_data.get('per_model', {})
+    # Check whether any model has runs
+    total_runs = sum((per_model.get(ms) or {}).get('runs', 0) for ms in MODEL_ORDER)
+    if total_runs == 0:
+        return 'No deployed apps were tested with this tool.'
+    rps_items = [
+        (ms, (per_model.get(ms) or {}).get('rps', {}).get('mean', 0))
+        for ms in MODEL_ORDER
+    ]
+    rps_items.sort(key=lambda x: x[1], reverse=True)
+    best_rps_ms, best_rps = rps_items[0]
+    rt_items = [
+        (ms, (per_model.get(ms) or {}).get('avg_response_time', {}).get('mean', 0))
+        for ms in MODEL_ORDER
+        if (per_model.get(ms) or {}).get('avg_response_time', {}).get('mean', 0) > 0
+    ]
+    rt_items.sort(key=lambda x: x[1], reverse=True)
+    if best_rps > 0:
+        obs = f'Highest RPS: {_sn(best_rps_ms)} ({best_rps:,.0f}~RPS).'
+    else:
+        # Tool does not report RPS (e.g. aiohttp) — lead with RT instead
+        rt_items_asc = sorted(rt_items, key=lambda x: x[1])
+        if rt_items_asc:
+            best_rt_ms, best_rt = rt_items_asc[0]
+            obs = f'Lowest avg response time: {_sn(best_rt_ms)} ({best_rt:.2f}~ms).'
+        else:
+            obs = f'{total_runs} total runs recorded.'
+    if rt_items:
+        worst_rt_ms, worst_rt = rt_items[0]
+        if best_rps > 0:
+            obs += f' Highest avg response time: {_sn(worst_rt_ms)} ({worst_rt:.2f}~ms).'
+        elif len(rt_items) > 1:
+            obs += f' Highest avg response time: {_sn(worst_rt_ms)} ({worst_rt:.2f}~ms).'
+    return obs
+
+
+def _obs_ai_tool(tool_name: str, tool_data: dict) -> str:
+    """One-sentence factual observation for an AI tool table."""
+    per_model = tool_data.get('per_model', {})
+    if tool_name == 'code-quality-analyzer':
+        items = [
+            (ms, (per_model.get(ms) or {}).get('score', {}).get('mean', 0))
+            for ms in MODEL_ORDER
+        ]
+        items.sort(key=lambda x: x[1], reverse=True)
+        best_ms, best_v = items[0]
+        worst_ms, worst_v = items[-1]
+        best_grade = (per_model.get(best_ms) or {}).get('dominant_grade', '---')
+        worst_grade = (per_model.get(worst_ms) or {}).get('dominant_grade', '---')
+        return (
+            f'Best quality score: {_sn(best_ms)} ({best_v:.1f}/100, grade~{best_grade}); '
+            f'lowest: {_sn(worst_ms)} ({worst_v:.1f}/100, grade~{worst_grade}).'
+        )
+    else:
+        # requirements-scanner — use compliance_pct (penalised for non-deployed)
+        items = [
+            (ms, (per_model.get(ms) or {}).get('compliance_pct', {}).get('mean', 0))
+            for ms in MODEL_ORDER
+        ]
+        items.sort(key=lambda x: x[1], reverse=True)
+        best_ms, best_v = items[0]
+        worst_ms, worst_v = items[-1]
+        return (
+            f'Best penalised compliance: {_sn(best_ms)} ({best_v:.1f}\\%); '
+            f'lowest: {_sn(worst_ms)} ({worst_v:.1f}\\%, including non-deployment penalty).'
+        )
+
+
+def _obs_ai_compliance(data: dict) -> str:
+    """One-sentence factual observation for the AI compliance summary table."""
+    ai_compl = data['ai_compliance']
+    items = [
+        (ms, (ai_compl.get(ms) or {}).get('overall', {}).get('mean', 0))
+        for ms in MODEL_ORDER
+    ]
+    items.sort(key=lambda x: x[1], reverse=True)
+    best_ms, best_v = items[0]
+    worst_ms, worst_v = items[-1]
+    best_d = ai_compl.get(best_ms, {})
+    all_bes = [(ai_compl.get(ms) or {}).get('backend', {}).get('mean', 0) for ms in MODEL_ORDER]
+    all_fes = [(ai_compl.get(ms) or {}).get('frontend', {}).get('mean', 0) for ms in MODEL_ORDER]
+    best_be = best_d.get('backend', {}).get('mean', 0)
+    best_fe = best_d.get('frontend', {}).get('mean', 0)
+    components_led = []
+    if best_be >= max(all_bes):
+        components_led.append('backend')
+    if best_fe >= max(all_fes):
+        components_led.append('frontend')
+    obs = f'{_sn(best_ms)} led overall compliance ({best_v:.1f}\\%)'
+    if components_led:
+        obs += f', also leading in {" and ".join(components_led)}'
+    obs += f'. {_sn(worst_ms)} ranked last ({worst_v:.1f}\\%).'
+    return obs
+
+
+def _obs_topsis(data: dict) -> str:
+    """One-sentence factual observation for the TOPSIS table (recomputes scores)."""
+    import math
+    ms_data = data['model_summary']
+    deploy_pcts = _get_deploy_pcts(data)
+    compl_pcts = _get_compl_pcts(data)
+    quality_scores = _get_quality_scores(data)
+    rows = []
+    for ms in MODEL_ORDER:
+        d = ms_data.get(ms, {})
+        rows.append({
+            'slug': ms,
+            'deploy': deploy_pcts.get(ms, 0),
+            'compl': compl_pcts.get(ms, 0),
+            'quality': quality_scores.get(ms, 0),
+            'loc_app': d.get('total_loc', 0) / 20,
+            'dkloc': d.get('defect_density_kloc', 0),
+            'out_price': MODEL_PARAMS.get(ms, {}).get('out_price', 0),
+        })
+    criteria = ['deploy', 'compl', 'quality', 'loc_app', 'dkloc', 'out_price']
+    weights  = [0.30,    0.10,   0.10,     0.20,     0.15,   0.15]
+    is_benefit = [True, True, True, True, False, False]
+    norms = {c: math.sqrt(sum(r[c] ** 2 for r in rows)) or 1 for c in criteria}
+    normalized = [{c: r[c] / norms[c] for c in criteria} for r in rows]
+    weighted = [{c: nr[c] * weights[i] for i, c in enumerate(criteria)} for nr in normalized]
+    ideal, anti_ideal = {}, {}
+    for i, c in enumerate(criteria):
+        vals = [wr[c] for wr in weighted]
+        ideal[c], anti_ideal[c] = (max(vals), min(vals)) if is_benefit[i] else (min(vals), max(vals))
+    scores = []
+    for wr in weighted:
+        dp = math.sqrt(sum((wr[c] - ideal[c]) ** 2 for c in criteria))
+        dm = math.sqrt(sum((wr[c] - anti_ideal[c]) ** 2 for c in criteria))
+        scores.append(dm / (dp + dm) if (dp + dm) > 0 else 0)
+    combined = sorted(zip(rows, scores), key=lambda x: x[1], reverse=True)
+    top_r, top_s = combined[0]
+    bot_r, bot_s = combined[-1]
+    return (
+        f'Top-ranked: {_sn(top_r["slug"])} (TOPSIS score {top_s:.4f}); '
+        f'bottom: {_sn(bot_r["slug"])} ({bot_s:.4f}).'
+    )
+
+
+def _obs_wsm(data: dict) -> str:
+    """One-sentence factual observation for the WSM table (recomputes scores)."""
+    ms_data = data['model_summary']
+    deploy_pcts = _get_deploy_pcts(data)
+    compl_pcts = _get_compl_pcts(data)
+    quality_scores = _get_quality_scores(data)
+    rows = []
+    for ms in MODEL_ORDER:
+        d = ms_data.get(ms, {})
+        rows.append({
+            'slug': ms,
+            'deploy': deploy_pcts.get(ms, 0),
+            'compl': compl_pcts.get(ms, 0),
+            'quality': quality_scores.get(ms, 0),
+            'dkloc': d.get('defect_density_kloc', 0),
+        })
+    criteria   = ['deploy', 'compl', 'quality', 'dkloc']
+    weights    = [0.30,    0.30,   0.20,     0.20]
+    is_benefit = [True,    True,   True,     False]
+    mins = {c: min(r[c] for r in rows) for c in criteria}
+    maxs = {c: max(r[c] for r in rows) for c in criteria}
+    scores = []
+    for r in rows:
+        score = 0.0
+        for i, c in enumerate(criteria):
+            rng = maxs[c] - mins[c]
+            if rng == 0:
+                norm = 1.0
+            elif is_benefit[i]:
+                norm = (r[c] - mins[c]) / rng
+            else:
+                norm = (maxs[c] - r[c]) / rng
+            score += norm * weights[i]
+        scores.append(score)
+    combined = sorted(zip(rows, scores), key=lambda x: x[1], reverse=True)
+    top_r, top_s = combined[0]
+    bot_r, bot_s = combined[-1]
+    return (
+        f'Top-ranked: {_sn(top_r["slug"])} (WSM score {top_s:.4f}); '
+        f'bottom: {_sn(bot_r["slug"])} ({bot_s:.4f}).'
+    )
+
+
+def _obs_correlation(data: dict) -> str:
+    """One-sentence factual observation highlighting strongest pos/neg correlations."""
+    ms_data = data['model_summary']
+    deploy_pcts = _get_deploy_pcts(data)
+    compl_pcts = _get_compl_pcts(data)
+    quality_scores = _get_quality_scores(data)
+
+    deploys, total_locs, loc_apps, dklocs, compls, qualities = [], [], [], [], [], []
+    ctx_ks, max_outs, out_prices = [], [], []
+    for ms in MODEL_ORDER:
+        d = ms_data.get(ms, {})
+        total_loc = d.get('total_loc', 0)
+        total_locs.append(total_loc)
+        loc_apps.append(total_loc / 20)
+        dklocs.append(d.get('defect_density_kloc', 0))
+        deploys.append(deploy_pcts.get(ms, 0))
+        compls.append(compl_pcts.get(ms, 0))
+        qualities.append(quality_scores.get(ms, 0))
+        p = MODEL_PARAMS.get(ms, {})
+        ctx_ks.append(p.get('ctx_k', 0))
+        max_outs.append(p.get('max_out_k', 0))
+        out_prices.append(p.get('out_price', 0))
+
+    def _rank(vals: list) -> list:
+        indexed = sorted(enumerate(vals), key=lambda x: x[1])
+        ranks = [0.0] * len(vals)
+        i = 0
+        while i < len(indexed):
+            j = i
+            while j < len(indexed) - 1 and indexed[j + 1][1] == indexed[j][1]:
+                j += 1
+            avg_rank = sum(range(i + 1, j + 2)) / (j - i + 1)
+            for k in range(i, j + 1):
+                ranks[indexed[k][0]] = avg_rank
+            i = j + 1
+        return ranks
+
+    def _spearman(x: list, y: list) -> float:
+        n = len(x)
+        rx, ry = _rank(x), _rank(y)
+        d2 = sum((rx[i] - ry[i]) ** 2 for i in range(n))
+        return 1 - (6 * d2) / (n * (n ** 2 - 1))
+
+    param_vectors = [
+        ('Context (k)', ctx_ks),
+        ('Max Out (k)', max_outs),
+        ('Out \\$/Mtok', out_prices),
+    ]
+    outcome_vectors = [
+        ('Deploy\\%', deploys),
+        ('Total LOC', total_locs),
+        ('LOC/App',   loc_apps),
+        ('D/kLOC',    dklocs),
+        ('Compl.\\%', compls),
+        ('Quality',   qualities),
+    ]
+    all_rhos = []
+    for pname, pvals in param_vectors:
+        for oname, ovals in outcome_vectors:
+            rho = _spearman(pvals, ovals)
+            all_rhos.append((pname, oname, rho))
+    all_rhos.sort(key=lambda x: x[2], reverse=True)
+    top_p, top_o, top_rho = all_rhos[0]
+    bot_p, bot_o, bot_rho = all_rhos[-1]
+    return (
+        f'Strongest positive: {top_p} vs {top_o} ($\\rho = {top_rho:.2f}$); '
+        f'strongest negative: {bot_p} vs {bot_o} ($\\rho = {bot_rho:.2f}$).'
+    )
 
 
 # ─── Main assembly ────────────────────────────────────────────────────────────
@@ -1230,9 +1583,10 @@ def generate_report(data: dict) -> str:
     sections.append('')
     sections.append(r'% === Section: Code Volume and Defect Density ===')
     sections.append('')
-    sections.append(_gen_code_composition_table(data))
+    sections.append(_gen_code_composition_table(data, observation=_obs_code_composition(data)))
     sections.append('')
-    sections.append(_gen_severity_table(data, note=_sev_note))
+    sections.append(_gen_severity_table(data, note=_sev_note,
+                                        observation=_obs_severity(data)))
     
     # ── Section 3: Static Analysis (14 tools) ──
     sections.append('')
@@ -1262,7 +1616,8 @@ def generate_report(data: dict) -> str:
             continue
         sections.append('')
         sections.append(_gen_findings_tool_table(tn, td, loc_data, caption, label,
-                                                  note=_static_tool_notes.get(tn, '')))
+                                                  note=_static_tool_notes.get(tn, ''),
+                                                  observation=_obs_findings_tool(tn, td, loc_data)))
     
     # ── Section 4: Dynamic Analysis ──
     sections.append('')
@@ -1270,7 +1625,8 @@ def generate_report(data: dict) -> str:
     
     # ZAP — custom table with risk breakdown
     sections.append('')
-    sections.append(_gen_zap_table(data, note=_deployed_note))
+    sections.append(_gen_zap_table(data, note=_deployed_note,
+                                   observation=_obs_zap(data)))
     
     # Nmap — diagnostic
     nmap_data = data['dynamic_tools'].get('nmap')
@@ -1286,7 +1642,8 @@ def generate_report(data: dict) -> str:
         sections.append('')
         sections.append(_gen_findings_tool_table(
             'curl', curl_data, loc_data,
-            'Curl: HTTP Probe Results by Model', 'tab:tool_curl'))
+            'Curl: HTTP Probe Results by Model', 'tab:tool_curl',
+            observation=_obs_findings_tool('curl', curl_data, loc_data)))
     
     # Curl endpoint tester — custom with pass/fail
     sections.append('')
@@ -1325,7 +1682,8 @@ def generate_report(data: dict) -> str:
             sections.append(f'\n% Tool {tn} not found in data')
             continue
         sections.append('')
-        sections.append(_gen_perf_tool_table(tn, td, caption, label, note=_deployed_note))
+        sections.append(_gen_perf_tool_table(tn, td, caption, label, note=_deployed_note,
+                                             observation=_obs_perf(tn, td)))
     
     # ── Section 6: AI Analysis ──
     sections.append('')
@@ -1338,7 +1696,8 @@ def generate_report(data: dict) -> str:
         sections.append(_gen_ai_tool_table(
             'requirements-scanner', rs_data,
             'Requirements Scanner: Compliance Check Results by Model', 'tab:tool_reqscanner',
-            note=_compliance_penalty_note))
+            note=_compliance_penalty_note,
+            observation=_obs_ai_tool('requirements-scanner', rs_data)))
     
     # Code quality analyzer
     cq_data = data['ai_tools'].get('code-quality-analyzer')
@@ -1346,14 +1705,15 @@ def generate_report(data: dict) -> str:
         sections.append('')
         sections.append(_gen_ai_tool_table(
             'code-quality-analyzer', cq_data,
-            'Code Quality Analyzer: AI Review Results by Model', 'tab:tool_codequalanalyzer'))
+            'Code Quality Analyzer: AI Review Results by Model', 'tab:tool_codequalanalyzer',
+            observation=_obs_ai_tool('code-quality-analyzer', cq_data)))
     
     # AI compliance summary (backend/frontend/admin breakdown)
     sections.append('')
     sections.append(_gen_ai_compliance_summary(data, note=(
         'Overall scores include a 0.70 weighting for non-deployed apps; '
         'backend, frontend, and admin columns show unpenalised component scores.'
-    )))
+    ), observation=_obs_ai_compliance(data)))
     
     # ── Section 7: Heatmap ──
     sections.append('')
@@ -1365,11 +1725,14 @@ def generate_report(data: dict) -> str:
     sections.append('')
     sections.append(r'% === Section: Operational Research Model Rankings ===')
     sections.append('')
-    sections.append(_gen_topsis_table(data, note=_ranking_note))
+    sections.append(_gen_topsis_table(data, note=_ranking_note,
+                                      observation=_obs_topsis(data)))
     sections.append('')
-    sections.append(_gen_wsm_table(data, note=_ranking_note))
+    sections.append(_gen_wsm_table(data, note=_ranking_note,
+                                   observation=_obs_wsm(data)))
     sections.append('')
-    sections.append(_gen_correlation_table(data, note=_corr_note))
+    sections.append(_gen_correlation_table(data, note=_corr_note,
+                                           observation=_obs_correlation(data)))
     
     # ── Section 9: Reproducibility ──
     sections.append('')
