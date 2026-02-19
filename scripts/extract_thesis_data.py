@@ -54,6 +54,13 @@ SKIP_EXTS = {
 SKIP_DIRS = {'node_modules', '__pycache__', 'venv', '.git', 'dist', 'build'}
 
 
+def _app_num_key(p: Path) -> int:
+    """Sort app directories numerically (app1 < app2 < … < app10), not lexicographically."""
+    import re as _re
+    m = _re.search(r'(\d+)', p.name)
+    return int(m.group(1)) if m else 0
+
+
 def count_loc(gen_dir: Path, max_apps: int = 0) -> dict:
     """Count lines of code per model from generated apps."""
     model_loc = {}
@@ -65,7 +72,7 @@ def count_loc(gen_dir: Path, max_apps: int = 0) -> dict:
                                   'css': 0, 'html': 0, 'other': 0,
                                   'total': 0, 'apps': 0}
         app_count_loc = 0
-        for app_dir in sorted(model_dir.iterdir()):
+        for app_dir in sorted(model_dir.iterdir(), key=_app_num_key):
             if not app_dir.is_dir():
                 continue
             if max_apps > 0 and app_count_loc >= max_apps:
@@ -139,7 +146,7 @@ def extract_all_data(results_dir: Path, gen_dir: Path, max_apps: int = 0) -> dic
             continue
         model_slug = model_dir.name
         model_app_count = 0
-        for app_dir in sorted(model_dir.iterdir()):
+        for app_dir in sorted(model_dir.iterdir(), key=_app_num_key):
             if not app_dir.is_dir():
                 continue
             if max_apps > 0 and model_app_count >= max_apps:

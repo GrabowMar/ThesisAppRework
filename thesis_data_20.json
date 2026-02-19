@@ -4935,23 +4935,23 @@
   "model_summary": {
     "anthropic_claude-4.5-sonnet-20250929": {
       "short_name": "Claude 4.5 Sonnet",
-      "total_findings": 7823,
-      "total_loc": 51451,
-      "python_loc": 16846,
-      "js_loc": 24505,
-      "defect_density_kloc": 152.04757925016034,
+      "total_findings": 7449,
+      "total_loc": 51624,
+      "python_loc": 16815,
+      "js_loc": 24709,
+      "defect_density_kloc": 144.29335192933522,
       "severity": {
         "critical": 0,
-        "high": 1304,
-        "medium": 1672,
-        "low": 4882,
+        "high": 1261,
+        "medium": 1645,
+        "low": 4579,
         "info": 0
       },
       "stats": {
-        "mean": 391.15,
-        "median": 401.5,
-        "std": 57.50723066665068,
-        "min": 254,
+        "mean": 372.45,
+        "median": 399.5,
+        "std": 71.5,
+        "min": 231,
         "max": 457,
         "n": 20
       }
