@@ -131,7 +131,7 @@ def _sort_models_by(data: dict, key: str, reverse: bool = True) -> list:
 # ─── Static / Dynamic finding-based tool table ────────────────────────────────
 
 def _gen_findings_tool_table(tool_name: str, tool_data: dict, loc_data: dict,
-                              caption: str, label: str) -> str:
+                              caption: str, label: str, note: str = '') -> str:
     """Generate table for tools that produce findings (static + dynamic finding tools).
 
     Includes High/Med./Low severity columns when severity data is present.
@@ -210,6 +210,8 @@ def _gen_findings_tool_table(tool_name: str, tool_data: dict, loc_data: dict,
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if note:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
 
     return '\n'.join(lines)
@@ -218,7 +220,7 @@ def _gen_findings_tool_table(tool_name: str, tool_data: dict, loc_data: dict,
 # ─── Performance tool table ───────────────────────────────────────────────────
 
 def _gen_perf_tool_table(tool_name: str, tool_data: dict,
-                          caption: str, label: str) -> str:
+                          caption: str, label: str, note: str = '') -> str:
     """Generate table for performance tools with RPS/RT/error metrics."""
     per_model = tool_data['per_model']
     
@@ -277,15 +279,17 @@ def _gen_perf_tool_table(tool_name: str, tool_data: dict,
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if note:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
-    
+
     return '\n'.join(lines)
 
 
 # ─── AI tool table ────────────────────────────────────────────────────────────
 
 def _gen_ai_tool_table(tool_name: str, tool_data: dict,
-                        caption: str, label: str) -> str:
+                        caption: str, label: str, note: str = '') -> str:
     """Generate table for AI analysis tools with score/grade/compliance."""
     per_model = tool_data['per_model']
     
@@ -372,8 +376,10 @@ def _gen_ai_tool_table(tool_name: str, tool_data: dict,
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if note:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
-    
+
     return '\n'.join(lines)
 
 
@@ -557,7 +563,7 @@ def _gen_code_composition_table(data: dict) -> str:
 
 # ─── Severity table ──────────────────────────────────────────────────────────
 
-def _gen_severity_table(data: dict) -> str:
+def _gen_severity_table(data: dict, note: str = '') -> str:
     """Generate Table: Findings by Severity per Model."""
     ms_data = data['model_summary']
     
@@ -593,13 +599,15 @@ def _gen_severity_table(data: dict) -> str:
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if note:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
     return '\n'.join(lines)
 
 
 # ─── ZAP table ────────────────────────────────────────────────────────────────
 
-def _gen_zap_table(data: dict) -> str:
+def _gen_zap_table(data: dict, note: str = '') -> str:
     """Generate Table: OWASP ZAP Results."""
     zap = data['dynamic_zap']
     per_model = zap['per_model']
@@ -643,6 +651,8 @@ def _gen_zap_table(data: dict) -> str:
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if note:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
     return '\n'.join(lines)
 
@@ -757,7 +767,7 @@ def _gen_heatmap_table(data: dict) -> str:
 
 # ─── TOPSIS / WSM tables ─────────────────────────────────────────────────────
 
-def _gen_topsis_table(data: dict) -> str:
+def _gen_topsis_table(data: dict, note: str = '') -> str:
     """Generate TOPSIS Multi-Criteria Decision Analysis table.
 
     Criteria (matching thesis):
@@ -844,11 +854,13 @@ def _gen_topsis_table(data: dict) -> str:
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if note:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
     return '\n'.join(lines)
 
 
-def _gen_wsm_table(data: dict) -> str:
+def _gen_wsm_table(data: dict, note: str = '') -> str:
     """Generate Weighted Sum Model Ranking table.
 
     Criteria (matching thesis):
@@ -918,13 +930,15 @@ def _gen_wsm_table(data: dict) -> str:
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if note:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
     return '\n'.join(lines)
 
 
 # ─── Correlation table ────────────────────────────────────────────────────────
 
-def _gen_correlation_table(data: dict) -> str:
+def _gen_correlation_table(data: dict, note: str = '') -> str:
     """Generate Spearman Rank Correlation table.
 
     Outcomes (matching thesis): Deploy%, Total LOC, LOC/App, D/kLOC, Compl.%, Quality
@@ -1020,6 +1034,8 @@ def _gen_correlation_table(data: dict) -> str:
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if note:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
     return '\n'.join(lines)
 
@@ -1084,7 +1100,7 @@ def _gen_per_model_service_table(data: dict) -> str:
 
 # ─── AI Compliance Summary table ──────────────────────────────────────────────
 
-def _gen_ai_compliance_summary(data: dict) -> str:
+def _gen_ai_compliance_summary(data: dict, note: str = '') -> str:
     """Generate AI compliance summary (backend/frontend/admin/overall)."""
     ai_compl = data['ai_compliance']
     
@@ -1122,6 +1138,8 @@ def _gen_ai_compliance_summary(data: dict) -> str:
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
+    if note:
+        lines.append(f'    \\par\\smallskip{{\\footnotesize\\textit{{Note: {note}}}}}')
     lines.append(r'\end{table}')
     return '\n'.join(lines)
 
@@ -1141,6 +1159,65 @@ def generate_report(data: dict) -> str:
     """Generate the full LaTeX report from thesis_data.json."""
     loc_data = data['model_summary']
     sections = []
+
+    # ── Compute deployment coverage for dynamic/perf notes ──
+    _sc = data.get('overview', {}).get('service_completion', {})
+    _dyn = _sc.get('dynamic', {})
+    _dyn_success = _dyn.get('success', 0)
+    _dyn_total = _dyn.get('total', 0)
+    _dyn_pct = round(_dyn_success / _dyn_total * 100) if _dyn_total > 0 else 0
+
+    # ── Per-tool notes ──
+    _static_tool_notes: dict[str, str] = {
+        'detect-secrets': (
+            'Zero findings across all models. LLM-generated code contained no '
+            'detectable hardcoded secrets under the default ruleset. This is a '
+            'legitimate null result, not a measurement failure.'
+        ),
+        'stylelint': (
+            'Zero findings across all models. LLM-generated CSS consistently '
+            'passed default stylelint rules. Results may differ under stricter '
+            'rule configurations.'
+        ),
+        'html-validator': (
+            '\\textbf{Data unreliable.} The tool was invoked with incorrect '
+            'positional file arguments instead of the required '
+            '\\texttt{-{}-file=<path>} flag, causing silent failures in all '
+            '391 executions. All zero-finding values are an artefact of this '
+            'bug and should be disregarded.'
+        ),
+    }
+    _deployed_note = (
+        f'Only successfully deployed apps were analysed '
+        f'({_dyn_success}/{_dyn_total}, {_dyn_pct}\\%). '
+        'Models with zero deployment show zero values because analysis was '
+        'impossible, not because their apps were clean.'
+    )
+    _compliance_penalty_note = (
+        'Compliance scores for non-deployed apps were multiplied by 0.70, '
+        'reflecting that only static requirements could be verified; dynamic '
+        'and interaction requirements were untested for those apps. This '
+        'penalty is applied uniformly regardless of the reason for deployment '
+        'failure (code error, Docker misconfiguration, etc.).'
+    )
+    _ranking_note = (
+        'The Compl.\\% input includes a 0.70 penalty for non-deployed apps, '
+        'which may conflate deployment infrastructure failures with genuine '
+        'requirements non-compliance.'
+    )
+    _corr_note = (
+        '$n = 10$ models; Spearman correlations are reported without '
+        'significance testing. At this sample size ($n = 10$) most '
+        'coefficients would not reach conventional statistical significance '
+        '($p < 0.05$), so values should be treated as indicative only.'
+    )
+    _sev_note = (
+        'Three static tools reported zero findings across all models: '
+        'stylelint (CSS passes default rules), detect-secrets (no hardcoded '
+        'secrets found), and html-validator (invoked with incorrect '
+        'arguments---see its individual table). Their zero counts are '
+        'included in the totals above.'
+    )
     
     # ── Section 1: Data Overview ──
     sections.append(r'% === Section: Data Overview and Pipeline Execution ===')
@@ -1155,7 +1232,7 @@ def generate_report(data: dict) -> str:
     sections.append('')
     sections.append(_gen_code_composition_table(data))
     sections.append('')
-    sections.append(_gen_severity_table(data))
+    sections.append(_gen_severity_table(data, note=_sev_note))
     
     # ── Section 3: Static Analysis (14 tools) ──
     sections.append('')
@@ -1184,7 +1261,8 @@ def generate_report(data: dict) -> str:
             sections.append(f'\n% Tool {tn} not found in data')
             continue
         sections.append('')
-        sections.append(_gen_findings_tool_table(tn, td, loc_data, caption, label))
+        sections.append(_gen_findings_tool_table(tn, td, loc_data, caption, label,
+                                                  note=_static_tool_notes.get(tn, '')))
     
     # ── Section 4: Dynamic Analysis ──
     sections.append('')
@@ -1192,7 +1270,7 @@ def generate_report(data: dict) -> str:
     
     # ZAP — custom table with risk breakdown
     sections.append('')
-    sections.append(_gen_zap_table(data))
+    sections.append(_gen_zap_table(data, note=_deployed_note))
     
     # Nmap — diagnostic
     nmap_data = data['dynamic_tools'].get('nmap')
@@ -1247,7 +1325,7 @@ def generate_report(data: dict) -> str:
             sections.append(f'\n% Tool {tn} not found in data')
             continue
         sections.append('')
-        sections.append(_gen_perf_tool_table(tn, td, caption, label))
+        sections.append(_gen_perf_tool_table(tn, td, caption, label, note=_deployed_note))
     
     # ── Section 6: AI Analysis ──
     sections.append('')
@@ -1259,7 +1337,8 @@ def generate_report(data: dict) -> str:
         sections.append('')
         sections.append(_gen_ai_tool_table(
             'requirements-scanner', rs_data,
-            'Requirements Scanner: Compliance Check Results by Model', 'tab:tool_reqscanner'))
+            'Requirements Scanner: Compliance Check Results by Model', 'tab:tool_reqscanner',
+            note=_compliance_penalty_note))
     
     # Code quality analyzer
     cq_data = data['ai_tools'].get('code-quality-analyzer')
@@ -1271,7 +1350,10 @@ def generate_report(data: dict) -> str:
     
     # AI compliance summary (backend/frontend/admin breakdown)
     sections.append('')
-    sections.append(_gen_ai_compliance_summary(data))
+    sections.append(_gen_ai_compliance_summary(data, note=(
+        'Overall scores include a 0.70 weighting for non-deployed apps; '
+        'backend, frontend, and admin columns show unpenalised component scores.'
+    )))
     
     # ── Section 7: Heatmap ──
     sections.append('')
@@ -1283,11 +1365,11 @@ def generate_report(data: dict) -> str:
     sections.append('')
     sections.append(r'% === Section: Operational Research Model Rankings ===')
     sections.append('')
-    sections.append(_gen_topsis_table(data))
+    sections.append(_gen_topsis_table(data, note=_ranking_note))
     sections.append('')
-    sections.append(_gen_wsm_table(data))
+    sections.append(_gen_wsm_table(data, note=_ranking_note))
     sections.append('')
-    sections.append(_gen_correlation_table(data))
+    sections.append(_gen_correlation_table(data, note=_corr_note))
     
     # ── Section 9: Reproducibility ──
     sections.append('')
