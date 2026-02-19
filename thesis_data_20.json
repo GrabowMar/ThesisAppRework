@@ -3,7 +3,7 @@
     "total_apps": 200,
     "apps_with_results": 200,
     "total_models": 10,
-    "total_static_findings": 38687,
+    "total_static_findings": 41673,
     "total_zap_alerts": 2771,
     "service_completion": {
       "static": {
@@ -316,14 +316,14 @@
       }
     },
     "eslint": {
-      "total_findings": 8804,
+      "total_findings": 8896,
       "total_runs": 200,
       "total_ok_runs": 200,
-      "avg_per_run": 44.02,
+      "avg_per_run": 44.48,
       "severity": {
         "critical": 0,
         "high": 209,
-        "medium": 8595,
+        "medium": 8687,
         "low": 0,
         "info": 0
       },
@@ -383,12 +383,12 @@
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
           "ok_runs": 20,
-          "findings": 653,
-          "avg_per_run": 32.65,
+          "findings": 687,
+          "avg_per_run": 34.35,
           "severity": {
             "critical": 0,
             "high": 2,
-            "medium": 651,
+            "medium": 685,
             "low": 0,
             "info": 0
           }
@@ -409,12 +409,12 @@
         "openai_gpt-4o-mini": {
           "runs": 20,
           "ok_runs": 20,
-          "findings": 475,
-          "avg_per_run": 23.75,
+          "findings": 533,
+          "avg_per_run": 26.65,
           "severity": {
             "critical": 0,
             "high": 6,
-            "medium": 469,
+            "medium": 527,
             "low": 0,
             "info": 0
           }
@@ -462,8 +462,8 @@
     },
     "html-validator": {
       "total_findings": 0,
-      "total_runs": 200,
-      "total_ok_runs": 200,
+      "total_runs": 143,
+      "total_ok_runs": 143,
       "avg_per_run": 0.0,
       "severity": {
         "critical": 0,
@@ -474,8 +474,8 @@
       },
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
-          "runs": 20,
-          "ok_runs": 20,
+          "runs": 19,
+          "ok_runs": 19,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -487,8 +487,8 @@
           }
         },
         "deepseek_deepseek-r1-0528": {
-          "runs": 20,
-          "ok_runs": 20,
+          "runs": 17,
+          "ok_runs": 17,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -500,8 +500,8 @@
           }
         },
         "google_gemini-3-flash-preview-20251217": {
-          "runs": 20,
-          "ok_runs": 20,
+          "runs": 18,
+          "ok_runs": 18,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -513,8 +513,8 @@
           }
         },
         "google_gemini-3-pro-preview-20251117": {
-          "runs": 20,
-          "ok_runs": 20,
+          "runs": 15,
+          "ok_runs": 15,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -526,8 +526,8 @@
           }
         },
         "meta-llama_llama-3.1-405b-instruct": {
-          "runs": 20,
-          "ok_runs": 20,
+          "runs": 11,
+          "ok_runs": 11,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -539,8 +539,8 @@
           }
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
-          "runs": 20,
-          "ok_runs": 20,
+          "runs": 13,
+          "ok_runs": 13,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -552,8 +552,8 @@
           }
         },
         "openai_gpt-4o-mini": {
-          "runs": 20,
-          "ok_runs": 20,
+          "runs": 12,
+          "ok_runs": 12,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -565,8 +565,8 @@
           }
         },
         "openai_gpt-5.2-codex-20260114": {
-          "runs": 20,
-          "ok_runs": 20,
+          "runs": 12,
+          "ok_runs": 12,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -578,8 +578,8 @@
           }
         },
         "qwen_qwen3-coder-plus": {
-          "runs": 20,
-          "ok_runs": 20,
+          "runs": 14,
+          "ok_runs": 14,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -591,8 +591,8 @@
           }
         },
         "z-ai_glm-4.7-20251222": {
-          "runs": 20,
-          "ok_runs": 20,
+          "runs": 12,
+          "ok_runs": 12,
           "findings": 0,
           "avg_per_run": 0.0,
           "severity": {
@@ -606,13 +606,13 @@
       }
     },
     "mypy": {
-      "total_findings": 4662,
+      "total_findings": 5700,
       "total_runs": 200,
-      "total_ok_runs": 155,
-      "avg_per_run": 30.07741935483871,
+      "total_ok_runs": 188,
+      "avg_per_run": 30.319148936170212,
       "severity": {
         "critical": 0,
-        "high": 4661,
+        "high": 5699,
         "medium": 0,
         "low": 1,
         "info": 0
@@ -634,11 +634,11 @@
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
           "ok_runs": 20,
-          "findings": 620,
-          "avg_per_run": 31.0,
+          "findings": 685,
+          "avg_per_run": 34.25,
           "severity": {
             "critical": 0,
-            "high": 620,
+            "high": 685,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -647,11 +647,11 @@
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
           "ok_runs": 20,
-          "findings": 509,
-          "avg_per_run": 25.45,
+          "findings": 533,
+          "avg_per_run": 26.65,
           "severity": {
             "critical": 0,
-            "high": 509,
+            "high": 533,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -659,12 +659,12 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
-          "ok_runs": 18,
-          "findings": 419,
-          "avg_per_run": 23.27777777777778,
+          "ok_runs": 20,
+          "findings": 507,
+          "avg_per_run": 25.35,
           "severity": {
             "critical": 0,
-            "high": 419,
+            "high": 507,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -672,12 +672,12 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
-          "ok_runs": 11,
-          "findings": 180,
-          "avg_per_run": 16.363636363636363,
+          "ok_runs": 19,
+          "findings": 340,
+          "avg_per_run": 17.894736842105264,
           "severity": {
             "critical": 0,
-            "high": 180,
+            "high": 340,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -685,12 +685,12 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
-          "ok_runs": 13,
-          "findings": 372,
-          "avg_per_run": 28.615384615384617,
+          "ok_runs": 19,
+          "findings": 517,
+          "avg_per_run": 27.210526315789473,
           "severity": {
             "critical": 0,
-            "high": 372,
+            "high": 517,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -698,12 +698,12 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
-          "ok_runs": 12,
-          "findings": 194,
-          "avg_per_run": 16.166666666666668,
+          "ok_runs": 19,
+          "findings": 304,
+          "avg_per_run": 16.0,
           "severity": {
             "critical": 0,
-            "high": 194,
+            "high": 304,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -711,12 +711,12 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
-          "ok_runs": 17,
-          "findings": 952,
-          "avg_per_run": 56.0,
+          "ok_runs": 20,
+          "findings": 1051,
+          "avg_per_run": 52.55,
           "severity": {
             "critical": 0,
-            "high": 952,
+            "high": 1051,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -724,12 +724,12 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
-          "ok_runs": 11,
-          "findings": 261,
-          "avg_per_run": 23.727272727272727,
+          "ok_runs": 15,
+          "findings": 403,
+          "avg_per_run": 26.866666666666667,
           "severity": {
             "critical": 0,
-            "high": 261,
+            "high": 403,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -737,12 +737,12 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
-          "ok_runs": 15,
-          "findings": 395,
-          "avg_per_run": 26.333333333333332,
+          "ok_runs": 18,
+          "findings": 600,
+          "avg_per_run": 33.333333333333336,
           "severity": {
             "critical": 0,
-            "high": 395,
+            "high": 600,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -751,14 +751,14 @@
       }
     },
     "npm-audit": {
-      "total_findings": 384,
+      "total_findings": 390,
       "total_runs": 200,
-      "total_ok_runs": 192,
+      "total_ok_runs": 195,
       "avg_per_run": 2.0,
       "severity": {
         "critical": 0,
         "high": 0,
-        "medium": 384,
+        "medium": 390,
         "low": 0,
         "info": 0
       },
@@ -804,13 +804,13 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
-          "ok_runs": 20,
-          "findings": 40,
+          "ok_runs": 19,
+          "findings": 38,
           "avg_per_run": 2.0,
           "severity": {
             "critical": 0,
             "high": 0,
-            "medium": 40,
+            "medium": 38,
             "low": 0,
             "info": 0
           }
@@ -830,26 +830,26 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
-          "ok_runs": 18,
-          "findings": 36,
+          "ok_runs": 20,
+          "findings": 40,
           "avg_per_run": 2.0,
           "severity": {
             "critical": 0,
             "high": 0,
-            "medium": 36,
+            "medium": 40,
             "low": 0,
             "info": 0
           }
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
-          "ok_runs": 19,
-          "findings": 38,
+          "ok_runs": 20,
+          "findings": 40,
           "avg_per_run": 2.0,
           "severity": {
             "critical": 0,
             "high": 0,
-            "medium": 38,
+            "medium": 40,
             "low": 0,
             "info": 0
           }
@@ -882,13 +882,13 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
-          "ok_runs": 18,
-          "findings": 36,
+          "ok_runs": 19,
+          "findings": 38,
           "avg_per_run": 2.0,
           "severity": {
             "critical": 0,
             "high": 0,
-            "medium": 36,
+            "medium": 38,
             "low": 0,
             "info": 0
           }
@@ -896,13 +896,13 @@
       }
     },
     "pip-audit": {
-      "total_findings": 1470,
+      "total_findings": 1820,
       "total_runs": 200,
-      "total_ok_runs": 160,
-      "avg_per_run": 9.1875,
+      "total_ok_runs": 192,
+      "avg_per_run": 9.479166666666666,
       "severity": {
         "critical": 0,
-        "high": 1470,
+        "high": 1820,
         "medium": 0,
         "low": 0,
         "info": 0
@@ -910,12 +910,12 @@
       "per_model": {
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
-          "ok_runs": 17,
-          "findings": 170,
+          "ok_runs": 18,
+          "findings": 180,
           "avg_per_run": 10.0,
           "severity": {
             "critical": 0,
-            "high": 170,
+            "high": 180,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -923,12 +923,12 @@
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
-          "ok_runs": 18,
-          "findings": 180,
+          "ok_runs": 19,
+          "findings": 190,
           "avg_per_run": 10.0,
           "severity": {
             "critical": 0,
-            "high": 180,
+            "high": 190,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -949,12 +949,12 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
-          "ok_runs": 17,
-          "findings": 160,
-          "avg_per_run": 9.411764705882353,
+          "ok_runs": 20,
+          "findings": 200,
+          "avg_per_run": 10.0,
           "severity": {
             "critical": 0,
-            "high": 160,
+            "high": 200,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -962,12 +962,12 @@
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
-          "ok_runs": 10,
-          "findings": 90,
-          "avg_per_run": 9.0,
+          "ok_runs": 18,
+          "findings": 150,
+          "avg_per_run": 8.333333333333334,
           "severity": {
             "critical": 0,
-            "high": 90,
+            "high": 150,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -975,12 +975,12 @@
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
-          "ok_runs": 15,
-          "findings": 120,
-          "avg_per_run": 8.0,
+          "ok_runs": 20,
+          "findings": 190,
+          "avg_per_run": 9.5,
           "severity": {
             "critical": 0,
-            "high": 120,
+            "high": 190,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -988,12 +988,12 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
-          "ok_runs": 13,
-          "findings": 110,
-          "avg_per_run": 8.461538461538462,
+          "ok_runs": 19,
+          "findings": 170,
+          "avg_per_run": 8.947368421052632,
           "severity": {
             "critical": 0,
-            "high": 110,
+            "high": 170,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1001,12 +1001,12 @@
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
-          "ok_runs": 18,
-          "findings": 160,
-          "avg_per_run": 8.88888888888889,
+          "ok_runs": 20,
+          "findings": 190,
+          "avg_per_run": 9.5,
           "severity": {
             "critical": 0,
-            "high": 160,
+            "high": 190,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1014,12 +1014,12 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
-          "ok_runs": 15,
-          "findings": 140,
-          "avg_per_run": 9.333333333333334,
+          "ok_runs": 19,
+          "findings": 190,
+          "avg_per_run": 10.0,
           "severity": {
             "critical": 0,
-            "high": 140,
+            "high": 190,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1027,12 +1027,12 @@
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
-          "ok_runs": 17,
-          "findings": 150,
-          "avg_per_run": 8.823529411764707,
+          "ok_runs": 19,
+          "findings": 170,
+          "avg_per_run": 8.947368421052632,
           "severity": {
             "critical": 0,
-            "high": 150,
+            "high": 170,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1041,15 +1041,15 @@
       }
     },
     "pylint": {
-      "total_findings": 7200,
+      "total_findings": 8576,
       "total_runs": 200,
-      "total_ok_runs": 153,
-      "avg_per_run": 47.05882352941177,
+      "total_ok_runs": 185,
+      "avg_per_run": 46.35675675675676,
       "severity": {
         "critical": 0,
-        "high": 107,
-        "medium": 1183,
-        "low": 5910,
+        "high": 139,
+        "medium": 1548,
+        "low": 6889,
         "info": 0
       },
       "per_model": {
@@ -1068,118 +1068,118 @@
         },
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
-          "ok_runs": 16,
-          "findings": 827,
-          "avg_per_run": 51.6875,
+          "ok_runs": 18,
+          "findings": 904,
+          "avg_per_run": 50.22222222222222,
           "severity": {
             "critical": 0,
             "high": 9,
-            "medium": 98,
-            "low": 720,
+            "medium": 109,
+            "low": 786,
             "info": 0
           }
         },
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
-          "ok_runs": 16,
-          "findings": 701,
-          "avg_per_run": 43.8125,
+          "ok_runs": 18,
+          "findings": 819,
+          "avg_per_run": 45.5,
           "severity": {
             "critical": 0,
-            "high": 16,
-            "medium": 85,
-            "low": 600,
+            "high": 18,
+            "medium": 94,
+            "low": 707,
             "info": 0
           }
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
-          "ok_runs": 16,
-          "findings": 774,
-          "avg_per_run": 48.375,
+          "ok_runs": 19,
+          "findings": 987,
+          "avg_per_run": 51.94736842105263,
           "severity": {
             "critical": 0,
-            "high": 12,
-            "medium": 117,
-            "low": 645,
+            "high": 18,
+            "medium": 156,
+            "low": 813,
             "info": 0
           }
         },
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
-          "ok_runs": 13,
-          "findings": 111,
-          "avg_per_run": 8.538461538461538,
+          "ok_runs": 19,
+          "findings": 139,
+          "avg_per_run": 7.315789473684211,
           "severity": {
             "critical": 0,
-            "high": 11,
-            "medium": 45,
-            "low": 55,
+            "high": 16,
+            "medium": 61,
+            "low": 62,
             "info": 0
           }
         },
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
-          "ok_runs": 13,
-          "findings": 209,
-          "avg_per_run": 16.076923076923077,
+          "ok_runs": 18,
+          "findings": 315,
+          "avg_per_run": 17.5,
           "severity": {
             "critical": 0,
-            "high": 7,
-            "medium": 81,
-            "low": 121,
+            "high": 11,
+            "medium": 111,
+            "low": 193,
             "info": 0
           }
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
-          "ok_runs": 15,
-          "findings": 191,
-          "avg_per_run": 12.733333333333333,
+          "ok_runs": 18,
+          "findings": 245,
+          "avg_per_run": 13.61111111111111,
           "severity": {
             "critical": 0,
             "high": 1,
-            "medium": 76,
-            "low": 114,
+            "medium": 100,
+            "low": 144,
             "info": 0
           }
         },
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
-          "ok_runs": 15,
-          "findings": 656,
-          "avg_per_run": 43.733333333333334,
+          "ok_runs": 20,
+          "findings": 922,
+          "avg_per_run": 46.1,
           "severity": {
             "critical": 0,
-            "high": 19,
-            "medium": 330,
-            "low": 307,
+            "high": 31,
+            "medium": 496,
+            "low": 395,
             "info": 0
           }
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
-          "ok_runs": 16,
-          "findings": 814,
-          "avg_per_run": 50.875,
+          "ok_runs": 18,
+          "findings": 965,
+          "avg_per_run": 53.611111111111114,
           "severity": {
             "critical": 0,
             "high": 12,
-            "medium": 117,
-            "low": 685,
+            "medium": 138,
+            "low": 815,
             "info": 0
           }
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
-          "ok_runs": 16,
-          "findings": 764,
-          "avg_per_run": 47.75,
+          "ok_runs": 20,
+          "findings": 1127,
+          "avg_per_run": 56.35,
           "severity": {
             "critical": 0,
-            "high": 2,
-            "medium": 95,
-            "low": 667,
+            "high": 5,
+            "medium": 144,
+            "low": 978,
             "info": 0
           }
         }
@@ -1476,13 +1476,13 @@
       }
     },
     "safety": {
-      "total_findings": 1801,
+      "total_findings": 1858,
       "total_runs": 200,
       "total_ok_runs": 200,
-      "avg_per_run": 9.005,
+      "avg_per_run": 9.29,
       "severity": {
         "critical": 0,
-        "high": 1801,
+        "high": 1858,
         "medium": 0,
         "low": 0,
         "info": 0
@@ -1491,11 +1491,11 @@
         "anthropic_claude-4.5-sonnet-20250929": {
           "runs": 20,
           "ok_runs": 20,
-          "findings": 181,
-          "avg_per_run": 9.05,
+          "findings": 182,
+          "avg_per_run": 9.1,
           "severity": {
             "critical": 0,
-            "high": 181,
+            "high": 182,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1504,11 +1504,11 @@
         "deepseek_deepseek-r1-0528": {
           "runs": 20,
           "ok_runs": 20,
-          "findings": 180,
-          "avg_per_run": 9.0,
+          "findings": 183,
+          "avg_per_run": 9.15,
           "severity": {
             "critical": 0,
-            "high": 180,
+            "high": 183,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1517,11 +1517,11 @@
         "google_gemini-3-flash-preview-20251217": {
           "runs": 20,
           "ok_runs": 20,
-          "findings": 180,
-          "avg_per_run": 9.0,
+          "findings": 182,
+          "avg_per_run": 9.1,
           "severity": {
             "critical": 0,
-            "high": 180,
+            "high": 182,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1530,11 +1530,11 @@
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
           "ok_runs": 20,
-          "findings": 180,
-          "avg_per_run": 9.0,
+          "findings": 185,
+          "avg_per_run": 9.25,
           "severity": {
             "critical": 0,
-            "high": 180,
+            "high": 185,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1543,11 +1543,11 @@
         "meta-llama_llama-3.1-405b-instruct": {
           "runs": 20,
           "ok_runs": 20,
-          "findings": 180,
-          "avg_per_run": 9.0,
+          "findings": 189,
+          "avg_per_run": 9.45,
           "severity": {
             "critical": 0,
-            "high": 180,
+            "high": 189,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1556,11 +1556,11 @@
         "mistralai_mistral-small-3.1-24b-instruct-2503": {
           "runs": 20,
           "ok_runs": 20,
-          "findings": 180,
-          "avg_per_run": 9.0,
+          "findings": 187,
+          "avg_per_run": 9.35,
           "severity": {
             "critical": 0,
-            "high": 180,
+            "high": 187,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1569,11 +1569,11 @@
         "openai_gpt-4o-mini": {
           "runs": 20,
           "ok_runs": 20,
-          "findings": 180,
-          "avg_per_run": 9.0,
+          "findings": 188,
+          "avg_per_run": 9.4,
           "severity": {
             "critical": 0,
-            "high": 180,
+            "high": 188,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1582,11 +1582,11 @@
         "openai_gpt-5.2-codex-20260114": {
           "runs": 20,
           "ok_runs": 20,
-          "findings": 180,
-          "avg_per_run": 9.0,
+          "findings": 188,
+          "avg_per_run": 9.4,
           "severity": {
             "critical": 0,
-            "high": 180,
+            "high": 188,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1595,11 +1595,11 @@
         "qwen_qwen3-coder-plus": {
           "runs": 20,
           "ok_runs": 20,
-          "findings": 180,
-          "avg_per_run": 9.0,
+          "findings": 186,
+          "avg_per_run": 9.3,
           "severity": {
             "critical": 0,
-            "high": 180,
+            "high": 186,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1608,11 +1608,11 @@
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
           "ok_runs": 20,
-          "findings": 180,
-          "avg_per_run": 9.0,
+          "findings": 188,
+          "avg_per_run": 9.4,
           "severity": {
             "critical": 0,
-            "high": 180,
+            "high": 188,
             "medium": 0,
             "low": 0,
             "info": 0
@@ -1621,15 +1621,15 @@
       }
     },
     "semgrep": {
-      "total_findings": 1421,
+      "total_findings": 1488,
       "total_runs": 200,
-      "total_ok_runs": 185,
-      "avg_per_run": 7.681081081081081,
+      "total_ok_runs": 195,
+      "avg_per_run": 7.630769230769231,
       "severity": {
         "critical": 0,
         "high": 0,
         "medium": 0,
-        "low": 1421,
+        "low": 1488,
         "info": 0
       },
       "per_model": {
@@ -1674,14 +1674,14 @@
         },
         "google_gemini-3-pro-preview-20251117": {
           "runs": 20,
-          "ok_runs": 17,
-          "findings": 126,
-          "avg_per_run": 7.411764705882353,
+          "ok_runs": 19,
+          "findings": 144,
+          "avg_per_run": 7.578947368421052,
           "severity": {
             "critical": 0,
             "high": 0,
             "medium": 0,
-            "low": 126,
+            "low": 144,
             "info": 0
           }
         },
@@ -1713,14 +1713,14 @@
         },
         "openai_gpt-4o-mini": {
           "runs": 20,
-          "ok_runs": 18,
-          "findings": 98,
-          "avg_per_run": 5.444444444444445,
+          "ok_runs": 20,
+          "findings": 107,
+          "avg_per_run": 5.35,
           "severity": {
             "critical": 0,
             "high": 0,
             "medium": 0,
-            "low": 98,
+            "low": 107,
             "info": 0
           }
         },
@@ -1739,27 +1739,27 @@
         },
         "qwen_qwen3-coder-plus": {
           "runs": 20,
-          "ok_runs": 18,
-          "findings": 111,
-          "avg_per_run": 6.166666666666667,
+          "ok_runs": 19,
+          "findings": 117,
+          "avg_per_run": 6.157894736842105,
           "severity": {
             "critical": 0,
             "high": 0,
             "medium": 0,
-            "low": 111,
+            "low": 117,
             "info": 0
           }
         },
         "z-ai_glm-4.7-20251222": {
           "runs": 20,
-          "ok_runs": 14,
-          "findings": 112,
-          "avg_per_run": 8.0,
+          "ok_runs": 19,
+          "findings": 146,
+          "avg_per_run": 7.684210526315789,
           "severity": {
             "critical": 0,
             "high": 0,
             "medium": 0,
-            "low": 112,
+            "low": 146,
             "info": 0
           }
         }
@@ -5088,22 +5088,22 @@
   "model_summary": {
     "anthropic_claude-4.5-sonnet-20250929": {
       "short_name": "Claude 4.5 Sonnet",
-      "total_findings": 7449,
+      "total_findings": 7460,
       "total_loc": 51624,
       "python_loc": 16815,
       "js_loc": 24709,
-      "defect_density_kloc": 144.29335192933522,
+      "defect_density_kloc": 144.5064311173098,
       "severity": {
         "critical": 0,
-        "high": 1261,
+        "high": 1272,
         "medium": 1645,
         "low": 4579,
         "info": 0
       },
       "stats": {
-        "mean": 372.45,
+        "mean": 373,
         "median": 399.5,
-        "std": 71.5,
+        "std": 71.94222828441107,
         "min": 231,
         "max": 457,
         "n": 20
@@ -5111,68 +5111,68 @@
     },
     "deepseek_deepseek-r1-0528": {
       "short_name": "DeepSeek R1",
-      "total_findings": 4510,
+      "total_findings": 4665,
       "total_loc": 50469,
       "python_loc": 9480,
       "js_loc": 30889,
-      "defect_density_kloc": 89.36178644316313,
+      "defect_density_kloc": 92.43297866016763,
       "severity": {
         "critical": 0,
-        "high": 1092,
-        "medium": 1362,
-        "low": 2067,
+        "high": 1170,
+        "medium": 1373,
+        "low": 2133,
         "info": 0
       },
       "stats": {
-        "mean": 225.5,
-        "median": 223.5,
-        "std": 37.62487978648395,
-        "min": 125,
+        "mean": 233.25,
+        "median": 231.5,
+        "std": 31.65085015903165,
+        "min": 176,
         "max": 298,
         "n": 20
       }
     },
     "google_gemini-3-flash-preview-20251217": {
       "short_name": "Gemini 3 Flash",
-      "total_findings": 3935,
+      "total_findings": 4079,
       "total_loc": 36514,
       "python_loc": 8338,
       "js_loc": 18076,
-      "defect_density_kloc": 107.76688393492907,
+      "defect_density_kloc": 111.71057676507641,
       "severity": {
         "critical": 0,
-        "high": 957,
-        "medium": 1364,
-        "low": 1615,
+        "high": 985,
+        "medium": 1373,
+        "low": 1722,
         "info": 0
       },
       "stats": {
-        "mean": 196.75,
-        "median": 197.0,
-        "std": 34.22968087247643,
-        "min": 132,
+        "mean": 203.95,
+        "median": 210.0,
+        "std": 31.751460803526736,
+        "min": 146,
         "max": 258,
         "n": 20
       }
     },
     "google_gemini-3-pro-preview-20251117": {
       "short_name": "Gemini 3 Pro",
-      "total_findings": 3803,
+      "total_findings": 4165,
       "total_loc": 34559,
       "python_loc": 8562,
       "js_loc": 15897,
-      "defect_density_kloc": 110.04369339390607,
+      "defect_density_kloc": 120.51853352238201,
       "severity": {
         "critical": 0,
-        "high": 845,
-        "medium": 1207,
-        "low": 1758,
+        "high": 984,
+        "medium": 1244,
+        "low": 1944,
         "info": 0
       },
       "stats": {
-        "mean": 190.15,
-        "median": 227.0,
-        "std": 92.22756466594207,
+        "mean": 208.25,
+        "median": 245.5,
+        "std": 95.2845461596061,
         "min": 25,
         "max": 298,
         "n": 20
@@ -5180,139 +5180,139 @@
     },
     "meta-llama_llama-3.1-405b-instruct": {
       "short_name": "Llama 3.1 405B",
-      "total_findings": 1818,
+      "total_findings": 2109,
       "total_loc": 19315,
       "python_loc": 3317,
       "js_loc": 5898,
-      "defect_density_kloc": 94.12373802743981,
+      "defect_density_kloc": 109.1897488998188,
       "severity": {
         "critical": 0,
-        "high": 530,
-        "medium": 868,
-        "low": 420,
+        "high": 764,
+        "medium": 918,
+        "low": 427,
         "info": 0
       },
       "stats": {
-        "mean": 90.9,
-        "median": 92.5,
-        "std": 21.908662069697694,
-        "min": 34,
-        "max": 123,
+        "mean": 105.45,
+        "median": 104.5,
+        "std": 14.53661438900877,
+        "min": 70,
+        "max": 127,
         "n": 20
       }
     },
     "mistralai_mistral-small-3.1-24b-instruct-2503": {
       "short_name": "Mistral Small 3.1",
-      "total_findings": 2917,
+      "total_findings": 3249,
       "total_loc": 28398,
       "python_loc": 5009,
       "js_loc": 13289,
-      "defect_density_kloc": 102.71850130290866,
+      "defect_density_kloc": 114.40946545531376,
       "severity": {
         "critical": 0,
-        "high": 818,
-        "medium": 1568,
-        "low": 531,
+        "high": 1044,
+        "medium": 1602,
+        "low": 603,
         "info": 0
       },
       "stats": {
-        "mean": 145.85,
-        "median": 144.5,
-        "std": 39.58372206641992,
-        "min": 64,
+        "mean": 162.45,
+        "median": 158.5,
+        "std": 34.13205778181346,
+        "min": 99,
         "max": 235,
         "n": 20
       }
     },
     "openai_gpt-4o-mini": {
       "short_name": "GPT-4o Mini",
-      "total_findings": 1778,
+      "total_findings": 2079,
       "total_loc": 19686,
       "python_loc": 3623,
       "js_loc": 5963,
-      "defect_density_kloc": 90.31799248196688,
+      "defect_density_kloc": 105.60804632733922,
       "severity": {
         "critical": 0,
-        "high": 517,
-        "medium": 871,
-        "low": 390,
+        "high": 695,
+        "medium": 955,
+        "low": 429,
         "info": 0
       },
       "stats": {
-        "mean": 88.9,
-        "median": 87.5,
-        "std": 26.020032768295238,
-        "min": 36,
-        "max": 130,
+        "mean": 103.95,
+        "median": 99.5,
+        "std": 20.699542329036625,
+        "min": 77,
+        "max": 141,
         "n": 20
       }
     },
     "openai_gpt-5.2-codex-20260114": {
       "short_name": "GPT-5.2 Codex",
-      "total_findings": 4161,
+      "total_findings": 4564,
       "total_loc": 54145,
       "python_loc": 15093,
       "js_loc": 28952,
-      "defect_density_kloc": 76.84920121894912,
+      "defect_density_kloc": 84.29217840982547,
       "severity": {
         "critical": 0,
-        "high": 1416,
-        "medium": 1809,
-        "low": 961,
+        "high": 1565,
+        "medium": 1975,
+        "low": 1049,
         "info": 0
       },
       "stats": {
-        "mean": 208.05,
-        "median": 207.0,
-        "std": 71.2087184194981,
-        "min": 95,
+        "mean": 228.2,
+        "median": 212.5,
+        "std": 57.466328814084,
+        "min": 129,
         "max": 423,
         "n": 20
       }
     },
     "qwen_qwen3-coder-plus": {
       "short_name": "Qwen3 Coder+",
-      "total_findings": 4151,
+      "total_findings": 4506,
       "total_loc": 40859,
       "python_loc": 10376,
       "js_loc": 20383,
-      "defect_density_kloc": 101.59328422134658,
+      "defect_density_kloc": 110.28170048214592,
       "severity": {
         "critical": 0,
-        "high": 688,
-        "medium": 1366,
-        "low": 2107,
+        "high": 886,
+        "medium": 1387,
+        "low": 2243,
         "info": 0
       },
       "stats": {
-        "mean": 207.55,
-        "median": 211.5,
-        "std": 57.85142039833822,
+        "mean": 225.3,
+        "median": 234.0,
+        "std": 66.26668608139784,
         "min": 116,
-        "max": 327,
+        "max": 340,
         "n": 20
       }
     },
     "z-ai_glm-4.7-20251222": {
       "short_name": "GLM-4.7",
-      "total_findings": 4165,
+      "total_findings": 4797,
       "total_loc": 38916,
       "python_loc": 10819,
       "js_loc": 17997,
-      "defect_density_kloc": 107.02538801521224,
+      "defect_density_kloc": 123.26549491211841,
       "severity": {
         "critical": 0,
-        "high": 875,
-        "medium": 1213,
-        "low": 2086,
+        "high": 1111,
+        "medium": 1264,
+        "low": 2431,
         "info": 0
       },
       "stats": {
-        "mean": 208.25,
-        "median": 208.0,
-        "std": 54.584434835544364,
-        "min": 135,
-        "max": 286,
+        "mean": 239.85,
+        "median": 263.5,
+        "std": 56.44864923096034,
+        "min": 133,
+        "max": 334,
         "n": 20
       }
     }

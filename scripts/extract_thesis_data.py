@@ -157,9 +157,10 @@ def extract_all_data(results_dir: Path, gen_dir: Path, max_apps: int = 0) -> dic
 
             # Each app can contain multiple task runs and multiple JSON snapshots per task.
             # For thesis aggregation we count *one consolidated result per app* to avoid double-counting.
-            # Select the task with the most static tools executed (most complete analysis);
-            # break ties by alphabetical task-dir name (later name = preferred).
-            task_candidates = []
+            # Use SEPARATE task selection for:
+            #   1) Static data: task with most successful static tools (prefers newer hardened tasks)
+            #   2) Dynamic/performance/AI data: task with those services present (prefers old full tasks)
+            all_task_paths: list[tuple] = []
             for task_dir in sorted(app_dir.iterdir()):
                 if not task_dir.is_dir():
                     continue
@@ -187,40 +188,58 @@ def extract_all_data(results_dir: Path, gen_dir: Path, max_apps: int = 0) -> dic
                     json_candidates.sort(key=lambda p: p.name)
                     main_path = json_candidates[-1]
 
-                # Count how many static tools were executed (to prefer complete runs).
+                # Count successful static tools and record which services are present.
                 try:
                     _d = json.loads(main_path.read_text())
                     _res = (_d.get('services', {}).get('static-analyzer', {})
                               .get('payload', {}).get('analysis', {}).get('results', {}))
                     tool_count = sum(
                         1 for _tools in _res.values() if isinstance(_tools, dict)
-                        for _td in _tools.values() if isinstance(_td, dict) and _td.get('executed')
+                        for _td in _tools.values()
+                        if isinstance(_td, dict) and _td.get('executed')
+                        and _td.get('status') == 'success'
                     )
+                    svcs = set(_d.get('services', {}).keys())
                 except Exception:
                     tool_count = 0
+                    svcs = set()
 
-                task_candidates.append((tool_count, task_dir.name, main_path))
+                all_task_paths.append((tool_count, task_dir.name, main_path, svcs))
 
-            # Prefer the task with the most executed tools; for equal counts prefer later dir name.
-            if not task_candidates:
+            if not all_task_paths:
                 continue
-            task_candidates.sort(key=lambda x: (x[0], x[1]))
-            _, _, main_result_path = task_candidates[-1]
+
+            # Select best static task: most successful tools, tie-break by later dir name.
+            static_candidates = sorted(all_task_paths, key=lambda x: (x[0], x[1]))
+            _, _, static_result_path, _ = static_candidates[-1]
+
+            # Select best full task (has dynamic/performance/AI): highest tool count among
+            # tasks that include dynamic-analyzer; fall back to best static task if none found.
+            full_candidates = [c for c in all_task_paths if 'dynamic-analyzer' in c[3]]
+            if full_candidates:
+                full_candidates.sort(key=lambda x: (x[0], x[1]))
+                _, _, full_result_path, _ = full_candidates[-1]
+            else:
+                full_result_path = static_result_path
 
             try:
-                data = json.loads(main_result_path.read_text())
+                static_data = json.loads(static_result_path.read_text())
+                full_data = json.loads(full_result_path.read_text())
             except Exception:
                 continue
             processed_app_count += 1
 
-            services = data.get('services', {})
-            _process_static(services, model_slug, app_n, tool_model,
+            # Use best static task for static analysis only.
+            _process_static(static_data.get('services', {}), model_slug, app_n, tool_model,
                              model_app_findings, model_app_severity, service_completion)
-            _process_dynamic(services, model_slug, app_n, tool_model, zap_model,
+            # Use full task for dynamic, performance, and AI data.
+            full_services = full_data.get('services', {})
+            _process_dynamic(full_services, model_slug, app_n, tool_model, zap_model,
                              dyn_diag_model, service_completion)
-            _process_performance(services, model_slug, perf_model, perf_tool_model,
+            _process_performance(full_services, model_slug, perf_model, perf_tool_model,
                                  service_completion)
-            _process_ai(services, model_slug, ai_model, ai_tool_model, service_completion)
+            _process_ai(full_services, model_slug, ai_model, ai_tool_model, service_completion)
+
 
     loc_data = count_loc(gen_dir, max_apps=max_apps) if gen_dir.exists() else {}
     return _build_output(tool_model, model_app_findings, model_app_severity,
