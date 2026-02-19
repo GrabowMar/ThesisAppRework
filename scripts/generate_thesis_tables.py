@@ -59,6 +59,40 @@ MODEL_PARAMS = {
 }
 
 
+def _get_deploy_pcts(data: dict) -> dict:
+    """Return {model_slug: deploy_pct}.
+
+    ab runs backend + frontend per app (2 runs per deployed app),
+    so deployed_apps = ab_runs / 2 and Deploy% = deployed_apps / 20 * 100.
+    """
+    result = {}
+    ab_per_model = data.get('performance_tools', {}).get('ab', {}).get('per_model', {})
+    for ms in MODEL_ORDER:
+        d = ab_per_model.get(ms)
+        result[ms] = (d['runs'] / 2 / 20 * 100) if d else 0.0
+    return result
+
+
+def _get_compl_pcts(data: dict) -> dict:
+    """Return {model_slug: compliance_pct} from requirements-scanner AI tool."""
+    result = {}
+    rs_per_model = data.get('ai_tools', {}).get('requirements-scanner', {}).get('per_model', {})
+    for ms in MODEL_ORDER:
+        d = rs_per_model.get(ms)
+        result[ms] = d['compliance_pct']['mean'] if d else 0.0
+    return result
+
+
+def _get_quality_scores(data: dict) -> dict:
+    """Return {model_slug: quality_score} from code-quality-analyzer AI tool."""
+    result = {}
+    cq_per_model = data.get('ai_tools', {}).get('code-quality-analyzer', {}).get('per_model', {})
+    for ms in MODEL_ORDER:
+        d = cq_per_model.get(ms)
+        result[ms] = d['score']['mean'] if d else 0.0
+    return result
+
+
 def _latex_int(n: int | float) -> str:
     """Format integer with LaTeX thousands separator."""
     n = int(n)
@@ -98,47 +132,86 @@ def _sort_models_by(data: dict, key: str, reverse: bool = True) -> list:
 
 def _gen_findings_tool_table(tool_name: str, tool_data: dict, loc_data: dict,
                               caption: str, label: str) -> str:
-    """Generate table for tools that produce findings (static + dynamic finding tools)."""
+    """Generate table for tools that produce findings (static + dynamic finding tools).
+
+    Includes High/Med./Low severity columns when severity data is present.
+    Tools with only one severity bucket (e.g. detect-secrets with all zeros,
+    or tools whose data has no non-zero high/med/low) get the short 6-column format.
+    """
     per_model = tool_data['per_model']
-    
+
     # Sort by findings desc
     rows = _sort_models_by(per_model, 'findings', reverse=True)
-    
+
+    # Check whether any model has non-trivial severity data
+    has_sev = any(
+        (md or {}).get('severity', {})
+        for _, md in rows
+    )
+
     lines = []
     lines.append(r'\begin{table}[htbp]')
     lines.append(r'    \centering')
     lines.append(f'    \\caption{{{caption}}}')
     lines.append(f'    \\label{{{label}}}')
     lines.append(r'    \small')
-    lines.append(r'    \begin{tabular}{@{} l r r r r r @{}}')
-    lines.append(r'        \toprule')
-    lines.append(r'        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} \\')
+    lines.append(r'    \setlength{\tabcolsep}{4pt}')
+
+    if has_sev:
+        lines.append(r'    \begin{tabular}{@{} l r r r r r r r r @{}}')
+        lines.append(r'        \toprule')
+        lines.append(r'        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} & \textbf{High} & \textbf{Med.} & \textbf{Low} \\')
+    else:
+        lines.append(r'    \begin{tabular}{@{} l r r r r r @{}}')
+        lines.append(r'        \toprule')
+        lines.append(r'        \textbf{Model} & \textbf{Runs} & \textbf{OK} & \textbf{Findings} & \textbf{Avg/Run} & \textbf{F/kLOC} \\')
     lines.append(r'        \midrule')
-    
+
+    total_high = total_med = total_low = 0
+
     for ms, md in rows:
         if md is None:
-            md = {'runs': 0, 'findings': 0, 'avg_per_run': 0}
+            md = {'runs': 0, 'findings': 0, 'avg_per_run': 0, 'severity': {}}
         runs = md.get('runs', 0)
         findings = md.get('findings', 0)
         avg = md.get('avg_per_run', 0)
-        # OK = runs where tool succeeded (approximate as runs for now)
         ok = runs
         total_loc = loc_data.get(ms, {}).get('total_loc', 0) if isinstance(loc_data, dict) else 0
         fkloc = (findings / total_loc * 1000) if total_loc > 0 else 0
-        
-        lines.append(
-            f'        {_sn(ms)} & {runs} & {ok} & '
-            f'{_latex_int(findings)} & {_latex_float(avg)} & {_latex_float(fkloc)} \\\\'
-        )
-    
+        sev = md.get('severity', {})
+        high = sev.get('high', 0) + sev.get('critical', 0)
+        med = sev.get('medium', 0)
+        low = sev.get('low', 0)
+        total_high += high
+        total_med += med
+        total_low += low
+
+        if has_sev:
+            lines.append(
+                f'        {_sn(ms)} & {runs} & {ok} & '
+                f'{_latex_int(findings)} & {_latex_float(avg)} & {_latex_float(fkloc)} & '
+                f'{_latex_int(high)} & {_latex_int(med)} & {_latex_int(low)} \\\\'
+            )
+        else:
+            lines.append(
+                f'        {_sn(ms)} & {runs} & {ok} & '
+                f'{_latex_int(findings)} & {_latex_float(avg)} & {_latex_float(fkloc)} \\\\'
+            )
+
     total_findings = tool_data.get('total_findings', 0)
     lines.append(r'        \midrule')
-    lines.append(f'        \\textbf{{Total}} & --- & --- & \\textbf{{{_latex_int(total_findings)}}} & --- & --- \\\\')
+    if has_sev:
+        lines.append(
+            f'        \\textbf{{Total}} & --- & --- & \\textbf{{{_latex_int(total_findings)}}} & --- & --- & '
+            f'\\textbf{{{_latex_int(total_high)}}} & \\textbf{{{_latex_int(total_med)}}} & \\textbf{{{_latex_int(total_low)}}} \\\\'
+        )
+    else:
+        lines.append(f'        \\textbf{{Total}} & --- & --- & \\textbf{{{_latex_int(total_findings)}}} & --- & --- \\\\')
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
     lines.append(r'\end{table}')
-    
+
     return '\n'.join(lines)
 
 
@@ -437,42 +510,44 @@ def _gen_service_completion_table(data: dict) -> str:
 # ─── Code composition table ──────────────────────────────────────────────────
 
 def _gen_code_composition_table(data: dict) -> str:
-    """Generate Table: Code Composition by Model."""
+    """Generate Table: Code Composition by Model (with Deploy%)."""
     ms_data = data['model_summary']
-    
+    deploy_pcts = _get_deploy_pcts(data)
+
     items = []
     for ms in MODEL_ORDER:
         d = ms_data.get(ms, {})
-        loc_app = d.get('total_loc', 0) / 20 if ms != 'anthropic_claude-4.5-sonnet-20250929' else d.get('total_loc', 0) / 50
+        loc_app = d.get('total_loc', 0) / 20
         items.append((ms, d, loc_app))
     items.sort(key=lambda x: x[2], reverse=True)
-    
+
     lines = []
     lines.append(r'\begin{table}[htbp]')
     lines.append(r'    \centering')
-    lines.append(r'    \caption{Code Composition by Model (Sorted by LOC/App, I/100LOC = Issues per 100 Lines of Code)}')
+    lines.append(r'    \caption{Code Composition and Deployment Success by Model (Sorted by LOC/App)}')
     lines.append(r'    \label{tab:code_composition}')
     lines.append(r'    \small')
     lines.append(r'    \setlength{\tabcolsep}{4pt}')
-    lines.append(r'    \begin{tabular}{@{} l r r r r r r @{}}')
+    lines.append(r'    \begin{tabular}{@{} l r r r r r r r @{}}')
     lines.append(r'        \toprule')
-    lines.append(r'        \textbf{Model} & \textbf{Apps} & \textbf{Total LOC} & \textbf{Python} & \textbf{JS/JSX} & \textbf{LOC/App} & \textbf{I/100LOC} \\')
+    lines.append(r'        \textbf{Model} & \textbf{Apps} & \textbf{Total LOC} & \textbf{Python} & \textbf{JS} & \textbf{LOC/App} & \textbf{I/100LOC} & \textbf{Deploy\%} \\')
     lines.append(r'        \midrule')
-    
+
     for ms, d, loc_app in items:
-        apps = 50 if ms == 'anthropic_claude-4.5-sonnet-20250929' else 20
+        apps = 20
         total_loc = d.get('total_loc', 0)
         py_loc = d.get('python_loc', 0)
         js_loc = d.get('js_loc', 0)
         findings = d.get('total_findings', 0)
         i100 = (findings / total_loc * 100) if total_loc > 0 else 0
-        
+        deploy_pct = deploy_pcts.get(ms, 0)
+
         lines.append(
             f'        {_sn(ms)} & {apps} & {_latex_int(total_loc)} & '
             f'{_latex_int(py_loc)} & {_latex_int(js_loc)} & '
-            f'{_latex_int(loc_app)} & {_latex_float(i100)} \\\\'
+            f'{_latex_int(loc_app)} & {_latex_float(i100)} & {_latex_int(deploy_pct)} \\\\'
         )
-    
+
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
@@ -683,100 +758,89 @@ def _gen_heatmap_table(data: dict) -> str:
 # ─── TOPSIS / WSM tables ─────────────────────────────────────────────────────
 
 def _gen_topsis_table(data: dict) -> str:
-    """Generate TOPSIS Multi-Criteria Decision Analysis table."""
+    """Generate TOPSIS Multi-Criteria Decision Analysis table.
+
+    Criteria (matching thesis):
+      Deploy%   30% benefit
+      Compl.%   10% benefit
+      Quality   10% benefit
+      LOC/App   20% benefit
+      D/kLOC    15% cost
+      Out$/Mtok 15% cost
+    """
+    import math
     ms_data = data['model_summary']
-    
-    # Collect raw values
+    deploy_pcts = _get_deploy_pcts(data)
+    compl_pcts = _get_compl_pcts(data)
+    quality_scores = _get_quality_scores(data)
+
     rows = []
     for ms in MODEL_ORDER:
         d = ms_data.get(ms, {})
-        apps = 50 if ms == 'anthropic_claude-4.5-sonnet-20250929' else 20
         total_loc = d.get('total_loc', 0)
-        loc_app = total_loc / apps if apps > 0 else 0
+        loc_app = total_loc / 20
         dkloc = d.get('defect_density_kloc', 0)
-        sev = d.get('severity', {})
-        total_f = d.get('total_findings', 0)
-        high_pct = ((sev.get('high', 0) + sev.get('critical', 0)) / total_f * 100) if total_f > 0 else 0
-        i100 = (total_f / total_loc * 100) if total_loc > 0 else 0
         out_price = MODEL_PARAMS.get(ms, {}).get('out_price', 0)
-        
         rows.append({
             'slug': ms,
-            'dkloc': dkloc,
-            'high_pct': high_pct,
+            'deploy': deploy_pcts.get(ms, 0),
+            'compl': compl_pcts.get(ms, 0),
+            'quality': quality_scores.get(ms, 0),
             'loc_app': loc_app,
+            'dkloc': dkloc,
             'out_price': out_price,
-            'i100': i100,
         })
-    
-    # TOPSIS calculation
-    import math
-    criteria = ['dkloc', 'high_pct', 'loc_app', 'out_price', 'i100']
-    weights = [0.30, 0.15, 0.20, 0.20, 0.15]
-    # cost criteria (lower is better): dkloc, high_pct, out_price, i100
-    # benefit criteria (higher is better): loc_app
-    is_benefit = [False, False, True, False, False]
-    
-    # Normalize using vector normalization
+
+    criteria = ['deploy', 'compl', 'quality', 'loc_app', 'dkloc', 'out_price']
+    weights  = [0.30,    0.10,   0.10,     0.20,     0.15,   0.15]
+    is_benefit = [True, True, True, True, False, False]
+
+    # Vector normalisation
     norms = {}
     for c in criteria:
         ss = math.sqrt(sum(r[c]**2 for r in rows))
         norms[c] = ss if ss > 0 else 1
-    
-    normalized = []
-    for r in rows:
-        nr = {c: r[c] / norms[c] for c in criteria}
-        normalized.append(nr)
-    
-    # Weighted normalized
-    weighted = []
-    for nr in normalized:
-        wr = {c: nr[c] * weights[i] for i, c in enumerate(criteria)}
-        weighted.append(wr)
-    
-    # Ideal and anti-ideal
+
+    normalized = [{c: r[c] / norms[c] for c in criteria} for r in rows]
+    weighted   = [{c: nr[c] * weights[i] for i, c in enumerate(criteria)} for nr in normalized]
+
     ideal = {}
     anti_ideal = {}
     for i, c in enumerate(criteria):
         vals = [wr[c] for wr in weighted]
         if is_benefit[i]:
-            ideal[c] = max(vals)
-            anti_ideal[c] = min(vals)
+            ideal[c], anti_ideal[c] = max(vals), min(vals)
         else:
-            ideal[c] = min(vals)
-            anti_ideal[c] = max(vals)
-    
-    # Distance to ideal/anti-ideal
+            ideal[c], anti_ideal[c] = min(vals), max(vals)
+
     scores = []
     for wr in weighted:
-        d_plus = math.sqrt(sum((wr[c] - ideal[c])**2 for c in criteria))
+        d_plus  = math.sqrt(sum((wr[c] - ideal[c])**2     for c in criteria))
         d_minus = math.sqrt(sum((wr[c] - anti_ideal[c])**2 for c in criteria))
-        score = d_minus / (d_plus + d_minus) if (d_plus + d_minus) > 0 else 0
-        scores.append(score)
-    
-    # Combine and sort
-    combined = list(zip(rows, scores))
-    combined.sort(key=lambda x: x[1], reverse=True)
-    
+        scores.append(d_minus / (d_plus + d_minus) if (d_plus + d_minus) > 0 else 0)
+
+    combined = sorted(zip(rows, scores), key=lambda x: x[1], reverse=True)
+
     lines = []
     lines.append(r'\begin{table}[htbp]')
     lines.append(r'    \centering')
     lines.append(r'    \caption{TOPSIS Multi-Criteria Decision Analysis (Higher Score = Better)}')
     lines.append(r'    \label{tab:topsis}')
     lines.append(r'    \small')
-    lines.append(r'    \begin{tabular}{@{} l r r r r r r r @{}}')
+    lines.append(r'    \setlength{\tabcolsep}{4pt}')
+    lines.append(r'    \begin{tabular}{@{} l r r r r r r r r @{}}')
     lines.append(r'        \toprule')
-    lines.append(r'        \textbf{Model} & \textbf{D/kLOC} & \textbf{High\%} & \textbf{LOC/App} & \textbf{\$/Mtok} & \textbf{I/100} & \textbf{Score} & \textbf{Rank} \\')
+    lines.append(r'        \textbf{Model} & \textbf{Deploy\%} & \textbf{Compl.\%} & \textbf{Quality} & \textbf{LOC/App} & \textbf{D/kLOC} & \textbf{\$/Mtok} & \textbf{Score} & \textbf{Rank} \\')
     lines.append(r'        \midrule')
-    
+
     for rank, (r, score) in enumerate(combined, 1):
         lines.append(
-            f'        {_sn(r["slug"])} & {_latex_float(r["dkloc"], 1)} & '
-            f'{_latex_float(r["high_pct"], 1)} & {_latex_int(r["loc_app"])} & '
-            f'{_latex_float(r["out_price"])} & {_latex_float(r["i100"])} & '
-            f'{_latex_float(score)} & {rank} \\\\'
+            f'        {_sn(r["slug"])} & {_latex_int(r["deploy"])} & '
+            f'{_latex_float(r["compl"], 1)} & {_latex_float(r["quality"], 1)} & '
+            f'{_latex_int(r["loc_app"])} & {_latex_float(r["dkloc"], 1)} & '
+            f'{_latex_float(r["out_price"])} & {_latex_float(score, 4)} & {rank} \\\\'
         )
-    
+
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
@@ -785,47 +849,54 @@ def _gen_topsis_table(data: dict) -> str:
 
 
 def _gen_wsm_table(data: dict) -> str:
-    """Generate Weighted Sum Model Ranking table."""
+    """Generate Weighted Sum Model Ranking table.
+
+    Criteria (matching thesis):
+      Deploy%  30% benefit
+      Compl.%  30% benefit
+      Quality  20% benefit
+      D/kLOC   20% cost
+    """
     ms_data = data['model_summary']
-    
+    deploy_pcts = _get_deploy_pcts(data)
+    compl_pcts = _get_compl_pcts(data)
+    quality_scores = _get_quality_scores(data)
+
     rows = []
     for ms in MODEL_ORDER:
         d = ms_data.get(ms, {})
-        apps = 50 if ms == 'anthropic_claude-4.5-sonnet-20250929' else 20
-        total_loc = d.get('total_loc', 0)
-        loc_app = total_loc / apps if apps > 0 else 0
         dkloc = d.get('defect_density_kloc', 0)
-        total_f = d.get('total_findings', 0)
-        i100 = (total_f / total_loc * 100) if total_loc > 0 else 0
-        out_price = MODEL_PARAMS.get(ms, {}).get('out_price', 0)
-        rows.append({'slug': ms, 'dkloc': dkloc, 'loc_app': loc_app,
-                      'out_price': out_price, 'i100': i100})
-    
-    # Min-max normalization
-    criteria = ['dkloc', 'loc_app', 'out_price', 'i100']
-    weights = [0.35, 0.25, 0.20, 0.20]
-    is_benefit = [False, True, False, False]
-    
+        rows.append({
+            'slug': ms,
+            'deploy': deploy_pcts.get(ms, 0),
+            'compl': compl_pcts.get(ms, 0),
+            'quality': quality_scores.get(ms, 0),
+            'dkloc': dkloc,
+        })
+
+    criteria   = ['deploy', 'compl', 'quality', 'dkloc']
+    weights    = [0.30,    0.30,   0.20,     0.20]
+    is_benefit = [True,    True,   True,     False]
+
     mins = {c: min(r[c] for r in rows) for c in criteria}
     maxs = {c: max(r[c] for r in rows) for c in criteria}
-    
+
     scores = []
     for r in rows:
-        score = 0
+        score = 0.0
         for i, c in enumerate(criteria):
             rng = maxs[c] - mins[c]
             if rng == 0:
-                norm = 1
+                norm = 1.0
             elif is_benefit[i]:
                 norm = (r[c] - mins[c]) / rng
             else:
                 norm = (maxs[c] - r[c]) / rng
             score += norm * weights[i]
         scores.append(score)
-    
-    combined = list(zip(rows, scores))
-    combined.sort(key=lambda x: x[1], reverse=True)
-    
+
+    combined = sorted(zip(rows, scores), key=lambda x: x[1], reverse=True)
+
     lines = []
     lines.append(r'\begin{table}[htbp]')
     lines.append(r'    \centering')
@@ -834,16 +905,16 @@ def _gen_wsm_table(data: dict) -> str:
     lines.append(r'    \small')
     lines.append(r'    \begin{tabular}{@{} l r r r r r r @{}}')
     lines.append(r'        \toprule')
-    lines.append(r'        \textbf{Model} & \textbf{D/kLOC} & \textbf{LOC/App} & \textbf{\$/Mtok} & \textbf{I/100} & \textbf{Score} & \textbf{Rank} \\')
+    lines.append(r'        \textbf{Model} & \textbf{Deploy\%} & \textbf{Compl.\%} & \textbf{Quality} & \textbf{D/kLOC} & \textbf{Score} & \textbf{Rank} \\')
     lines.append(r'        \midrule')
-    
+
     for rank, (r, score) in enumerate(combined, 1):
         lines.append(
-            f'        {_sn(r["slug"])} & {_latex_float(r["dkloc"], 1)} & '
-            f'{_latex_int(r["loc_app"])} & {_latex_float(r["out_price"])} & '
-            f'{_latex_float(r["i100"])} & {_latex_float(score)} & {rank} \\\\'
+            f'        {_sn(r["slug"])} & {_latex_int(r["deploy"])} & '
+            f'{_latex_float(r["compl"], 1)} & {_latex_float(r["quality"], 1)} & '
+            f'{_latex_float(r["dkloc"], 1)} & {_latex_float(score, 4)} & {rank} \\\\'
         )
-    
+
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
@@ -854,76 +925,98 @@ def _gen_wsm_table(data: dict) -> str:
 # ─── Correlation table ────────────────────────────────────────────────────────
 
 def _gen_correlation_table(data: dict) -> str:
-    """Generate Spearman Rank Correlation table."""
+    """Generate Spearman Rank Correlation table.
+
+    Outcomes (matching thesis): Deploy%, Total LOC, LOC/App, D/kLOC, Compl.%, Quality
+    Parameters: Context (k), Max Out (k), Out $/Mtok
+    """
     ms_data = data['model_summary']
-    
-    # Gather per-model vectors
+    deploy_pcts = _get_deploy_pcts(data)
+    compl_pcts = _get_compl_pcts(data)
+    quality_scores = _get_quality_scores(data)
+
+    # Gather per-model vectors (in MODEL_ORDER)
+    deploys = []
     total_locs = []
     loc_apps = []
     dklocs = []
-    i100s = []
+    compls = []
+    qualities = []
     ctx_ks = []
     max_outs = []
     out_prices = []
-    
+
     for ms in MODEL_ORDER:
         d = ms_data.get(ms, {})
-        apps = 50 if ms == 'anthropic_claude-4.5-sonnet-20250929' else 20
         total_loc = d.get('total_loc', 0)
-        total_f = d.get('total_findings', 0)
         total_locs.append(total_loc)
-        loc_apps.append(total_loc / apps if apps > 0 else 0)
+        loc_apps.append(total_loc / 20)
         dklocs.append(d.get('defect_density_kloc', 0))
-        i100s.append((total_f / total_loc * 100) if total_loc > 0 else 0)
+        deploys.append(deploy_pcts.get(ms, 0))
+        compls.append(compl_pcts.get(ms, 0))
+        qualities.append(quality_scores.get(ms, 0))
         p = MODEL_PARAMS.get(ms, {})
         ctx_ks.append(p.get('ctx_k', 0))
         max_outs.append(p.get('max_out_k', 0))
         out_prices.append(p.get('out_price', 0))
-    
-    def _spearman(x, y):
-        n = len(x)
-        rx = _rank(x)
-        ry = _rank(y)
-        d2 = sum((rx[i] - ry[i])**2 for i in range(n))
-        return 1 - (6 * d2) / (n * (n**2 - 1))
-    
+
     def _rank(vals):
         indexed = sorted(enumerate(vals), key=lambda x: x[1])
         ranks = [0.0] * len(vals)
         i = 0
         while i < len(indexed):
             j = i
-            while j < len(indexed) - 1 and indexed[j+1][1] == indexed[j][1]:
+            while j < len(indexed) - 1 and indexed[j + 1][1] == indexed[j][1]:
                 j += 1
-            avg_rank = sum(range(i+1, j+2)) / (j - i + 1)
-            for k in range(i, j+1):
+            avg_rank = sum(range(i + 1, j + 2)) / (j - i + 1)
+            for k in range(i, j + 1):
                 ranks[indexed[k][0]] = avg_rank
             i = j + 1
         return ranks
-    
-    params = [('Context (k)', ctx_ks), ('Max Out (k)', max_outs), ('Out \\$/Mtok', out_prices)]
-    outcomes = [('Total LOC', total_locs), ('LOC/App', loc_apps), ('D/kLOC', dklocs), ('I/100LOC', i100s)]
-    
+
+    def _spearman(x, y):
+        n = len(x)
+        rx = _rank(x)
+        ry = _rank(y)
+        d2 = sum((rx[i] - ry[i]) ** 2 for i in range(n))
+        return 1 - (6 * d2) / (n * (n ** 2 - 1))
+
+    params = [
+        ('Context (k)',  ctx_ks),
+        ('Max Out (k)',  max_outs),
+        ('Out \\$/Mtok', out_prices),
+    ]
+    outcomes = [
+        ('Deploy\\%',  deploys),
+        ('Total LOC',  total_locs),
+        ('LOC/App',    loc_apps),
+        ('D/kLOC',     dklocs),
+        ('Compl.\\%',  compls),
+        ('Quality',    qualities),
+    ]
+
+    n_out = len(outcomes)
     lines = []
     lines.append(r'\begin{table}[htbp]')
     lines.append(r'    \centering')
     lines.append(r'    \caption{Spearman Rank Correlations Between Model Parameters and Study Outcomes ($n = 10$)}')
     lines.append(r'    \label{tab:correlations}')
     lines.append(r'    \small')
-    lines.append(r'    \begin{tabular}{@{} l r r r r @{}}')
+    lines.append(r'    \setlength{\tabcolsep}{4pt}')
+    lines.append(f'    \\begin{{tabular}}{{@{{}} l {"r " * n_out}@{{}}}}')
     lines.append(r'        \toprule')
     header = ' & '.join(f'\\textbf{{{o[0]}}}' for o in outcomes)
     lines.append(f'        \\textbf{{Parameter}} & {header} \\\\')
     lines.append(r'        \midrule')
-    
+
     for pname, pvals in params:
         cells = []
-        for oname, ovals in outcomes:
+        for _, ovals in outcomes:
             rho = _spearman(pvals, ovals)
             sign = '$-$' if rho < 0 else ''
             cells.append(f'{sign}{abs(rho):.2f}')
         lines.append(f'        {pname} & {" & ".join(cells)} \\\\')
-    
+
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}')
     lines.append(r'    \source{Own elaboration}')
@@ -957,7 +1050,7 @@ def _gen_per_model_service_table(data: dict) -> str:
     lines.append(r'        \midrule')
     
     for ms in MODEL_ORDER:
-        apps = 50 if ms == 'anthropic_claude-4.5-sonnet-20250929' else 20
+        apps = 20
         # Static: always succeeds, use first tool's run count
         first_tool = next(iter(static_tools.values()), {})
         stat_runs = first_tool.get('per_model', {}).get(ms, {}).get('runs', 0)

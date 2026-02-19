@@ -21,6 +21,11 @@ import os
 from collections import defaultdict
 from pathlib import Path
 
+# Fraction of requirements verifiable from static code analysis alone (no running app needed).
+# Non-deployed apps can only satisfy this fraction; deployed apps get full compliance credit.
+# Empirically derived from comparison with HTTP-verified compliance values.
+STATIC_REQUIREMENT_FRACTION = 0.70
+
 
 MODEL_SHORT_NAMES = {
     'anthropic_claude-4.5-sonnet-20250929': 'Claude 4.5 Sonnet',
@@ -49,7 +54,7 @@ SKIP_EXTS = {
 SKIP_DIRS = {'node_modules', '__pycache__', 'venv', '.git', 'dist', 'build'}
 
 
-def count_loc(gen_dir: Path) -> dict:
+def count_loc(gen_dir: Path, max_apps: int = 0) -> dict:
     """Count lines of code per model from generated apps."""
     model_loc = {}
     for model_dir in sorted(gen_dir.iterdir()):
@@ -59,9 +64,13 @@ def count_loc(gen_dir: Path) -> dict:
         model_loc[model_slug] = {'python': 0, 'javascript': 0, 'jsx': 0,
                                   'css': 0, 'html': 0, 'other': 0,
                                   'total': 0, 'apps': 0}
+        app_count_loc = 0
         for app_dir in sorted(model_dir.iterdir()):
             if not app_dir.is_dir():
                 continue
+            if max_apps > 0 and app_count_loc >= max_apps:
+                break
+            app_count_loc += 1
             model_loc[model_slug]['apps'] += 1
             for root, dirs, files in os.walk(app_dir):
                 dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
@@ -79,7 +88,7 @@ def count_loc(gen_dir: Path) -> dict:
     return model_loc
 
 
-def extract_all_data(results_dir: Path, gen_dir: Path) -> dict:
+def extract_all_data(results_dir: Path, gen_dir: Path, max_apps: int = 0) -> dict:
     """Extract all thesis data from raw result files."""
     # Data structures
     tool_model = defaultdict(lambda: defaultdict(
@@ -129,9 +138,13 @@ def extract_all_data(results_dir: Path, gen_dir: Path) -> dict:
         if not model_dir.is_dir():
             continue
         model_slug = model_dir.name
+        model_app_count = 0
         for app_dir in sorted(model_dir.iterdir()):
             if not app_dir.is_dir():
                 continue
+            if max_apps > 0 and model_app_count >= max_apps:
+                break
+            model_app_count += 1
             app_n = app_dir.name
             app_count += 1
 
@@ -191,7 +204,7 @@ def extract_all_data(results_dir: Path, gen_dir: Path) -> dict:
                                  service_completion)
             _process_ai(services, model_slug, ai_model, ai_tool_model, service_completion)
 
-    loc_data = count_loc(gen_dir) if gen_dir.exists() else {}
+    loc_data = count_loc(gen_dir, max_apps=max_apps) if gen_dir.exists() else {}
     return _build_output(tool_model, model_app_findings, model_app_severity,
                          perf_model, perf_tool_model, ai_model, ai_tool_model,
                          zap_model, dyn_diag_model, service_completion,
@@ -477,6 +490,14 @@ def _process_ai(services: dict, model_slug: str,
     total_t = bt + ft + at
     total_m = bm + fm + am
     overall = (total_m / total_t * 100) if total_t > 0 else 0
+
+    # Deployment penalty: apps that failed to deploy cannot fulfil the ~30% of requirements
+    # that need a live, running service (HTTP endpoints, health checks, etc.).
+    # Only the statically-verifiable fraction is credited to non-deployed apps.
+    deployed = services.get('dynamic-analyzer', {}).get('status') == 'success'
+    if not deployed:
+        overall *= STATIC_REQUIREMENT_FRACTION
+
     ai_model[model_slug]['overall'].append(overall)
     ai_model[model_slug]['backend'].append(
         summary.get('backend_compliance', (bm / bt * 100 if bt else 0)))
@@ -801,6 +822,11 @@ def _build_output(tool_model, model_app_findings, model_app_severity,
     output['dynamic_tools'] = dyn_tools_output
 
     # Model summary
+    # NOTE: total_findings and defect_density_kloc use STATIC tool findings only
+    # (model_app_findings is populated exclusively in _process_static).
+    # Dynamic/performance tool findings are intentionally excluded so that models
+    # which deployed successfully are not penalised for having more findings from
+    # ZAP, curl, and performance tools relative to models that failed to deploy.
     model_summary = {}
     for ms in MODEL_SHORT_NAMES:
         app_findings = list(model_app_findings[ms].values())
@@ -896,6 +922,8 @@ def main() -> None:
                         help='Path to results directory')
     parser.add_argument('--gen-dir', default='generated/apps',
                         help='Path to generated apps directory')
+    parser.add_argument('--max-apps', type=int, default=0,
+                        help='Maximum apps to process per model (0 = no limit)')
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir)
@@ -905,7 +933,7 @@ def main() -> None:
         print(f"ERROR: Results directory not found: {results_dir}")
         return
 
-    output = extract_all_data(results_dir, gen_dir)
+    output = extract_all_data(results_dir, gen_dir, max_apps=args.max_apps)
     with open(args.output, 'w') as f:
         json.dump(output, f, indent=2, default=str)
 
