@@ -8,6 +8,147 @@
 (function () {
   'use strict';
 
+  let severityDonutChart = null;
+  let serviceBarChart = null;
+
+  function normalizeSeverity(value) {
+    const sev = String(value || '').toLowerCase();
+    if (sev === 'critical' || sev === 'blocker') return 'critical';
+    if (sev === 'high' || sev === 'error' || sev === 'danger') return 'high';
+    if (sev === 'medium' || sev === 'warning' || sev === 'warn' || sev === 'moderate') return 'medium';
+    if (sev === 'low' || sev === 'minor') return 'low';
+    return 'info';
+  }
+
+  function sumSeverityBreakdown(breakdown) {
+    if (!breakdown || typeof breakdown !== 'object') return 0;
+    let total = 0;
+    for (const value of Object.values(breakdown)) {
+      const count = Number(value);
+      if (Number.isFinite(count) && count > 0) total += count;
+    }
+    return total;
+  }
+
+  function addBreakdown(target, breakdown) {
+    if (!breakdown || typeof breakdown !== 'object') return;
+    for (const [severity, rawCount] of Object.entries(breakdown)) {
+      const count = Number(rawCount);
+      if (!Number.isFinite(count) || count <= 0) continue;
+      const normalized = normalizeSeverity(severity);
+      target[normalized] += count;
+    }
+  }
+
+  function uniqueAnalysisSources(analysis) {
+    const sources = [];
+    if (!analysis || typeof analysis !== 'object') return sources;
+
+    const candidates = [analysis.results, analysis.tools, analysis.tool_results];
+    candidates.forEach((candidate) => {
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return;
+      if (!sources.includes(candidate)) sources.push(candidate);
+    });
+
+    if (sources.length === 0) sources.push(analysis);
+    return sources;
+  }
+
+  function countFindingsFromNode(node, depth) {
+    if (!node || typeof node !== 'object' || Array.isArray(node) || depth > 6) return 0;
+
+    const sevTotal = sumSeverityBreakdown(node.severity_breakdown);
+    if (sevTotal > 0) return sevTotal;
+
+    if (Array.isArray(node.issues)) return node.issues.length;
+
+    const totalIssues = Number(node.total_issues);
+    if (Number.isFinite(totalIssues) && totalIssues > 0) return totalIssues;
+
+    const issueCount = Number(node.issue_count);
+    if (Number.isFinite(issueCount) && issueCount > 0) return issueCount;
+
+    let nestedCount = 0;
+    for (const value of Object.values(node)) {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        nestedCount += countFindingsFromNode(value, depth + 1);
+      }
+    }
+    return nestedCount;
+  }
+
+  function addSeverityFromNode(node, counts, depth) {
+    if (!node || typeof node !== 'object' || Array.isArray(node) || depth > 6) return;
+
+    const sevTotal = sumSeverityBreakdown(node.severity_breakdown);
+    if (sevTotal > 0) {
+      addBreakdown(counts, node.severity_breakdown);
+      return;
+    }
+
+    if (Array.isArray(node.issues) && node.issues.length > 0) {
+      node.issues.forEach((issue) => {
+        const severity = issue && (issue.severity || issue.level || issue.issue_severity || issue.type);
+        counts[normalizeSeverity(severity)] += 1;
+      });
+      return;
+    }
+
+    const totalIssues = Number(node.total_issues);
+    if (Number.isFinite(totalIssues) && totalIssues > 0) {
+      counts.info += totalIssues;
+      return;
+    }
+
+    const issueCount = Number(node.issue_count);
+    if (Number.isFinite(issueCount) && issueCount > 0) {
+      counts.info += issueCount;
+      return;
+    }
+
+    for (const value of Object.values(node)) {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        addSeverityFromNode(value, counts, depth + 1);
+      }
+    }
+  }
+
+  function getSeverityBreakdown(data) {
+    const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+
+    const summaryBreakdown = data?.results?.summary?.severity_breakdown;
+    if (sumSeverityBreakdown(summaryBreakdown) > 0) {
+      addBreakdown(counts, summaryBreakdown);
+      return counts;
+    }
+
+    const services = data?.results?.services || {};
+    for (const serviceData of Object.values(services)) {
+      const analysis = serviceData?.analysis || {};
+      uniqueAnalysisSources(analysis).forEach((source) => addSeverityFromNode(source, counts, 0));
+    }
+
+    return counts;
+  }
+
+  function getServiceFindings(services) {
+    const serviceCounts = {};
+    for (const [serviceName, serviceData] of Object.entries(services || {})) {
+      const analysis = serviceData?.analysis || {};
+      let total = 0;
+      uniqueAnalysisSources(analysis).forEach((source) => {
+        total += countFindingsFromNode(source, 0);
+      });
+      serviceCounts[serviceName] = total;
+    }
+    return serviceCounts;
+  }
+
+  function destroyChart(instance) {
+    if (instance) instance.destroy();
+    return null;
+  }
+
   // ========== C3: Charts ==========
   function initCharts() {
     if (typeof Chart === 'undefined') return;
@@ -18,7 +159,8 @@
     // --- Severity Donut ---
     const donutCanvas = document.getElementById('severityDonutChart');
     if (donutCanvas) {
-      const sev = (data.results && data.results.summary && data.results.summary.severity_breakdown) || {};
+      severityDonutChart = destroyChart(severityDonutChart);
+      const sev = getSeverityBreakdown(data);
       const labels = [];
       const values = [];
       const colors = [];
@@ -37,7 +179,7 @@
         }
       }
       if (values.length > 0) {
-        new Chart(donutCanvas, {
+        severityDonutChart = new Chart(donutCanvas, {
           type: 'doughnut',
           data: {
             labels: labels,
@@ -58,12 +200,16 @@
           }
         });
       }
+    } else {
+      severityDonutChart = destroyChart(severityDonutChart);
     }
 
     // --- Service Findings Bar Chart ---
     const barCanvas = document.getElementById('serviceBarChart');
     if (barCanvas) {
+      serviceBarChart = destroyChart(serviceBarChart);
       const services = (data.results && data.results.services) || {};
+      const serviceFindings = getServiceFindings(services);
       const svcLabels = [];
       const svcValues = [];
       const svcColors = [];
@@ -77,37 +223,14 @@
       for (const [key, svc] of Object.entries(services)) {
         if (!svc) continue;
         const label = key.charAt(0).toUpperCase() + key.slice(1);
-        let count = 0;
-        // Count findings from analysis results
-        const analysis = svc.analysis || {};
-        const results = analysis.results || analysis.tools || {};
-        if (typeof results === 'object') {
-          for (const [tk, tv] of Object.entries(results)) {
-            if (tk.startsWith('_') || tk === 'tool_status' || tk === 'error') continue;
-            if (tv && typeof tv === 'object') {
-              // Count issues arrays or issue_count fields
-              if (Array.isArray(tv.issues)) count += tv.issues.length;
-              else if (typeof tv.issue_count === 'number') count += tv.issue_count;
-              else if (typeof tv.total_issues === 'number') count += tv.total_issues;
-              else if (tv.results && typeof tv.results === 'object') {
-                for (const lang of Object.values(tv.results)) {
-                  if (lang && typeof lang === 'object') {
-                    for (const tool of Object.values(lang)) {
-                      if (tool && Array.isArray(tool.issues)) count += tool.issues.length;
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
+        const count = serviceFindings[key] || 0;
         svcLabels.push(label);
         svcValues.push(count);
         svcColors.push(svcColorMap[key] || '#adb5bd');
       }
 
       if (svcLabels.length > 0) {
-        new Chart(barCanvas, {
+        serviceBarChart = new Chart(barCanvas, {
           type: 'bar',
           data: {
             labels: svcLabels,
@@ -133,6 +256,8 @@
           }
         });
       }
+    } else {
+      serviceBarChart = destroyChart(serviceBarChart);
     }
   }
 
@@ -275,4 +400,16 @@
   } else {
     init();
   }
+
+  document.body.addEventListener('htmx:afterSwap', function (evt) {
+    const target = evt?.detail?.elt;
+    if (!target) return;
+    if (
+      (typeof target.matches === 'function' && target.matches('[data-research-section="summary"]')) ||
+      (typeof target.querySelector === 'function' &&
+        (target.querySelector('#severityDonutChart') || target.querySelector('#serviceBarChart')))
+    ) {
+      initCharts();
+    }
+  });
 })();

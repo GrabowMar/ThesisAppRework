@@ -1371,21 +1371,22 @@ def _build_analysis_result_metrics(
     total_findings = summary.get('total_findings', descriptor.get('total_findings', 0)) or 0
     findings_tone = 'text-danger' if total_findings > 20 else ('text-warning' if total_findings > 10 else 'text-success')
 
-    tools_executed = summary.get('tools_executed', descriptor.get('tools_executed', 0)) or 0
-    # Count individual tools across all services (not just service count)
-    tools_total_count = 0
-    if services:
-        for svc_data in services.values():
-            if isinstance(svc_data, dict):
-                analysis = svc_data.get('analysis', {})
-                if isinstance(analysis, dict):
-                    used = analysis.get('tools_used', [])
-                    results_keys = analysis.get('results', {})
-                    if used:
-                        tools_total_count += len(used)
-                    elif isinstance(results_keys, dict):
-                        tools_total_count += len(results_keys)
-    tools_total: Any = tools_total_count if tools_total_count > 0 else '?'
+    summary_tools_executed = int(summary.get('tools_executed', descriptor.get('tools_executed', 0)) or 0)
+    derived_tools_executed = _count_executed_tools_from_services(services)
+
+    tools_executed = derived_tools_executed if derived_tools_executed > 0 else summary_tools_executed
+    tools_failed = int(summary.get('tools_failed', 0) or 0)
+    tools_successful = int(summary.get('tools_successful', 0) or 0)
+    if tools_successful <= 0 and summary_tools_executed > 0 and summary_tools_executed >= tools_failed:
+        tools_successful = summary_tools_executed - tools_failed
+
+    tools_hint = 'Executed tools'
+    if derived_tools_executed > 0 and summary_tools_executed > 0 and summary_tools_executed != derived_tools_executed:
+        tools_hint = f"Per-service count (summary: {summary_tools_executed})"
+    elif tools_executed > 0 and tools_failed > 0:
+        tools_hint = f"{tools_successful} successful, {tools_failed} failed"
+    elif tools_executed > 0 and tools_successful > 0:
+        tools_hint = f"{tools_successful} successful"
 
     dur = int(timing_info.get('actual_duration') or 0)
     if dur >= 3600:
@@ -1413,8 +1414,8 @@ def _build_analysis_result_metrics(
         },
         {
             'label': 'Tools',
-            'value': f"{tools_executed}/{tools_total}",
-            'hint': 'Executed / Available',
+            'value': tools_executed,
+            'hint': tools_hint,
             'icon': 'fa-solid fa-wrench',
         },
         {
@@ -1429,26 +1430,135 @@ def _build_analysis_result_metrics(
         },
     ]
 
-    # Add severity breakdown as individual metrics
     severity_breakdown = descriptor.get('severity_breakdown', {})
-    sev_colors = {'critical': 'text-danger', 'high': 'text-danger', 'medium': 'text-warning', 'low': 'text-info', 'info': 'text-muted'}
-    for sev_name in ['critical', 'high', 'medium', 'low']:
-        sev_count = severity_breakdown.get(sev_name, 0)
-        if sev_count and sev_count > 0:
-            metrics.append({
-                'label': sev_name.title(),
-                'value': sev_count,
-                'tone': sev_colors.get(sev_name, 'text-muted'),
-                'icon': 'fa-solid fa-triangle-exclamation' if sev_name in ('critical', 'high') else 'fa-solid fa-circle-info',
-            })
+    if not isinstance(severity_breakdown, dict):
+        severity_breakdown = {}
+    critical_count = int(severity_breakdown.get('critical', 0) or 0)
+    high_count = int(severity_breakdown.get('high', 0) or 0)
+    medium_count = int(severity_breakdown.get('medium', 0) or 0)
+    low_count = int(severity_breakdown.get('low', 0) or 0)
+    weighted_risk = (critical_count * 5) + (high_count * 3) + (medium_count * 2) + low_count
+    risk_index = round(weighted_risk / total_findings, 2) if total_findings > 0 else 0.0
+    risk_tone = 'text-danger' if risk_index >= 3 else ('text-warning' if risk_index >= 2 else ('text-info' if risk_index > 0 else 'text-success'))
+    metrics.append({
+        'label': 'Risk Index',
+        'value': f"{risk_index:.2f}",
+        'tone': risk_tone,
+        'icon': 'fa-solid fa-scale-balanced',
+        'hint': 'Weighted severity (C×5, H×3, M×2, L×1)',
+    })
 
     return metrics
+
+
+def _format_header_timestamp(value: Any) -> str:
+    """Format timestamps for compact header display."""
+    if not value:
+        return '—'
+    try:
+        if hasattr(value, 'strftime'):
+            return value.strftime('%Y-%m-%d %H:%M:%S')
+        text = str(value)
+        return text.replace('T', ' ').split('.')[0] if 'T' in text else text
+    except Exception:
+        return str(value)
+
+
+def _count_executed_tools_from_services(services: Dict[str, Any]) -> int:
+    """Count executed tools based on per-service tools_used arrays."""
+    total = 0
+    for svc_data in services.values():
+        if not isinstance(svc_data, dict):
+            continue
+        analysis = svc_data.get('analysis', {})
+        if not isinstance(analysis, dict):
+            continue
+        used_tools = analysis.get('tools_used', [])
+        if isinstance(used_tools, list) and used_tools:
+            total += len(used_tools)
+    return total
+
+
+def _build_analysis_header_inline_metrics(
+    summary: Dict[str, Any],
+    services: Dict[str, Any],
+    timing_info: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    """Build concise top-bar metrics from summary section data."""
+    header_metrics: List[Dict[str, Any]] = []
+
+    summary_tools_executed = int(summary.get('tools_executed', 0) or 0)
+    derived_tools_executed = _count_executed_tools_from_services(services)
+    tools_executed = derived_tools_executed if derived_tools_executed > 0 else summary_tools_executed
+    tools_hint = None
+    if derived_tools_executed > 0 and summary_tools_executed > 0 and derived_tools_executed != summary_tools_executed:
+        tools_hint = f"(summary: {summary_tools_executed})"
+    if tools_executed > 0:
+        header_metrics.append({
+            'label': 'Tools',
+            'value': f"{tools_executed}{f' {tools_hint}' if tools_hint else ''}",
+            'icon': 'fa-solid fa-wrench',
+        })
+
+    service_specs = [
+        ('static', 'Static', 'fa-solid fa-code'),
+        ('dynamic', 'Dynamic', 'fa-solid fa-shield-halved'),
+        ('performance', 'Performance', 'fa-solid fa-gauge-high'),
+        ('ai', 'AI', 'fa-solid fa-robot'),
+    ]
+    for svc_key, svc_label, svc_icon in service_specs:
+        svc_data = services.get(svc_key) if isinstance(services, dict) else None
+        if not isinstance(svc_data, dict):
+            continue
+        svc_status = str(svc_data.get('status') or 'unknown').replace('_', ' ').title()
+        analysis = svc_data.get('analysis', {})
+        detail_value = svc_status
+        if isinstance(analysis, dict):
+            if svc_key == 'ai':
+                ai_summary = analysis.get('summary', {})
+                compliance = ai_summary.get('overall_compliance') if isinstance(ai_summary, dict) else None
+                if isinstance(compliance, (int, float)):
+                    detail_value = f"{svc_status} ({compliance:.1f}% compliance)"
+            else:
+                svc_tools = analysis.get('tools_used', [])
+                if isinstance(svc_tools, list) and svc_tools:
+                    detail_value = f"{svc_status} ({len(svc_tools)} tools)"
+
+        header_metrics.append({
+            'label': svc_label,
+            'value': detail_value,
+            'icon': svc_icon,
+        })
+
+    duration = int(timing_info.get('actual_duration') or 0)
+    if duration > 0:
+        if duration >= 3600:
+            dur_display = f"{duration // 3600}h {(duration % 3600) // 60}m"
+        elif duration >= 60:
+            dur_display = f"{duration // 60}m {duration % 60}s"
+        else:
+            dur_display = f"{duration}s"
+        header_metrics.append({'label': 'Duration', 'value': dur_display, 'icon': 'fa-solid fa-clock'})
+
+    if timing_info.get('started_at'):
+        header_metrics.append({
+            'label': 'Started',
+            'value': _format_header_timestamp(timing_info.get('started_at')),
+            'icon': 'fa-solid fa-play',
+        })
+    if timing_info.get('completed_at'):
+        header_metrics.append({
+            'label': 'Completed',
+            'value': _format_header_timestamp(timing_info.get('completed_at')),
+            'icon': 'fa-solid fa-flag-checkered',
+        })
+
+    return header_metrics
 
 
 def _build_analysis_result_sections(result_id: str) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]]]:
     """Build the section list for the analysis result detail page."""
     base = [
-        ('summary', 'Summary', 'fa-solid fa-chart-pie', 'pages/analysis/partials/_section_summary.html'),
         ('static', 'Static Analysis', 'fa-solid fa-code', 'pages/analysis/partials/_section_static.html'),
         ('dynamic', 'Dynamic Analysis', 'fa-solid fa-shield-halved', 'pages/analysis/partials/_section_dynamic.html'),
         ('performance', 'Performance', 'fa-solid fa-gauge-high', 'pages/analysis/partials/_section_performance.html'),
@@ -1583,24 +1693,8 @@ def build_analysis_result_context(
 
     actions = _build_analysis_result_actions(descriptor, result_id, prev_task_id, next_task_id)
     metrics = _build_analysis_result_metrics(descriptor, summary, timing_info, services)
+    header_inline_metrics = _build_analysis_header_inline_metrics(summary, services, timing_info)
     sections, sections_map = _build_analysis_result_sections(result_id)
-
-    # Resolve timestamp for subtitle
-    timestamp_str = 'N/A'
-    if hasattr(descriptor, 'display_timestamp') and callable(descriptor.display_timestamp):
-        ts = descriptor.display_timestamp()
-        if ts and ts != 'N/A':
-            timestamp_str = ts
-    if timestamp_str == 'N/A':
-        # Fallback to timing_info timestamps
-        for ts_key in ('completed_at', 'created_at', 'started_at'):
-            ts_val = timing_info.get(ts_key)
-            if ts_val:
-                try:
-                    timestamp_str = ts_val.strftime('%Y-%m-%d %H:%M:%S') if hasattr(ts_val, 'strftime') else str(ts_val)
-                except Exception:
-                    timestamp_str = str(ts_val)
-                break
 
     view = {
         'pretitle': 'Analysis Result',
@@ -1608,8 +1702,7 @@ def build_analysis_result_context(
         'title': f"{model_slug} · App #{app_number}",
         'subtitle': (
             f'{task_name.replace("_", " ").title()} · '
-            f'<code class="user-select-all">{result_id[:20]}…</code> · '
-            f'{timestamp_str}'
+            f'<code class="user-select-all">{result_id[:20]}…</code>'
         ),
         'badges': [],
         'actions': actions,
@@ -1624,6 +1717,7 @@ def build_analysis_result_context(
 
     return {
         'view': view,
+        'header_inline_metrics': header_inline_metrics,
         'breadcrumb_items': breadcrumb_items,
         'metrics': metrics,
         'sections': sections,

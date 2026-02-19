@@ -261,8 +261,8 @@ def build_applications_context():
             states = [s.lower() for s in status_details.get('states', []) if s]
             containers = status_details.get('containers', [])
             
-            # Check if any container exited or is dead
-            if any(s in ('exited', 'dead', 'error', 'failed') for s in states):
+            # Check if any container is in a terminal failure state
+            if any(s in ('dead', 'error', 'failed') for s in states):
                 is_container_unhealthy = True
             
             # Check for error in status_details
@@ -276,21 +276,11 @@ def build_applications_context():
                 exit_code = c_state.get('ExitCode', 0) if c_state else 0
                 health = (container.get('health', '') or '').lower()
                 
-                if c_status in ('exited', 'dead', 'error'):
+                if c_status in ('dead', 'error'):
                     is_container_unhealthy = True
                 if exit_code != 0:
                     is_container_unhealthy = True
                 if health == 'unhealthy':
-                    is_container_unhealthy = True
-        
-        # Also mark as unhealthy if status is 'stopped' but was never successfully running
-        # (detected by having no live port bindings despite having port config)
-        if status == 'stopped' and not is_container_unhealthy:
-            # If there's status_details but status is stopped, containers likely crashed
-            if status_details and status_details.get('compose_exists', False):
-                states = [s.lower() for s in status_details.get('states', []) if s]
-                if states and all(s != 'running' for s in states):
-                    # All containers stopped - might be a failure
                     is_container_unhealthy = True
         
         applications_all.append({

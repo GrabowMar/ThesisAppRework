@@ -237,14 +237,29 @@ pre code {
   max-width: 1200px;
 }
 
+#toolDetailModal .modal-content {
+  border: 1px solid var(--tblr-border-color, #e6e7e9);
+  border-radius: 0.5rem;
+  box-shadow: 0 0.5rem 1.25rem rgba(24, 36, 51, 0.12);
+}
+
 #toolDetailModal .modal-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-bottom: none;
+  background: var(--tblr-bg-surface-secondary, #f6f8fb);
+  color: var(--tblr-body-color, #182433);
+  border-bottom: 1px solid var(--tblr-border-color, #e6e7e9);
 }
 
 #toolDetailModal .modal-header .btn-close {
-  filter: brightness(0) invert(1);
+  filter: none;
+  opacity: 0.65;
+}
+
+#toolDetailModal .modal-header .btn-close:hover {
+  opacity: 0.9;
+}
+
+#toolDetailModal .modal-header small {
+  color: var(--tblr-secondary-color, #6c7a91) !important;
 }
 
 #toolDetailModal .modal-title {
@@ -253,7 +268,18 @@ pre code {
 
 #toolDetailModal .card-header {
   font-weight: 600;
-  border-bottom: 2px solid var(--tblr-border-color, #e9ecef);
+  border-bottom: 1px solid var(--tblr-border-color, #e6e7e9);
+  background: var(--tblr-bg-surface-secondary, #f6f8fb);
+}
+
+#toolDetailModal .nav-tabs .nav-link {
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: var(--tblr-secondary-color, #6c7a91);
+}
+
+#toolDetailModal .nav-tabs .nav-link.active {
+  color: var(--tblr-primary, #206bc4);
 }
 
 /* Tool Detail Button */
@@ -274,6 +300,7 @@ pre code {
   position: sticky;
   top: 0;
   z-index: 10;
+  background: var(--tblr-bg-surface-secondary, #f6f8fb);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 

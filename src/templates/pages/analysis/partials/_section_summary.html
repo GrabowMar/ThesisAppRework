@@ -46,32 +46,6 @@
 </div>
 {% endif %}
 
-{# ── Severity Distribution Charts ── #}
-{% if descriptor.severity_breakdown and descriptor.severity_breakdown|length > 0 %}
-<div class="row g-3 mb-3 d-print-none">
-  <div class="col-md-5">
-    <div class="card card-sm">
-      <div class="card-body py-2">
-        <div class="small fw-bold text-muted mb-1">Severity Distribution</div>
-        <div style="height: 160px; position: relative;">
-          <canvas id="severityDonutChart"></canvas>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-7">
-    <div class="card card-sm">
-      <div class="card-body py-2">
-        <div class="small fw-bold text-muted mb-1">Findings per Service</div>
-        <div style="height: 160px; position: relative;">
-          <canvas id="serviceBarChart"></canvas>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
-
 {# ── Timing details ── #}
 {% if timing_info and timing_info.actual_duration %}
 <div class="card card-sm">

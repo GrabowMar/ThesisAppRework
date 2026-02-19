@@ -21,6 +21,19 @@
 - **Reason**: LLM-generated CSS consistently passes default stylelint rules
 - **Decision**: Keep for now — may produce findings with stricter configs or different app templates
 
+### Standardize report data pipeline
+- **Status**: Functional but fragile — accumulated structural debt
+- **Problem**: The 4 report types have no shared data contract. Each generator returns `Dict[str, Any]` with inconsistent field names (`tools_statistics` vs `tools`, `avg_duration` vs `average_duration`, `by_model` as dict vs list). Templates and routes compensate ad-hoc:
+  - `tool_analysis` is the only type with route-level normalization and a dedicated partial template (`_tool_analysis.html`) — it uses bare attribute access, which crashes if normalization is skipped.
+  - The other 3 types pass raw dicts to a 1,289-line monolith `view_report.html` that uses `.get()` everywhere — safe but hard to maintain.
+  - 5+ orphaned partial templates (`_model_analysis.html`, `_app_comparison.html`, `_model_comparison.html`, `_executive_summary.html`, `_tool_effectiveness.html`) are never referenced — dead code that adds confusion.
+- **Recommended fixes** (in priority order):
+  1. **Define TypedDicts or Pydantic models** for each report type's output — makes the contract explicit and IDE-checkable
+  2. **Add a shared `normalize_report_data(report_type, data)` function** called from the route for all report types, not just `tool_analysis`
+  3. **Delete the orphaned partials** — zero value, high confusion
+  4. **Split `view_report.html`** into per-type partials (like `_tool_analysis.html`), each with a normalization block in the route
+- **Files**: `src/app/services/report_service.py`, `src/app/routes/jinja/reports.py`, `src/templates/pages/reports/view_report.html`, `src/templates/pages/reports/partials/`
+
 ### Smarter app number handling for reports
 - **Status**: Currently uses `max_app_number` config (default 20) to cap apps per model
 - **Problem**: Claude had 50 apps (first 20 study, apps 21-50 system tests). The cap is a blunt instrument — it filters by `app_number <= N` across all models, not per-model.

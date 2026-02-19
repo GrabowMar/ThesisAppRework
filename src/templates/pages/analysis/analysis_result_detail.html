@@ -50,14 +50,11 @@
   {% set status_badge = {
     'label': status_metric.value,
     'color': status_metric.status_color or 'secondary',
-    'animated': status_metric.status_color == 'success'
+    'animated': false
   } if status_metric else None %}
 
-  {# Compact header bar with inline metrics and all actions #}
-  {{ research_detail_header(view, metrics[1:4] if metrics and metrics|length > 1 else [], status_badge) }}
-
-  {# Dense metric grid #}
-  {{ research_metric_grid(metrics) }}
+  {# Header with integrated summary/timing metrics #}
+  {{ research_detail_header(view, header_inline_metrics if header_inline_metrics else [], status_badge) }}
 
   {# Sticky horizontal section navigation #}
   {{ research_section_nav(sections) }}
@@ -209,4 +206,3 @@ document.addEventListener('click', function(e) {
 });
 </script>
 {% endblock %}
-

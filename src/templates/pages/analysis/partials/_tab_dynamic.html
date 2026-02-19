@@ -130,7 +130,7 @@
             {% if ns.low_risk > 0 %}<span class="badge bg-info" title="Low risk">L{{ ns.low_risk }}</span>{% endif %}
             {% if ns.info_risk > 0 %}<span class="badge bg-secondary" title="Informational">I{{ ns.info_risk }}</span>{% endif %}
             {% if not ns.high_risk and not ns.medium_risk and not ns.low_risk and not ns.info_risk %}
-              <span class="text-success"><i class="fa-solid fa-shield-check me-1"></i>No vulnerabilities</span>
+              <span class="text-success"><i class="fa-solid fa-check-circle me-1"></i>No vulnerabilities</span>
             {% endif %}
           </div>
         </div>
@@ -340,7 +340,7 @@
         </div>
       {% else %}
         <div class="text-success small">
-          <i class="fa-solid fa-shield-check me-1"></i>No open ports detected on scanned range
+          <i class="fa-solid fa-check-circle me-1"></i>No open ports detected on scanned range
         </div>
       {% endif %}
       
