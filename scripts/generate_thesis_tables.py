@@ -589,7 +589,7 @@ def _gen_severity_table(data: dict, note: str = '', observation: str = '') -> st
     lines.append(r'\begin{table}[htbp]')
     lines.append(r'    \centering')
     lines.append(r'    \caption{Findings by Severity per Model (D/kLOC = Defects per 1{,}000 Lines of Code; sorted by D/kLOC desc.)}')
-    lines.append(r'    \label{tab:severity_model}')
+    lines.append(r'    \label{tab:severity_by_model}')
     lines.append(r'    \small')
     lines.append(r'    \setlength{\tabcolsep}{4pt}')
     lines.append(r'    \begin{tabular}{@{} l r r r r r r r @{}}')
@@ -736,6 +736,8 @@ def _gen_heatmap_table(data: dict) -> str:
     """Generate Tool × Model Findings Heatmap."""
     static = data['static_tools']
     dynamic = data['dynamic_tools']
+    # Use authoritative dynamic_zap data for ZAP (not dynamic_tools.zap which may differ)
+    dynamic_zap_pm = {k.split('_', 1)[1]: v for k, v in data['dynamic_zap']['per_model'].items()}
     
     # Collect tools with nonzero findings
     tools_with_findings = []
@@ -743,13 +745,15 @@ def _gen_heatmap_table(data: dict) -> str:
         if td['total_findings'] > 0:
             tools_with_findings.append((tn, td))
     for tn, td in sorted(dynamic.items()):
+        if tn == 'zap':
+            continue  # handled separately with dynamic_zap data
         if td['total_findings'] > 0 and tn not in [t[0] for t in tools_with_findings]:
             tools_with_findings.append((tn, td))
     
     lines = []
     lines.append(r'\begin{table}[htbp]')
     lines.append(r'    \centering')
-    lines.append(r'    \caption{Tool $\times$ Model Findings Heatmap (Tools With Nonzero Findings; Claude 4.5 Has 50 Apps)}')
+    lines.append(r'    \caption{Tool $\times$ Model Findings Heatmap (Tools With Nonzero Findings; 20 Apps Per Model)}')
     lines.append(r'    \label{tab:heatmap}')
     lines.append(r'    \footnotesize')
     lines.append(r'    \setlength{\tabcolsep}{2.5pt}')
@@ -772,6 +776,18 @@ def _gen_heatmap_table(data: dict) -> str:
             f = md.get('findings', 0)
             cells.append(_latex_int(f))
         lines.append(f'        {tn} & {" & ".join(cells)} \\\\')
+    
+    # Add ZAP row using authoritative dynamic_zap data
+    zap_cells = []
+    for ms in MODEL_ORDER:
+        slug = ms.split('_', 1)[1]
+        alerts = 0
+        for k, v in data['dynamic_zap']['per_model'].items():
+            if slug in k:
+                alerts = v.get('alerts', 0)
+                break
+        zap_cells.append(_latex_int(alerts))
+    lines.append(f'        zap & {" & ".join(zap_cells)} \\\\')
     
     lines.append(r'        \bottomrule')
     lines.append(r'    \end{tabular}%')
