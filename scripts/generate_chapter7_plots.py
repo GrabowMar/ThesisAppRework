@@ -84,17 +84,14 @@ SEVERITY_LOW: dict[str, int] = {
 # True compliance: total_compliance_percentage (includes endpoint testing),
 # latest task per app, first 20 apps only. The ai_tools requirements-scanner
 # scores are inflated as they only count code-level feature presence.
+_rs = _AI_TOOLS['requirements-scanner']['per_model']
 COMPLIANCE_MEAN: dict[str, float] = {
-    'Claude 4.5 Sonnet': 73.8, 'DeepSeek R1': 74.6, 'Gemini 3 Flash': 74.8,
-    'Gemini 3 Pro': 57.9, 'GLM-4.7': 68.3, 'GPT-4o Mini': 56.6,
-    'GPT-5.2 Codex': 75.7, 'Llama 3.1 405B': 50.9,
-    'Mistral Small 3.1': 63.6, 'Qwen3 Coder+': 63.7,
+    _SUMMARY[k]['short_name']: _rs[k]['compliance_pct']['mean']
+    for k in _MODEL_KEYS
 }
 COMPLIANCE_STD: dict[str, float] = {
-    'Claude 4.5 Sonnet': 9.2, 'DeepSeek R1': 11.0, 'Gemini 3 Flash': 7.9,
-    'Gemini 3 Pro': 30.4, 'GLM-4.7': 11.9, 'GPT-4o Mini': 14.8,
-    'GPT-5.2 Codex': 10.2, 'Llama 3.1 405B': 10.2,
-    'Mistral Small 3.1': 5.7, 'Qwen3 Coder+': 13.2,
+    _SUMMARY[k]['short_name']: _rs[k]['compliance_pct']['std']
+    for k in _MODEL_KEYS
 }
 
 _cq = _AI_TOOLS['code-quality-analyzer']['per_model']
