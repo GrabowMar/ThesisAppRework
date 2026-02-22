@@ -1236,8 +1236,8 @@ def _obs_findings_tool(tool_name: str, tool_data: dict, loc_data: dict) -> str:
     best_ms, best_f = items[0]
     if best_f == 0:
         return 'No model reported findings for this tool (confirmed null result).'
-    runs = (per_model.get(best_ms) or {}).get('runs', 1) or 1
-    avg = best_f / runs
+    ok_runs = (per_model.get(best_ms) or {}).get('ok_runs', 0) or (per_model.get(best_ms) or {}).get('runs', 1) or 1
+    avg = best_f / ok_runs
     zeros = sum(1 for _, f in items if f == 0)
     obs = f'Highest: {_sn(best_ms)} ({best_f:,} findings, {avg:.1f}/run).'
     if zeros:
